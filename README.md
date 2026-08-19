@@ -163,7 +163,7 @@ When making future changes:
 
 ## 🙏 Credits & Acknowledgments
 
-- Based on the original concept and design from the [PokeTokenBar macOS Project](https://github.com/YOUR_USERNAME/ORIGINAL_REPO_NAME) (update link as needed).
+- Based on the original concept and design from the [PokeTokenBar macOS Project](https://github.com/chattymin/PokeTokenBar).
 - Sprite assets powered by [PokéAPI](https://pokeapi.co/).
 
 ---
