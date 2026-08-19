@@ -161,8 +161,6 @@ class CompanionEngine:
 
             if is_already_evolved:
                 active.used_at_stage = min(active.used_at_stage, target_xp)
-            elif active.used_at_stage >= target_xp:
-                self._handle_growth(active, events)
 
             self.set_active_mon(active)
             evo_events = self._check_growth(active)
