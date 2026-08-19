@@ -318,6 +318,7 @@ class CompanionEngine:
                 cleaned_badges.append(b)
         self.state["gym_badges"] = cleaned_badges
         gym_badges = set(cleaned_badges)
+        used_today = self.state.get("used_since_install", 0)
 
         if active_boss is None:
             # Check if we should spawn a boss
