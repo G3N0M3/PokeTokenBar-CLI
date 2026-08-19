@@ -1089,8 +1089,8 @@ class CompanionEngine:
         self.save()
 
         ok, msg = self.poker.start_hand(bet)
-        hand_str = " ".join([str(c) for c in self.poker.hand])
-        return True, f"🎲 Bet {format_tokens(bet)} Tokens!\n  Cards: {hand_str}\n  ➔ Type 'hold 1 3 5' (or 'hold none' / 'hold all') to draw!"
+        hand_str = " ".join([str(c) for c in self.poker.player_hand])
+        return True, f"🎲 Bet {format_tokens(bet)} Tokens against the House!\n  Your Cards: {hand_str}\n  ➔ Type 'hold 1 3 5' (or 'hold none' / 'hold all') to draw against the House!"
 
     def play_poker_hold(self, hold_str: str) -> Tuple[bool, str]:
         if self.poker.game_state != "holding":
