@@ -85,6 +85,8 @@ class CompanionEngine:
         return StorageManager.dict_to_mon(self.state.get("active_mon"))
 
     def set_active_mon(self, mon: Optional[MonState]):
+        if mon:
+            self.state["happiness"] = mon.happiness
         self.state["active_mon"] = StorageManager.mon_to_dict(mon) if mon else None
         self.save()
 
@@ -162,13 +164,23 @@ class CompanionEngine:
             dex = self.state.get("dex", [])
             discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
             is_already_evolved = (active.stage_index < len(active.path_ids) - 1) and (active.path_ids[active.stage_index + 1] in discovered_sp_ids)
-
-            if is_already_evolved:
-                active.used_at_stage = min(active.used_at_stage, target_xp)
-
+            active.used_at_stage += delta
             self.set_active_mon(active)
             evo_events = self._check_growth(active)
             events.extend(evo_events)
+
+        # Check mini trainer auto battle
+        self._check_trainer_battle(delta, events)
+
+        # Check gym boss raid
+        boss_events = self._check_gym_boss_raid(delta)
+        events.extend(boss_events)
+
+        # Check expedition progress
+        self._check_expeditions(delta, events)
+
+        # Update coding streak & daily quest metrics
+        self._update_streak_and_quests(delta, events)
 
         # Check achievements
         ach_events = self._check_achievements()
@@ -228,7 +240,7 @@ class CompanionEngine:
                 elif q_type == "streak" and self.state.get("streak_days", 1) >= q["target"]:
                     q["progress"] = q["target"]
                     events.append(f"🎯 Quest Complete: [{q['text']}]! Type 'claim {q['id']}' to collect your reward!")
-                elif q_type == "happiness" and self.state.get("happiness", 0) >= q["target"]:
+                elif q_type == "happiness" and (active.happiness if active else 100) >= q["target"]:
                     q["progress"] = q["target"]
                     events.append(f"🎯 Quest Complete: [{q['text']}]! Type 'claim {q['id']}' to collect your reward!")
 
@@ -495,6 +507,7 @@ class CompanionEngine:
                 total_forms=mon.total_forms,
                 is_shiny=mon.is_shiny,
                 nature=mon.nature,
+                happiness=mon.happiness,
                 ditto_disguise=mon.ditto_disguise,
                 ditto_revealed=mon.ditto_revealed
             )

@@ -263,7 +263,7 @@ class PokeTokenBarTUI:
             sys.stdout.write(f"\n  {BOLD}{GREEN}Active Companion: {shiny_str}{name} (#{sp_id}){mega_badge}{RESET}\n")
             sys.stdout.write(f"  Rarity: {YELLOW}{active.rarity.value.upper()}{RESET}  |  Nature: {CYAN}{nature_name}{RESET}  |  Form: {active.stage_index+1}/{active.total_forms}\n")
 
-            happiness = self.engine.state.get("happiness", 100)
+            happiness = active.happiness if active else self.engine.state.get("happiness", 100)
             streak = self.engine.state.get("streak_days", 1)
             hap_boost = f" {GREEN}(+20% Bonus XP!){RESET}" if happiness >= 100 else ""
             sys.stdout.write(f"  Happiness: {RED}💖 {happiness}%{RESET}{hap_boost}  |  Coding Streak: {YELLOW}🔥 {streak} Days{RESET}\n")
