@@ -817,11 +817,15 @@ class CompanionEngine:
                 return False, "You need an active Pokémon companion to give Rare Candy!"
             inv[item_kind.value] -= 1
             self.state["inventory"] = inv
-            self.save()
-            
+
             xp_grant = int(self.current_difficulty.shop_prices["rare_candy"] * 0.6)
-            events = self.process_usage(self.state.get("used_since_install", 0) + xp_grant)
-            msg = f"Gave 1 Rare Candy! (+{format_tokens(xp_grant)} XP)"
+            active.used_at_stage += xp_grant
+            self.set_active_mon(active)
+
+            events = self._check_growth(active)
+            self.save()
+
+            msg = f"Gave 1 Rare Candy 🍬 to {self.api.get_species_name(active.current_id)}! (+{format_tokens(xp_grant)} XP)"
             if events:
                 msg += "\n" + "\n".join(events)
             return True, msg
