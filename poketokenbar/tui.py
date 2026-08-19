@@ -309,7 +309,7 @@ class PokeTokenBarTUI:
                 sys.stdout.write(f"  {idx:2d}. {shiny_str} {BOLD}{name}{RESET} (#{sp_id}) [{rarity}] {status_badge}\n")
 
         sys.stdout.write(f"\n  ➔ Type '{BOLD}select <id>{RESET}' or '{BOLD}select egg{RESET}' to switch active companion!\n")
-        sys.stdout.write(f"  ➔ Type '{BOLD}send <id> [area]{RESET}' to dispatch a companion on an expedition!\n\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}send <id> [viridian/cerulean/silver]{RESET}' on expedition!\n\n")
 
     def render_shop_tab(self):
         avail = self.engine.available_tokens
