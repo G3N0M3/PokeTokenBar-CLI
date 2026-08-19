@@ -231,13 +231,13 @@ class PokeTokenBarTUI:
         t6 = f"{BOLD}{CYAN}[6] Battles{RESET}" if self.current_tab == 6 else "[6] Battles"
         t7 = f"{BOLD}{CYAN}[7] Quests{RESET}" if self.current_tab == 7 else "[7] Quests"
         t8 = f"{BOLD}{CYAN}[8] Monitor{RESET}" if self.current_tab == 8 else "[8] Monitor"
-        t9 = f"{BOLD}{CYAN}[9] Poker{RESET}" if self.current_tab == 9 else "[9] Poker"
+        t9 = f"{BOLD}{CYAN}[9] Hold 'em{RESET}" if self.current_tab == 9 else "[9] Hold 'em"
         t10 = f"{BOLD}{CYAN}[10] Gacha{RESET}" if self.current_tab == 10 else "[10] Gacha"
         t11 = f"{BOLD}{CYAN}[11] Settings{RESET}" if self.current_tab == 11 else "[11] Settings"
 
         sys.stdout.write(f"  {t1}   {t2}     {t3}      {t4}\n")
         sys.stdout.write(f"  {t5} {t6}     {t7}      {t8}\n")
-        sys.stdout.write(f"  {t9}       {t10}    {t11}\n")
+        sys.stdout.write(f"  {t9}    {t10}    {t11}\n")
         sys.stdout.write("-" * 72 + "\n")
 
     def render_companion_tab(self, summary: dict):
