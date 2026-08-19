@@ -930,30 +930,45 @@ class CompanionEngine:
         if not dex:
             return False, "Your Pokédex is empty! Register companions before dispatching expeditions."
 
-        target_entry = None
-        try:
-            idx = int(selection_input)
-            if 1 <= idx <= len(dex):
-                target_entry = dex[idx - 1]
-        except ValueError:
-            pass
+        expeditions = self.state.get("expeditions", [])
+        exp_map = {e["sp_id"]: e for e in expeditions}
+        roster = [d for d in dex if (d.get("status") != "evolved" or d.get("species_id", d.get("final_id", d.get("base_id"))) in exp_map)]
 
-        if target_entry is None:
-            # Try matching by species_id or base_id
+        s_input = selection_input.strip()
+        target_entry = None
+
+        # 1. If starts with '#', match strictly by species_id
+        if s_input.startswith("#"):
+            target_sp = s_input[1:]
             for d in dex:
                 sp_id = str(d.get("species_id", d.get("base_id")))
-                if selection_input == sp_id:
+                if target_sp == sp_id:
                     target_entry = d
                     break
+        else:
+            # 2. Try matching by 1-based index in ROSTER (matching Tab 3)
+            try:
+                idx = int(s_input)
+                if 1 <= idx <= len(roster):
+                    target_entry = roster[idx - 1]
+            except ValueError:
+                pass
+
+            # 3. Fallback to species_id match
+            if target_entry is None:
+                for d in dex:
+                    sp_id = str(d.get("species_id", d.get("base_id")))
+                    if s_input == sp_id:
+                        target_entry = d
+                        break
 
         if target_entry is None:
-            return False, f"Companion '{selection_input}' not found in Pokédex! Use index (1..{len(dex)}) or species ID."
+            return False, f"Companion '{selection_input}' not found in Roster! Use roster index (1..{len(roster)}) or '#<species_id>'."
 
         sp_id = target_entry.get("species_id", target_entry.get("base_id"))
         sp_name = self.api.get_species_name(sp_id)
 
         # Check if already on expedition
-        expeditions = self.state.get("expeditions", [])
         if any(e["sp_id"] == sp_id for e in expeditions):
             return False, f"{sp_name} is already on an expedition!"
 
