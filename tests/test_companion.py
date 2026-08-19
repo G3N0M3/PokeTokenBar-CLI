@@ -66,7 +66,7 @@ class TestCompanionEngine(unittest.TestCase):
         card_str = self.engine.generate_trainer_card()
         self.assertIn("TRAINER PROFILE CARD", card_str)
 
-        # Test Expedition dispatching
+        # Test Expedition dispatching by index and species ID
         ok, msg = self.engine.dispatch_expedition("1", "viridian")
         self.assertTrue(ok)
         self.assertIn("Dispatched", msg)

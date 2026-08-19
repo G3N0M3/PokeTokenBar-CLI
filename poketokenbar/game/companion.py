@@ -305,8 +305,19 @@ class CompanionEngine:
                 if b["id"] == active_boss.get("id"):
                     active_boss["name"] = b["name"]
 
-        used_today = self.state.get("used_since_install", 0)
-        gym_badges = set(self.state.get("gym_badges", []))
+        # Deduplicate pre-existing gym badges (e.g. old '⚡ Boulder Badge' vs new '🪨 Boulder Badge')
+        raw_badges = self.state.get("gym_badges", [])
+        cleaned_badges = []
+        seen_badge_names = set()
+        for b in raw_badges:
+            base_name = " ".join(b.split()[1:]) if len(b.split()) > 1 else b
+            if base_name == "Boulder Badge":
+                b = "🪨 Boulder Badge"
+            if base_name not in seen_badge_names:
+                seen_badge_names.add(base_name)
+                cleaned_badges.append(b)
+        self.state["gym_badges"] = cleaned_badges
+        gym_badges = set(cleaned_badges)
 
         if active_boss is None:
             # Check if we should spawn a boss
@@ -851,7 +862,15 @@ class CompanionEngine:
             pass
 
         if target_entry is None:
-            return False, f"Companion '{selection_input}' not found in Pokédex!"
+            # Try matching by species_id or base_id
+            for d in dex:
+                sp_id = str(d.get("species_id", d.get("base_id")))
+                if selection_input == sp_id:
+                    target_entry = d
+                    break
+
+        if target_entry is None:
+            return False, f"Companion '{selection_input}' not found in Pokédex! Use index (1..{len(dex)}) or species ID."
 
         sp_id = target_entry.get("species_id", target_entry.get("base_id"))
         sp_name = self.api.get_species_name(sp_id)

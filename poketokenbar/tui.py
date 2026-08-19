@@ -71,11 +71,11 @@ class PokeTokenBarTUI:
                 elif self.current_tab == 3:
                     self.render_shop_tab()
                 elif self.current_tab == 4:
-                    self.render_quests_tab()
-                elif self.current_tab == 5:
                     self.render_expeditions_tab()
-                elif self.current_tab == 6:
+                elif self.current_tab == 5:
                     self.render_battles_tab()
+                elif self.current_tab == 6:
+                    self.render_quests_tab()
                 elif self.current_tab == 7:
                     self.render_monitor_tab(summary)
                 elif self.current_tab == 8:
@@ -145,14 +145,14 @@ class PokeTokenBarTUI:
                             parts = cmd.split()
                             ok, msg = self.engine.claim_quest_reward(parts[-1] if len(parts) >= 2 else "all")
                             self.message = msg
-                        elif cmd.startswith("expedition"):
+                        elif cmd.startswith("send") or cmd.startswith("expedition"):
                             parts = cmd.split()
                             if len(parts) >= 2:
                                 area = parts[2] if len(parts) >= 3 else "viridian"
                                 ok, msg = self.engine.dispatch_expedition(parts[1], area)
                                 self.message = msg
                             else:
-                                self.message = "Usage: expedition <dex_index> [viridian/cerulean/silver]"
+                                self.message = "Usage: send <number/species_id> [viridian/cerulean/silver]"
                         elif cmd == "card":
                             self.message = self.engine.generate_trainer_card()
                         elif cmd.startswith("interval"):
@@ -188,9 +188,9 @@ class PokeTokenBarTUI:
         t1 = f"{BOLD}{CYAN}[1] Companion{RESET}" if self.current_tab == 1 else "[1] Companion"
         t2 = f"{BOLD}{CYAN}[2] Pokédex{RESET}" if self.current_tab == 2 else "[2] Pokédex"
         t3 = f"{BOLD}{CYAN}[3] Shop & Bag{RESET}" if self.current_tab == 3 else "[3] Shop & Bag"
-        t4 = f"{BOLD}{CYAN}[4] Quests & Badges{RESET}" if self.current_tab == 4 else "[4] Quests & Badges"
-        t5 = f"{BOLD}{CYAN}[5] Expeditions{RESET}" if self.current_tab == 5 else "[5] Expeditions"
-        t6 = f"{BOLD}{CYAN}[6] Battles{RESET}" if self.current_tab == 6 else "[6] Battles"
+        t4 = f"{BOLD}{CYAN}[4] Expeditions{RESET}" if self.current_tab == 4 else "[4] Expeditions"
+        t5 = f"{BOLD}{CYAN}[5] Battles{RESET}" if self.current_tab == 5 else "[5] Battles"
+        t6 = f"{BOLD}{CYAN}[6] Quests & Badges{RESET}" if self.current_tab == 6 else "[6] Quests & Badges"
         t7 = f"{BOLD}{CYAN}[7] Live Monitor{RESET}" if self.current_tab == 7 else "[7] Live Monitor"
         t8 = f"{BOLD}{CYAN}[8] Settings{RESET}" if self.current_tab == 8 else "[8] Settings"
         sys.stdout.write(f"  {t1}  {t2}  {t3}  {t4}  {t5}  {t6}  {t7}  {t8}\n")
@@ -261,9 +261,7 @@ class PokeTokenBarTUI:
             self.engine._register_to_dex(active, status="active")
 
         dex = self.engine.state.get("dex", [])
-        sys.stdout.write(f"\n  {BOLD}{HEADER}📖 Pokédex Archives ({len(dex)} species registered){RESET}\n")
-        sys.stdout.write(f"  ➔ Type '{BOLD}select <number>{RESET}' or '{BOLD}select egg{RESET}' to switch active companion.\n")
-        sys.stdout.write(f"  ➔ Type '{BOLD}expedition <number> [viridian/cerulean/silver]{RESET}' to dispatch a companion on an expedition!\n\n")
+        sys.stdout.write(f"\n  {BOLD}{HEADER}📖 Pokédex Archives ({len(dex)} species registered){RESET}\n\n")
 
         # Show Incubating Egg option ONLY if an egg is owned/incubating or active is None
         incubating_eggs = self.engine.state.get("incubating_eggs", {})
@@ -303,7 +301,8 @@ class PokeTokenBarTUI:
 
                 sys.stdout.write(f"  {idx:2d}. {shiny_str} {BOLD}{name}{RESET} (#{sp_id}) [{rarity}] {status_badge} - Discovered: {caught_at}\n")
 
-        sys.stdout.write(f"\n  ➔ Type '{BOLD}select <number>{RESET}' or '{BOLD}select egg{RESET}' to make a Pokémon or Egg your active companion!\n\n")
+        sys.stdout.write(f"\n  ➔ Type '{BOLD}select <number>{RESET}' or '{BOLD}select egg{RESET}' to switch active companion!\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}send <number/species_id> [viridian/cerulean/silver]{RESET}' to dispatch a companion on an expedition!\n\n")
 
     def render_shop_tab(self):
         avail = self.engine.available_tokens
@@ -323,8 +322,8 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  [1] 🍬 Rare Candy     - Cost: {p_rc:<6} tokens  (Grants +{p_rc_xp} XP)\n")
         sys.stdout.write(f"  [2] 🌿 Mint           - Cost: {p_mint:<6} tokens  (Rerolls nature)\n")
         sys.stdout.write(f"  [3] ✨ Shiny Charm    - Cost: {p_charm:<6} tokens  (Passive 1/48 shiny odds)\n")
-        sys.stdout.write(f"  [4] 🥚 Pokémon Egg    - Cost: {p_egg1:<6} tokens  (Incubate new egg & save act. mon)\n")
-        sys.stdout.write(f"  [5] 🥚 Uncommon Egg   - Cost: {p_egg2:<6} tokens  (Guarantees Uncommon+ egg & save act. mon)\n")
+        sys.stdout.write(f"  [4] 🥚 Pokémon Egg    - Cost: {p_egg1:<6} tokens  (Incubate new egg)\n")
+        sys.stdout.write(f"  [5] 🥚 Uncommon Egg   - Cost: {p_egg2:<6} tokens  (Guarantees Uncommon+ egg)\n")
         sys.stdout.write(f"  [6] 🫐 Oran Berry     - Cost: 1.0M   tokens  (+25% Companion Happiness)\n")
         sys.stdout.write(f"  [7] 🍇 Golden Razz    - Cost: 5.0M   tokens  (Boosts next egg shiny odds to 1/24!)\n")
         sys.stdout.write(f"  [8] 🔮 Mega Stone     - Cost: 50.0M  tokens  (Mega Evolve eligible final forms!)\n\n")
@@ -412,20 +411,22 @@ class PokeTokenBarTUI:
 
         # 3. Achievements Unlocked
         sys.stdout.write(f"\n  {BOLD}🎖️ Achievements ({len(achievements)} Unlocked):{RESET}\n")
-        ach_titles = {
-            "shiny_hunter": "🌟 Shiny Hunter",
-            "token_tycoon": "💎 Token Tycoon",
-            "dex_collector": "📖 Dex Collector",
-            "gym_champion": "⚔️ Gym Champion",
-            "streak_master": "⚡ Streak Master"
-        }
-        if not achievements:
-            sys.stdout.write("   No achievements unlocked yet.\n\n")
-        else:
-            for code in achievements:
-                t = ach_titles.get(code, code)
-                sys.stdout.write(f"   • {BOLD}{GREEN}{t}{RESET}\n")
-            sys.stdout.write("\n")
+        all_achievements = [
+            ("shiny_hunter", "🌟 Shiny Hunter", "Hatch a rare Shiny Pokémon"),
+            ("token_tycoon", "💎 Token Tycoon", "Burn 100M+ lifetime tokens"),
+            ("dex_collector", "📖 Dex Collector", "Register 5+ species in Pokédex"),
+            ("gym_champion", "🏆 Gym Champion", "Defeat your first Gym Boss Raid"),
+            ("streak_master", "⚡ Streak Master", "Maintain a 3+ day coding streak")
+        ]
+        unlocked_set = set(achievements)
+        for code, title, desc in all_achievements:
+            if code in unlocked_set:
+                badge = f"{BOLD}{GREEN}[UNLOCKED]{RESET}"
+                sys.stdout.write(f"   • {BOLD}{title:<18}{RESET} - {desc:<36} {badge}\n")
+            else:
+                badge = f"{BOLD}{YELLOW}[LOCKED]{RESET}"
+                sys.stdout.write(f"   • {title:<18} - {desc:<36} {badge}\n")
+        sys.stdout.write("\n")
 
     def render_expeditions_tab(self):
         expeditions = self.engine.state.get("expeditions", [])
@@ -434,7 +435,7 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"   • Viridian Forest - Target: 5.0M tokens  - Reward: 🌿 Mint\n")
         sys.stdout.write(f"   • Cerulean Cave   - Target: 15.0M tokens - Reward: 🍬 Rare Candy\n")
         sys.stdout.write(f"   • Mt. Silver      - Target: 30.0M tokens - Reward: 🍇 Golden Razz Berry\n\n")
-        sys.stdout.write(f"  ➔ Type '{BOLD}expedition <dex_number> [viridian/cerulean/silver]{RESET}' to dispatch!\n\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}send <number/species_id> [viridian/cerulean/silver]{RESET}' to dispatch!\n\n")
 
         sys.stdout.write(f"  {BOLD}🗺️ Active Expeditions Status:{RESET}\n")
         if not expeditions:
