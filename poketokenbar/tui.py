@@ -496,7 +496,9 @@ class PokeTokenBarTUI:
         if not badges:
             sys.stdout.write("   No badges earned yet. Defeat Gym Bosses to earn badges!\n")
         else:
-            sys.stdout.write("   " + "   ".join([f"{BOLD}{YELLOW}{b}{RESET}" for b in badges]) + "\n")
+            for i in range(0, len(badges), 4):
+                chunk = badges[i:i+4]
+                sys.stdout.write("   " + "   ".join([f"{BOLD}{YELLOW}{b}{RESET}" for b in chunk]) + "\n")
 
         # 3. Achievements Unlocked
         sys.stdout.write(f"\n  {BOLD}🎖️ Achievements ({len(achievements)} Unlocked):{RESET}\n")
