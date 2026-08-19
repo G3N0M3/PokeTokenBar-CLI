@@ -122,9 +122,20 @@ class ItemKind(str, Enum):
     RARE_CANDY = "rare_candy"
     MINT = "mint"
     SHINY_CHARM = "shiny_charm"
+    BERRY_ORAN = "berry_oran"
+    BERRY_GOLDEN = "berry_golden"
+    MEGA_STONE = "mega_stone"
 
     def price_for(self, difficulty: DifficultyMode = DifficultyMode.EASY) -> int:
-        return difficulty.shop_prices.get(self.value, 5_000_000)
+        prices = {
+            ItemKind.RARE_CANDY: difficulty.shop_prices.get("rare_candy", 5_000_000),
+            ItemKind.MINT: difficulty.shop_prices.get("mint", 1_000_000),
+            ItemKind.SHINY_CHARM: difficulty.shop_prices.get("shiny_charm", 30_000_000),
+            ItemKind.BERRY_ORAN: 1_000_000,
+            ItemKind.BERRY_GOLDEN: 5_000_000,
+            ItemKind.MEGA_STONE: 50_000_000,
+        }
+        return prices.get(self, 5_000_000)
 
     @property
     def price(self) -> int:
@@ -136,6 +147,9 @@ class ItemKind(str, Enum):
             ItemKind.RARE_CANDY: "Rare Candy",
             ItemKind.MINT: "Mint",
             ItemKind.SHINY_CHARM: "Shiny Charm",
+            ItemKind.BERRY_ORAN: "Oran Berry",
+            ItemKind.BERRY_GOLDEN: "Golden Razz Berry",
+            ItemKind.MEGA_STONE: "Mega Stone",
         }[self]
 
     @property
@@ -144,6 +158,9 @@ class ItemKind(str, Enum):
             ItemKind.RARE_CANDY: "🍬",
             ItemKind.MINT: "🌿",
             ItemKind.SHINY_CHARM: "✨",
+            ItemKind.BERRY_ORAN: "🫐",
+            ItemKind.BERRY_GOLDEN: "🍇",
+            ItemKind.MEGA_STONE: "🔮",
         }[self]
 
 @dataclass
@@ -159,6 +176,7 @@ class MonState:
     nature: Optional[PokemonNature] = None
     ditto_disguise: Optional[int] = None
     ditto_revealed: bool = False
+    is_mega: bool = False
 
     @property
     def current_id(self) -> int:

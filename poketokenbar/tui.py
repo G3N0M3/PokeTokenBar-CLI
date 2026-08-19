@@ -135,6 +135,16 @@ class PokeTokenBarTUI:
                             parts = cmd.split()
                             ok, msg = self.engine.claim_quest_reward(parts[-1] if len(parts) >= 2 else "all")
                             self.message = msg
+                        elif cmd.startswith("expedition"):
+                            parts = cmd.split()
+                            if len(parts) >= 2:
+                                area = parts[2] if len(parts) >= 3 else "viridian"
+                                ok, msg = self.engine.dispatch_expedition(parts[1], area)
+                                self.message = msg
+                            else:
+                                self.message = "Usage: expedition <dex_index> [viridian/cerulean/silver]"
+                        elif cmd == "card":
+                            self.message = self.engine.generate_trainer_card()
                         elif cmd.startswith("interval"):
                             parts = cmd.split()
                             if len(parts) >= 2:
@@ -149,9 +159,9 @@ class PokeTokenBarTUI:
                         elif cmd == "reset" and self.current_tab == 6:
                             ok, msg = self.engine.reset_game_state()
                             self.message = msg
-                        elif self.current_tab == 3 and cmd in ["buy 1", "buy 2", "buy 3", "buy 4", "buy 5"]:
+                        elif self.current_tab == 3 and cmd.startswith("buy"):
                             self.handle_shop_buy(cmd)
-                        elif self.current_tab == 3 and cmd in ["use 1", "use 2"]:
+                        elif self.current_tab == 3 and cmd.startswith("use"):
                             self.handle_bag_use(cmd)
                 except KeyboardInterrupt:
                     print("\nExiting PokeTokenBar. Keep coding! 🐾")
@@ -292,11 +302,17 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  [2] 🌿 Mint           - Cost: {p_mint:<6} tokens  (Rerolls nature)\n")
         sys.stdout.write(f"  [3] ✨ Shiny Charm    - Cost: {p_charm:<6} tokens  (Passive 1/48 shiny odds)\n")
         sys.stdout.write(f"  [4] 🥚 Pokémon Egg    - Cost: {p_egg1:<6} tokens  (Incubate new egg & save act. mon)\n")
-        sys.stdout.write(f"  [5] 🥚 Uncommon Egg   - Cost: {p_egg2:<6} tokens  (Guarantees Uncommon+ egg & save act. mon)\n\n")
+        sys.stdout.write(f"  [5] 🥚 Uncommon Egg   - Cost: {p_egg2:<6} tokens  (Guarantees Uncommon+ egg & save act. mon)\n")
+        sys.stdout.write(f"  [6] 🫐 Oran Berry     - Cost: 1.0M   tokens  (+25% Companion Happiness)\n")
+        sys.stdout.write(f"  [7] 🍇 Golden Razz    - Cost: 5.0M   tokens  (Boosts next egg shiny odds to 1/24!)\n")
+        sys.stdout.write(f"  [8] 🔮 Mega Stone     - Cost: 50.0M  tokens  (Mega Evolve eligible final forms!)\n\n")
 
         sys.stdout.write(f"  {BOLD}Your Bag (Type 'use <number>' to use):{RESET}\n")
         sys.stdout.write(f"  [1] 🍬 Rare Candy: {inv.get('rare_candy', 0)} owned\n")
         sys.stdout.write(f"  [2] 🌿 Mint:       {inv.get('mint', 0)} owned\n")
+        sys.stdout.write(f"  [3] 🫐 Oran Berry: {inv.get('berry_oran', 0)} owned\n")
+        sys.stdout.write(f"  [4] 🍇 Golden Razz: {inv.get('berry_golden', 0)} owned\n")
+        sys.stdout.write(f"  [5] 🔮 Mega Stone:  {inv.get('mega_stone', 0)} owned\n")
         has_charm = "OWNED (Active)" if inv.get("shiny_charm", 0) > 0 else "Not owned"
         sys.stdout.write(f"  [+] ✨ Shiny Charm: {has_charm}\n\n")
 
@@ -312,6 +328,12 @@ class PokeTokenBarTUI:
             ok, msg = self.engine.buy_egg(None)
         elif choice == "5":
             ok, msg = self.engine.buy_egg(Rarity.UNCOMMON)
+        elif choice == "6":
+            ok, msg = self.engine.buy_item(ItemKind.BERRY_ORAN)
+        elif choice == "7":
+            ok, msg = self.engine.buy_item(ItemKind.BERRY_GOLDEN)
+        elif choice == "8":
+            ok, msg = self.engine.buy_item(ItemKind.MEGA_STONE)
         else:
             ok, msg = False, "Invalid shop selection."
         self.message = msg
@@ -322,6 +344,12 @@ class PokeTokenBarTUI:
             ok, msg = self.engine.use_item(ItemKind.RARE_CANDY)
         elif choice == "2":
             ok, msg = self.engine.use_item(ItemKind.MINT)
+        elif choice == "3":
+            ok, msg = self.engine.use_item(ItemKind.BERRY_ORAN)
+        elif choice == "4":
+            ok, msg = self.engine.use_item(ItemKind.BERRY_GOLDEN)
+        elif choice == "5":
+            ok, msg = self.engine.use_item(ItemKind.MEGA_STONE)
         else:
             ok, msg = False, "Invalid bag selection."
         self.message = msg

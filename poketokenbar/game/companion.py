@@ -117,6 +117,8 @@ class CompanionEngine:
 
         # Happiness XP multiplier (+20% bonus if 100% happy)
         xp_multiplier = 1.20 if happiness >= 100 else 1.0
+        if active and active.is_mega:
+            xp_multiplier += 0.50  # Mega Evolution grants +50% XP boost!
         effective_xp = int(delta * xp_multiplier)
 
         # Update coding streak & daily quests
@@ -125,6 +127,12 @@ class CompanionEngine:
         # Update boss battle damage if active
         boss_events = self._update_boss_battle(delta)
         events.extend(boss_events)
+
+        # Update Pokédex expeditions progress
+        self._update_expeditions(delta, events)
+
+        # Check mini-trainer auto-battles
+        self._check_trainer_battle(delta, events)
 
         if active is None:
             # We are incubating an egg
@@ -750,10 +758,190 @@ class CompanionEngine:
             self.save()
             return True, f"Used Mint! Nature changed to {new_nature.display_name}!"
 
+        elif item_kind == ItemKind.BERRY_ORAN:
+            if active is None:
+                return False, "You need an active Pokémon companion to feed an Oran Berry!"
+            inv[item_kind.value] -= 1
+            self.state["happiness"] = min(100, self.state.get("happiness", 0) + 25)
+            self.state["inventory"] = inv
+            self.save()
+            return True, f"Fed Oran Berry 🫐 to {self.api.get_species_name(active.current_id)}! (+25% Happiness! Current: {self.state['happiness']}%)"
+
+        elif item_kind == ItemKind.BERRY_GOLDEN:
+            inv[item_kind.value] -= 1
+            self.state["golden_razz_active"] = True
+            self.state["inventory"] = inv
+            self.save()
+            return True, "Used Golden Razz Berry 🍇! Shiny odds on your NEXT egg hatch boosted to 1/24! ✨"
+
+        elif item_kind == ItemKind.MEGA_STONE:
+            return self.toggle_mega_evolution()
+
         elif item_kind == ItemKind.SHINY_CHARM:
             return False, "Shiny Charm is a passive item and works automatically on all future egg hatches!"
 
         return False, "Unknown item action."
+
+    def toggle_mega_evolution(self) -> Tuple[bool, str]:
+        active = self.active_mon
+        if active is None:
+            return False, "You need an active Pokémon companion to Mega Evolve!"
+
+        mega_eligible = {3, 6, 9, 94, 150, 448}  # Venusaur, Charizard, Blastoise, Gengar, Mewtwo, Lucario
+        if active.current_id not in mega_eligible:
+            return False, f"Species #{active.current_id} ({self.api.get_species_name(active.current_id)}) is not eligible for Mega Evolution!"
+
+        inv = self.state.get("inventory", {})
+        if inv.get(ItemKind.MEGA_STONE.value, 0) <= 0 and not active.is_mega:
+            return False, "You need a Mega Stone 🔮 from the Shop ([3]) to Mega Evolve!"
+
+        active.is_mega = not active.is_mega
+        self.set_active_mon(active)
+        name = self.api.get_species_name(active.current_id)
+        if active.is_mega:
+            return True, f"✨ MEGA EVOLUTION! {name} has Mega Evolved! (+50% Bonus XP active!)"
+        else:
+            return True, f"{name} reverted back to standard form."
+
+    def _update_expeditions(self, delta: int, events: List[str]):
+        expeditions = self.state.get("expeditions", [])
+        if not expeditions:
+            return
+
+        remaining = []
+        for exp in expeditions:
+            exp["progress"] += delta
+            if exp["progress"] >= exp["target"]:
+                sp_id = exp["sp_id"]
+                sp_name = self.api.get_species_name(sp_id)
+                area = exp["area"]
+                reward = exp["reward"]
+
+                # Grant reward
+                inv = self.state.get("inventory", {})
+                if reward == "rare_candy":
+                    inv["rare_candy"] = inv.get("rare_candy", 0) + 1
+                    reward_str = "+1 Rare Candy 🍬"
+                elif reward == "mint":
+                    inv["mint"] = inv.get("mint", 0) + 1
+                    reward_str = "+1 Mint 🌿"
+                else:
+                    inv["berry_golden"] = inv.get("berry_golden", 0) + 1
+                    reward_str = "+1 Golden Razz Berry 🍇"
+
+                self.state["inventory"] = inv
+                events.append(f"🗺️ EXPEDITION COMPLETE! {sp_name} returned from {area} with {reward_str}!")
+            else:
+                remaining.append(exp)
+
+        self.state["expeditions"] = remaining
+        self.save()
+
+    def dispatch_expedition(self, selection_input: str, area_name: str = "Viridian Forest") -> Tuple[bool, str]:
+        dex = self.state.get("dex", [])
+        if not dex:
+            return False, "Your Pokédex is empty! Register companions before dispatching expeditions."
+
+        target_entry = None
+        try:
+            idx = int(selection_input)
+            if 1 <= idx <= len(dex):
+                target_entry = dex[idx - 1]
+        except ValueError:
+            pass
+
+        if target_entry is None:
+            return False, f"Companion '{selection_input}' not found in Pokédex!"
+
+        sp_id = target_entry.get("species_id", target_entry.get("base_id"))
+        sp_name = self.api.get_species_name(sp_id)
+
+        # Check if already on expedition
+        expeditions = self.state.get("expeditions", [])
+        if any(e["sp_id"] == sp_id for e in expeditions):
+            return False, f"{sp_name} is already on an expedition!"
+
+        areas = {
+            "viridian": ("Viridian Forest", 5_000_000, "mint"),
+            "cerulean": ("Cerulean Cave", 15_000_000, "rare_candy"),
+            "silver": ("Mt. Silver", 30_000_000, "golden_razz")
+        }
+
+        key = area_name.lower().split()[0]
+        area_tuple = areas.get(key, ("Viridian Forest", 5_000_000, "mint"))
+        area_title, target_xp, reward_type = area_tuple
+
+        expeditions.append({
+            "sp_id": sp_id,
+            "area": area_title,
+            "progress": 0,
+            "target": target_xp,
+            "reward": reward_type
+        })
+        self.state["expeditions"] = expeditions
+        self.save()
+        return True, f"🗺️ Dispatched {sp_name} on an expedition to {area_title}! ({format_tokens(target_xp)} tokens required)"
+
+    def _check_trainer_battle(self, delta: int, events: List[str]):
+        # Trigger mini trainer encounter every 2.0M tokens
+        used_total = self.state.get("used_since_install", 0)
+        last_battle_token = self.state.get("last_battle_token", 0)
+
+        if used_total - last_battle_token >= 2_000_000:
+            self.state["last_battle_token"] = used_total
+            battles = self.state.get("trainer_battles", {"wins": 0, "losses": 0})
+
+            opponents = [
+                ("Youngster Joey & Rattata", 1),
+                ("Bug Catcher Rick & Caterpie", 1),
+                ("Team Rocket Grunt & Koffing", 2),
+                ("Rival Blue & Pidgeot", 3)
+            ]
+            opp_name, req_stage = random.choice(opponents)
+            active = self.active_mon
+
+            player_stage = active.stage_index + 1 if active else 0
+            if active and active.is_mega:
+                player_stage += 2
+
+            if player_stage >= req_stage or random.randint(1, 3) != 1:
+                battles["wins"] += 1
+                self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - 2_000_000)
+                events.append(f"⚔️ TRAINER BATTLE! You defeated {opp_name} in an auto-battle! Earned +2.0M Spendable Tokens!")
+            else:
+                battles["losses"] += 1
+                events.append(f"⚔️ TRAINER BATTLE! {opp_name} put up a tough fight! Keep training your companion!")
+
+            self.state["trainer_battles"] = battles
+            self.save()
+
+    def generate_trainer_card(self) -> str:
+        used_total = self.state.get("used_since_install", 0)
+        badges = self.state.get("gym_badges", [])
+        streak = self.state.get("streak_days", 1)
+        active = self.active_mon
+        mon_str = f"{self.api.get_species_name(active.current_id)} (#{active.current_id})" if active else "Incubating Egg"
+
+        rank = "Junior Coder"
+        if used_total >= 100_000_000:
+            rank = "Master Developer"
+        elif used_total >= 30_000_000:
+            rank = "Senior Engineer"
+        elif used_total >= 10_000_000:
+            rank = "Staff Coder"
+
+        lines = [
+            "========================================================================",
+            " 📇 POKETOKENBAR — TRAINER PROFILE CARD",
+            "========================================================================",
+            f" Trainer Rank:     {rank}",
+            f" Active Companion: {mon_str}",
+            f" Coding Streak:    🔥 {streak} Days",
+            f" Tokens Burned:    {format_tokens(used_total)} tokens",
+            f" Gym Badges:       {len(badges)}/10 (" + ", ".join(badges[:4]) + ("..." if len(badges) > 4 else "") + ")",
+            "========================================================================"
+        ]
+        return "\n".join(lines)
 
     def buy_egg(self, tier: Optional[Rarity] = None) -> Tuple[bool, str]:
         diff = self.current_difficulty

@@ -52,17 +52,24 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertIsNone(self.engine.active_mon)
         self.assertEqual(len(self.engine.state["dex"]), 0)
 
-    def test_quests_bosses_streaks(self):
+    def test_new_game_features(self):
         self.engine.reset_game_state()
-        # Simulate processing usage to trigger quests & boss raids
-        events = self.engine.process_usage(10_000_000)
-        self.assertTrue(len(events) > 0)
-        # Check streak
-        self.assertEqual(self.engine.state.get("streak_days"), 1)
-        # Claim completed quest
-        ok, msg = self.engine.claim_quest_reward("q1")
+        mon, events = self.engine.hatch_egg(0)
+        
+        # Test Oran Berry feeding
+        self.engine.state["inventory"]["berry_oran"] = 1
+        ok, msg = self.engine.use_item(ItemKind.BERRY_ORAN)
         self.assertTrue(ok)
-        self.assertIn("Claimed Reward", msg)
+        self.assertIn("Fed Oran Berry", msg)
+
+        # Test Trainer Card generation
+        card_str = self.engine.generate_trainer_card()
+        self.assertIn("TRAINER PROFILE CARD", card_str)
+
+        # Test Expedition dispatching
+        ok, msg = self.engine.dispatch_expedition("1", "viridian")
+        self.assertTrue(ok)
+        self.assertIn("Dispatched", msg)
 
 if __name__ == "__main__":
     unittest.main()

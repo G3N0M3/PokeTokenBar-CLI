@@ -94,6 +94,7 @@ def main():
     
     subparsers.add_parser("dex", help="View Pokédex catch history")
     subparsers.add_parser("shop", help="View Shop & available spendable tokens")
+    subparsers.add_parser("card", help="Print shareable ASCII Trainer Profile Card")
 
     settings_parser = subparsers.add_parser("settings", help="View or update tracking settings")
     settings_parser.add_argument("--auto-track", choices=["on", "off"], help="Toggle automatic tracking system ON or OFF")
@@ -107,6 +108,8 @@ def main():
         cmd_status(tracker, engine)
     elif args.command == "watch":
         cmd_watch(tracker, engine, args.interval)
+    elif args.command == "card":
+        print(engine.generate_trainer_card())
     elif args.command == "dex":
         tui = PokeTokenBarTUI()
         tui.render_pokedex_tab()

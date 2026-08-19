@@ -55,7 +55,10 @@ class StorageManager:
             "inventory": {
                 "rare_candy": 0,
                 "mint": 0,
-                "shiny_charm": 0
+                "shiny_charm": 0,
+                "berry_oran": 0,
+                "berry_golden": 0,
+                "mega_stone": 0
             },
             "streak_days": 1,
             "last_active_date": datetime.datetime.now().strftime("%Y-%m-%d"),
@@ -64,6 +67,9 @@ class StorageManager:
             "achievements": [],
             "daily_quests": {},
             "active_boss": None,
+            "expeditions": [],
+            "trainer_battles": {"wins": 0, "losses": 0},
+            "golden_razz_active": False,
             "last_date": datetime.datetime.now().strftime("%Y-%m-%d")
         }
 
@@ -80,7 +86,8 @@ class StorageManager:
             "is_shiny": mon.is_shiny,
             "nature": mon.nature.value if mon.nature else None,
             "ditto_disguise": mon.ditto_disguise,
-            "ditto_revealed": mon.ditto_revealed
+            "ditto_revealed": mon.ditto_revealed,
+            "is_mega": mon.is_mega
         }
 
     @staticmethod
@@ -99,7 +106,8 @@ class StorageManager:
                 is_shiny=data.get("is_shiny", False),
                 nature=PokemonNature(data["nature"]) if data.get("nature") else None,
                 ditto_disguise=data.get("ditto_disguise"),
-                ditto_revealed=data.get("ditto_revealed", False)
+                ditto_revealed=data.get("ditto_revealed", False),
+                is_mega=data.get("is_mega", False)
             )
         except Exception:
             return None

@@ -23,15 +23,17 @@ Designed specifically for **Linux CLI** environments, **Antigravity CLI** (`~/.g
 - 🛒 **Token Shop & Inventory Bag**:
   - Spend earned tokens on **Rare Candies**, **Mints** (reroll nature), **Shiny Charms** (passive 1/48 shiny odds), and **Tiered Pokémon Eggs**.
   - Single-egg-per-tier constraint prevents buying duplicate eggs of the same tier while allowing 1 Standard Egg and 1 Uncommon Egg concurrently.
-- 🎯 **Daily Coding Quests ("Trainer Tasks")**: Complete 3 daily coding milestones (e.g. burn 2.0M tokens today) to earn free Rare Candies, Mints, and bonus token rewards (`claim <id>`).
-- ⚔️ **Terminal Gym Boss Raids**: Defeat powerful Gym Bosses (Brock's Geodude, Misty's Starmie, Lt. Surge's Raichu, Giovanni's Mewtwo) by spending tokens while coding to earn **Gym Badges**!
-- 💖 **Companion Happiness & Coding Streaks**: Maintain daily coding streaks and 100% Happiness for a **+20% XP boost** on all token usage.
-- 🎖️ **Trainer Badges & Achievements**: Unlock achievements (*Shiny Hunter*, *Token Tycoon*, *Dex Collector*, *Gym Champion*, *Streak Master*).
+- ⚔️ **Mini-Trainer Auto-Battles**: Encounter AI Trainers (e.g. *Youngster Joey*, *Team Rocket Grunt*, *Rival Blue*) every 2.0M tokens burned! Turn-based auto-battles award bonus spendable tokens.
+- 🗺️ **Pokédex Expeditions**: Dispatch inactive companions from your Pokédex on background expeditions (*Viridian Forest*, *Cerulean Cave*, *Mt. Silver*) to collect Rare Candies, Mints, and Berries.
+- ✨ **Mega Evolution & Form Changes**: Equip **Mega Stones** on eligible final forms (*Charizard*, *Lucario*, *Gengar*, *Mewtwo*, *Venusaur*, *Blastoise*) for glowing sprites and a **+50% XP boost**!
+- 🫐 **Berry Garden & Companion Feeding**: Feed **Oran Berries** (+25% Happiness) and **Golden Razz Berries** (boosts next egg shiny odds to 1/24!).
+- 📇 **Shareable Trainer Profile Card (`ptb card`)**: Output a styled ASCII Trainer Profile Card featuring your active companion, rank, coding streak, and Gym Badges!
 - 📊 **Compact Number Formatting**: Real-time burn rates and token metrics formatted cleanly (e.g. `40.7M`, `74.9K`, `123`).
 - 🖥️ **Interactive TUI & Quick Commands**:
   - `ptb`: Launches full interactive 6-tab TUI.
   - `ptb status`: Compact 1-line status (perfect for `PS1` prompts or tmux status bars).
   - `ptb watch`: Continuous live token monitoring loop with animated sprites and burn rate (tokens/min).
+  - `ptb card`: Display shareable ASCII Trainer Profile Card.
   - `ptb dex` / `ptb shop` / `ptb settings`: Command-line shortcuts.
 
 ---
