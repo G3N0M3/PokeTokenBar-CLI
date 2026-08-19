@@ -549,20 +549,28 @@ class CompanionEngine:
                         })
                         seen.add(pre_id)
 
+        # Ensure any pre-evolution entry whose higher evolutionary form is unlocked is marked as 'evolved'
+        all_discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in new_dex}
+        for d in new_dex:
+            sp_id = d.get("species_id", d.get("final_id", d.get("base_id")))
+            chain = d.get("chain_order", [])
+            if chain and sp_id in chain:
+                idx_in_chain = chain.index(sp_id)
+                higher_forms = chain[idx_in_chain + 1:]
+                if any(h in all_discovered_sp_ids for h in higher_forms):
+                    d["status"] = "evolved"
+
         self.state["dex"] = sorted(new_dex, key=lambda x: x.get("species_id", 0))
         if status == "graduated":
             collected = set(self.state.get("collected_finals", []))
             collected.add(f"{mon.base_id}_{mon.current_id}")
             self.state["collected_finals"] = list(collected)
+
         self.save()
 
     def select_active_from_dex(self, selection_input: str) -> Tuple[bool, str]:
+        # Handle 'select egg' or 'select 0'
         if selection_input.lower() in ["egg", "0"]:
-            incubating_eggs = self.state.get("incubating_eggs", {})
-            has_egg = bool(incubating_eggs) or bool(self.state.get("egg_tier")) or (self.active_mon is None)
-            if not has_egg:
-                return False, "You don't have an incubating egg in your roster! Buy a fresh egg from the Shop ([3]) first."
-
             curr_active = self.active_mon
             if curr_active:
                 self._register_to_dex(curr_active, status="inactive")
@@ -603,6 +611,18 @@ class CompanionEngine:
         expeditions = self.state.get("expeditions", [])
         if any(e["sp_id"] == sp_id for e in expeditions):
             return False, f"Cannot select {sp_name}! They are currently on an expedition."
+
+        # Prevent selecting a companion that has already evolved into a higher form
+        entry_status = target_entry.get("status", "")
+        chain = target_entry.get("chain_order", [])
+        all_discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
+
+        if chain and sp_id in chain:
+            idx_in_chain = chain.index(sp_id)
+            higher_forms = [h for h in chain[idx_in_chain + 1:] if h in all_discovered_sp_ids]
+            if higher_forms or entry_status == "evolved":
+                next_name = self.api.get_species_name(higher_forms[-1]) if higher_forms else "its evolved form"
+                return False, f"Cannot select {sp_name}! It has already evolved into {next_name}. Select {next_name} instead."
 
         # First, save current active mon into dex as inactive if exists
         curr_active = self.active_mon
