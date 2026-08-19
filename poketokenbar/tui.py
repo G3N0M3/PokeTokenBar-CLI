@@ -352,10 +352,10 @@ class PokeTokenBarTUI:
             egg_badge = f"{BOLD}{GREEN}[ACTIVE / INCUBATING]{RESET}" if active is None else f"{BOLD}{YELLOW}[IN ROSTER]{RESET}"
             sys.stdout.write(f"   0. 🥚 {BOLD}Incubating Pokémon Egg{RESET} ({pct:.1f}%) {egg_badge}\n")
 
-        # Filter dex to active roster (excluding pre-evolutions marked as 'evolved')
-        roster = [d for d in dex if d.get("status") != "evolved"]
         expeditions = self.engine.state.get("expeditions", [])
         exp_map = {e["sp_id"]: e for e in expeditions}
+        # Filter dex to active roster (plus any species currently on expedition)
+        roster = [d for d in dex if (d.get("status") != "evolved" or d.get("species_id", d.get("final_id", d.get("base_id"))) in exp_map)]
 
         if not roster:
             sys.stdout.write("  No active companions in your roster. Incubate an egg to start!\n\n")
