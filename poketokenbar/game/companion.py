@@ -9,6 +9,9 @@ from poketokenbar.game.pokeapi import PokeAPIClient
 from poketokenbar.game.storage import StorageManager
 from poketokenbar.utils.formatting import format_tokens
 
+from poketokenbar.game.poker import PokerEngine
+from poketokenbar.game.gacha import GachaEngine, GACHA_COST_SINGLE, GACHA_COST_MULTI
+
 # Gen 1-5 starters/base species sampling fallback table if offline
 BASE_SPECIES_STARTERS = [
     # Gen 1
@@ -40,6 +43,7 @@ class CompanionEngine:
     def __init__(self):
         self.api = PokeAPIClient()
         self.state = StorageManager.load_state()
+        self.poker = PokerEngine()
 
     def save(self):
         StorageManager.save_state(self.state)
@@ -1061,3 +1065,97 @@ class CompanionEngine:
         self.save()
         tier_str = f"{tier.value.upper()}+" if tier else "Standard"
         return True, f"Obtained a fresh {tier_str} Pokémon Egg! Previous companion saved to Pokédex."
+
+    def play_poker_bet(self, amount_str: str) -> Tuple[bool, str]:
+        clean_str = amount_str.lower().strip()
+        try:
+            if clean_str.endswith("m"):
+                bet = int(float(clean_str[:-1]) * 1_000_000)
+            elif clean_str.endswith("k"):
+                bet = int(float(clean_str[:-1]) * 1_000)
+            else:
+                bet = int(clean_str)
+        except ValueError:
+            return False, "Invalid bet amount! Example: 'bet 500k', 'bet 1m', or 'bet 2000000'."
+
+        if bet <= 0:
+            return False, "Bet amount must be greater than 0!"
+
+        avail = self.available_tokens
+        if bet > avail:
+            return False, f"Not enough tokens! You have {format_tokens(avail)} available tokens."
+
+        # Lock bet by deducting from spent_tokens
+        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - bet
+        self.save()
+
+        ok, msg = self.poker.start_hand(bet)
+        hand_str = " ".join([str(c) for c in self.poker.hand])
+        return True, f"🎲 Bet {format_tokens(bet)} Tokens!\n  Cards: {hand_str}\n  ➔ Type 'hold 1 3 5' (or 'hold none' / 'hold all') to draw!"
+
+    def play_poker_hold(self, hold_str: str) -> Tuple[bool, str]:
+        if self.poker.game_state != "holding":
+            return False, "No active Poker hand! Type 'bet <amount>' to start a new hand."
+
+        parts = hold_str.lower().split()
+        indices = []
+        if "all" in parts:
+            indices = [1, 2, 3, 4, 5]
+        elif "none" in parts or not parts or parts == ["hold"]:
+            indices = []
+        else:
+            for p in parts:
+                if p.isdigit() and 1 <= int(p) <= 5:
+                    indices.append(int(p))
+
+        rank_name, mult, winnings = self.poker.play_draw(indices)
+        
+        # Add winnings to spent_tokens
+        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + winnings
+        self.save()
+
+        hand_str = " ".join([str(c) for c in self.poker.hand])
+        net_change = winnings - self.poker.current_bet
+        profit_str = f"+{format_tokens(net_change)}" if net_change >= 0 else f"-{format_tokens(abs(net_change))}"
+
+        if mult > 0:
+            return True, f"🃏 Hand: {hand_str}\n  Result: \033[1m\033[32m{rank_name}\033[0m ({mult}x Payout!)\n  Won: \033[1m\033[36m{format_tokens(winnings)}\033[0m Tokens! (Net: {profit_str})"
+        else:
+            return True, f"🃏 Hand: {hand_str}\n  Result: \033[1m\033[31m{rank_name}\033[0m (No Payout)\n  Lost: {format_tokens(self.poker.current_bet)} Tokens."
+
+    def play_gacha(self, pull_type: str = "1") -> Tuple[bool, str]:
+        cost = GACHA_COST_MULTI if pull_type == "10" else GACHA_COST_SINGLE
+        avail = self.available_tokens
+        if avail < cost:
+            return False, f"Not enough tokens! Gacha pull requires {format_tokens(cost)} available tokens."
+
+        # Deduct cost from spent_tokens
+        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - cost
+        inv = self.state.get("inventory", {})
+
+        results_txt = []
+        if pull_type == "10":
+            pulls = GachaEngine.pull_ten()
+            results_txt.append("🔮 \033[1m10-CAPSULE GACHA PULL RESULTS:\033[0m")
+        else:
+            pulls = [GachaEngine.pull_one()]
+            results_txt.append("🔮 \033[1mGACHA CAPSULE PULL RESULT:\033[0m")
+
+        for tier, name, r_type, val in pulls:
+            color = "\033[36m" if tier == "COMMON" else ("\033[33m" if tier in ["UNCOMMON", "RARE"] else "\033[32m")
+            results_txt.append(f"  • [{color}{tier}\033[0m] {name}")
+
+            if r_type == "item":
+                inv[val] = inv.get(val, 0) + 1
+            elif r_type == "tokens":
+                self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + val
+            elif r_type == "egg":
+                self.state["incubating_eggs"] = self.state.get("incubating_eggs", {})
+                self.state["incubating_eggs"][val] = self.state["incubating_eggs"].get(val, 0)
+            elif r_type == "legendary":
+                self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + val
+                self.state["golden_razz_active"] = True
+
+        self.state["inventory"] = inv
+        self.save()
+        return True, "\n".join(results_txt)

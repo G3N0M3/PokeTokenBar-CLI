@@ -2,7 +2,7 @@
 name: ptb-gameplay
 description: >-
   Comprehensive guide for PokeTokenBar gameplay mechanics, difficulty scaling, item usage,
-  companion growth, Mega Evolution, expeditions, Gym Boss raids, and Happiness/Streak systems.
+  companion growth, Mega Evolution, expeditions, Gym Boss raids, Token Poker, Gacha Capsules, and Happiness/Streak systems.
 ---
 
 # 🐾 PokeTokenBar Gameplay System Guide
@@ -27,33 +27,31 @@ PokeTokenBar turns your AI coding token usage into a Pokémon companion game ins
   - Daily coding activity: **+10% Happiness**.
   - **Oran Berry 🫐**: Restores **+25% Happiness**.
 
-### 3. ✨ Mega Evolution
+### 3. 🎲 Token Video Poker (Tab [9])
+- Bet spendable tokens (`bet 500k`, `bet 1m`) to win high multiplier token payouts!
+- Paytable:
+  - Royal Flush: 250x | Straight Flush: 50x | Four of a Kind: 25x
+  - Full House: 12x | Flush: 8x | Straight: 5x
+  - Three of a Kind: 3x | Two Pair: 2x | Jacks or Better: 1x
+- Command: `bet <amount>`, then `hold 1 3 5` (or `hold none` / `hold all`).
+
+### 4. 🔮 Gacha Capsule Machine (Tab [10])
+- Pull capsules for 5.0M tokens (`pull 1`) or 45.0M tokens (`pull 10` - 10% discount!).
+- Drop Table:
+  - 🌟 Legendary (2%): Guaranteed Shiny Companion / +50M Tokens
+  - ✨ Epic (8%): Shiny Charm ✨, Rare Egg 🥚 Tier
+  - 🔮 Rare (15%): Standard/Uncommon Eggs 🥚, Mega Stone 🔮
+  - 🍬 Uncommon (30%): Rare Candy 🍬, Golden Razz Berry 🍇, +3M Tokens
+  - 🫐 Common (45%): Oran Berry 🫐, Mint 🌿, +1M Tokens
+
+### 5. ✨ Mega Evolution
 - Eligible Species: Venusaur (#3), Charizard (#6), Blastoise (#9), Gengar (#94), Mewtwo (#150), Lucario (#448).
 - **Item Required**: Mega Stone 🔮 from Shop (`buy 8`).
 - **Effect**: Grants glowing ANSI title and a **+50% XP Boost** on token spend!
 
-### 4. 🗺️ Pokédex Expeditions
+### 6. 🗺️ Pokédex Expeditions (Tab [5])
 - Send inactive Pokédex companions on background token-burning expeditions:
   - **Viridian Forest**: 5.0M tokens ➔ 🌿 Mint
   - **Cerulean Cave**: 15.0M tokens ➔ 🍬 Rare Candy
   - **Mt. Silver**: 30.0M tokens ➔ 🍇 Golden Razz Berry
-- **Command**: `send <number/species_id> [viridian/cerulean/silver]` (e.g. `send 570 silver`).
-
-### 5. ⚔️ Mini-Trainer Auto-Battles & Gym Boss Raids
-- **Auto-Battles**: Encounter AI trainers (*Youngster Joey*, *Team Rocket Grunt*, *Rival Blue*) every **2.0M tokens**. Victory awards **+2.0M Spendable Tokens**.
-- **Gym Boss Raids**: Attack Gym Bosses (*Brock*, *Misty*, *Lt. Surge*, ..., *Cynthia*) by spending tokens to earn **Gym Badges** (0/10).
-
----
-
-## 🛒 Item Catalog & Shop Commands
-
-Item                 | Cost (Medium) | Effect
-:------------------- | :------------ | :-------------------------------------------------------
-🍬 Rare Candy        | 25.0M tokens  | Grants +15.0M XP to active companion
-🌿 Mint              | 5.0M tokens   | Rerolls companion Nature
-✨ Shiny Charm       | 150.0M tokens | Passive boost to 1/48 shiny odds on future egg hatches
-🥚 Standard Egg      | 30.0M tokens  | Incubates new Standard Egg
-🥚 Uncommon Egg      | 75.0M tokens  | Guarantees Uncommon+ egg tier
-🫐 Oran Berry        | 1.0M tokens   | Restores +25% Companion Happiness
-🍇 Golden Razz Berry | 5.0M tokens   | Boosts shiny odds on NEXT egg hatch to 1/24!
-🔮 Mega Stone        | 50.0M tokens  | Mega Evolves eligible final-form companions
+- **Command**: `send <number/species_id> [viridian/cerulean/silver]`.

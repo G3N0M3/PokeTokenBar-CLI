@@ -82,6 +82,10 @@ class PokeTokenBarTUI:
                 elif self.current_tab == 8:
                     self.render_monitor_tab(summary)
                 elif self.current_tab == 9:
+                    self.render_poker_tab()
+                elif self.current_tab == 10:
+                    self.render_gacha_tab()
+                elif self.current_tab == 11:
                     self.render_settings_tab()
 
                 self.render_footer()
@@ -90,7 +94,7 @@ class PokeTokenBarTUI:
                 auto_on = settings.get("auto_tracking_enabled", True)
                 status_str = f"Auto: {'ON' if auto_on else 'OFF'} ({interval}s)"
 
-                sys.stdout.write(f"\n{BOLD}Select tab (1-9), command, r=Refresh, q=Quit [{status_str}]: {RESET}")
+                sys.stdout.write(f"\n{BOLD}Select tab (1-11), command, r=Refresh, q=Quit [{status_str}]: {RESET}")
                 sys.stdout.flush()
 
                 try:
@@ -136,6 +140,12 @@ class PokeTokenBarTUI:
                         elif cmd == "9":
                             self.current_tab = 9
                             self.message = ""
+                        elif cmd == "10":
+                            self.current_tab = 10
+                            self.message = ""
+                        elif cmd == "11":
+                            self.current_tab = 11
+                            self.message = ""
                         elif cmd in ["r", "refresh"]:
                             summary = self.tracker.get_summary()
                             events = self.engine.process_usage(summary["total_tokens"])
@@ -143,7 +153,7 @@ class PokeTokenBarTUI:
                                 self.message = "Refreshed logs! " + " ".join(events)
                             else:
                                 self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
-                        elif cmd == "toggle" and self.current_tab == 9:
+                        elif cmd == "toggle" and self.current_tab == 11:
                             curr_on = settings.get("auto_tracking_enabled", True)
                             ok, msg = self.engine.update_settings(auto_tracking_enabled=not curr_on)
                             self.message = f"Automatic tracking set to: {'ON' if not curr_on else 'OFF'}"
@@ -166,6 +176,21 @@ class PokeTokenBarTUI:
                                 self.message = msg
                             else:
                                 self.message = "Usage: send <number/species_id> [viridian/cerulean/silver]"
+                        elif cmd.startswith("bet"):
+                            parts = cmd.split()
+                            if len(parts) >= 2:
+                                ok, msg = self.engine.play_poker_bet(parts[1])
+                                self.message = msg
+                            else:
+                                self.message = "Usage: bet <amount> (e.g. 'bet 500k', 'bet 1m')"
+                        elif cmd.startswith("hold"):
+                            ok, msg = self.engine.play_poker_hold(cmd)
+                            self.message = msg
+                        elif cmd.startswith("pull"):
+                            parts = cmd.split()
+                            pull_type = parts[1] if len(parts) >= 2 else "1"
+                            ok, msg = self.engine.play_gacha(pull_type)
+                            self.message = msg
                         elif cmd == "card":
                             self.message = self.engine.generate_trainer_card()
                         elif cmd.startswith("interval"):
@@ -179,7 +204,7 @@ class PokeTokenBarTUI:
                                     self.message = "Invalid interval number. Usage: interval <seconds>"
                             else:
                                 self.message = "Usage: interval <seconds> (e.g. 'interval 5')"
-                        elif cmd == "reset" and self.current_tab == 9:
+                        elif cmd == "reset" and self.current_tab == 11:
                             self.pending_reset = True
                             self.message = "⚠️ CONFIRMATION REQUIRED: Type 'RESET ALL' to wipe progress & restart fresh, or anything else to cancel!"
                         elif self.current_tab == 4 and cmd.startswith("buy"):
@@ -206,11 +231,13 @@ class PokeTokenBarTUI:
         t6 = f"{BOLD}{CYAN}[6] Battles{RESET}" if self.current_tab == 6 else "[6] Battles"
         t7 = f"{BOLD}{CYAN}[7] Quests{RESET}" if self.current_tab == 7 else "[7] Quests"
         t8 = f"{BOLD}{CYAN}[8] Monitor{RESET}" if self.current_tab == 8 else "[8] Monitor"
-        t9 = f"{BOLD}{CYAN}[9] Settings{RESET}" if self.current_tab == 9 else "[9] Settings"
+        t9 = f"{BOLD}{CYAN}[9] Poker{RESET}" if self.current_tab == 9 else "[9] Poker"
+        t10 = f"{BOLD}{CYAN}[10] Gacha{RESET}" if self.current_tab == 10 else "[10] Gacha"
+        t11 = f"{BOLD}{CYAN}[11] Settings{RESET}" if self.current_tab == 11 else "[11] Settings"
 
         sys.stdout.write(f"  {t1}   {t2}     {t3}      {t4}\n")
         sys.stdout.write(f"  {t5} {t6}     {t7}      {t8}\n")
-        sys.stdout.write(f"  {t9}\n")
+        sys.stdout.write(f"  {t9}       {t10}    {t11}\n")
         sys.stdout.write("-" * 72 + "\n")
 
     def render_companion_tab(self, summary: dict):
@@ -557,6 +584,43 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  Current Burn Rate: {BOLD}{YELLOW}{format_tokens(summary['burn_rate_tpm'])} tokens/minute{RESET}\n")
         sys.stdout.write(f"  Total Indexed Calls: {summary['total_entries']:,}\n")
         sys.stdout.write(f"  Last Scan Timestamp: {summary['last_updated'].strftime('%H:%M:%S')}\n\n")
+
+    def render_poker_tab(self):
+        avail = self.engine.available_tokens
+        sys.stdout.write(f"\n  {BOLD}{HEADER}🎲 Token Video Poker (Bet & Win Tokens!){RESET}\n\n")
+        sys.stdout.write(f"  Available Tokens to Bet: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n\n")
+
+        sys.stdout.write(f"  {BOLD}🃏 Paytable (Multiplier on Bet):{RESET}\n")
+        sys.stdout.write(f"   • Royal Flush     [250x]   • Straight Flush [50x]   • Four of a Kind [25x]\n")
+        sys.stdout.write(f"   • Full House      [ 12x]   • Flush          [ 8x]   • Straight       [ 5x]\n")
+        sys.stdout.write(f"   • Three of a Kind [  3x]   • Two Pair       [ 2x]   • Jacks or Better[ 1x]\n\n")
+
+        sys.stdout.write(f"  ➔ Type '{BOLD}bet <amount>{RESET}' to start (e.g. 'bet 500k', 'bet 1m', 'bet 500000')\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}hold 1 3 5{RESET}' (or 'hold none' / 'hold all') to draw final cards!\n\n")
+
+        if self.engine.poker.hand:
+            hand_str = " ".join([str(c) for c in self.engine.poker.hand])
+            rank, mult = self.engine.poker.evaluate_hand(self.engine.poker.hand)
+            state_str = "Awaiting Hold/Draw choice" if self.engine.poker.game_state == "holding" else "Hand Completed"
+            sys.stdout.write(f"  {BOLD}Current Hand [{state_str}]:{RESET}\n")
+            sys.stdout.write(f"   {hand_str}\n")
+            sys.stdout.write(f"   Rank: {BOLD}{YELLOW}{rank}{RESET}  |  Current Bet: {format_tokens(self.engine.poker.current_bet)}\n\n")
+
+    def render_gacha_tab(self):
+        avail = self.engine.available_tokens
+        sys.stdout.write(f"\n  {BOLD}{HEADER}🔮 Pokémon Gacha Capsule Machine{RESET}\n\n")
+        sys.stdout.write(f"  Available Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n\n")
+
+        sys.stdout.write(f"  {BOLD}🎰 Pull Options:{RESET}\n")
+        sys.stdout.write(f"   • Single Capsule Pull (1x):  {BOLD}{YELLOW}5.0M Tokens{RESET}  (Type '{BOLD}pull 1{RESET}')\n")
+        sys.stdout.write(f"   • Multi Capsule Pull (10x):  {BOLD}{YELLOW}45.0M Tokens{RESET} (Type '{BOLD}pull 10{RESET}' - 1 Free!)\n\n")
+
+        sys.stdout.write(f"  {BOLD}🎁 Drop Rates & Rewards:{RESET}\n")
+        sys.stdout.write(f"   • 🌟 Legendary (2%):  Guaranteed Shiny Companion / +50M Tokens\n")
+        sys.stdout.write(f"   • ✨ Epic (8%):       Shiny Charm ✨, Rare Egg 🥚 Tier\n")
+        sys.stdout.write(f"   • 🔮 Rare (15%):      Standard/Uncommon Eggs 🥚, Mega Stone 🔮\n")
+        sys.stdout.write(f"   • 🍬 Uncommon (30%):  Rare Candy 🍬, Golden Razz Berry 🍇, +3M Tokens\n")
+        sys.stdout.write(f"   • 🫐 Common (45%):    Oran Berry 🫐, Mint 🌿, +1M Tokens\n\n")
 
     def render_settings_tab(self):
         settings = self.engine.get_settings()
