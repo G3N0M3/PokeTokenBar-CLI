@@ -52,5 +52,17 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertIsNone(self.engine.active_mon)
         self.assertEqual(len(self.engine.state["dex"]), 0)
 
+    def test_quests_bosses_streaks(self):
+        self.engine.reset_game_state()
+        # Simulate processing usage to trigger quests & boss raids
+        events = self.engine.process_usage(10_000_000)
+        self.assertTrue(len(events) > 0)
+        # Check streak
+        self.assertEqual(self.engine.state.get("streak_days"), 1)
+        # Claim completed quest
+        ok, msg = self.engine.claim_quest_reward("q1")
+        self.assertTrue(ok)
+        self.assertIn("Claimed Reward", msg)
+
 if __name__ == "__main__":
     unittest.main()
