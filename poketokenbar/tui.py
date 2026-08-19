@@ -202,8 +202,9 @@ class PokeTokenBarTUI:
             name = self.engine.api.get_species_name(sp_id)
             shiny_str = f"{YELLOW}✨ SHINY {RESET}" if active.is_shiny else ""
             nature_name = active.nature.display_name if active.nature else "Unknown"
+            mega_badge = f" {BOLD}{HEADER}[✨ MEGA EVOLVED +50% XP]{RESET}" if active.is_mega else ""
 
-            sys.stdout.write(f"\n  {BOLD}{GREEN}Active Companion: {shiny_str}{name} (#{sp_id}){RESET}\n")
+            sys.stdout.write(f"\n  {BOLD}{GREEN}Active Companion: {shiny_str}{name} (#{sp_id}){mega_badge}{RESET}\n")
             sys.stdout.write(f"  Rarity: {YELLOW}{active.rarity.value.upper()}{RESET}  |  Nature: {CYAN}{nature_name}{RESET}  |  Form: {active.stage_index+1}/{active.total_forms}\n")
 
             # Try rendering sprite
@@ -263,6 +264,9 @@ class PokeTokenBarTUI:
         if not dex:
             sys.stdout.write("\n  Your Pokédex is empty! Incubate and raise your Pokémon companions to fill it.\n\n")
         else:
+            expeditions = self.engine.state.get("expeditions", [])
+            exp_map = {e["sp_id"]: e for e in expeditions}
+
             for idx, entry in enumerate(dex, 1):
                 sp_id = entry.get("species_id", entry.get("final_id", entry.get("base_id")))
                 name = self.engine.api.get_species_name(sp_id)
@@ -270,7 +274,11 @@ class PokeTokenBarTUI:
                 rarity = entry.get("rarity", "common").upper()
                 caught_at = entry.get("caught_at", "")[:10]
                 status = entry.get("status", "graduated")
-                if status == "active" and active is not None:
+                if sp_id in exp_map:
+                    exp_info = exp_map[sp_id]
+                    pct = (exp_info["progress"] / exp_info["target"]) * 100
+                    status_badge = f"{BOLD}{CYAN}[ON EXPEDITION: {exp_info['area']} ({pct:.0f}%)] {RESET}"
+                elif status == "active" and active is not None:
                     status_badge = f"{BOLD}{GREEN}[ACTIVE]{RESET}"
                 elif status == "inactive":
                     status_badge = f"{BOLD}{YELLOW}[IN ROSTER]{RESET}"
@@ -414,12 +422,29 @@ class PokeTokenBarTUI:
             "streak_master": "⚡ Streak Master"
         }
         if not achievements:
-            sys.stdout.write("   No achievements unlocked yet.\n\n")
+            sys.stdout.write("   No achievements unlocked yet.\n")
         else:
             for code in achievements:
                 t = ach_titles.get(code, code)
                 sys.stdout.write(f"   • {BOLD}{GREEN}{t}{RESET}\n")
-            sys.stdout.write("\n")
+
+        # 5. Active Pokédex Expeditions
+        expeditions = self.engine.state.get("expeditions", [])
+        sys.stdout.write(f"\n  {BOLD}🗺️ Active Pokédex Expeditions ({len(expeditions)} Active):{RESET}\n")
+        if not expeditions:
+            sys.stdout.write("   No active expeditions. Type 'expedition <dex_idx> [viridian/cerulean/silver]' in Pokédex tab!\n")
+        else:
+            for exp in expeditions:
+                sp_id = exp["sp_id"]
+                sp_name = self.engine.api.get_species_name(sp_id)
+                area = exp["area"]
+                bar = format_progress_bar(exp["progress"], exp["target"])
+                sys.stdout.write(f"   • {BOLD}{CYAN}{sp_name} (#{sp_id}){RESET} @ {area}: {bar} ({format_tokens(exp['progress'])} / {format_tokens(exp['target'])})\n")
+
+        # 6. Mini-Trainer Auto-Battles Record
+        battles = self.engine.state.get("trainer_battles", {"wins": 0, "losses": 0})
+        sys.stdout.write(f"\n  {BOLD}⚔️ Mini-Trainer Auto-Battle Record:{RESET}\n")
+        sys.stdout.write(f"   Wins: {BOLD}{GREEN}{battles.get('wins', 0)}{RESET}  |  Losses: {BOLD}{RED}{battles.get('losses', 0)}{RESET} (Triggers auto-battles every 2.0M tokens!)\n\n")
 
     def render_monitor_tab(self, summary: dict):
         sys.stdout.write(f"\n  {BOLD}{CYAN}📡 Live Token Usage Monitor{RESET}\n\n")
