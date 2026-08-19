@@ -110,10 +110,12 @@ class CompanionEngine:
         active = self.active_mon
         diff = self.current_difficulty
 
-        # Update happiness
-        happiness = self.state.get("happiness", 100)
-        happiness = min(100, happiness + int(delta / 100_000))
-        self.state["happiness"] = happiness
+        if active:
+            active.happiness = min(100, active.happiness + int(delta / 100_000))
+            self.set_active_mon(active)
+            happiness = active.happiness
+        else:
+            happiness = 100
 
         # Happiness XP multiplier (+20% bonus if 100% happy)
         xp_multiplier = 1.20 if happiness >= 100 else 1.0
@@ -138,29 +140,31 @@ class CompanionEngine:
             # We are incubating an egg
             curr_tier = self.state.get("current_egg_tier") or self.state.get("egg_tier") or "normal"
             incubating_eggs = self.state.get("incubating_eggs", {})
-            egg_usage = incubating_eggs.get(curr_tier, self.state.get("egg_usage", 0)) + effective_xp
-            incubating_eggs[curr_tier] = egg_usage
-            self.state["incubating_eggs"] = incubating_eggs
+            egg_usage = self.state.get("egg_usage", 0) + effective_xp
             self.state["egg_usage"] = egg_usage
 
-            if egg_usage >= diff.hatch_threshold:
-                # Hatch Egg!
-                overflow = egg_usage - diff.hatch_threshold
-                if curr_tier in incubating_eggs:
-                    del incubating_eggs[curr_tier]
-                self.state["incubating_eggs"] = incubating_eggs
-                self.state["egg_usage"] = 0
-                self.state["current_egg_tier"] = None
-                self.state["egg_tier"] = None
-                hatched_mon, hatch_events = self.hatch_egg(overflow)
+            threshold = PokemonBalance.EGG_HATCH_THRESHOLD
+            if egg_usage >= threshold:
+                mon, hatch_events = self.hatch_egg(initial_xp=egg_usage - threshold)
                 events.extend(hatch_events)
-                self.set_active_mon(hatched_mon)
-            else:
-                self.save()
+            self.save()
         else:
-            # Active mon accumulates XP
             active.used_at_stage += effective_xp
-            # Check evolution / graduation
+
+            # Check evolution / graduation threshold
+            target_xp = PokemonBalance.phase_threshold(active.rarity, active.total_forms, active.stage_index, self.current_difficulty)
+            
+            # Check if this stage has already evolved into next stage
+            dex = self.state.get("dex", [])
+            discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
+            is_already_evolved = (active.stage_index < len(active.path_ids) - 1) and (active.path_ids[active.stage_index + 1] in discovered_sp_ids)
+
+            if is_already_evolved:
+                active.used_at_stage = min(active.used_at_stage, target_xp)
+            elif active.used_at_stage >= target_xp:
+                self._handle_growth(active, events)
+
+            self.set_active_mon(active)
             evo_events = self._check_growth(active)
             events.extend(evo_events)
 
@@ -173,6 +177,7 @@ class CompanionEngine:
     def _update_streak_and_quests(self, delta: int, events: List[str]):
         today_str = datetime.datetime.now().strftime("%Y-%m-%d")
         last_date = self.state.get("last_active_date", "")
+        active = self.active_mon
 
         if last_date != today_str:
             if last_date:
@@ -182,14 +187,19 @@ class CompanionEngine:
                     diff = (today_dt - last_dt).days
                     if diff == 1:
                         self.state["streak_days"] = self.state.get("streak_days", 1) + 1
-                        # Daily activity bonus (+10 Happiness)
-                        self.state["happiness"] = min(100, self.state.get("happiness", 100) + 10)
+                        if active:
+                            active.happiness = min(100, active.happiness + 10)
+                            self.set_active_mon(active)
                     elif diff > 1:
                         self.state["streak_days"] = 1
-                        # Happiness decays by -25% per missed day
                         decay = (diff - 1) * 25
-                        self.state["happiness"] = max(0, self.state.get("happiness", 100) - decay)
-                        events.append(f"💔 You missed {diff-1} day(s) of coding! Companion Happiness dropped to {self.state['happiness']}%. Feed Oran Berries 🫐 to cheer them up!")
+                        if active:
+                            active.happiness = max(0, active.happiness - decay)
+                            self.set_active_mon(active)
+                            hap_val = active.happiness
+                        else:
+                            hap_val = 0
+                        events.append(f"💔 You missed {diff-1} day(s) of coding! Companion Happiness dropped to {hap_val}%. Feed Oran Berries 🫐 to cheer them up!")
                 except Exception:
                     self.state["streak_days"] = 1
             else:
@@ -785,10 +795,11 @@ class CompanionEngine:
             if active is None:
                 return False, "You need an active Pokémon companion to feed an Oran Berry!"
             inv[item_kind.value] -= 1
-            self.state["happiness"] = min(100, self.state.get("happiness", 0) + 25)
+            active.happiness = min(100, active.happiness + 25)
+            self.set_active_mon(active)
             self.state["inventory"] = inv
             self.save()
-            return True, f"Fed Oran Berry 🫐 to {self.api.get_species_name(active.current_id)}! (+25% Happiness! Current: {self.state['happiness']}%)"
+            return True, f"Fed Oran Berry 🫐 to {self.api.get_species_name(active.current_id)}! (+25% Happiness! Current: {active.happiness}%)"
 
         elif item_kind == ItemKind.BERRY_GOLDEN:
             inv[item_kind.value] -= 1

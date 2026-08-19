@@ -177,6 +177,7 @@ class MonState:
     ditto_disguise: Optional[int] = None
     ditto_revealed: bool = False
     is_mega: bool = False
+    happiness: int = 100
 
     @property
     def current_id(self) -> int:

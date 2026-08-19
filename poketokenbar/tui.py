@@ -306,7 +306,9 @@ class PokeTokenBarTUI:
                 else:
                     status_badge = f"{BOLD}{CYAN}[GRADUATED]{RESET}"
 
-                sys.stdout.write(f"  {idx:2d}. {shiny_str} {BOLD}{name}{RESET} (#{sp_id}) [{rarity}] {status_badge}\n")
+                mon_data = entry.get("mon_state", {})
+                hap_val = mon_data.get("happiness", 100) if isinstance(mon_data, dict) else 100
+                sys.stdout.write(f"  {idx:2d}. {shiny_str} {BOLD}{name}{RESET} (#{sp_id}) [{rarity}] 💖{hap_val}% {status_badge}\n")
 
         sys.stdout.write(f"\n  ➔ Type '{BOLD}select <id>{RESET}' or '{BOLD}select egg{RESET}' to switch active companion!\n")
         sys.stdout.write(f"  ➔ Type '{BOLD}send <id> [viridian/cerulean/silver]{RESET}' on expedition!\n\n")

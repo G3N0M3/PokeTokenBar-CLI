@@ -88,7 +88,8 @@ class StorageManager:
             "nature": mon.nature.value if mon.nature else None,
             "ditto_disguise": mon.ditto_disguise,
             "ditto_revealed": mon.ditto_revealed,
-            "is_mega": mon.is_mega
+            "is_mega": mon.is_mega,
+            "happiness": mon.happiness
         }
 
     @staticmethod
@@ -108,7 +109,8 @@ class StorageManager:
                 nature=PokemonNature(data["nature"]) if data.get("nature") else None,
                 ditto_disguise=data.get("ditto_disguise"),
                 ditto_revealed=data.get("ditto_revealed", False),
-                is_mega=data.get("is_mega", False)
+                is_mega=data.get("is_mega", False),
+                happiness=data.get("happiness", 100)
             )
         except Exception:
             return None
