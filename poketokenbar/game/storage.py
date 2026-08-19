@@ -57,6 +57,13 @@ class StorageManager:
                 "mint": 0,
                 "shiny_charm": 0
             },
+            "streak_days": 1,
+            "last_active_date": datetime.datetime.now().strftime("%Y-%m-%d"),
+            "happiness": 100,
+            "gym_badges": [],
+            "achievements": [],
+            "daily_quests": {},
+            "active_boss": None,
             "last_date": datetime.datetime.now().strftime("%Y-%m-%d")
         }
 

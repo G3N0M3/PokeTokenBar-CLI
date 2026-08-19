@@ -7,6 +7,7 @@ from poketokenbar.game.models import (
 )
 from poketokenbar.game.pokeapi import PokeAPIClient
 from poketokenbar.game.storage import StorageManager
+from poketokenbar.utils.formatting import format_tokens
 
 # Gen 1-5 starters/base species sampling fallback table if offline
 BASE_SPECIES_STARTERS = [
@@ -109,11 +110,27 @@ class CompanionEngine:
         active = self.active_mon
         diff = self.current_difficulty
 
+        # Update happiness
+        happiness = self.state.get("happiness", 100)
+        happiness = min(100, happiness + int(delta / 100_000))
+        self.state["happiness"] = happiness
+
+        # Happiness XP multiplier (+20% bonus if 100% happy)
+        xp_multiplier = 1.20 if happiness >= 100 else 1.0
+        effective_xp = int(delta * xp_multiplier)
+
+        # Update coding streak & daily quests
+        self._update_streak_and_quests(delta, events)
+
+        # Update boss battle damage if active
+        boss_events = self._update_boss_battle(delta)
+        events.extend(boss_events)
+
         if active is None:
             # We are incubating an egg
             curr_tier = self.state.get("current_egg_tier") or self.state.get("egg_tier") or "normal"
             incubating_eggs = self.state.get("incubating_eggs", {})
-            egg_usage = incubating_eggs.get(curr_tier, self.state.get("egg_usage", 0)) + delta
+            egg_usage = incubating_eggs.get(curr_tier, self.state.get("egg_usage", 0)) + effective_xp
             incubating_eggs[curr_tier] = egg_usage
             self.state["incubating_eggs"] = incubating_eggs
             self.state["egg_usage"] = egg_usage
@@ -132,11 +149,182 @@ class CompanionEngine:
                 self.save()
         else:
             # Active mon accumulates XP
-            active.used_at_stage += delta
+            active.used_at_stage += effective_xp
             # Check evolution / graduation
             evo_events = self._check_growth(active)
             events.extend(evo_events)
 
+        # Check achievements
+        ach_events = self._check_achievements()
+        events.extend(ach_events)
+
+        return events
+
+    def _update_streak_and_quests(self, delta: int, events: List[str]):
+        today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+        last_date = self.state.get("last_active_date", "")
+
+        if last_date != today_str:
+            if last_date:
+                try:
+                    last_dt = datetime.datetime.strptime(last_date, "%Y-%m-%d")
+                    today_dt = datetime.datetime.strptime(today_str, "%Y-%m-%d")
+                    diff = (today_dt - last_dt).days
+                    if diff == 1:
+                        self.state["streak_days"] = self.state.get("streak_days", 1) + 1
+                    elif diff > 1:
+                        self.state["streak_days"] = 1
+                except Exception:
+                    self.state["streak_days"] = 1
+            else:
+                self.state["streak_days"] = 1
+            self.state["last_active_date"] = today_str
+
+        # Generate / check daily quests
+        qdata = self.state.get("daily_quests", {})
+        if qdata.get("date") != today_str:
+            qdata = {
+                "date": today_str,
+                "quests": [
+                    {"id": "q1", "text": "Burn 2.0M tokens today", "target": 2_000_000, "progress": 0, "reward": "rare_candy", "claimed": False},
+                    {"id": "q2", "text": "Hatch an egg or evolve a companion", "target": 1, "progress": 0, "reward": "mint", "claimed": False},
+                    {"id": "q3", "text": "Burn 10.0M cumulative tokens today", "target": 10_000_000, "progress": 0, "reward": "tokens_10m", "claimed": False}
+                ]
+            }
+            self.state["daily_quests"] = qdata
+
+        # Update quest progress
+        for q in qdata.get("quests", []):
+            if not q["claimed"]:
+                if q["id"] in ["q1", "q3"]:
+                    q["progress"] += delta
+                    if q["progress"] >= q["target"]:
+                        q["progress"] = q["target"]
+                        events.append(f"🎯 Quest Complete: [{q['text']}]! Type 'claim {q['id']}' to collect your reward!")
+
+    def claim_quest_reward(self, q_id: str) -> Tuple[bool, str]:
+        qdata = self.state.get("daily_quests", {})
+        quests = qdata.get("quests", [])
+        target_q = None
+        for q in quests:
+            if q["id"] == q_id or q_id == "all":
+                if q["progress"] >= q["target"] and not q["claimed"]:
+                    target_q = q
+                    break
+
+        if not target_q:
+            return False, "No completed unclaimed quest found!"
+
+        reward_type = target_q["reward"]
+        target_q["claimed"] = True
+        self.state["daily_quests"] = qdata
+
+        inv = self.state.get("inventory", {})
+        if reward_type == "rare_candy":
+            inv["rare_candy"] = inv.get("rare_candy", 0) + 1
+            self.state["inventory"] = inv
+            self.save()
+            return True, f"Claimed Reward: +1 Rare Candy 🍬 for completing [{target_q['text']}]!"
+        elif reward_type == "mint":
+            inv["mint"] = inv.get("mint", 0) + 1
+            self.state["inventory"] = inv
+            self.save()
+            return True, f"Claimed Reward: +1 Mint 🌿 for completing [{target_q['text']}]!"
+        elif reward_type == "tokens_10m":
+            self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - 10_000_000)
+            self.save()
+            return True, f"Claimed Reward: +10.0M Spendable Tokens for completing [{target_q['text']}]!"
+
+        return False, "Unknown reward type."
+
+    def _update_boss_battle(self, delta: int) -> List[str]:
+        events = []
+        bosses = [
+            {"id": "boss_1", "name": "Brock & Geodude", "sp_id": 74, "badge": "⚡ Boulder Badge", "threshold": 5_000_000, "hp": 2_000_000, "reward": "rare_candy"},
+            {"id": "boss_2", "name": "Misty & Starmie", "sp_id": 121, "badge": "💧 Cascade Badge", "threshold": 25_000_000, "hp": 10_000_000, "reward": "mint"},
+            {"id": "boss_3", "name": "Lt. Surge & Raichu", "sp_id": 26, "badge": "⚡ Thunder Badge", "threshold": 50_000_000, "hp": 25_000_000, "reward": "tokens_20m"},
+            {"id": "boss_4", "name": "Giovanni & Mewtwo", "sp_id": 150, "badge": "👑 Earth Badge", "threshold": 100_000_000, "hp": 50_000_000, "reward": "shiny_charm"}
+        ]
+
+        active_boss = self.state.get("active_boss")
+        if active_boss:
+            for b in bosses:
+                if b["id"] == active_boss.get("id"):
+                    active_boss["name"] = b["name"]
+
+        used_today = self.state.get("used_since_install", 0)
+        gym_badges = set(self.state.get("gym_badges", []))
+
+        if active_boss is None:
+            # Check if we should spawn a boss
+            for b in bosses:
+                if b["badge"] not in gym_badges and used_today >= b["threshold"]:
+                    active_boss = {
+                        "id": b["id"],
+                        "name": b["name"],
+                        "sp_id": b["sp_id"],
+                        "badge": b["badge"],
+                        "total_hp": b["hp"],
+                        "current_hp": b["hp"],
+                        "reward": b["reward"]
+                    }
+                    self.state["active_boss"] = active_boss
+                    events.append(f"⚔️ BOSS RAID! Gym Boss {b['name']} (#{b['sp_id']}) has appeared! (HP: {format_tokens(b['hp'])})")
+                    break
+
+        if active_boss is not None:
+            active_boss["current_hp"] -= delta
+            if active_boss["current_hp"] <= 0:
+                active_boss["current_hp"] = 0
+                badge = active_boss["badge"]
+                b_name = active_boss["name"]
+                gym_badges.add(badge)
+                self.state["gym_badges"] = list(gym_badges)
+
+                # Grant reward
+                r_type = active_boss["reward"]
+                inv = self.state.get("inventory", {})
+                if r_type == "rare_candy":
+                    inv["rare_candy"] = inv.get("rare_candy", 0) + 1
+                    self.state["inventory"] = inv
+                elif r_type == "mint":
+                    inv["mint"] = inv.get("mint", 0) + 1
+                    self.state["inventory"] = inv
+                elif r_type == "shiny_charm":
+                    inv["shiny_charm"] = inv.get("shiny_charm", 0) + 1
+                    self.state["inventory"] = inv
+                elif r_type == "tokens_20m":
+                    self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - 20_000_000)
+
+                events.append(f"🏆 BOSS DEFEATED! You defeated Boss {b_name} and earned the {badge}!")
+                self.state["active_boss"] = None
+
+        self.save()
+        return events
+
+    def _check_achievements(self) -> List[str]:
+        events = []
+        achievements = set(self.state.get("achievements", []))
+        dex = self.state.get("dex", [])
+        used_total = self.state.get("used_since_install", 0)
+        gym_badges = self.state.get("gym_badges", [])
+        streak = self.state.get("streak_days", 1)
+
+        checks = [
+            ("shiny_hunter", "🌟 Shiny Hunter Badge", any(d.get("is_shiny") for d in dex)),
+            ("token_tycoon", "💎 Token Tycoon Badge", used_total >= 100_000_000),
+            ("dex_collector", "📖 Dex Collector Badge", len(dex) >= 5),
+            ("gym_champion", "⚔️ Gym Champion Badge", len(gym_badges) >= 1),
+            ("streak_master", "⚡ Streak Master Badge", streak >= 3)
+        ]
+
+        for code, title, cond in checks:
+            if code not in achievements and cond:
+                achievements.add(code)
+                events.append(f"🎖️ ACHIEVEMENT UNLOCKED! Earned {title}!")
+
+        self.state["achievements"] = list(achievements)
+        self.save()
         return events
 
     def _check_growth(self, mon: MonState) -> List[str]:
