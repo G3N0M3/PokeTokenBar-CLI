@@ -241,18 +241,18 @@ class PokeTokenBarTUI:
             is_already_evolved = (active.stage_index < len(active.path_ids) - 1) and (active.path_ids[active.stage_index + 1] in discovered_sp_ids)
 
             if is_already_evolved:
-                bar = format_progress_bar(target_xp, target_xp)
+                bar = format_progress_bar(target_xp, target_xp, width=12)
                 next_id = active.path_ids[active.stage_index + 1]
                 next_name = self.engine.api.get_species_name(next_id)
-                sys.stdout.write(f"  Evolution to {next_name}: {bar} ({format_tokens(target_xp)} / {format_tokens(target_xp)}) {GREEN}[MAX / EVOLVED]{RESET}\n")
+                sys.stdout.write(f"  Evo -> {next_name}: {bar} ({format_tokens(target_xp)}/{format_tokens(target_xp)}) {GREEN}[EVOLVED]{RESET}\n")
             elif active.stage_index < len(active.path_ids) - 1:
-                bar = format_progress_bar(active.used_at_stage, target_xp)
+                bar = format_progress_bar(active.used_at_stage, target_xp, width=12)
                 next_id = active.path_ids[active.stage_index + 1]
                 next_name = self.engine.api.get_species_name(next_id)
-                sys.stdout.write(f"  Evolution to {next_name}: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)})\n")
+                sys.stdout.write(f"  Evo -> {next_name}: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)})\n")
             else:
-                bar = format_progress_bar(active.used_at_stage, target_xp)
-                sys.stdout.write(f"  Graduation to Pokédex: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)})\n")
+                bar = format_progress_bar(active.used_at_stage, target_xp, width=12)
+                sys.stdout.write(f"  Graduation: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)})\n")
 
         sys.stdout.write("\n" + "-" * 72 + "\n")
         sys.stdout.write(f" {BOLD}📊 Token Usage Metrics:{RESET}\n")

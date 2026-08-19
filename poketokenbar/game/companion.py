@@ -591,6 +591,11 @@ class CompanionEngine:
         sp_id = target_entry.get("species_id", target_entry.get("base_id"))
         sp_name = self.api.get_species_name(sp_id)
 
+        # Prevent selecting a companion currently on an expedition
+        expeditions = self.state.get("expeditions", [])
+        if any(e["sp_id"] == sp_id for e in expeditions):
+            return False, f"Cannot select {sp_name}! They are currently on an expedition."
+
         # First, save current active mon into dex as inactive if exists
         curr_active = self.active_mon
         if curr_active:
