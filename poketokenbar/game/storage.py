@@ -69,6 +69,7 @@ class StorageManager:
             "active_boss": None,
             "expeditions": [],
             "trainer_battles": {"wins": 0, "losses": 0},
+            "battle_logs": [],
             "golden_razz_active": False,
             "last_date": datetime.datetime.now().strftime("%Y-%m-%d")
         }

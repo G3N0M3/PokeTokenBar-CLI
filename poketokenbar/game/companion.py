@@ -904,14 +904,22 @@ class CompanionEngine:
             if active and active.is_mega:
                 player_stage += 2
 
+            now_str = datetime.datetime.now().strftime("%H:%M:%S")
+            logs = self.state.get("battle_logs", [])
+
             if player_stage >= req_stage or random.randint(1, 3) != 1:
                 battles["wins"] += 1
                 self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - 2_000_000)
-                events.append(f"⚔️ TRAINER BATTLE! You defeated {opp_name} in an auto-battle! Earned +2.0M Spendable Tokens!")
+                msg = f"⚔️ TRAINER BATTLE! You defeated {opp_name} in an auto-battle! Earned +2.0M Spendable Tokens!"
+                events.append(msg)
+                logs.append(f"[{now_str}] 🏆 WIN vs {opp_name} (Earned +2.0M Tokens)")
             else:
                 battles["losses"] += 1
-                events.append(f"⚔️ TRAINER BATTLE! {opp_name} put up a tough fight! Keep training your companion!")
+                msg = f"⚔️ TRAINER BATTLE! {opp_name} put up a tough fight! Keep training your companion!"
+                events.append(msg)
+                logs.append(f"[{now_str}] ❌ LOSS vs {opp_name}")
 
+            self.state["battle_logs"] = logs[-5:]
             self.state["trainer_battles"] = battles
             self.save()
 

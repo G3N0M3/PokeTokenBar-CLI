@@ -73,8 +73,12 @@ class PokeTokenBarTUI:
                 elif self.current_tab == 4:
                     self.render_quests_tab()
                 elif self.current_tab == 5:
-                    self.render_monitor_tab(summary)
+                    self.render_expeditions_tab()
                 elif self.current_tab == 6:
+                    self.render_battles_tab()
+                elif self.current_tab == 7:
+                    self.render_monitor_tab(summary)
+                elif self.current_tab == 8:
                     self.render_settings_tab()
 
                 self.render_footer()
@@ -83,7 +87,7 @@ class PokeTokenBarTUI:
                 auto_on = settings.get("auto_tracking_enabled", True)
                 status_str = f"Auto: {'ON' if auto_on else 'OFF'} ({interval}s)"
 
-                sys.stdout.write(f"\n{BOLD}Select tab (1-6), command, r=Refresh, q=Quit [{status_str}]: {RESET}")
+                sys.stdout.write(f"\n{BOLD}Select tab (1-8), command, r=Refresh, q=Quit [{status_str}]: {RESET}")
                 sys.stdout.flush()
 
                 try:
@@ -113,6 +117,12 @@ class PokeTokenBarTUI:
                         elif cmd == "6":
                             self.current_tab = 6
                             self.message = ""
+                        elif cmd == "7":
+                            self.current_tab = 7
+                            self.message = ""
+                        elif cmd == "8":
+                            self.current_tab = 8
+                            self.message = ""
                         elif cmd in ["r", "refresh"]:
                             summary = self.tracker.get_summary()
                             events = self.engine.process_usage(summary["total_tokens"])
@@ -120,7 +130,7 @@ class PokeTokenBarTUI:
                                 self.message = "Refreshed logs! " + " ".join(events)
                             else:
                                 self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
-                        elif cmd == "toggle" and self.current_tab == 6:
+                        elif cmd == "toggle" and self.current_tab == 8:
                             curr_on = settings.get("auto_tracking_enabled", True)
                             ok, msg = self.engine.update_settings(auto_tracking_enabled=not curr_on)
                             self.message = f"Automatic tracking set to: {'ON' if not curr_on else 'OFF'}"
@@ -156,7 +166,7 @@ class PokeTokenBarTUI:
                                     self.message = "Invalid interval number. Usage: interval <seconds>"
                             else:
                                 self.message = "Usage: interval <seconds> (e.g. 'interval 5')"
-                        elif cmd == "reset" and self.current_tab == 6:
+                        elif cmd == "reset" and self.current_tab == 8:
                             ok, msg = self.engine.reset_game_state()
                             self.message = msg
                         elif self.current_tab == 3 and cmd.startswith("buy"):
@@ -178,10 +188,12 @@ class PokeTokenBarTUI:
         t1 = f"{BOLD}{CYAN}[1] Companion{RESET}" if self.current_tab == 1 else "[1] Companion"
         t2 = f"{BOLD}{CYAN}[2] Pokédex{RESET}" if self.current_tab == 2 else "[2] Pokédex"
         t3 = f"{BOLD}{CYAN}[3] Shop & Bag{RESET}" if self.current_tab == 3 else "[3] Shop & Bag"
-        t4 = f"{BOLD}{CYAN}[4] Quests & Bosses{RESET}" if self.current_tab == 4 else "[4] Quests & Bosses"
-        t5 = f"{BOLD}{CYAN}[5] Live Monitor{RESET}" if self.current_tab == 5 else "[5] Live Monitor"
-        t6 = f"{BOLD}{CYAN}[6] Settings{RESET}" if self.current_tab == 6 else "[6] Settings"
-        sys.stdout.write(f"  {t1}   {t2}   {t3}   {t4}   {t5}   {t6}\n")
+        t4 = f"{BOLD}{CYAN}[4] Quests & Badges{RESET}" if self.current_tab == 4 else "[4] Quests & Badges"
+        t5 = f"{BOLD}{CYAN}[5] Expeditions{RESET}" if self.current_tab == 5 else "[5] Expeditions"
+        t6 = f"{BOLD}{CYAN}[6] Battles{RESET}" if self.current_tab == 6 else "[6] Battles"
+        t7 = f"{BOLD}{CYAN}[7] Live Monitor{RESET}" if self.current_tab == 7 else "[7] Live Monitor"
+        t8 = f"{BOLD}{CYAN}[8] Settings{RESET}" if self.current_tab == 8 else "[8] Settings"
+        sys.stdout.write(f"  {t1}  {t2}  {t3}  {t4}  {t5}  {t6}  {t7}  {t8}\n")
         sys.stdout.write("------------------------------------------------------------------------\n")
 
     def render_companion_tab(self, summary: dict):
@@ -249,7 +261,9 @@ class PokeTokenBarTUI:
             self.engine._register_to_dex(active, status="active")
 
         dex = self.engine.state.get("dex", [])
-        sys.stdout.write(f"\n  {BOLD}{HEADER}📖 Pokédex Archives ({len(dex)} species registered){RESET}\n\n")
+        sys.stdout.write(f"\n  {BOLD}{HEADER}📖 Pokédex Archives ({len(dex)} species registered){RESET}\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}select <number>{RESET}' or '{BOLD}select egg{RESET}' to switch active companion.\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}expedition <number> [viridian/cerulean/silver]{RESET}' to dispatch a companion on an expedition!\n\n")
 
         # Show Incubating Egg option ONLY if an egg is owned/incubating or active is None
         incubating_eggs = self.engine.state.get("incubating_eggs", {})
@@ -365,11 +379,10 @@ class PokeTokenBarTUI:
     def render_quests_tab(self):
         qdata = self.engine.state.get("daily_quests", {})
         quests = qdata.get("quests", [])
-        boss = self.engine.state.get("active_boss")
         badges = self.engine.state.get("gym_badges", [])
         achievements = self.engine.state.get("achievements", [])
 
-        sys.stdout.write(f"\n  {BOLD}{HEADER}🏆 Quests, Gym Bosses & Badges{RESET}\n\n")
+        sys.stdout.write(f"\n  {BOLD}{HEADER}🏆 Quests, Badges & Achievements{RESET}\n\n")
 
         # 1. Daily Quests
         sys.stdout.write(f"  {BOLD}🎯 Daily Quests (Type 'claim <id>' to collect rewards):{RESET}\n")
@@ -390,29 +403,14 @@ class PokeTokenBarTUI:
                     status = f"({format_tokens(prog)} / {format_tokens(target)})"
                 sys.stdout.write(f"   [{q_id}] {txt:<38} {status}\n")
 
-        # 2. Active Gym Boss Raid
-        sys.stdout.write(f"\n  {BOLD}⚔️ Gym Boss Raid:{RESET}\n")
-        if boss:
-            b_name = boss["name"]
-            b_sp_id = boss["sp_id"]
-            hp_cur = boss["current_hp"]
-            hp_tot = boss["total_hp"]
-            badge = boss["badge"]
-            bar = format_progress_bar(hp_cur, hp_tot)
-            sys.stdout.write(f"   Boss: {BOLD}{RED}{b_name} (#{b_sp_id}){RESET} - Reward: {badge}\n")
-            sys.stdout.write(f"   Boss HP: {bar} ({format_tokens(hp_cur)} / {format_tokens(hp_tot)})\n")
-            sys.stdout.write("   ➔ Attack the boss by spending tokens in Antigravity CLI!\n")
-        else:
-            sys.stdout.write("   No active Boss Raid. Reach daily token milestones to summon Gym Bosses!\n")
-
-        # 3. Gym Badges Collected
+        # 2. Gym Badges Collected
         sys.stdout.write(f"\n  {BOLD}🏅 Gym Badges Collected ({len(badges)}/10):{RESET}\n")
         if not badges:
             sys.stdout.write("   No badges earned yet. Defeat Gym Bosses to earn badges!\n")
         else:
             sys.stdout.write("   " + "   ".join([f"{BOLD}{YELLOW}{b}{RESET}" for b in badges]) + "\n")
 
-        # 4. Achievements Unlocked
+        # 3. Achievements Unlocked
         sys.stdout.write(f"\n  {BOLD}🎖️ Achievements ({len(achievements)} Unlocked):{RESET}\n")
         ach_titles = {
             "shiny_hunter": "🌟 Shiny Hunter",
@@ -422,17 +420,25 @@ class PokeTokenBarTUI:
             "streak_master": "⚡ Streak Master"
         }
         if not achievements:
-            sys.stdout.write("   No achievements unlocked yet.\n")
+            sys.stdout.write("   No achievements unlocked yet.\n\n")
         else:
             for code in achievements:
                 t = ach_titles.get(code, code)
                 sys.stdout.write(f"   • {BOLD}{GREEN}{t}{RESET}\n")
+            sys.stdout.write("\n")
 
-        # 5. Active Pokédex Expeditions
+    def render_expeditions_tab(self):
         expeditions = self.engine.state.get("expeditions", [])
-        sys.stdout.write(f"\n  {BOLD}🗺️ Active Pokédex Expeditions ({len(expeditions)} Active):{RESET}\n")
+        sys.stdout.write(f"\n  {BOLD}{HEADER}🗺️ Pokédex Expeditions ({len(expeditions)} Active){RESET}\n\n")
+        sys.stdout.write(f"  {BOLD}Available Expedition Destinations:{RESET}\n")
+        sys.stdout.write(f"   • Viridian Forest - Target: 5.0M tokens  - Reward: 🌿 Mint\n")
+        sys.stdout.write(f"   • Cerulean Cave   - Target: 15.0M tokens - Reward: 🍬 Rare Candy\n")
+        sys.stdout.write(f"   • Mt. Silver      - Target: 30.0M tokens - Reward: 🍇 Golden Razz Berry\n\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}expedition <dex_number> [viridian/cerulean/silver]{RESET}' to dispatch!\n\n")
+
+        sys.stdout.write(f"  {BOLD}🗺️ Active Expeditions Status:{RESET}\n")
         if not expeditions:
-            sys.stdout.write("   No active expeditions. Type 'expedition <dex_idx> [viridian/cerulean/silver]' in Pokédex tab!\n")
+            sys.stdout.write("   No companions currently on expedition.\n\n")
         else:
             for exp in expeditions:
                 sp_id = exp["sp_id"]
@@ -440,11 +446,42 @@ class PokeTokenBarTUI:
                 area = exp["area"]
                 bar = format_progress_bar(exp["progress"], exp["target"])
                 sys.stdout.write(f"   • {BOLD}{CYAN}{sp_name} (#{sp_id}){RESET} @ {area}: {bar} ({format_tokens(exp['progress'])} / {format_tokens(exp['target'])})\n")
+            sys.stdout.write("\n")
 
-        # 6. Mini-Trainer Auto-Battles Record
+    def render_battles_tab(self):
+        boss = self.engine.state.get("active_boss")
         battles = self.engine.state.get("trainer_battles", {"wins": 0, "losses": 0})
-        sys.stdout.write(f"\n  {BOLD}⚔️ Mini-Trainer Auto-Battle Record:{RESET}\n")
+        logs = self.engine.state.get("battle_logs", [])
+
+        sys.stdout.write(f"\n  {BOLD}{HEADER}⚔️ Gym Boss Raids & Trainer Auto-Battles{RESET}\n\n")
+
+        # 1. Active Gym Boss Raid
+        sys.stdout.write(f"  {BOLD}⚔️ Active Gym Boss Raid:{RESET}\n")
+        if boss:
+            b_name = boss["name"]
+            b_sp_id = boss["sp_id"]
+            hp_cur = boss["current_hp"]
+            hp_tot = boss["total_hp"]
+            badge = boss["badge"]
+            bar = format_progress_bar(hp_cur, hp_tot)
+            sys.stdout.write(f"   Boss: {BOLD}{RED}{b_name} (#{b_sp_id}){RESET} - Reward: {badge}\n")
+            sys.stdout.write(f"   Boss HP: {bar} ({format_tokens(hp_cur)} / {format_tokens(hp_tot)})\n")
+            sys.stdout.write("   ➔ Attack the boss by spending tokens in Antigravity CLI!\n\n")
+        else:
+            sys.stdout.write("   No active Boss Raid. Reach daily token milestones to summon Gym Bosses!\n\n")
+
+        # 2. Mini-Trainer Auto-Battle Record
+        sys.stdout.write(f"  {BOLD}⚔️ Mini-Trainer Auto-Battle Record:{RESET}\n")
         sys.stdout.write(f"   Wins: {BOLD}{GREEN}{battles.get('wins', 0)}{RESET}  |  Losses: {BOLD}{RED}{battles.get('losses', 0)}{RESET} (Triggers auto-battles every 2.0M tokens!)\n\n")
+
+        # 3. Recent Auto-Battle Logs (Last 5 Fights)
+        sys.stdout.write(f"  {BOLD}📜 Recent Auto-Battle Logs (Last 5 Fights):{RESET}\n")
+        if not logs:
+            sys.stdout.write("   No recent auto-battles recorded yet. Keep coding to trigger fights!\n\n")
+        else:
+            for log in logs:
+                sys.stdout.write(f"   {log}\n")
+            sys.stdout.write("\n")
 
     def render_monitor_tab(self, summary: dict):
         sys.stdout.write(f"\n  {BOLD}{CYAN}📡 Live Token Usage Monitor{RESET}\n\n")

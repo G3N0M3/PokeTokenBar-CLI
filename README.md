@@ -80,13 +80,15 @@ poketokenbar
 ```
 
 #### TUI Navigation & Commands:
-- **Tabs**: `1` Companion | `2` Pokédex | `3` Shop & Bag | `4` Quests & Bosses | `5` Live Monitor | `6` Settings
+- **Tabs**: `1` Companion | `2` Pokédex | `3` Shop & Bag | `4` Quests & Badges | `5` Expeditions | `6` Battles | `7` Live Monitor | `8` Settings
 - **`select <number>`** / **`select egg`**: Switch active companion or incubating egg (in Tab 2)
+- **`expedition <dex_idx> [viridian/cerulean/silver]`**: Dispatch companion on an expedition (in Tab 2/5)
 - **`buy <number>`**: Buy shop items (in Tab 3)
 - **`use <number>`**: Use inventory items (in Tab 3)
 - **`claim <id>`**: Claim daily quest rewards (in Tab 4)
-- **`toggle`**: Toggle automatic token tracking ON/OFF (in Tab 6)
-- **`reset`**: Reset game progress and start fresh (in Tab 6)
+- **`card`**: View shareable ASCII Trainer Profile Card
+- **`toggle`**: Toggle automatic token tracking ON/OFF (in Tab 8)
+- **`reset`**: Reset game progress and start fresh (in Tab 8)
 - **`interval <sec>`**: Set auto-refresh interval in seconds
 - **`r`**: Force immediate log re-scan & token update
 - **`q`**: Exit application
