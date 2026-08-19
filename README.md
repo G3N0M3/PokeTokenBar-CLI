@@ -11,30 +11,40 @@ Designed specifically for **Linux CLI** environments, **Antigravity CLI** (`~/.g
 - 🐾 **Terminal Pokémon Companion**: Incubate eggs, hatch Gen 1–5 Pokémon, evolve them, and archive them into your Pokédex as you write code!
 - 🎨 **TrueColor ANSI Sprite Rendering**: Renders crisp, colored 24-bit ANSI Pokémon sprites directly inside your Linux CLI.
 - 📡 **Active Token Usage Tracker**: Reads real-time token spend directly from Antigravity CLI SQLite DBs (`gen_metadata` protobuf step stats), Gemini CLI, and Claude Code log files.
-- 🔄 **Companion Roster & Free Switching**:
-  - Switch active companions anytime from your Pokédex using `select <number>` or `select egg`.
-  - Your paused companions remain safely stored in your Pokédex roster (`[IN ROSTER]`) with their exact stage and level progress intact.
-  - Incubating eggs can be paused and resumed seamlessly without losing hatch progress.
-- 🎓 **Pre-Evolution & Max XP System**:
-  - Already-evolved forms (e.g. Zorua after unlocking Zoroark) display `100.0% [MAX / EVOLVED]`.
-  - Tokens spent while holding a maxed companion generate spendable shop currency (`available_tokens`) while keeping companion state intact.
-- ⚖️ **Rebalanced Game Difficulty**:
-  - **Medium Mode (Default)**: 1.5M Egg Hatch, 50M Graduation, 25M Rare Candy (+15M XP), 5M Mint, 150M Shiny Charm.
-- 🛒 **Token Shop & Inventory Bag**:
-  - Spend earned tokens on **Rare Candies**, **Mints** (reroll nature), **Shiny Charms** (passive 1/48 shiny odds), and **Tiered Pokémon Eggs**.
-  - Single-egg-per-tier constraint prevents buying duplicate eggs of the same tier while allowing 1 Standard Egg and 1 Uncommon Egg concurrently.
-- ⚔️ **Mini-Trainer Auto-Battles**: Encounter AI Trainers (e.g. *Youngster Joey*, *Team Rocket Grunt*, *Rival Blue*) every 2.0M tokens burned! Turn-based auto-battles award bonus spendable tokens.
-- 🗺️ **Pokédex Expeditions**: Dispatch inactive companions from your Pokédex on background expeditions (*Viridian Forest*, *Cerulean Cave*, *Mt. Silver*) to collect Rare Candies, Mints, and Berries.
-- ✨ **Mega Evolution & Form Changes**: Equip **Mega Stones** on eligible final forms (*Charizard*, *Lucario*, *Gengar*, *Mewtwo*, *Venusaur*, *Blastoise*) for glowing sprites and a **+50% XP boost**!
-- 🫐 **Berry Garden & Companion Feeding**: Feed **Oran Berries** (+25% Happiness) and **Golden Razz Berries** (boosts next egg shiny odds to 1/24!).
-- 📇 **Shareable Trainer Profile Card (`ptb card`)**: Output a styled ASCII Trainer Profile Card featuring your active companion, rank, coding streak, and Gym Badges!
-- 📊 **Compact Number Formatting**: Real-time burn rates and token metrics formatted cleanly (e.g. `40.7M`, `74.9K`, `123`).
-- 🖥️ **Interactive TUI & Quick Commands**:
-  - `ptb`: Launches full interactive 6-tab TUI.
-  - `ptb status`: Compact 1-line status (perfect for `PS1` prompts or tmux status bars).
-  - `ptb watch`: Continuous live token monitoring loop with animated sprites and burn rate (tokens/min).
-  - `ptb card`: Display shareable ASCII Trainer Profile Card.
-  - `ptb dex` / `ptb shop` / `ptb settings`: Command-line shortcuts.
+- 📖 **Dedicated Pokédex Archive (Tab [2]) & Roster (Tab [3])**:
+  - **Tab [2] Pokédex**: Historical archive of all discovered species with evolution & graduation milestones (`[EVOLVED]`, `[GRADUATED]`).
+  - **Tab [3] Roster**: Active list of caught Pokémon partners available for switching and expeditions (`[ACTIVE]`, `[IN ROSTER]`, `[ON EXPEDITION]`).
+  - Switch companions using `select <roster_idx>` (e.g. `select 2`) or species ID (e.g. `select #570` or `select 570`).
+- 🎲 **Token Video Poker (Tab [9])**:
+  - Bet your spendable tokens (`bet 500k`, `bet 1m`) and win payouts up to **250x** for a Royal Flush!
+  - Draw unheld cards (`hold 1 3 5` or `hold none` / `hold all`).
+- 🔮 **Pokémon Gacha Capsule Machine (Tab [10])**:
+  - Spend tokens to pull rare capsule items and companions (`pull 1` for 5M or `pull 10` for 45M).
+  - Rewards include **Shiny Charms**, **Rare Eggs**, **Mega Stones**, and **Legendary Shiny Partners**!
+- 💖 **Individual Companion Happiness**:
+  - Every Pokémon in your roster tracks its own Happiness (0-100%).
+  - Maintaining **100% Happiness** grants a **+20% XP Boost**.
+  - Restored via **Oran Berries 🫐** (+25%) and daily activity (+10%). Decays on missed coding days (-25%/day) and battle losses (-10%).
+- 🛡️ **Safe Reset Confirmation Prompt**:
+  - Prevents accidental data wipes with a two-step prompt requiring `RESET ALL` confirmation.
+- ⚔️ **Mini-Trainer Auto-Battles & Gym Boss Raids (Tab [6])**:
+  - Encounter AI Trainers (*Youngster Joey*, *Team Rocket Grunt*, *Rival Blue*) every 2.0M tokens burned to earn bonus spendable tokens and fight Gym Bosses (*Brock*, *Misty*, *Cynthia*)!
+- 🗺️ **Pokédex Expeditions (Tab [5])**:
+  - Dispatch companions on background expeditions (*Viridian Forest*, *Cerulean Cave*, *Mt. Silver*) to collect Rare Candies, Mints, and Berries.
+- ✨ **Mega Evolution & Form Changes**:
+  - Equip **Mega Stones** on eligible final forms (*Charizard*, *Lucario*, *Gengar*, *Mewtwo*, *Venusaur*, *Blastoise*) for glowing titles and a **+50% XP boost**!
+- 📇 **Shareable Trainer Profile Card (`ptb card`)**:
+  - Output a styled ASCII Trainer Profile Card featuring your active companion, rank, coding streak, and Gym Badges!
+
+---
+
+## 🖥️ 11-Tab Interactive TUI Layout
+
+```text
+  [1] Companion   [2] Pokédex   [3] Roster      [4] Shop & Bag
+  [5] Expeditions [6] Battles   [7] Quests      [8] Monitor
+  [9] Poker       [10] Gacha    [11] Settings
+```
 
 ---
 
@@ -53,9 +63,6 @@ Clone the repository and install `poketokenbar` via `pip`:
 git clone https://github.com/YOUR_USERNAME/PokeTokenBar.git
 cd PokeTokenBar
 
-# (Optional) Activate your python virtualenv or conda environment
-# conda activate PTB
-
 # Install in editable mode
 pip install -e .
 ```
@@ -70,94 +77,33 @@ ptb
 
 ---
 
-## 💻 Usage
+## 💻 Usage & Commands
 
-### 1. Launch Interactive TUI
+### Interactive TUI Commands:
+- `1`..`11`: Switch directly between all 11 dedicated tabs.
+- `select <roster_idx>` / `select #<species_id>` / `select egg`: Switch active partner companion or egg.
+- `send <roster_idx> [viridian/cerulean/silver]`: Dispatch companion on expedition.
+- `bet <amount>`: Start a Video Poker hand (e.g. `bet 500k`, `bet 1m`).
+- `hold <1..5>`: Select held cards in Poker (or `hold none` / `hold all`).
+- `pull [1/10]`: Pull 1x or 10x Gacha Capsules.
+- `buy <number>`: Purchase shop items.
+- `use <number>`: Feed berries or use items from Bag.
+- `claim <id>`: Claim daily quest rewards.
+- `card`: View ASCII Trainer Profile Card.
+- `toggle`: Toggle automatic token tracking ON/OFF (in Settings).
+- `reset`: Initiate two-step game progress reset prompt (in Settings).
+- `interval <sec>`: Set auto-refresh interval in seconds.
+- `r`: Force immediate log re-scan.
+- `q`: Exit application.
+
+### Command-Line Shortcuts:
 ```bash
-ptb
-# or
-poketokenbar
+ptb status       # 1-line status banner (perfect for prompt / tmux)
+ptb watch        # Continuous live monitor loop with animated sprite
+ptb card         # Display shareable ASCII Trainer Profile Card
+ptb dex          # Quick Pokédex archive printout
+ptb shop         # Quick Shop & Bag listing
 ```
-
-#### TUI Navigation & Commands:
-- **Tabs**: `1` Companion | `2` Pokédex | `3` Shop & Bag | `4` Quests & Badges | `5` Expeditions | `6` Battles | `7` Live Monitor | `8` Settings
-- **`select <number>`** / **`select egg`**: Switch active companion or incubating egg (in Tab 2)
-- **`expedition <dex_idx> [viridian/cerulean/silver]`**: Dispatch companion on an expedition (in Tab 2/5)
-- **`buy <number>`**: Buy shop items (in Tab 3)
-- **`use <number>`**: Use inventory items (in Tab 3)
-- **`claim <id>`**: Claim daily quest rewards (in Tab 4)
-- **`card`**: View shareable ASCII Trainer Profile Card
-- **`toggle`**: Toggle automatic token tracking ON/OFF (in Tab 8)
-- **`reset`**: Reset game progress and start fresh (in Tab 8)
-- **`interval <sec>`**: Set auto-refresh interval in seconds
-- **`r`**: Force immediate log re-scan & token update
-- **`q`**: Exit application
-
----
-
-### 2. Configure Settings (TUI or CLI)
-
-- **Via TUI**: Go to Tab `[5]` and type:
-  - `toggle`: Switch Automatic Tracking ON/OFF
-  - `interval 5`: Set update interval to 5 seconds
-- **Via CLI**:
-  ```bash
-  ptb settings                      # View current settings
-  ptb settings --auto-track on      # Enable automatic tracking
-  ptb settings --auto-track off     # Disable automatic tracking
-  ptb settings --interval 5.0       # Set refresh interval to 5 seconds
-  ```
-
----
-
-### 3. Quick Shell Prompt / Status
-```bash
-ptb status
-# Example Output:
-# 🐾 ✨Zoroark (#571) [Form 2/2] | Today: 15.2M tokens | Burn: 74.9K tpm
-```
-
----
-
-### 4. Continuous Live Watch Mode
-```bash
-ptb watch --interval 3.0
-```
-
----
-
-## 🔧 Version Control & GitHub Release Workflow
-
-PokeTokenBar uses [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`):
-- Single source of truth is defined in `poketokenbar/__init__.__version__` and `setup.py`.
-
-### 1. Initializing Git & Pushing to GitHub
-```bash
-cd /home/ejchoi/projects/personal/PokeTokenBar
-
-# Initialize repository & set default branch
-git init
-git branch -M main
-
-# Commit initial code
-git add .
-git commit -m "feat: initial release v1.0.0 of PokeTokenBar CLI"
-
-# Tag release v1.0.0
-git tag -a v1.0.0 -m "Release v1.0.0"
-
-# Link remote & push
-git remote add origin https://github.com/YOUR_USERNAME/PokeTokenBar.git
-git push -u origin main
-git push origin --tags
-```
-
-### 2. Creating New Version Releases
-When making future changes:
-1. Update `__version__ = "1.1.0"` in `poketokenbar/__init__.py` and `setup.py`.
-2. Commit your changes: `git commit -m "feat: description of new feature"`
-3. Tag the release: `git tag -a v1.1.0 -m "Release v1.1.0"`
-4. Push code and tags: `git push && git push origin --tags`
 
 ---
 
