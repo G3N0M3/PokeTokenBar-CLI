@@ -1094,7 +1094,7 @@ class CompanionEngine:
 
     def play_poker_hold(self, hold_str: str) -> Tuple[bool, str]:
         if self.poker.game_state != "holding":
-            return False, "No active Poker hand! Type 'bet <amount>' to start a new hand."
+            return False, "No active Poker hand! Type 'bet <amount>' to start a new hand against the House."
 
         parts = hold_str.lower().split()
         indices = []
@@ -1107,20 +1107,24 @@ class CompanionEngine:
                 if p.isdigit() and 1 <= int(p) <= 5:
                     indices.append(int(p))
 
-        rank_name, mult, winnings = self.poker.play_draw(indices)
+        outcome, p_rank, d_rank, mult, winnings = self.poker.play_showdown(indices)
         
         # Add winnings to spent_tokens
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + winnings
         self.save()
 
-        hand_str = " ".join([str(c) for c in self.poker.hand])
-        net_change = winnings - self.poker.current_bet
+        p_hand_str = " ".join([str(c) for c in self.poker.player_hand])
+        d_hand_str = " ".join([str(c) for c in self.poker.dealer_hand])
+        bet = self.poker.current_bet
+        net_change = winnings - bet
         profit_str = f"+{format_tokens(net_change)}" if net_change >= 0 else f"-{format_tokens(abs(net_change))}"
 
-        if mult > 0:
-            return True, f"🃏 Hand: {hand_str}\n  Result: \033[1m\033[32m{rank_name}\033[0m ({mult}x Payout!)\n  Won: \033[1m\033[36m{format_tokens(winnings)}\033[0m Tokens! (Net: {profit_str})"
+        if outcome == "WIN":
+            return True, f"🎴 YOUR HAND:   {p_hand_str} (\033[1m\033[32m{p_rank}\033[0m)\n  🏠 HOUSE HAND:  {d_hand_str} (\033[1m\033[31m{d_rank}\033[0m)\n  🏆 Result: \033[1m\033[32mYOU BEAT THE HOUSE!\033[0m ({mult}x Payout! Won \033[1m\033[36m{format_tokens(winnings)}\033[0m Tokens! Net: {profit_str})"
+        elif outcome == "PUSH":
+            return True, f"🎴 YOUR HAND:   {p_hand_str} (\033[1m\033[33m{p_rank}\033[0m)\n  🏠 HOUSE HAND:  {d_hand_str} (\033[1m\033[33m{d_rank}\033[0m)\n  🤝 Result: \033[1m\033[33mTIE / PUSH!\033[0m Bet of {format_tokens(bet)} Tokens returned."
         else:
-            return True, f"🃏 Hand: {hand_str}\n  Result: \033[1m\033[31m{rank_name}\033[0m (No Payout)\n  Lost: {format_tokens(self.poker.current_bet)} Tokens."
+            return True, f"🎴 YOUR HAND:   {p_hand_str} (\033[1m\033[31m{p_rank}\033[0m)\n  🏠 HOUSE HAND:  {d_hand_str} (\033[1m\033[32m{d_rank}\033[0m)\n  💀 Result: \033[1m\033[31mHOUSE WINS!\033[0m Lost {format_tokens(bet)} Tokens."
 
     def play_gacha(self, pull_type: str = "1") -> Tuple[bool, str]:
         cost = GACHA_COST_MULTI if pull_type == "10" else GACHA_COST_SINGLE

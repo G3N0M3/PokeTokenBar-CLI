@@ -5,19 +5,6 @@ SUITS = ["♠", "♥", "♦", "♣"]
 RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
 RANK_VALUES = {r: i for i, r in enumerate(RANKS, start=2)}
 
-PAYOUTS = {
-    "Royal Flush": 250,
-    "Straight Flush": 50,
-    "Four of a Kind": 25,
-    "Full House": 12,
-    "Flush": 8,
-    "Straight": 5,
-    "Three of a Kind": 3,
-    "Two Pair": 2,
-    "Jacks or Better": 1,
-    "High Card": 0
-}
-
 class Card:
     def __init__(self, rank: str, suit: str):
         self.rank = rank
@@ -45,7 +32,8 @@ class Deck:
 class PokerEngine:
     def __init__(self):
         self.deck = Deck()
-        self.hand: List[Card] = []
+        self.player_hand: List[Card] = []
+        self.dealer_hand: List[Card] = []
         self.current_bet = 0
         self.game_state = "idle" # "idle", "holding"
 
@@ -53,30 +41,96 @@ class PokerEngine:
         if bet_amount <= 0:
             return False, "Bet amount must be greater than 0!"
         self.deck = Deck()
-        self.hand = self.deck.draw(5)
+        self.player_hand = self.deck.draw(5)
+        self.dealer_hand = self.deck.draw(5)
         self.current_bet = bet_amount
         self.game_state = "holding"
-        rank_name, _ = self.evaluate_hand(self.hand)
-        return True, f"Dealt hand! Current Rank: {rank_name}. Type 'hold 1 3 5' (or 'hold none' / 'hold all') to draw!"
 
-    def play_draw(self, hold_indices: List[int]) -> Tuple[str, int, int]:
+        p_name, p_score = self.evaluate_hand(self.player_hand)
+        return True, f"Dealt hand! Your Current Rank: {p_name}. Dealer has 5 face-down cards. Type 'hold 1 3 5' (or 'hold none' / 'hold all') to draw against the House!"
+
+    def play_showdown(self, hold_indices: List[int]) -> Tuple[str, str, str, int, int]:
         """
-        Swaps cards not in hold_indices (1-based), evaluates final hand, and returns:
-        (rank_name, payout_multiplier, winnings)
+        Executes draw for Player and Dealer AI, compares hands, and returns:
+        (outcome_str, player_rank_name, dealer_rank_name, payout_multiplier, total_winnings)
         """
-        # Keep held cards, replace others
-        new_hand = []
+        # 1. Player Draw
+        new_player_hand = []
         for idx in range(1, 6):
             if idx in hold_indices:
-                new_hand.append(self.hand[idx - 1])
+                new_player_hand.append(self.player_hand[idx - 1])
             else:
-                new_hand.append(self.deck.draw(1)[0])
+                new_player_hand.append(self.deck.draw(1)[0])
+        self.player_hand = new_player_hand
 
-        self.hand = new_hand
+        # 2. Dealer AI Strategy Draw
+        dealer_holds = self._dealer_ai_strategy(self.dealer_hand)
+        new_dealer_hand = []
+        for idx in range(1, 6):
+            if idx in dealer_holds:
+                new_dealer_hand.append(self.dealer_hand[idx - 1])
+            else:
+                new_dealer_hand.append(self.deck.draw(1)[0])
+        self.dealer_hand = new_dealer_hand
+
         self.game_state = "idle"
-        rank_name, mult = self.evaluate_hand(self.hand)
-        winnings = self.current_bet * mult
-        return rank_name, mult, winnings
+
+        # 3. Evaluate Hands
+        p_name, p_score = self.evaluate_hand(self.player_hand)
+        d_name, d_score = self.evaluate_hand(self.dealer_hand)
+
+        # 4. Compare Hands against the House
+        if p_score > d_score:
+            # Player Wins! Determine payout multiplier
+            mult = self._get_win_multiplier(p_name)
+            outcome = "WIN"
+            winnings = self.current_bet * mult
+        elif p_score == d_score:
+            # Push / Tie
+            mult = 1
+            outcome = "PUSH"
+            winnings = self.current_bet
+        else:
+            # House Wins
+            mult = 0
+            outcome = "LOSS"
+            winnings = 0
+
+        return outcome, p_name, d_name, mult, winnings
+
+    def _dealer_ai_strategy(self, hand: List[Card]) -> List[int]:
+        """Dealer AI determines 1-based card indices to hold."""
+        ranks = [c.value for c in hand]
+        rank_counts = {r: ranks.count(r) for r in set(ranks)}
+
+        # Holds indices of paired/tripled cards
+        holds = []
+        for idx, card in enumerate(hand, 1):
+            if rank_counts[card.value] >= 2:
+                holds.append(idx)
+
+        if not holds:
+            # High card: Hold top 2 cards
+            sorted_with_idx = sorted(enumerate(hand, 1), key=lambda x: x[1].value, reverse=True)
+            holds = [sorted_with_idx[0][0], sorted_with_idx[1][0]]
+
+        return holds
+
+    @staticmethod
+    def _get_win_multiplier(rank_name: str) -> int:
+        multipliers = {
+            "Royal Flush": 50,
+            "Straight Flush": 15,
+            "Four of a Kind": 8,
+            "Full House": 5,
+            "Flush": 4,
+            "Straight": 3,
+            "Three of a Kind": 2,
+            "Two Pair": 2,
+            "One Pair": 2,
+            "High Card": 2
+        }
+        return multipliers.get(rank_name, 2)
 
     @staticmethod
     def evaluate_hand(hand: List[Card]) -> Tuple[str, int]:
@@ -90,30 +144,35 @@ class PokerEngine:
 
         if is_straight and is_flush:
             if ranks == [10, 11, 12, 13, 14]:
-                return "Royal Flush", PAYOUTS["Royal Flush"]
-            return "Straight Flush", PAYOUTS["Straight Flush"]
+                return "Royal Flush", 10_000_000 + max(ranks)
+            return "Straight Flush", 9_000_000 + max(ranks)
 
         if counts == [4, 1]:
-            return "Four of a Kind", PAYOUTS["Four of a Kind"]
+            four_rank = [r for r, c in rank_counts.items() if c == 4][0]
+            return "Four of a Kind", 8_000_000 + four_rank * 100 + max(ranks)
 
         if counts == [3, 2]:
-            return "Full House", PAYOUTS["Full House"]
+            three_rank = [r for r, c in rank_counts.items() if c == 3][0]
+            pair_rank = [r for r, c in rank_counts.items() if c == 2][0]
+            return "Full House", 7_000_000 + three_rank * 100 + pair_rank
 
         if is_flush:
-            return "Flush", PAYOUTS["Flush"]
+            return "Flush", 6_000_000 + sum(ranks)
 
         if is_straight:
-            return "Straight", PAYOUTS["Straight"]
+            return "Straight", 5_000_000 + max(ranks)
 
         if counts == [3, 1, 1]:
-            return "Three of a Kind", PAYOUTS["Three of a Kind"]
+            three_rank = [r for r, c in rank_counts.items() if c == 3][0]
+            return "Three of a Kind", 4_000_000 + three_rank * 100 + sum(ranks)
 
         if counts == [2, 2, 1]:
-            return "Two Pair", PAYOUTS["Two Pair"]
+            pairs = sorted([r for r, c in rank_counts.items() if c == 2], reverse=True)
+            kicker = [r for r, c in rank_counts.items() if c == 1][0]
+            return "Two Pair", 3_000_000 + pairs[0] * 1000 + pairs[1] * 100 + kicker
 
         if counts == [2, 1, 1, 1]:
             pair_rank = [r for r, c in rank_counts.items() if c == 2][0]
-            if pair_rank >= 11:  # Jacks or Better
-                return "Jacks or Better", PAYOUTS["Jacks or Better"]
+            return "One Pair", 2_000_000 + pair_rank * 100 + sum(ranks)
 
-        return "High Card", PAYOUTS["High Card"]
+        return "High Card", 1_000_000 + max(ranks) * 100 + sum(ranks)

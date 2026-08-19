@@ -595,24 +595,31 @@ class PokeTokenBarTUI:
 
     def render_poker_tab(self):
         avail = self.engine.available_tokens
-        sys.stdout.write(f"\n  {BOLD}{HEADER}🎲 Token Video Poker (Bet & Win Tokens!){RESET}\n\n")
+        sys.stdout.write(f"\n  {BOLD}{HEADER}🎲 Heads-Up Casino Poker (You vs. The House!){RESET}\n\n")
         sys.stdout.write(f"  Available Tokens to Bet: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n\n")
 
-        sys.stdout.write(f"  {BOLD}🃏 Paytable (Multiplier on Bet):{RESET}\n")
-        sys.stdout.write(f"   • Royal Flush     [250x]   • Straight Flush [50x]   • Four of a Kind [25x]\n")
-        sys.stdout.write(f"   • Full House      [ 12x]   • Flush          [ 8x]   • Straight       [ 5x]\n")
-        sys.stdout.write(f"   • Three of a Kind [  3x]   • Two Pair       [ 2x]   • Jacks or Better[ 1x]\n\n")
+        sys.stdout.write(f"  {BOLD}🃏 House Rules & Winning Multipliers:{RESET}\n")
+        sys.stdout.write(f"   • Beat the House Dealer's hand to win 2x your bet!\n")
+        sys.stdout.write(f"   • Winning Bonus Multipliers: Royal Flush [50x] | Straight Flush [15x]\n")
+        sys.stdout.write(f"   • Four of a Kind [8x] | Full House [5x] | Flush [4x] | Straight [3x]\n\n")
 
-        sys.stdout.write(f"  ➔ Type '{BOLD}bet <amount>{RESET}' to start (e.g. 'bet 500k', 'bet 1m', 'bet 500000')\n")
-        sys.stdout.write(f"  ➔ Type '{BOLD}hold 1 3 5{RESET}' (or 'hold none' / 'hold all') to draw final cards!\n\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}bet <amount>{RESET}' to start (e.g. 'bet 500k', 'bet 1m', 'bet 2000000')\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}hold 1 3 5{RESET}' (or 'hold none' / 'hold all') to draw against the House!\n\n")
 
-        if self.engine.poker.hand:
-            hand_str = " ".join([str(c) for c in self.engine.poker.hand])
-            rank, mult = self.engine.poker.evaluate_hand(self.engine.poker.hand)
-            state_str = "Awaiting Hold/Draw choice" if self.engine.poker.game_state == "holding" else "Hand Completed"
-            sys.stdout.write(f"  {BOLD}Current Hand [{state_str}]:{RESET}\n")
-            sys.stdout.write(f"   {hand_str}\n")
-            sys.stdout.write(f"   Rank: {BOLD}{YELLOW}{rank}{RESET}  |  Current Bet: {format_tokens(self.engine.poker.current_bet)}\n\n")
+        if self.engine.poker.player_hand:
+            p_hand = " ".join([str(c) for c in self.engine.poker.player_hand])
+            if self.engine.poker.game_state == "holding":
+                d_hand = "[?] [?] [?] [?] [?]"
+                state_str = "Awaiting Your Hold/Draw Choice"
+            else:
+                d_hand = " ".join([str(c) for c in self.engine.poker.dealer_hand])
+                state_str = "Showdown Completed"
+
+            p_rank, _ = self.engine.poker.evaluate_hand(self.engine.poker.player_hand)
+            sys.stdout.write(f"  {BOLD}Active Match [{state_str}]:{RESET}\n")
+            sys.stdout.write(f"   🎴 Your Cards:  {p_hand}  ({p_rank})\n")
+            sys.stdout.write(f"   🏠 House Cards: {d_hand}\n")
+            sys.stdout.write(f"   Current Bet: {BOLD}{YELLOW}{format_tokens(self.engine.poker.current_bet)}{RESET} tokens\n\n")
 
     def render_gacha_tab(self):
         avail = self.engine.available_tokens
