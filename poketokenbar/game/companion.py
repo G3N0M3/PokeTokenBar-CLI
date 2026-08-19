@@ -1097,8 +1097,8 @@ class CompanionEngine:
         if bet > avail:
             return False, f"Not enough tokens! You have {format_tokens(avail)} available tokens."
 
-        # Lock bet by deducting from spent_tokens
-        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - bet
+        # Lock bet by increasing spent_tokens
+        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + bet
         self.save()
 
         ok, msg = self.poker.start_hand(bet)
@@ -1121,8 +1121,9 @@ class CompanionEngine:
             avail = self.available_tokens
             if avail < self.poker.current_bet:
                 return False, f"Not enough tokens to double bet! Needed: {format_tokens(self.poker.current_bet)}"
-            # Deduct raise bet
-            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - self.poker.current_bet
+            # Deduct raise bet (increase spent_tokens)
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + self.poker.current_bet
+            self.poker.current_bet *= 2
             self.save()
             return self._format_poker_showdown()
         else:
@@ -1131,9 +1132,10 @@ class CompanionEngine:
     def _format_poker_showdown(self) -> Tuple[bool, str]:
         outcome, p_rank, d_rank, mult, winnings = self.poker.play_showdown()
         
-        # Add winnings to spent_tokens
-        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + winnings
-        self.save()
+        # Grant winnings by decreasing spent_tokens
+        if winnings > 0:
+            self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - winnings)
+            self.save()
 
         p_hole = " ".join([str(c) for c in self.poker.player_hole])
         d_hole = " ".join([str(c) for c in self.poker.dealer_hole])
@@ -1158,8 +1160,8 @@ class CompanionEngine:
         if avail < cost:
             return False, f"Not enough tokens! Gacha pull requires {format_tokens(cost)} available tokens."
 
-        # Deduct cost from spent_tokens
-        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - cost
+        # Deduct cost by increasing spent_tokens
+        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + cost
         inv = self.state.get("inventory", {})
 
         results_txt = []
@@ -1177,12 +1179,12 @@ class CompanionEngine:
             if r_type == "item":
                 inv[val] = inv.get(val, 0) + 1
             elif r_type == "tokens":
-                self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + val
+                self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - val)
             elif r_type == "egg":
                 self.state["incubating_eggs"] = self.state.get("incubating_eggs", {})
                 self.state["incubating_eggs"][val] = self.state["incubating_eggs"].get(val, 0)
             elif r_type == "legendary":
-                self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + val
+                self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - val)
                 self.state["golden_razz_active"] = True
 
         self.state["inventory"] = inv
