@@ -315,18 +315,26 @@ class PokeTokenBarTUI:
         if not dex:
             sys.stdout.write("  Your Pokédex is empty! Incubate and raise your Pokémon companions to fill it.\n\n")
         else:
+            expeditions = self.engine.state.get("expeditions", [])
+            exp_map = {e["sp_id"]: e for e in expeditions}
+
             for idx, entry in enumerate(dex, 1):
                 sp_id = entry.get("species_id", entry.get("final_id", entry.get("base_id")))
                 name = self.engine.api.get_species_name(sp_id)
                 shiny_str = f"{YELLOW}✨{RESET}" if entry.get("is_shiny") else ""
                 rarity = entry.get("rarity", "common").upper()
                 status = entry.get("status", "discovered")
-                if status == "graduated":
+
+                if sp_id in exp_map:
+                    exp_info = exp_map[sp_id]
+                    pct = (exp_info["progress"] / exp_info["target"]) * 100
+                    status_badge = f"{BOLD}{CYAN}[ON EXPEDITION: {exp_info['area']} ({pct:.0f}%)] {RESET}"
+                elif active and active.current_id == sp_id:
+                    status_badge = f"{BOLD}{GREEN}[ACTIVE]{RESET}"
+                elif status == "graduated":
                     status_badge = f"{BOLD}{CYAN}[GRADUATED]{RESET}"
                 elif status == "evolved":
                     status_badge = f"{BOLD}{YELLOW}[EVOLVED]{RESET}"
-                elif status == "active":
-                    status_badge = f"{BOLD}{GREEN}[ACTIVE]{RESET}"
                 else:
                     status_badge = f"{BOLD}{YELLOW}[DISCOVERED]{RESET}"
 
