@@ -180,9 +180,9 @@ class PokeTokenBarTUI:
             self.auto_tracker.stop()
 
     def render_header(self, summary: dict):
-        sys.stdout.write(f"{HEADER}========================================================================{RESET}\n")
+        sys.stdout.write(f"{HEADER}{'='*72}{RESET}\n")
         sys.stdout.write(f"{HEADER} ⚡ POKETOKENBAR — AI Token Pokémon Companion (Linux CLI Edition) 🐾 {RESET}\n")
-        sys.stdout.write(f"{HEADER}========================================================================{RESET}\n\n")
+        sys.stdout.write(f"{HEADER}{'='*72}{RESET}\n")
 
     def render_tabs(self):
         t1 = f"{BOLD}{CYAN}[1] Companion{RESET}" if self.current_tab == 1 else "[1] Companion"
@@ -190,11 +190,13 @@ class PokeTokenBarTUI:
         t3 = f"{BOLD}{CYAN}[3] Shop & Bag{RESET}" if self.current_tab == 3 else "[3] Shop & Bag"
         t4 = f"{BOLD}{CYAN}[4] Expeditions{RESET}" if self.current_tab == 4 else "[4] Expeditions"
         t5 = f"{BOLD}{CYAN}[5] Battles{RESET}" if self.current_tab == 5 else "[5] Battles"
-        t6 = f"{BOLD}{CYAN}[6] Quests & Badges{RESET}" if self.current_tab == 6 else "[6] Quests & Badges"
+        t6 = f"{BOLD}{CYAN}[6] Quests{RESET}" if self.current_tab == 6 else "[6] Quests"
         t7 = f"{BOLD}{CYAN}[7] Live Monitor{RESET}" if self.current_tab == 7 else "[7] Live Monitor"
         t8 = f"{BOLD}{CYAN}[8] Settings{RESET}" if self.current_tab == 8 else "[8] Settings"
-        sys.stdout.write(f"  {t1}  {t2}  {t3}  {t4}  {t5}  {t6}  {t7}  {t8}\n")
-        sys.stdout.write("------------------------------------------------------------------------\n")
+        
+        sys.stdout.write(f"  {t1}   {t2}     {t3}   {t4}\n")
+        sys.stdout.write(f"  {t5}     {t6}        {t7} {t8}\n")
+        sys.stdout.write("-" * 72 + "\n")
 
     def render_companion_tab(self, summary: dict):
         active = self.engine.active_mon
@@ -247,7 +249,7 @@ class PokeTokenBarTUI:
                 bar = format_progress_bar(active.used_at_stage, target_xp)
                 sys.stdout.write(f"  Graduation to Pokédex: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)})\n")
 
-        sys.stdout.write("\n------------------------------------------------------------------------\n")
+        sys.stdout.write("\n" + "-" * 72 + "\n")
         sys.stdout.write(f" {BOLD}📊 Token Usage Metrics:{RESET}\n")
         sys.stdout.write(f"  • Today's Tokens: {BOLD}{CYAN}{format_tokens(summary['today_tokens'])}{RESET}  (Antigravity: {format_tokens(summary['antigravity_today'])})\n")
         sys.stdout.write(f"  • 7-Day Tokens:   {format_tokens(summary['week_tokens'])}\n")
@@ -510,8 +512,9 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"      ➔ Type '{BOLD}reset{RESET}' to clear all saved progress & restart fresh\n\n")
 
     def render_footer(self):
+        sys.stdout.write("-" * 72 + "\n")
         if self.message:
-            sys.stdout.write(f"\n  {GREEN}➔ {self.message}{RESET}\n")
+            sys.stdout.write(f"  {GREEN}➔ {self.message}{RESET}\n")
 
 def main():
     tui = PokeTokenBarTUI()
