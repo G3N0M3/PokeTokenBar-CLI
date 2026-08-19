@@ -70,16 +70,18 @@ class PokeTokenBarTUI:
                 elif self.current_tab == 2:
                     self.render_pokedex_tab()
                 elif self.current_tab == 3:
-                    self.render_shop_tab()
+                    self.render_roster_tab()
                 elif self.current_tab == 4:
-                    self.render_expeditions_tab()
+                    self.render_shop_tab()
                 elif self.current_tab == 5:
-                    self.render_battles_tab()
+                    self.render_expeditions_tab()
                 elif self.current_tab == 6:
-                    self.render_quests_tab()
+                    self.render_battles_tab()
                 elif self.current_tab == 7:
-                    self.render_monitor_tab(summary)
+                    self.render_quests_tab()
                 elif self.current_tab == 8:
+                    self.render_monitor_tab(summary)
+                elif self.current_tab == 9:
                     self.render_settings_tab()
 
                 self.render_footer()
@@ -88,7 +90,7 @@ class PokeTokenBarTUI:
                 auto_on = settings.get("auto_tracking_enabled", True)
                 status_str = f"Auto: {'ON' if auto_on else 'OFF'} ({interval}s)"
 
-                sys.stdout.write(f"\n{BOLD}Select tab (1-8), command, r=Refresh, q=Quit [{status_str}]: {RESET}")
+                sys.stdout.write(f"\n{BOLD}Select tab (1-9), command, r=Refresh, q=Quit [{status_str}]: {RESET}")
                 sys.stdout.flush()
 
                 try:
@@ -131,6 +133,9 @@ class PokeTokenBarTUI:
                         elif cmd == "8":
                             self.current_tab = 8
                             self.message = ""
+                        elif cmd == "9":
+                            self.current_tab = 9
+                            self.message = ""
                         elif cmd in ["r", "refresh"]:
                             summary = self.tracker.get_summary()
                             events = self.engine.process_usage(summary["total_tokens"])
@@ -138,7 +143,7 @@ class PokeTokenBarTUI:
                                 self.message = "Refreshed logs! " + " ".join(events)
                             else:
                                 self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
-                        elif cmd == "toggle" and self.current_tab == 8:
+                        elif cmd == "toggle" and self.current_tab == 9:
                             curr_on = settings.get("auto_tracking_enabled", True)
                             ok, msg = self.engine.update_settings(auto_tracking_enabled=not curr_on)
                             self.message = f"Automatic tracking set to: {'ON' if not curr_on else 'OFF'}"
@@ -174,12 +179,12 @@ class PokeTokenBarTUI:
                                     self.message = "Invalid interval number. Usage: interval <seconds>"
                             else:
                                 self.message = "Usage: interval <seconds> (e.g. 'interval 5')"
-                        elif cmd == "reset" and self.current_tab == 8:
+                        elif cmd == "reset" and self.current_tab == 9:
                             self.pending_reset = True
                             self.message = "⚠️ CONFIRMATION REQUIRED: Type 'RESET ALL' to wipe progress & restart fresh, or anything else to cancel!"
-                        elif self.current_tab == 3 and cmd.startswith("buy"):
+                        elif self.current_tab == 4 and cmd.startswith("buy"):
                             self.handle_shop_buy(cmd)
-                        elif self.current_tab == 3 and cmd.startswith("use"):
+                        elif self.current_tab == 4 and cmd.startswith("use"):
                             self.handle_bag_use(cmd)
                 except KeyboardInterrupt:
                     print("\nExiting PokeTokenBar. Keep coding! 🐾")
@@ -195,15 +200,16 @@ class PokeTokenBarTUI:
     def render_tabs(self):
         t1 = f"{BOLD}{CYAN}[1] Companion{RESET}" if self.current_tab == 1 else "[1] Companion"
         t2 = f"{BOLD}{CYAN}[2] Pokédex{RESET}" if self.current_tab == 2 else "[2] Pokédex"
-        t3 = f"{BOLD}{CYAN}[3] Shop & Bag{RESET}" if self.current_tab == 3 else "[3] Shop & Bag"
-        t4 = f"{BOLD}{CYAN}[4] Expeditions{RESET}" if self.current_tab == 4 else "[4] Expeditions"
-        t5 = f"{BOLD}{CYAN}[5] Battles{RESET}" if self.current_tab == 5 else "[5] Battles"
-        t6 = f"{BOLD}{CYAN}[6] Quests{RESET}" if self.current_tab == 6 else "[6] Quests"
-        t7 = f"{BOLD}{CYAN}[7] Live Monitor{RESET}" if self.current_tab == 7 else "[7] Live Monitor"
-        t8 = f"{BOLD}{CYAN}[8] Settings{RESET}" if self.current_tab == 8 else "[8] Settings"
-        
-        sys.stdout.write(f"  {t1}   {t2}     {t3}   {t4}\n")
-        sys.stdout.write(f"  {t5}     {t6}      {t7} {t8}\n")
+        t3 = f"{BOLD}{CYAN}[3] Roster{RESET}" if self.current_tab == 3 else "[3] Roster"
+        t4 = f"{BOLD}{CYAN}[4] Shop & Bag{RESET}" if self.current_tab == 4 else "[4] Shop & Bag"
+        t5 = f"{BOLD}{CYAN}[5] Expeditions{RESET}" if self.current_tab == 5 else "[5] Expeditions"
+        t6 = f"{BOLD}{CYAN}[6] Battles{RESET}" if self.current_tab == 6 else "[6] Battles"
+        t7 = f"{BOLD}{CYAN}[7] Quests{RESET}" if self.current_tab == 7 else "[7] Quests"
+        t8 = f"{BOLD}{CYAN}[8] Monitor{RESET}" if self.current_tab == 8 else "[8] Monitor"
+        t9 = f"{BOLD}{CYAN}[9] Settings{RESET}" if self.current_tab == 9 else "[9] Settings"
+
+        sys.stdout.write(f"  {t1}  {t2}  {t3}  {t4}\n")
+        sys.stdout.write(f"  {t5}  {t6}  {t7}  {t8}  {t9}\n")
         sys.stdout.write("-" * 72 + "\n")
 
     def render_companion_tab(self, summary: dict):
@@ -278,6 +284,36 @@ class PokeTokenBarTUI:
         dex = self.engine.state.get("dex", [])
         sys.stdout.write(f"\n  {BOLD}{HEADER}📖 Pokédex Archives ({len(dex)} species registered){RESET}\n\n")
 
+        if not dex:
+            sys.stdout.write("  Your Pokédex is empty! Incubate and raise your Pokémon companions to fill it.\n\n")
+        else:
+            for idx, entry in enumerate(dex, 1):
+                sp_id = entry.get("species_id", entry.get("final_id", entry.get("base_id")))
+                name = self.engine.api.get_species_name(sp_id)
+                shiny_str = f"{YELLOW}✨{RESET}" if entry.get("is_shiny") else ""
+                rarity = entry.get("rarity", "common").upper()
+                status = entry.get("status", "discovered")
+                if status == "graduated":
+                    status_badge = f"{BOLD}{CYAN}[GRADUATED]{RESET}"
+                elif status == "evolved":
+                    status_badge = f"{BOLD}{YELLOW}[EVOLVED]{RESET}"
+                elif status == "active":
+                    status_badge = f"{BOLD}{GREEN}[ACTIVE]{RESET}"
+                else:
+                    status_badge = f"{BOLD}{YELLOW}[DISCOVERED]{RESET}"
+
+                sys.stdout.write(f"  {idx:2d}. {shiny_str} {BOLD}{name}{RESET} (#{sp_id}) [{rarity}] {status_badge}\n")
+
+        sys.stdout.write(f"\n  ➔ Complete evolutions and hatch eggs to discover all Pokédex entries!\n\n")
+
+    def render_roster_tab(self):
+        active = self.engine.active_mon
+        if active:
+            self.engine._register_to_dex(active, status="active")
+
+        dex = self.engine.state.get("dex", [])
+        sys.stdout.write(f"\n  {BOLD}{HEADER}🐾 Caught Pokémon Roster{RESET}\n\n")
+
         # Show Incubating Egg option ONLY if an egg is owned/incubating or active is None
         incubating_eggs = self.engine.state.get("incubating_eggs", {})
         has_egg = bool(incubating_eggs) or bool(self.engine.state.get("egg_tier")) or (active is None)
@@ -288,19 +324,23 @@ class PokeTokenBarTUI:
             egg_badge = f"{BOLD}{GREEN}[ACTIVE / INCUBATING]{RESET}" if active is None else f"{BOLD}{YELLOW}[IN ROSTER]{RESET}"
             sys.stdout.write(f"   0. 🥚 {BOLD}Incubating Pokémon Egg{RESET} ({pct:.1f}%) {egg_badge}\n")
 
-        if not dex:
-            sys.stdout.write("\n  Your Pokédex is empty! Incubate and raise your Pokémon companions to fill it.\n\n")
-        else:
-            expeditions = self.engine.state.get("expeditions", [])
-            exp_map = {e["sp_id"]: e for e in expeditions}
+        # Filter dex to active roster (excluding pre-evolutions marked as 'evolved')
+        roster = [d for d in dex if d.get("status") != "evolved"]
+        expeditions = self.engine.state.get("expeditions", [])
+        exp_map = {e["sp_id"]: e for e in expeditions}
 
-            for idx, entry in enumerate(dex, 1):
+        if not roster:
+            sys.stdout.write("  No active companions in your roster. Incubate an egg to start!\n\n")
+        else:
+            for idx, entry in enumerate(roster, 1):
                 sp_id = entry.get("species_id", entry.get("final_id", entry.get("base_id")))
                 name = self.engine.api.get_species_name(sp_id)
                 shiny_str = f"{YELLOW}✨{RESET}" if entry.get("is_shiny") else ""
                 rarity = entry.get("rarity", "common").upper()
-                caught_at = entry.get("caught_at", "")[:10]
                 status = entry.get("status", "graduated")
+                mon_data = entry.get("mon_state", {})
+                hap_val = mon_data.get("happiness", 100) if isinstance(mon_data, dict) else 100
+
                 if sp_id in exp_map:
                     exp_info = exp_map[sp_id]
                     pct = (exp_info["progress"] / exp_info["target"]) * 100
@@ -309,13 +349,9 @@ class PokeTokenBarTUI:
                     status_badge = f"{BOLD}{GREEN}[ACTIVE]{RESET}"
                 elif status == "inactive":
                     status_badge = f"{BOLD}{YELLOW}[IN ROSTER]{RESET}"
-                elif status == "evolved":
-                    status_badge = f"{BOLD}{YELLOW}[EVOLVED]{RESET}"
                 else:
                     status_badge = f"{BOLD}{CYAN}[GRADUATED]{RESET}"
 
-                mon_data = entry.get("mon_state", {})
-                hap_val = mon_data.get("happiness", 100) if isinstance(mon_data, dict) else 100
                 sys.stdout.write(f"  {idx:2d}. {shiny_str} {BOLD}{name}{RESET} (#{sp_id}) [{rarity}] 💖{hap_val}% {status_badge}\n")
 
         sys.stdout.write(f"\n  ➔ Type '{BOLD}select <id>{RESET}' or '{BOLD}select egg{RESET}' to switch active companion!\n")

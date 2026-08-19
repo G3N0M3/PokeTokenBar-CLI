@@ -584,25 +584,37 @@ class CompanionEngine:
         if not dex:
             return False, "Your Pokédex is empty!"
 
+        roster = [d for d in dex if d.get("status") != "evolved"]
         target_entry = None
-        # Try matching by 1-based index in dex list
-        try:
-            idx = int(selection_input)
-            if 1 <= idx <= len(dex):
-                target_entry = dex[idx - 1]
-        except ValueError:
-            pass
+        s_input = selection_input.strip()
 
-        if target_entry is None:
-            # Try matching by species_id
+        # If input starts with '#', match strictly by species_id (e.g. 'select #570')
+        if s_input.startswith("#"):
+            target_sp = s_input[1:]
             for d in dex:
                 sp_id = str(d.get("species_id", d.get("base_id")))
-                if selection_input == sp_id:
+                if target_sp == sp_id:
                     target_entry = d
                     break
+        else:
+            # 1. Try matching by 1-based index in active roster
+            try:
+                idx = int(s_input)
+                if 1 <= idx <= len(roster):
+                    target_entry = roster[idx - 1]
+            except ValueError:
+                pass
+
+            # 2. Fallback: match by species_id across all entries
+            if target_entry is None:
+                for d in dex:
+                    sp_id = str(d.get("species_id", d.get("base_id")))
+                    if s_input == sp_id:
+                        target_entry = d
+                        break
 
         if target_entry is None:
-            return False, f"Pokémon '{selection_input}' not found in Pokédex! Use index (1..{len(dex)}) or species ID."
+            return False, f"Pokémon '{selection_input}' not found in Roster or Pokédex! Use roster index (1..{len(roster)}) or species ID (e.g. #570)."
 
         sp_id = target_entry.get("species_id", target_entry.get("base_id"))
         sp_name = self.api.get_species_name(sp_id)
