@@ -862,6 +862,10 @@ class CompanionEngine:
                     reward_str = "+1 Golden Razz Berry 🍇"
 
                 self.state["inventory"] = inv
+                now_str = datetime.datetime.now().strftime("%H:%M:%S")
+                logs = self.state.get("expedition_logs", [])
+                logs.append(f"[{now_str}] 🗺️ {sp_name} returned from {area} with {reward_str}")
+                self.state["expedition_logs"] = logs[-5:]
                 events.append(f"🗺️ EXPEDITION COMPLETE! {sp_name} returned from {area} with {reward_str}!")
             else:
                 remaining.append(exp)

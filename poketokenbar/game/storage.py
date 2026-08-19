@@ -68,6 +68,7 @@ class StorageManager:
             "daily_quests": {},
             "active_boss": None,
             "expeditions": [],
+            "expedition_logs": [],
             "trainer_battles": {"wins": 0, "losses": 0},
             "battle_logs": [],
             "golden_razz_active": False,

@@ -466,6 +466,16 @@ class PokeTokenBarTUI:
                 sys.stdout.write(f"   • {BOLD}{CYAN}{sp_name} (#{sp_id}){RESET} @ {area}: {bar} ({format_tokens(exp['progress'])} / {format_tokens(exp['target'])})\n")
             sys.stdout.write("\n")
 
+        # Recent Expedition Logs
+        exp_logs = self.engine.state.get("expedition_logs", [])
+        sys.stdout.write(f"  {BOLD}📜 Recent Expedition Logs (Last 5 Expeditions):{RESET}\n")
+        if not exp_logs:
+            sys.stdout.write("   No completed expeditions recorded yet. Dispatch companions to start!\n\n")
+        else:
+            for log in exp_logs:
+                sys.stdout.write(f"   {log}\n")
+            sys.stdout.write("\n")
+
     def render_battles_tab(self):
         boss = self.engine.state.get("active_boss")
         battles = self.engine.state.get("trainer_battles", {"wins": 0, "losses": 0})
