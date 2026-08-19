@@ -1,4 +1,5 @@
 import random
+import itertools
 from typing import List, Tuple, Dict, Any
 
 SUITS = ["♠", "♥", "♦", "♣"]
@@ -29,92 +30,86 @@ class Deck:
         self.cards = self.cards[count:]
         return drawn
 
-class PokerEngine:
+class TexasHoldemEngine:
     def __init__(self):
         self.deck = Deck()
-        self.player_hand: List[Card] = []
-        self.dealer_hand: List[Card] = []
+        self.player_hole: List[Card] = []
+        self.dealer_hole: List[Card] = []
+        self.community_cards: List[Card] = []
         self.current_bet = 0
-        self.game_state = "idle" # "idle", "holding"
+        self.game_state = "idle" # "idle", "preflop", "flop", "turn", "river", "showdown"
 
     def start_hand(self, bet_amount: int) -> Tuple[bool, str]:
         if bet_amount <= 0:
             return False, "Bet amount must be greater than 0!"
         self.deck = Deck()
-        self.player_hand = self.deck.draw(5)
-        self.dealer_hand = self.deck.draw(5)
+        self.player_hole = self.deck.draw(2)
+        self.dealer_hole = self.deck.draw(2)
+        self.community_cards = self.deck.draw(5)
         self.current_bet = bet_amount
-        self.game_state = "holding"
+        self.game_state = "flop"
 
-        p_name, p_score = self.evaluate_hand(self.player_hand)
-        return True, f"Dealt hand! Your Current Rank: {p_name}. Dealer has 5 face-down cards. Type 'hold 1 3 5' (or 'hold none' / 'hold all') to draw against the House!"
+        p_cards = " ".join([str(c) for c in self.player_hole])
+        return True, f"♠️ TEXAS HOLD 'EM DEALT! Your Hole Cards: {p_cards}\n  Community Board: [?] [?] [?] [?] [?]\n  ➔ Type 'flop' (or 'call') to reveal the 3 Flop cards!"
 
-    def play_showdown(self, hold_indices: List[int]) -> Tuple[str, str, str, int, int]:
+    def play_flop(self) -> Tuple[bool, str]:
+        if self.game_state != "flop":
+            return False, "Not in Flop phase! Start a hand with 'bet <amount>' first."
+
+        self.game_state = "turn"
+        p_cards = " ".join([str(c) for c in self.player_hole])
+        flop_cards = " ".join([str(c) for c in self.community_cards[:3]])
+        return True, f"♦️ THE FLOP REVEALED!\n  Your Hole: {p_cards}\n  Board:     {flop_cards} [?] [?]\n  ➔ Type 'turn' to reveal the Turn & River, or 'raise' to double bet!"
+
+    def play_raise(self) -> Tuple[bool, str]:
+        if self.game_state not in ["flop", "turn"]:
+            return False, "Cannot raise right now!"
+        
+        self.current_bet *= 2
+        return self.play_showdown()
+
+    def play_showdown(self) -> Tuple[str, str, str, int, int]:
         """
-        Executes draw for Player and Dealer AI, compares hands, and returns:
-        (outcome_str, player_rank_name, dealer_rank_name, payout_multiplier, total_winnings)
+        Reveals Turn & River, evaluates best 5-card hands out of 7, and returns:
+        (outcome, player_rank_name, dealer_rank_name, multiplier, total_winnings)
         """
-        # 1. Player Draw
-        new_player_hand = []
-        for idx in range(1, 6):
-            if idx in hold_indices:
-                new_player_hand.append(self.player_hand[idx - 1])
-            else:
-                new_player_hand.append(self.deck.draw(1)[0])
-        self.player_hand = new_player_hand
-
-        # 2. Dealer AI Strategy Draw
-        dealer_holds = self._dealer_ai_strategy(self.dealer_hand)
-        new_dealer_hand = []
-        for idx in range(1, 6):
-            if idx in dealer_holds:
-                new_dealer_hand.append(self.dealer_hand[idx - 1])
-            else:
-                new_dealer_hand.append(self.deck.draw(1)[0])
-        self.dealer_hand = new_dealer_hand
-
         self.game_state = "idle"
 
-        # 3. Evaluate Hands
-        p_name, p_score = self.evaluate_hand(self.player_hand)
-        d_name, d_score = self.evaluate_hand(self.dealer_hand)
+        player_all = self.player_hole + self.community_cards
+        dealer_all = self.dealer_hole + self.community_cards
 
-        # 4. Compare Hands against the House
+        p_rank_name, p_score, p_best = self.best_5_card_hand(player_all)
+        d_rank_name, d_score, d_best = self.best_5_card_hand(dealer_all)
+
         if p_score > d_score:
-            # Player Wins! Determine payout multiplier
-            mult = self._get_win_multiplier(p_name)
+            mult = self._get_win_multiplier(p_rank_name)
             outcome = "WIN"
             winnings = self.current_bet * mult
         elif p_score == d_score:
-            # Push / Tie
             mult = 1
             outcome = "PUSH"
             winnings = self.current_bet
         else:
-            # House Wins
             mult = 0
             outcome = "LOSS"
             winnings = 0
 
-        return outcome, p_name, d_name, mult, winnings
+        return outcome, p_rank_name, d_rank_name, mult, winnings
 
-    def _dealer_ai_strategy(self, hand: List[Card]) -> List[int]:
-        """Dealer AI determines 1-based card indices to hold."""
-        ranks = [c.value for c in hand]
-        rank_counts = {r: ranks.count(r) for r in set(ranks)}
+    @classmethod
+    def best_5_card_hand(cls, cards7: List[Card]) -> Tuple[str, int, List[Card]]:
+        best_score = -1
+        best_rank_name = "High Card"
+        best_combo = cards7[:5]
 
-        # Holds indices of paired/tripled cards
-        holds = []
-        for idx, card in enumerate(hand, 1):
-            if rank_counts[card.value] >= 2:
-                holds.append(idx)
+        for combo in itertools.combinations(cards7, 5):
+            name, score = cls.evaluate_5_cards(list(combo))
+            if score > best_score:
+                best_score = score
+                best_rank_name = name
+                best_combo = list(combo)
 
-        if not holds:
-            # High card: Hold top 2 cards
-            sorted_with_idx = sorted(enumerate(hand, 1), key=lambda x: x[1].value, reverse=True)
-            holds = [sorted_with_idx[0][0], sorted_with_idx[1][0]]
-
-        return holds
+        return best_rank_name, best_score, best_combo
 
     @staticmethod
     def _get_win_multiplier(rank_name: str) -> int:
@@ -133,7 +128,7 @@ class PokerEngine:
         return multipliers.get(rank_name, 2)
 
     @staticmethod
-    def evaluate_hand(hand: List[Card]) -> Tuple[str, int]:
+    def evaluate_5_cards(hand: List[Card]) -> Tuple[str, int]:
         ranks = sorted([c.value for c in hand])
         suits = [c.suit for c in hand]
         rank_counts = {r: ranks.count(r) for r in set(ranks)}

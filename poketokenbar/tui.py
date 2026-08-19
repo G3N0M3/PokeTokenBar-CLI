@@ -183,7 +183,7 @@ class PokeTokenBarTUI:
                                 self.message = msg
                             else:
                                 self.message = "Usage: bet <amount> (e.g. 'bet 500k', 'bet 1m')"
-                        elif cmd.startswith("hold"):
+                        elif cmd in ["flop", "turn", "river", "call", "check", "raise"] or cmd.startswith("hold"):
                             ok, msg = self.engine.play_poker_hold(cmd)
                             self.message = msg
                         elif cmd.startswith("pull"):
@@ -595,30 +595,37 @@ class PokeTokenBarTUI:
 
     def render_poker_tab(self):
         avail = self.engine.available_tokens
-        sys.stdout.write(f"\n  {BOLD}{HEADER}🎲 Heads-Up Casino Poker (You vs. The House!){RESET}\n\n")
+        sys.stdout.write(f"\n  {BOLD}{HEADER}♠️ Casino Texas Hold 'em (You vs. The House!){RESET}\n\n")
         sys.stdout.write(f"  Available Tokens to Bet: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n\n")
 
-        sys.stdout.write(f"  {BOLD}🃏 House Rules & Winning Multipliers:{RESET}\n")
-        sys.stdout.write(f"   • Beat the House Dealer's hand to win 2x your bet!\n")
+        sys.stdout.write(f"  {BOLD}🃏 Rules & Payout Multipliers:{RESET}\n")
+        sys.stdout.write(f"   • Receive 2 Hole Cards. Beat the House Dealer's best 5-card hand!\n")
         sys.stdout.write(f"   • Winning Bonus Multipliers: Royal Flush [50x] | Straight Flush [15x]\n")
         sys.stdout.write(f"   • Four of a Kind [8x] | Full House [5x] | Flush [4x] | Straight [3x]\n\n")
 
-        sys.stdout.write(f"  ➔ Type '{BOLD}bet <amount>{RESET}' to start (e.g. 'bet 500k', 'bet 1m', 'bet 2000000')\n")
-        sys.stdout.write(f"  ➔ Type '{BOLD}hold 1 3 5{RESET}' (or 'hold none' / 'hold all') to draw against the House!\n\n")
+        sys.stdout.write(f"  ➔ Step 1: Type '{BOLD}bet <amount>{RESET}' to deal 2 Hole Cards (e.g. 'bet 500k', 'bet 1m')\n")
+        sys.stdout.write(f"  ➔ Step 2: Type '{BOLD}flop{RESET}' to reveal the 3 Flop Community Cards\n")
+        sys.stdout.write(f"  ➔ Step 3: Type '{BOLD}turn{RESET}' (or '{BOLD}call{RESET}') for Showdown! (or '{BOLD}raise{RESET}' to double bet)\n\n")
 
-        if self.engine.poker.player_hand:
-            p_hand = " ".join([str(c) for c in self.engine.poker.player_hand])
-            if self.engine.poker.game_state == "holding":
-                d_hand = "[?] [?] [?] [?] [?]"
-                state_str = "Awaiting Your Hold/Draw Choice"
+        if self.engine.poker.player_hole:
+            p_hole = " ".join([str(c) for c in self.engine.poker.player_hole])
+            if self.engine.poker.game_state == "flop":
+                board = "[?] [?] [?] [?] [?]"
+                d_hole = "[?] [?]"
+                state_str = "Pre-Flop (Type 'flop' to reveal community cards)"
+            elif self.engine.poker.game_state == "turn":
+                board = " ".join([str(c) for c in self.engine.poker.community_cards[:3]]) + " [?] [?]"
+                d_hole = "[?] [?]"
+                state_str = "The Flop (Type 'turn' or 'call' for Showdown)"
             else:
-                d_hand = " ".join([str(c) for c in self.engine.poker.dealer_hand])
+                board = " ".join([str(c) for c in self.engine.poker.community_cards])
+                d_hole = " ".join([str(c) for c in self.engine.poker.dealer_hole])
                 state_str = "Showdown Completed"
 
-            p_rank, _ = self.engine.poker.evaluate_hand(self.engine.poker.player_hand)
-            sys.stdout.write(f"  {BOLD}Active Match [{state_str}]:{RESET}\n")
-            sys.stdout.write(f"   🎴 Your Cards:  {p_hand}  ({p_rank})\n")
-            sys.stdout.write(f"   🏠 House Cards: {d_hand}\n")
+            sys.stdout.write(f"  {BOLD}Active Table [{state_str}]:{RESET}\n")
+            sys.stdout.write(f"   🎴 Your Hole Cards:  {p_hole}\n")
+            sys.stdout.write(f"   ♦️ Community Board: {board}\n")
+            sys.stdout.write(f"   🏠 House Hole:       {d_hole}\n")
             sys.stdout.write(f"   Current Bet: {BOLD}{YELLOW}{format_tokens(self.engine.poker.current_bet)}{RESET} tokens\n\n")
 
     def render_gacha_tab(self):
