@@ -28,6 +28,7 @@ class PokeTokenBarTUI:
         self.engine = CompanionEngine()
         self.current_tab = 1
         self.message = ""
+        self.pending_reset = False
 
         # Background auto-tracker
         self.auto_tracker = AutoTracker(callback=self._on_auto_events)
@@ -96,7 +97,14 @@ class PokeTokenBarTUI:
                     readable, _, _ = select.select([sys.stdin], [], [], select_timeout)
                     if readable:
                         cmd = sys.stdin.readline().strip().lower()
-                        if cmd in ["q", "exit", "quit"]:
+                        if self.pending_reset:
+                            self.pending_reset = False
+                            if cmd == "reset all":
+                                ok, msg = self.engine.reset_game_state()
+                                self.message = f"🧹 {msg}"
+                            else:
+                                self.message = "❌ Reset cancelled."
+                        elif cmd in ["q", "exit", "quit"]:
                             print("\nExiting PokeTokenBar. Keep coding! 🐾")
                             break
                         elif cmd == "1":
@@ -167,8 +175,8 @@ class PokeTokenBarTUI:
                             else:
                                 self.message = "Usage: interval <seconds> (e.g. 'interval 5')"
                         elif cmd == "reset" and self.current_tab == 8:
-                            ok, msg = self.engine.reset_game_state()
-                            self.message = msg
+                            self.pending_reset = True
+                            self.message = "⚠️ CONFIRMATION REQUIRED: Type 'RESET ALL' to wipe progress & restart fresh, or anything else to cancel!"
                         elif self.current_tab == 3 and cmd.startswith("buy"):
                             self.handle_shop_buy(cmd)
                         elif self.current_tab == 3 and cmd.startswith("use"):
