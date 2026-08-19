@@ -173,11 +173,11 @@ class CompanionEngine:
         self._check_trainer_battle(delta, events)
 
         # Check gym boss raid
-        boss_events = self._check_gym_boss_raid(delta)
+        boss_events = self._update_boss_battle(delta)
         events.extend(boss_events)
 
         # Check expedition progress
-        self._check_expeditions(delta, events)
+        self._update_expeditions(delta, events)
 
         # Update coding streak & daily quest metrics
         self._update_streak_and_quests(delta, events)
