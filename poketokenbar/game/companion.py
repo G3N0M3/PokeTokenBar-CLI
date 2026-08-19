@@ -1097,9 +1097,14 @@ class CompanionEngine:
         if self.poker.game_state == "idle":
             return False, "No active Texas Hold 'em hand! Type 'bet <amount>' to start a hand."
 
-        if cmd in ["flop"]:
+        if cmd == "fold":
+            outcome, lost = self.poker.play_fold()
+            return True, f"🏳️ \033[1m\033[31mYOU FOLDED!\033[0m Surrendered {format_tokens(lost)} tokens to the House."
+        elif cmd == "flop":
             return self.poker.play_flop()
-        elif cmd in ["raise"]:
+        elif cmd == "turn":
+            return self.poker.play_turn()
+        elif cmd == "raise":
             avail = self.available_tokens
             if avail < self.poker.current_bet:
                 return False, f"Not enough tokens to double bet! Needed: {format_tokens(self.poker.current_bet)}"

@@ -37,7 +37,7 @@ class TexasHoldemEngine:
         self.dealer_hole: List[Card] = []
         self.community_cards: List[Card] = []
         self.current_bet = 0
-        self.game_state = "idle" # "idle", "preflop", "flop", "turn", "river", "showdown"
+        self.game_state = "idle" # "idle", "preflop", "flop", "turn", "showdown"
 
     def start_hand(self, bet_amount: int) -> Tuple[bool, str]:
         if bet_amount <= 0:
@@ -47,30 +47,38 @@ class TexasHoldemEngine:
         self.dealer_hole = self.deck.draw(2)
         self.community_cards = self.deck.draw(5)
         self.current_bet = bet_amount
-        self.game_state = "flop"
+        self.game_state = "preflop"
 
         p_cards = " ".join([str(c) for c in self.player_hole])
-        return True, f"♠️ TEXAS HOLD 'EM DEALT! Your Hole Cards: {p_cards}\n  Community Board: [?] [?] [?] [?] [?]\n  ➔ Type 'flop' (or 'call') to reveal the 3 Flop cards!"
+        return True, f"♠️ TEXAS HOLD 'EM DEALT!\n  Your Hole: {p_cards}\n  Board:     [?] [?] [?] [?] [?]\n  ➔ Type 'flop' to reveal 3 Flop cards, or 'fold' to give up."
 
     def play_flop(self) -> Tuple[bool, str]:
+        if self.game_state != "preflop":
+            return False, "Not in Pre-Flop phase! Start a hand with 'bet <amount>' first."
+
+        self.game_state = "flop"
+        p_cards = " ".join([str(c) for c in self.player_hole])
+        flop_cards = " ".join([str(c) for c in self.community_cards[:3]])
+        return True, f"♦️ THE FLOP REVEALED!\n  Your Hole: {p_cards}\n  Board:     {flop_cards} [?] [?]\n  ➔ Type 'turn' to reveal the 4th card, or 'fold' to give up."
+
+    def play_turn(self) -> Tuple[bool, str]:
         if self.game_state != "flop":
-            return False, "Not in Flop phase! Start a hand with 'bet <amount>' first."
+            return False, "Not in Flop phase! Type 'flop' first."
 
         self.game_state = "turn"
         p_cards = " ".join([str(c) for c in self.player_hole])
-        flop_cards = " ".join([str(c) for c in self.community_cards[:3]])
-        return True, f"♦️ THE FLOP REVEALED!\n  Your Hole: {p_cards}\n  Board:     {flop_cards} [?] [?]\n  ➔ Type 'turn' to reveal the Turn & River, or 'raise' to double bet!"
+        turn_cards = " ".join([str(c) for c in self.community_cards[:4]])
+        return True, f"♦️ THE TURN REVEALED!\n  Your Hole: {p_cards}\n  Board:     {turn_cards} [?]\n  ➔ Type 'river' (or 'call') for Showdown, 'raise' to double bet, or 'fold'."
 
-    def play_raise(self) -> Tuple[bool, str]:
-        if self.game_state not in ["flop", "turn"]:
-            return False, "Cannot raise right now!"
-        
-        self.current_bet *= 2
-        return self.play_showdown()
+    def play_fold(self) -> Tuple[str, int]:
+        """Player surrenders current hand."""
+        self.game_state = "idle"
+        lost_amount = self.current_bet
+        return "FOLD", lost_amount
 
     def play_showdown(self) -> Tuple[str, str, str, int, int]:
         """
-        Reveals Turn & River, evaluates best 5-card hands out of 7, and returns:
+        Evaluates best 5-card hands out of 7, and returns:
         (outcome, player_rank_name, dealer_rank_name, multiplier, total_winnings)
         """
         self.game_state = "idle"
