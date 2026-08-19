@@ -195,7 +195,7 @@ class PokeTokenBarTUI:
         t8 = f"{BOLD}{CYAN}[8] Settings{RESET}" if self.current_tab == 8 else "[8] Settings"
         
         sys.stdout.write(f"  {t1}   {t2}     {t3}   {t4}\n")
-        sys.stdout.write(f"  {t5}     {t6}        {t7} {t8}\n")
+        sys.stdout.write(f"  {t5}     {t6}      {t7} {t8}\n")
         sys.stdout.write("-" * 72 + "\n")
 
     def render_companion_tab(self, summary: dict):
