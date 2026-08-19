@@ -23,9 +23,13 @@ Designed specifically for **Linux CLI** environments, **Antigravity CLI** (`~/.g
 - 🛒 **Token Shop & Inventory Bag**:
   - Spend earned tokens on **Rare Candies**, **Mints** (reroll nature), **Shiny Charms** (passive 1/48 shiny odds), and **Tiered Pokémon Eggs**.
   - Single-egg-per-tier constraint prevents buying duplicate eggs of the same tier while allowing 1 Standard Egg and 1 Uncommon Egg concurrently.
+- 🎯 **Daily Coding Quests ("Trainer Tasks")**: Complete 3 daily coding milestones (e.g. burn 2.0M tokens today) to earn free Rare Candies, Mints, and bonus token rewards (`claim <id>`).
+- ⚔️ **Terminal Gym Boss Raids**: Defeat powerful Gym Bosses (Brock's Geodude, Misty's Starmie, Lt. Surge's Raichu, Giovanni's Mewtwo) by spending tokens while coding to earn **Gym Badges**!
+- 💖 **Companion Happiness & Coding Streaks**: Maintain daily coding streaks and 100% Happiness for a **+20% XP boost** on all token usage.
+- 🎖️ **Trainer Badges & Achievements**: Unlock achievements (*Shiny Hunter*, *Token Tycoon*, *Dex Collector*, *Gym Champion*, *Streak Master*).
 - 📊 **Compact Number Formatting**: Real-time burn rates and token metrics formatted cleanly (e.g. `40.7M`, `74.9K`, `123`).
 - 🖥️ **Interactive TUI & Quick Commands**:
-  - `ptb`: Launches full interactive tabbed TUI.
+  - `ptb`: Launches full interactive 6-tab TUI.
   - `ptb status`: Compact 1-line status (perfect for `PS1` prompts or tmux status bars).
   - `ptb watch`: Continuous live token monitoring loop with animated sprites and burn rate (tokens/min).
   - `ptb dex` / `ptb shop` / `ptb settings`: Command-line shortcuts.
@@ -74,11 +78,13 @@ poketokenbar
 ```
 
 #### TUI Navigation & Commands:
-- **Tabs**: `1` Companion | `2` Pokédex | `3` Shop & Bag | `4` Live Monitor | `5` Settings
+- **Tabs**: `1` Companion | `2` Pokédex | `3` Shop & Bag | `4` Quests & Bosses | `5` Live Monitor | `6` Settings
 - **`select <number>`** / **`select egg`**: Switch active companion or incubating egg (in Tab 2)
 - **`buy <number>`**: Buy shop items (in Tab 3)
 - **`use <number>`**: Use inventory items (in Tab 3)
-- **`toggle`**: Toggle automatic token tracking ON/OFF (in Tab 5)
+- **`claim <id>`**: Claim daily quest rewards (in Tab 4)
+- **`toggle`**: Toggle automatic token tracking ON/OFF (in Tab 6)
+- **`reset`**: Reset game progress and start fresh (in Tab 6)
 - **`interval <sec>`**: Set auto-refresh interval in seconds
 - **`r`**: Force immediate log re-scan & token update
 - **`q`**: Exit application
