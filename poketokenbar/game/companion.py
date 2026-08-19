@@ -61,6 +61,14 @@ class CompanionEngine:
         self.save()
         return True, "Settings updated successfully."
 
+    def reset_game_state(self) -> Tuple[bool, str]:
+        """Resets all game progress, inventory, companions, and Pokédex entries."""
+        old_settings = self.get_settings()
+        self.state = StorageManager.default_state()
+        self.state["settings"] = old_settings
+        self.save()
+        return True, "✨ Game progress has been completely reset! Started fresh."
+
     @property
     def available_tokens(self) -> int:
         used = self.state.get("used_since_install", 0)

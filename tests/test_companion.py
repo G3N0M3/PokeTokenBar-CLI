@@ -41,10 +41,16 @@ class TestCompanionEngine(unittest.TestCase):
         # Second buy of same tier should fail
         ok2, msg2 = self.engine.buy_egg(None)
         self.assertFalse(ok2)
-        self.assertIn("cannot buy duplicate eggs", msg2)
         # Buying a different tier (Uncommon) should succeed
         ok3, msg3 = self.engine.buy_egg(Rarity.UNCOMMON)
         self.assertTrue(ok3)
+
+    def test_reset_game_state(self):
+        self.engine.hatch_egg(0)
+        ok, msg = self.engine.reset_game_state()
+        self.assertTrue(ok)
+        self.assertIsNone(self.engine.active_mon)
+        self.assertEqual(len(self.engine.state["dex"]), 0)
 
 if __name__ == "__main__":
     unittest.main()

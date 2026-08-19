@@ -137,6 +137,9 @@ class PokeTokenBarTUI:
                                     self.message = "Invalid interval number. Usage: interval <seconds>"
                             else:
                                 self.message = "Usage: interval <seconds> (e.g. 'interval 5')"
+                        elif cmd == "reset" and self.current_tab == 5:
+                            ok, msg = self.engine.reset_game_state()
+                            self.message = msg
                         elif self.current_tab == 3 and cmd in ["buy 1", "buy 2", "buy 3", "buy 4", "buy 5"]:
                             self.handle_shop_buy(cmd)
                         elif self.current_tab == 3 and cmd in ["use 1", "use 2"]:
@@ -329,9 +332,11 @@ class PokeTokenBarTUI:
 
         sys.stdout.write(f"\n  {BOLD}{CYAN}⚙️ Tracking & Application Settings{RESET}\n\n")
         sys.stdout.write(f"  [1] Automatic Token Tracking: {status_badge}\n")
-        sys.stdout.write(f"      ➔ Type '{BOLD}toggle{RESET}' or '{BOLD}track{RESET}' to switch ON/OFF\n\n")
+        sys.stdout.write(f"      ➔ Type '{BOLD}toggle{RESET}' to switch ON/OFF\n\n")
         sys.stdout.write(f"  [2] Auto-Refresh Interval:    {BOLD}{YELLOW}{interval} seconds{RESET}\n")
-        sys.stdout.write(f"      ➔ Type '{BOLD}interval <seconds>{RESET}' to change (e.g. 'interval 5' or 'interval 1')\n\n")
+        sys.stdout.write(f"      ➔ Type '{BOLD}interval <seconds>{RESET}' to change (e.g. 'interval 5')\n\n")
+        sys.stdout.write(f"  [3] Reset Game Progress:       {BOLD}{RED}[DANGER]{RESET}\n")
+        sys.stdout.write(f"      ➔ Type '{BOLD}reset{RESET}' to clear all saved progress & restart fresh\n\n")
 
     def render_footer(self):
         if self.message:

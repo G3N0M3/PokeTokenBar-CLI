@@ -32,14 +32,34 @@ Designed specifically for **Linux CLI** environments, **Antigravity CLI** (`~/.g
 
 ---
 
-## 🚀 Quick Setup (Conda `PTB` Environment)
+## 🚀 Installation & Quick Start
 
-Activate your conda environment and install `poketokenbar` in editable mode:
+### Prerequisites
+- **OS**: Linux terminal / CLI environment (Ubuntu, Debian, Fedora, Arch, WSL2, or macOS Terminal)
+- **Python**: Python 3.8+
+
+### 1. Clone & Install
+
+Clone the repository and install `poketokenbar` via `pip`:
 
 ```bash
-conda activate PTB
-cd /home/ejchoi/projects/personal/PokeTokenBar
+# Clone the repository
+git clone https://github.com/YOUR_USERNAME/PokeTokenBar.git
+cd PokeTokenBar
+
+# (Optional) Activate your python virtualenv or conda environment
+# conda activate PTB
+
+# Install in editable mode
 pip install -e .
+```
+
+### 2. Start Your Companion
+
+Launch the interactive TUI from anywhere in your terminal:
+
+```bash
+ptb
 ```
 
 ---
@@ -96,6 +116,41 @@ ptb watch --interval 3.0
 
 ---
 
+## 🔧 Version Control & GitHub Release Workflow
+
+PokeTokenBar uses [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`):
+- Single source of truth is defined in `poketokenbar/__init__.__version__` and `setup.py`.
+
+### 1. Initializing Git & Pushing to GitHub
+```bash
+cd /home/ejchoi/projects/personal/PokeTokenBar
+
+# Initialize repository & set default branch
+git init
+git branch -M main
+
+# Commit initial code
+git add .
+git commit -m "feat: initial release v1.0.0 of PokeTokenBar CLI"
+
+# Tag release v1.0.0
+git tag -a v1.0.0 -m "Release v1.0.0"
+
+# Link remote & push
+git remote add origin https://github.com/YOUR_USERNAME/PokeTokenBar.git
+git push -u origin main
+git push origin --tags
+```
+
+### 2. Creating New Version Releases
+When making future changes:
+1. Update `__version__ = "1.1.0"` in `poketokenbar/__init__.py` and `setup.py`.
+2. Commit your changes: `git commit -m "feat: description of new feature"`
+3. Tag the release: `git tag -a v1.1.0 -m "Release v1.1.0"`
+4. Push code and tags: `git push && git push origin --tags`
+
+---
+
 ## 📂 Data Sources & Privacy
 
 - **Antigravity CLI**: Reads SQLite databases at `~/.gemini/antigravity-cli/conversations/*.db` using read-only mode (`mode=ro`).
@@ -103,6 +158,13 @@ ptb watch --interval 3.0
 - **Claude Code**: Reads project session logs at `~/.claude/projects/**/*.jsonl`.
 - **Local Storage**: Game state saved at `~/.poketokenbar/state.json`, sprites cached at `~/.poketokenbar/cache/`.
 - 100% on-device local tracking. No usage data or prompt content is ever uploaded anywhere.
+
+---
+
+## 🙏 Credits & Acknowledgments
+
+- Based on the original concept and design from the [PokeTokenBar macOS Project](https://github.com/YOUR_USERNAME/ORIGINAL_REPO_NAME) (update link as needed).
+- Sprite assets powered by [PokéAPI](https://pokeapi.co/).
 
 ---
 
