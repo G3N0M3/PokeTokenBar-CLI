@@ -600,7 +600,7 @@ class CompanionEngine:
         dex = self.state.get("dex", [])
         expeditions = self.state.get("expeditions", [])
         exp_map = {e["sp_id"]: e for e in expeditions}
-        roster = [d for d in dex if (d.get("status") != "evolved" or d.get("species_id", d.get("final_id", d.get("base_id"))) in exp_map)]
+        roster = [d for d in dex if d.get("status") != "evolved"]
         target_entry = None
         s_input = selection_input.strip()
 
@@ -932,7 +932,7 @@ class CompanionEngine:
 
         expeditions = self.state.get("expeditions", [])
         exp_map = {e["sp_id"]: e for e in expeditions}
-        roster = [d for d in dex if (d.get("status") != "evolved" or d.get("species_id", d.get("final_id", d.get("base_id"))) in exp_map)]
+        roster = [d for d in dex if d.get("status") != "evolved"]
 
         s_input = selection_input.strip()
         target_entry = None

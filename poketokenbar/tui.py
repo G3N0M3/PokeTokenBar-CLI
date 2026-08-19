@@ -362,8 +362,8 @@ class PokeTokenBarTUI:
 
         expeditions = self.engine.state.get("expeditions", [])
         exp_map = {e["sp_id"]: e for e in expeditions}
-        # Filter dex to active roster (plus any species currently on expedition)
-        roster = [d for d in dex if (d.get("status") != "evolved" or d.get("species_id", d.get("final_id", d.get("base_id"))) in exp_map)]
+        # Filter dex to active roster (excluding pre-evolutions marked as 'evolved')
+        roster = [d for d in dex if d.get("status") != "evolved"]
 
         if not roster:
             sys.stdout.write("  No active companions in your roster. Incubate an egg to start!\n\n")
