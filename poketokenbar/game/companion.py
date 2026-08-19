@@ -182,8 +182,14 @@ class CompanionEngine:
                     diff = (today_dt - last_dt).days
                     if diff == 1:
                         self.state["streak_days"] = self.state.get("streak_days", 1) + 1
+                        # Daily activity bonus (+10 Happiness)
+                        self.state["happiness"] = min(100, self.state.get("happiness", 100) + 10)
                     elif diff > 1:
                         self.state["streak_days"] = 1
+                        # Happiness decays by -25% per missed day
+                        decay = (diff - 1) * 25
+                        self.state["happiness"] = max(0, self.state.get("happiness", 100) - decay)
+                        events.append(f"💔 You missed {diff-1} day(s) of coding! Companion Happiness dropped to {self.state['happiness']}%. Feed Oran Berries 🫐 to cheer them up!")
                 except Exception:
                     self.state["streak_days"] = 1
             else:
@@ -935,7 +941,8 @@ class CompanionEngine:
                 logs.append(f"[{now_str}] 🏆 WIN vs {opp_name} (Earned +2.0M Tokens)")
             else:
                 battles["losses"] += 1
-                msg = f"⚔️ TRAINER BATTLE! {opp_name} put up a tough fight! Keep training your companion!"
+                self.state["happiness"] = max(0, self.state.get("happiness", 100) - 10)
+                msg = f"⚔️ TRAINER BATTLE! {opp_name} put up a tough fight! Companion Happiness dropped to {self.state['happiness']}%!"
                 events.append(msg)
                 logs.append(f"[{now_str}] ❌ LOSS vs {opp_name}")
 
