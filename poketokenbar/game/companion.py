@@ -142,6 +142,8 @@ class CompanionEngine:
                     del incubating_eggs[curr_tier]
                 self.state["incubating_eggs"] = incubating_eggs
                 self.state["egg_usage"] = 0
+                self.state["current_egg_tier"] = None
+                self.state["egg_tier"] = None
                 hatched_mon, hatch_events = self.hatch_egg(overflow)
                 events.extend(hatch_events)
                 self.set_active_mon(hatched_mon)
@@ -180,27 +182,60 @@ class CompanionEngine:
                 self.state["streak_days"] = 1
             self.state["last_active_date"] = today_str
 
-        # Generate / check daily quests
+        # Generate / check daily quests dynamically
         qdata = self.state.get("daily_quests", {})
-        if qdata.get("date") != today_str:
-            qdata = {
-                "date": today_str,
-                "quests": [
-                    {"id": "q1", "text": "Burn 2.0M tokens today", "target": 2_000_000, "progress": 0, "reward": "rare_candy", "claimed": False},
-                    {"id": "q2", "text": "Hatch an egg or evolve a companion", "target": 1, "progress": 0, "reward": "mint", "claimed": False},
-                    {"id": "q3", "text": "Burn 10.0M cumulative tokens today", "target": 10_000_000, "progress": 0, "reward": "tokens_10m", "claimed": False}
-                ]
-            }
+        quests = qdata.get("quests", [])
+        has_invalid = any("type" not in q for q in quests)
+        if qdata.get("date") != today_str or has_invalid:
+            qdata = self._generate_daily_quests(today_str)
             self.state["daily_quests"] = qdata
 
         # Update quest progress
         for q in qdata.get("quests", []):
-            if not q["claimed"]:
-                if q["id"] in ["q1", "q3"]:
+            if not q.get("claimed", False):
+                q_type = q.get("type", "burn_today")
+                if q_type == "burn_today":
                     q["progress"] += delta
                     if q["progress"] >= q["target"]:
                         q["progress"] = q["target"]
                         events.append(f"🎯 Quest Complete: [{q['text']}]! Type 'claim {q['id']}' to collect your reward!")
+                elif q_type == "streak" and self.state.get("streak_days", 1) >= q["target"]:
+                    q["progress"] = q["target"]
+                    events.append(f"🎯 Quest Complete: [{q['text']}]! Type 'claim {q['id']}' to collect your reward!")
+                elif q_type == "happiness" and self.state.get("happiness", 0) >= q["target"]:
+                    q["progress"] = q["target"]
+                    events.append(f"🎯 Quest Complete: [{q['text']}]! Type 'claim {q['id']}' to collect your reward!")
+
+    def _generate_daily_quests(self, date_str: str) -> Dict[str, Any]:
+        """Dynamically generates 3 daily quests using a deterministic seed for today's date."""
+        rng = random.Random(date_str)
+
+        burn_options = [
+            ("q1", "Burn 1.0M tokens today", 1_000_000, "mint", "burn_today"),
+            ("q1", "Burn 2.5M tokens today", 2_500_000, "rare_candy", "burn_today"),
+            ("q1", "Burn 5.0M tokens today", 5_000_000, "rare_candy", "burn_today"),
+        ]
+        comp_options = [
+            ("q2", "Hatch an egg or evolve a companion", 1, "mint", "progression"),
+            ("q2", "Reach 100% Companion Happiness", 100, "rare_candy", "happiness"),
+            ("q2", "Maintain a 2+ Day Coding Streak", 2, "mint", "streak"),
+        ]
+        epic_options = [
+            ("q3", "Burn 10.0M tokens today", 10_000_000, "tokens_10m", "burn_today"),
+            ("q3", "Burn 20.0M tokens today", 20_000_000, "tokens_20m", "burn_today"),
+            ("q3", "Maintain a 3+ Day Coding Streak", 3, "rare_candy", "streak"),
+        ]
+
+        q1 = rng.choice(burn_options)
+        q2 = rng.choice(comp_options)
+        q3 = rng.choice(epic_options)
+
+        quests = [
+            {"id": q1[0], "text": q1[1], "target": q1[2], "progress": 0, "reward": q1[3], "type": q1[4], "claimed": False},
+            {"id": q2[0], "text": q2[1], "target": q2[2], "progress": 0, "reward": q2[3], "type": q2[4], "claimed": False},
+            {"id": q3[0], "text": q3[1], "target": q3[2], "progress": 0, "reward": q3[3], "type": q3[4], "claimed": False},
+        ]
+        return {"date": date_str, "quests": quests}
 
     def claim_quest_reward(self, q_id: str) -> Tuple[bool, str]:
         qdata = self.state.get("daily_quests", {})
@@ -234,16 +269,26 @@ class CompanionEngine:
             self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - 10_000_000)
             self.save()
             return True, f"Claimed Reward: +10.0M Spendable Tokens for completing [{target_q['text']}]!"
+        elif reward_type == "tokens_20m":
+            self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - 20_000_000)
+            self.save()
+            return True, f"Claimed Reward: +20.0M Spendable Tokens for completing [{target_q['text']}]!"
 
         return False, "Unknown reward type."
 
     def _update_boss_battle(self, delta: int) -> List[str]:
         events = []
         bosses = [
-            {"id": "boss_1", "name": "Brock & Geodude", "sp_id": 74, "badge": "⚡ Boulder Badge", "threshold": 5_000_000, "hp": 2_000_000, "reward": "rare_candy"},
-            {"id": "boss_2", "name": "Misty & Starmie", "sp_id": 121, "badge": "💧 Cascade Badge", "threshold": 25_000_000, "hp": 10_000_000, "reward": "mint"},
-            {"id": "boss_3", "name": "Lt. Surge & Raichu", "sp_id": 26, "badge": "⚡ Thunder Badge", "threshold": 50_000_000, "hp": 25_000_000, "reward": "tokens_20m"},
-            {"id": "boss_4", "name": "Giovanni & Mewtwo", "sp_id": 150, "badge": "👑 Earth Badge", "threshold": 100_000_000, "hp": 50_000_000, "reward": "shiny_charm"}
+            {"id": "boss_1", "name": "Brock & Geodude", "sp_id": 74, "badge": "🪨 Boulder Badge", "threshold": 5_000_000, "hp": 2_000_000, "reward": "rare_candy"},
+            {"id": "boss_2", "name": "Misty & Starmie", "sp_id": 121, "badge": "💧 Cascade Badge", "threshold": 15_000_000, "hp": 5_000_000, "reward": "mint"},
+            {"id": "boss_3", "name": "Lt. Surge & Raichu", "sp_id": 26, "badge": "⚡ Thunder Badge", "threshold": 30_000_000, "hp": 10_000_000, "reward": "tokens_10m"},
+            {"id": "boss_4", "name": "Erika & Vileplume", "sp_id": 45, "badge": "🌸 Rainbow Badge", "threshold": 50_000_000, "hp": 18_000_000, "reward": "rare_candy"},
+            {"id": "boss_5", "name": "Koga & Weezing", "sp_id": 110, "badge": "🟣 Soul Badge", "threshold": 75_000_000, "hp": 25_000_000, "reward": "mint"},
+            {"id": "boss_6", "name": "Sabrina & Alakazam", "sp_id": 65, "badge": "🔮 Marsh Badge", "threshold": 105_000_000, "hp": 35_000_000, "reward": "tokens_15m"},
+            {"id": "boss_7", "name": "Blaine & Arcanine", "sp_id": 59, "badge": "🔥 Volcano Badge", "threshold": 140_000_000, "hp": 45_000_000, "reward": "rare_candy"},
+            {"id": "boss_8", "name": "Giovanni & Mewtwo", "sp_id": 150, "badge": "👑 Earth Badge", "threshold": 180_000_000, "hp": 60_000_000, "reward": "shiny_charm"},
+            {"id": "boss_9", "name": "Lance & Dragonite", "sp_id": 149, "badge": "🐉 Dragon Badge", "threshold": 230_000_000, "hp": 80_000_000, "reward": "tokens_20m"},
+            {"id": "boss_10", "name": "Cynthia & Garchomp", "sp_id": 445, "badge": "🏆 Champion Badge", "threshold": 300_000_000, "hp": 100_000_000, "reward": "tokens_50m"}
         ]
 
         active_boss = self.state.get("active_boss")
@@ -293,8 +338,14 @@ class CompanionEngine:
                 elif r_type == "shiny_charm":
                     inv["shiny_charm"] = inv.get("shiny_charm", 0) + 1
                     self.state["inventory"] = inv
+                elif r_type == "tokens_10m":
+                    self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - 10_000_000)
+                elif r_type == "tokens_15m":
+                    self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - 15_000_000)
                 elif r_type == "tokens_20m":
                     self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - 20_000_000)
+                elif r_type == "tokens_50m":
+                    self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - 50_000_000)
 
                 events.append(f"🏆 BOSS DEFEATED! You defeated Boss {b_name} and earned the {badge}!")
                 self.state["active_boss"] = None
@@ -473,6 +524,11 @@ class CompanionEngine:
 
     def select_active_from_dex(self, selection_input: str) -> Tuple[bool, str]:
         if selection_input.lower() in ["egg", "0"]:
+            incubating_eggs = self.state.get("incubating_eggs", {})
+            has_egg = bool(incubating_eggs) or bool(self.state.get("egg_tier")) or (self.active_mon is None)
+            if not has_egg:
+                return False, "You don't have an incubating egg in your roster! Buy a fresh egg from the Shop ([3]) first."
+
             curr_active = self.active_mon
             if curr_active:
                 self._register_to_dex(curr_active, status="inactive")

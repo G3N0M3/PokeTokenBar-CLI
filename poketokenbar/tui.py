@@ -240,12 +240,15 @@ class PokeTokenBarTUI:
         dex = self.engine.state.get("dex", [])
         sys.stdout.write(f"\n  {BOLD}{HEADER}📖 Pokédex Archives ({len(dex)} species registered){RESET}\n\n")
 
-        # Show Incubating Egg option if present or active is None
-        egg_usage = self.engine.state.get("egg_usage", 0)
-        threshold = self.engine.current_difficulty.hatch_threshold
-        pct = (egg_usage / threshold) * 100 if threshold > 0 else 0
-        egg_badge = f"{BOLD}{GREEN}[ACTIVE / INCUBATING]{RESET}" if active is None else f"{BOLD}{YELLOW}[IN ROSTER]{RESET}"
-        sys.stdout.write(f"   0. 🥚 {BOLD}Incubating Pokémon Egg{RESET} ({pct:.1f}%) {egg_badge}\n")
+        # Show Incubating Egg option ONLY if an egg is owned/incubating or active is None
+        incubating_eggs = self.engine.state.get("incubating_eggs", {})
+        has_egg = bool(incubating_eggs) or bool(self.engine.state.get("egg_tier")) or (active is None)
+        if has_egg:
+            egg_usage = self.engine.state.get("egg_usage", 0)
+            threshold = self.engine.current_difficulty.hatch_threshold
+            pct = (egg_usage / threshold) * 100 if threshold > 0 else 0
+            egg_badge = f"{BOLD}{GREEN}[ACTIVE / INCUBATING]{RESET}" if active is None else f"{BOLD}{YELLOW}[IN ROSTER]{RESET}"
+            sys.stdout.write(f"   0. 🥚 {BOLD}Incubating Pokémon Egg{RESET} ({pct:.1f}%) {egg_badge}\n")
 
         if not dex:
             sys.stdout.write("\n  Your Pokédex is empty! Incubate and raise your Pokémon companions to fill it.\n\n")
@@ -367,7 +370,7 @@ class PokeTokenBarTUI:
             sys.stdout.write("   No active Boss Raid. Reach daily token milestones to summon Gym Bosses!\n")
 
         # 3. Gym Badges Collected
-        sys.stdout.write(f"\n  {BOLD}🏅 Gym Badges Collected ({len(badges)}/4):{RESET}\n")
+        sys.stdout.write(f"\n  {BOLD}🏅 Gym Badges Collected ({len(badges)}/10):{RESET}\n")
         if not badges:
             sys.stdout.write("   No badges earned yet. Defeat Gym Bosses to earn badges!\n")
         else:
