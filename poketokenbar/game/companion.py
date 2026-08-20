@@ -190,9 +190,11 @@ class CompanionEngine:
         self._check_trainer_battle(delta, events)
 
         if active is None:
-            # We are incubating an egg
-            curr_tier = self.state.get("current_egg_tier") or self.state.get("egg_tier") or "normal"
-            incubating_eggs = self.state.get("incubating_eggs", {})
+            egg_tier = self.state.get("egg_tier")
+            if egg_tier is None:
+                # Active mon is None, but no egg either (should be impossible in normal flow but fail gracefully)
+                return events
+
             egg_usage = self.state.get("egg_usage", 0) + effective_xp
             self.state["egg_usage"] = egg_usage
 
@@ -626,7 +628,8 @@ class CompanionEngine:
                 idx_in_chain = chain.index(sp_id)
                 higher_forms = chain[idx_in_chain + 1:]
                 if any(h in all_discovered_sp_ids for h in higher_forms):
-                    d["status"] = "evolved"
+                    if d.get("status") not in ["active", "inactive"]:
+                        d["status"] = "evolved"
 
         self.state["dex"] = sorted(new_dex, key=lambda x: x.get("species_id", 0))
         if status == "graduated":
@@ -638,10 +641,14 @@ class CompanionEngine:
 
     def select_active_from_dex(self, selection_input: str) -> Tuple[bool, str]:
         # Handle 'select egg' or 'select 0'
-        if selection_input.lower() in ["egg", "0"]:
+        if selection_input.lower().startswith("egg") or selection_input == "0":
+            if not self.state.get("egg_tier"):
+                return False, "You don't own any Pokémon Eggs!"
+                
             curr_active = self.active_mon
             if curr_active:
                 self._register_to_dex(curr_active, status="inactive")
+            
             self.set_active_mon(None)
             egg_usage = self.state.get("egg_usage", 0)
             threshold = self.current_difficulty.hatch_threshold
@@ -699,7 +706,7 @@ class CompanionEngine:
         if chain and sp_id in chain:
             idx_in_chain = chain.index(sp_id)
             higher_forms = [h for h in chain[idx_in_chain + 1:] if h in all_discovered_sp_ids]
-            if higher_forms or entry_status == "evolved":
+            if entry_status == "evolved":
                 next_name = self.api.get_species_name(higher_forms[-1]) if higher_forms else "its evolved form"
                 return False, f"Cannot select {sp_name}! It has already evolved into {next_name}. Select {next_name} instead."
 
@@ -753,16 +760,13 @@ class CompanionEngine:
 
     def hatch_egg(self, initial_xp: int = 0, force_tier: Optional[str] = None, force_shiny: bool = False) -> Tuple[MonState, List[str]]:
         events = []
-        tier_guarantee = force_tier or self.state.get("current_egg_tier") or self.state.get("egg_tier")
+        used_tier = force_tier or self.state.get("egg_tier") or "normal"
         
-        # Clear the egg state
-        eggs = self.state.get("incubating_eggs", {})
-        used_tier = tier_guarantee or "normal"
-        if used_tier in eggs:
-            del eggs[used_tier]
-        self.state["incubating_eggs"] = eggs
-        self.state["current_egg_tier"] = None
+        # Clean up keys completely
         self.state["egg_tier"] = None
+        self.state["egg_usage"] = 0
+        self.state.pop("incubating_eggs", None)
+        self.state.pop("current_egg_tier", None)
         
         # Select base species
         base_id, rarity, chain_ids, is_legendary = self._pick_species(tier_guarantee)
@@ -1232,14 +1236,9 @@ class CompanionEngine:
         tier_key = tier.value if tier else "normal"
         cost = costs.get("egg_rare" if tier == Rarity.RARE else ("egg_uncommon" if tier == Rarity.UNCOMMON else "egg_normal"), 30_000_000)
 
-        # Check duplicate egg ownership for same tier
-        incubating_eggs = self.state.get("incubating_eggs", {})
-        current_tier = self.state.get("current_egg_tier") or self.state.get("egg_tier") or "normal"
-        has_legacy_egg = (self.active_mon is None) and (current_tier == tier_key or (tier is None and current_tier == "normal"))
-
-        if tier_key in incubating_eggs or has_legacy_egg:
-            tier_display = f"{tier.value.upper()}+" if tier else "Standard"
-            return False, f"You already own a {tier_display} Pokémon Egg! You cannot buy duplicate eggs of the same tier."
+        current_tier = self.state.get("egg_tier")
+        if current_tier is not None:
+            return False, f"You already own a {current_tier.capitalize()} Pokémon Egg! You can only carry one egg at a time."
 
         if self.available_tokens < cost:
             return False, f"Not enough tokens! Required: {format_tokens(cost)}, Available: {format_tokens(self.available_tokens)}"
@@ -1249,13 +1248,15 @@ class CompanionEngine:
         if curr_active:
             self._register_to_dex(curr_active, status="inactive")
 
-        incubating_eggs[tier_key] = 0
-        self.state["incubating_eggs"] = incubating_eggs
-        self.state["current_egg_tier"] = tier_key
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + cost
         self.set_active_mon(None)
         self.state["egg_usage"] = 0
-        self.state["egg_tier"] = tier.value if tier else None
+        self.state["egg_tier"] = tier_key
+        
+        # Clean up old keys
+        self.state.pop("incubating_eggs", None)
+        self.state.pop("current_egg_tier", None)
+        
         self.save()
         tier_str = f"{tier.value.upper()}+" if tier else "Standard"
         return True, f"Obtained a fresh {tier_str} Pokémon Egg! Previous companion saved to Pokédex."
@@ -1388,17 +1389,14 @@ class CompanionEngine:
             elif r_type == "tokens":
                 self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - val)
             elif r_type == "egg":
-                eggs = self.state.get("incubating_eggs", {})
-                current_tier = self.state.get("current_egg_tier") or self.state.get("egg_tier") or "normal"
-                has_legacy = (self.active_mon is None) and (current_tier == val or (val == "normal" and current_tier == "normal"))
-                
-                if val in eggs or has_legacy:
-                    # Refund tokens for duplicate egg (15M to make it fair)
-                    self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - 15_000_000)
-                    results_txt[-1] += " \033[1m\033[33m(DUPLICATE! Refunded +15.0M Tokens)\033[0m"
+                current_tier = self.state.get("egg_tier")
+                if current_tier is None:
+                    self.state["egg_tier"] = val
+                    self.state["egg_usage"] = 0
                 else:
-                    self.state["incubating_eggs"] = eggs
-                    self.state["incubating_eggs"][val] = 0
+                    pending = self.state.get("pending_eggs", [])
+                    pending.append(val)
+                    self.state["pending_eggs"] = pending
 
         self.state["inventory"] = inv
         self.save()

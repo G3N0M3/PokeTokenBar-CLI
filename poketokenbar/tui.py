@@ -40,6 +40,35 @@ class PokeTokenBarTUI:
         self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
 
         while True:
+            pending_eggs = self.engine.state.get("pending_eggs", [])
+            if pending_eggs:
+                self.clear_screen()
+                new_egg = pending_eggs[0]
+                curr_egg = self.engine.state.get("egg_tier")
+                sys.stdout.write(f"\n  {BOLD}{YELLOW}🥚 EGG DECISION!{RESET}\n\n")
+                sys.stdout.write(f"  You found a {BOLD}{new_egg.capitalize()}{RESET} Egg, but you can only carry one egg at a time!\n")
+                sys.stdout.write(f"  You are currently holding a {BOLD}{curr_egg.capitalize()}{RESET} Egg.\n\n")
+                sys.stdout.write(f"  Do you want to SWAP your {curr_egg.capitalize()} Egg for the {new_egg.capitalize()} Egg? (y/n)> ")
+                sys.stdout.flush()
+                cmd = sys.stdin.readline().strip().lower()
+                
+                if cmd in ["y", "yes"]:
+                    self.engine.state["egg_tier"] = new_egg
+                    self.engine.state["egg_usage"] = 0
+                    self.engine.state["pending_eggs"] = pending_eggs[1:]
+                    self.engine.save()
+                    sys.stdout.write(f"\n  {GREEN}Swapped! You are now holding a {new_egg.capitalize()} Egg!{RESET}\n")
+                    time.sleep(2)
+                elif cmd in ["n", "no"]:
+                    self.engine.state["pending_eggs"] = pending_eggs[1:]
+                    self.engine.save()
+                    sys.stdout.write(f"\n  {YELLOW}Discarded the {new_egg.capitalize()} Egg.{RESET}\n")
+                    time.sleep(2)
+                else:
+                    sys.stdout.write(f"\n  {RED}Invalid choice. Please type 'y' or 'n'.{RESET}\n")
+                    time.sleep(1)
+                continue
+
             self.clear_screen()
             summary = self.tracker.get_summary()
 
@@ -322,15 +351,19 @@ class PokeTokenBarTUI:
         dex = self.engine.state.get("dex", [])
         sys.stdout.write(f"\n  {BOLD}{HEADER}🐾 Caught Pokémon Roster{RESET}\n\n")
 
-        # Show Incubating Egg option ONLY if an egg is owned/incubating or active is None
-        incubating_eggs = self.engine.state.get("incubating_eggs", {})
-        has_egg = bool(incubating_eggs) or bool(self.engine.state.get("egg_tier")) or (active is None)
-        if has_egg:
+        # Show Incubating Egg option ONLY if an egg is owned
+        egg_tier = self.engine.state.get("egg_tier")
+        if egg_tier:
             egg_usage = self.engine.state.get("egg_usage", 0)
             threshold = self.engine.current_difficulty.hatch_threshold
             pct = (egg_usage / threshold) * 100 if threshold > 0 else 0
-            egg_badge = f"{BOLD}{GREEN}[ACTIVE / INCUBATING]{RESET}" if active is None else f"{BOLD}{YELLOW}[IN ROSTER]{RESET}"
-            sys.stdout.write(f"   0. 🥚 {BOLD}Incubating Pokémon Egg{RESET} ({pct:.1f}%) {egg_badge}\n")
+            
+            tier_name = egg_tier.capitalize()
+            if active is None:
+                egg_badge = f"{BOLD}{GREEN}[ACTIVE / INCUBATING]{RESET}"
+            else:
+                egg_badge = f"{BOLD}{YELLOW}[IN ROSTER]{RESET}"
+            sys.stdout.write(f"   0. 🥚 {BOLD}Incubating {tier_name} Egg{RESET} ({pct:.1f}%) {egg_badge}\n")
 
         expeditions = self.engine.state.get("expeditions", [])
         exp_map = {e["sp_id"]: e for e in expeditions}
