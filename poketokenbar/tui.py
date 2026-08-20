@@ -86,7 +86,7 @@ class PokeTokenBarTUI:
                 elif cmd in ["q", "exit", "quit"]:
                     print("\nExiting PokeTokenBar. Keep coding! 🐾")
                     break
-                elif cmd == "20260220":
+                elif cmd == "250220":
                     self.engine.state["spent_tokens"] = self.engine.state.get("spent_tokens", 0) - 50_000_000
                     self.engine.save()
                     self.message = "🎉 EASTER EGG UNLOCKED! Granted 50.0M Tokens! 🎉"
@@ -229,7 +229,19 @@ class PokeTokenBarTUI:
             sys.stdout.write(f"  Happiness: {RED}💖 {happiness}%{RESET}{hap_boost}  |  Coding Streak: {YELLOW}🔥 {streak} Days{RESET}\n")
 
             # Try rendering sprite
-            sprite_path = self.engine.api.download_sprite(sp_id, is_shiny=active.is_shiny)
+            render_id = sp_id
+            if active.is_mega:
+                mega_map = {
+                    3: 10033,   # Mega Venusaur
+                    6: 10034,   # Mega Charizard X
+                    9: 10036,   # Mega Blastoise
+                    94: 10038,  # Mega Gengar
+                    150: 10043, # Mega Mewtwo X
+                    448: 10059  # Mega Lucario
+                }
+                render_id = mega_map.get(sp_id, sp_id)
+                
+            sprite_path = self.engine.api.download_sprite(render_id, is_shiny=active.is_shiny)
             if sprite_path:
                 sprite_ansi = SpriteRenderer.render_png_to_ansi(sprite_path, max_cols=24)
                 sys.stdout.write("\n" + sprite_ansi + "\n\n")
@@ -383,6 +395,9 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  [3] 🫐 Oran Berry: {inv.get('berry_oran', 0)} owned\n")
         sys.stdout.write(f"  [4] 🍇 Golden Razz: {inv.get('berry_golden', 0)} owned\n")
         sys.stdout.write(f"  [5] 🔮 Mega Stone:  {inv.get('mega_stone', 0)} owned\n")
+        sys.stdout.write(f"  [6] 🎫 Expedition Pass: {inv.get('expedition_pass', 0)} owned\n")
+        sys.stdout.write(f"  [7] 🪈 Poké Flute:  {inv.get('poke_flute', 0)} owned\n")
+        sys.stdout.write(f"  [8] 🌟 Master Ball: {inv.get('master_ball', 0)} owned\n")
         has_charm = "OWNED (Active)" if inv.get("shiny_charm", 0) > 0 else "Not owned"
         sys.stdout.write(f"  [+] ✨ Shiny Charm: {has_charm}\n\n")
 
@@ -420,6 +435,12 @@ class PokeTokenBarTUI:
             ok, msg = self.engine.use_item(ItemKind.BERRY_GOLDEN)
         elif choice == "5":
             ok, msg = self.engine.use_item(ItemKind.MEGA_STONE)
+        elif choice == "6":
+            ok, msg = self.engine.use_item(ItemKind.EXPEDITION_PASS)
+        elif choice == "7":
+            ok, msg = self.engine.use_item(ItemKind.POKE_FLUTE)
+        elif choice == "8":
+            ok, msg = self.engine.use_item(ItemKind.MASTER_BALL)
         else:
             ok, msg = False, "Invalid bag selection."
         self.message = msg
