@@ -1255,10 +1255,15 @@ class CompanionEngine:
         if cmd == "fold":
             outcome, lost = self.poker.play_fold()
             return True, f"🏳️ \033[1m\033[31mYOU FOLDED!\033[0m Surrendered {format_tokens(lost)} tokens to the House."
-        elif cmd == "flop":
-            return self.poker.play_flop()
-        elif cmd == "turn":
-            return self.poker.play_turn()
+        elif cmd in ["flop", "turn", "river", "check", "call"]:
+            if self.poker.game_state == "preflop":
+                return self.poker.play_flop()
+            elif self.poker.game_state == "flop":
+                return self.poker.play_turn()
+            elif self.poker.game_state == "turn":
+                return self._format_poker_showdown()
+            else:
+                return False, "Game already over."
         elif cmd == "raise":
             avail = self.available_tokens
             if avail < self.poker.current_bet:
@@ -1267,9 +1272,20 @@ class CompanionEngine:
             self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + self.poker.current_bet
             self.poker.current_bet *= 2
             self.save()
-            return self._format_poker_showdown()
+            
+            # Advance state automatically after raising
+            if self.poker.game_state == "preflop":
+                msg = self.poker.play_flop()[1]
+                return True, f"💰 Raised! " + msg
+            elif self.poker.game_state == "flop":
+                msg = self.poker.play_turn()[1]
+                return True, f"💰 Raised! " + msg
+            elif self.poker.game_state == "turn":
+                return self._format_poker_showdown()
+            else:
+                return False, "Game already over."
         else:
-            return self._format_poker_showdown()
+            return False, "Invalid poker action."
 
     def _format_poker_showdown(self) -> Tuple[bool, str]:
         outcome, p_rank, d_rank, mult, winnings = self.poker.play_showdown()
