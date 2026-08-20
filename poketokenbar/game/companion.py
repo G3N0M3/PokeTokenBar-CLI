@@ -156,8 +156,19 @@ class CompanionEngine:
         diff = self.current_difficulty
 
         if active:
-            active.happiness = min(100, active.happiness + int(delta / 100_000))
-            self.set_active_mon(active)
+            used_total = self.state.get("used_since_install", 0)
+            last_decay = self.state.get("last_happiness_decay_token", used_total)
+            decay_amount = (used_total - last_decay) // 1_000_000
+            
+            if decay_amount > 0:
+                old_hap = active.happiness
+                active.happiness = max(0, active.happiness - decay_amount)
+                self.set_active_mon(active)
+                self.state["last_happiness_decay_token"] = last_decay + (decay_amount * 1_000_000)
+                
+                if old_hap >= 50 and active.happiness < 50:
+                    events.append(f"⚠️ {self.api.get_species_name(active.current_id)} is hungry (Happiness: {active.happiness}%)! Feed an Oran Berry 🫐 from the Shop!")
+                    
             happiness = active.happiness
         else:
             happiness = 100
@@ -742,7 +753,16 @@ class CompanionEngine:
 
     def hatch_egg(self, initial_xp: int = 0, force_tier: Optional[str] = None, force_shiny: bool = False) -> Tuple[MonState, List[str]]:
         events = []
-        tier_guarantee = force_tier or self.state.get("egg_tier")
+        tier_guarantee = force_tier or self.state.get("current_egg_tier") or self.state.get("egg_tier")
+        
+        # Clear the egg state
+        eggs = self.state.get("incubating_eggs", {})
+        used_tier = tier_guarantee or "normal"
+        if used_tier in eggs:
+            del eggs[used_tier]
+        self.state["incubating_eggs"] = eggs
+        self.state["current_egg_tier"] = None
+        self.state["egg_tier"] = None
         
         # Select base species
         base_id, rarity, chain_ids, is_legendary = self._pick_species(tier_guarantee)
@@ -979,7 +999,7 @@ class CompanionEngine:
                 
             mon, hatch_events = self.hatch_egg(initial_xp=0, force_tier=best_tier, force_shiny=True)
             events.extend(hatch_events)
-            del eggs[best_tier]
+            eggs.pop(best_tier, None)
             self.state["incubating_eggs"] = eggs
             self.state["inventory"] = inv
             self.save()
@@ -1162,8 +1182,15 @@ class CompanionEngine:
                 logs.append(f"[{now_str}] 🏆 WIN vs {opp_name} (Earned +2.0M Tokens)")
             else:
                 battles["losses"] += 1
-                self.state["happiness"] = max(0, self.state.get("happiness", 100) - 10)
-                msg = f"⚔️ TRAINER BATTLE! {opp_name} put up a tough fight! Companion Happiness dropped to {self.state['happiness']}%!"
+                if active:
+                    active.happiness = max(0, active.happiness - 10)
+                    self.set_active_mon(active)
+                    hap_val = active.happiness
+                else:
+                    self.state["happiness"] = max(0, self.state.get("happiness", 100) - 10)
+                    hap_val = self.state["happiness"]
+                
+                msg = f"⚔️ TRAINER BATTLE! {opp_name} put up a tough fight! Companion Happiness dropped to {hap_val}%!"
                 events.append(msg)
                 logs.append(f"[{now_str}] ❌ LOSS vs {opp_name}")
 
