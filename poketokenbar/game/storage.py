@@ -19,9 +19,7 @@ class StorageManager:
                 with open(STATE_FILE, "r", encoding="utf-8") as f:
                     saved = json.load(f)
                     state.update(saved)
-                    # Ensure nested settings dictionary is merged properly
-                    if "settings" in saved:
-                        state["settings"] = {**StorageManager.default_state()["settings"], **saved["settings"]}
+                    state.update(saved)
             except Exception:
                 pass
         return state
@@ -55,10 +53,6 @@ class StorageManager:
             "active_mon": None,
             "dex": [],
             "collected_finals": [],
-            "settings": {
-                "auto_tracking_enabled": True,
-                "refresh_interval": 3.0
-            },
             "inventory": {
                 "rare_candy": 0,
                 "mint": 0,

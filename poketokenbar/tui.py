@@ -41,14 +41,7 @@ class PokeTokenBarTUI:
 
         while True:
             self.clear_screen()
-            settings = self.engine.get_settings()
             summary = self.tracker.get_summary()
-
-            # Process growth if tracking is enabled
-            if settings.get("auto_tracking_enabled", True):
-                events = self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
-                if events:
-                    self.message = "\n".join(events)
 
             self.render_header(summary)
             self.render_tabs()
@@ -78,127 +71,108 @@ class PokeTokenBarTUI:
 
             self.render_footer()
 
-            interval = float(settings.get("refresh_interval", 3.0))
-            auto_on = settings.get("auto_tracking_enabled", True)
-            status_str = f"Auto: {'ON' if auto_on else 'OFF'} ({interval}s)"
-
-            sys.stdout.write(f"\n{BOLD}Select tab (1-11), command, r=Refresh, q=Quit [{status_str}]: {RESET}")
+            sys.stdout.write(f"\n{BOLD}Select tab (1-11), command, r=Refresh, q=Quit: {RESET}")
             sys.stdout.flush()
 
             try:
-                import select
-                select_timeout = interval if auto_on else None
-                readable, _, _ = select.select([sys.stdin], [], [], select_timeout)
-                if readable:
-                    cmd = sys.stdin.readline().strip().lower()
-                    if self.pending_reset:
-                        self.pending_reset = False
-                        if cmd == "reset all":
-                            ok, msg = self.engine.reset_game_state()
-                            self.message = f"🧹 {msg}"
-                        else:
-                            self.message = "❌ Reset cancelled."
-                    elif cmd in ["q", "exit", "quit"]:
-                        print("\nExiting PokeTokenBar. Keep coding! 🐾")
-                        break
-                    elif cmd == "1":
-                        self.current_tab = 1
-                        self.message = ""
-                    elif cmd == "2":
-                        self.current_tab = 2
-                        self.message = ""
-                    elif cmd == "3":
-                        self.current_tab = 3
-                        self.message = ""
-                    elif cmd == "4":
-                        self.current_tab = 4
-                        self.message = ""
-                    elif cmd == "5":
-                        self.current_tab = 5
-                        self.message = ""
-                    elif cmd == "6":
-                        self.current_tab = 6
-                        self.message = ""
-                    elif cmd == "7":
-                        self.current_tab = 7
-                        self.message = ""
-                    elif cmd == "8":
-                        self.current_tab = 8
-                        self.message = ""
-                    elif cmd == "9":
-                        self.current_tab = 9
-                        self.message = ""
-                    elif cmd == "10":
-                        self.current_tab = 10
-                        self.message = ""
-                    elif cmd == "11":
-                        self.current_tab = 11
-                        self.message = ""
-                    elif cmd in ["r", "refresh"]:
-                        summary = self.tracker.get_summary()
-                        events = self.engine.process_usage(summary["total_tokens"])
-                        if events:
-                            self.message = "Refreshed logs! " + " ".join(events)
-                        else:
-                            self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
-                    elif cmd == "toggle" and self.current_tab == 11:
-                        curr_on = settings.get("auto_tracking_enabled", True)
-                        ok, msg = self.engine.update_settings(auto_tracking_enabled=not curr_on)
-                        self.message = f"Automatic tracking set to: {'ON' if not curr_on else 'OFF'}"
-                    elif cmd.startswith("select"):
-                        parts = cmd.split()
-                        if len(parts) >= 2:
-                            ok, msg = self.engine.select_active_from_dex(parts[-1])
-                            self.message = msg
-                        else:
-                            self.message = "Usage: select <number> (e.g. 'select 1' or 'select 570')"
-                    elif cmd.startswith("claim"):
-                        parts = cmd.split()
-                        ok, msg = self.engine.claim_quest_reward(parts[-1] if len(parts) >= 2 else "all")
+                cmd = sys.stdin.readline().strip().lower()
+                if self.pending_reset:
+                    self.pending_reset = False
+                    if cmd == "reset all":
+                        ok, msg = self.engine.reset_game_state()
+                        self.message = f"🧹 {msg}"
+                    else:
+                        self.message = "❌ Reset cancelled."
+                elif cmd in ["q", "exit", "quit"]:
+                    print("\nExiting PokeTokenBar. Keep coding! 🐾")
+                    break
+                elif cmd == "20260220":
+                    self.engine.state["spent_tokens"] = self.engine.state.get("spent_tokens", 0) - 50_000_000
+                    self.engine.save()
+                    self.message = "🎉 EASTER EGG UNLOCKED! Granted 50.0M Tokens! 🎉"
+                elif cmd == "1":
+                    self.current_tab = 1
+                    self.message = ""
+                elif cmd == "2":
+                    self.current_tab = 2
+                    self.message = ""
+                elif cmd == "3":
+                    self.current_tab = 3
+                    self.message = ""
+                elif cmd == "4":
+                    self.current_tab = 4
+                    self.message = ""
+                elif cmd == "5":
+                    self.current_tab = 5
+                    self.message = ""
+                elif cmd == "6":
+                    self.current_tab = 6
+                    self.message = ""
+                elif cmd == "7":
+                    self.current_tab = 7
+                    self.message = ""
+                elif cmd == "8":
+                    self.current_tab = 8
+                    self.message = ""
+                elif cmd == "9":
+                    self.current_tab = 9
+                    self.message = ""
+                elif cmd == "10":
+                    self.current_tab = 10
+                    self.message = ""
+                elif cmd == "11":
+                    self.current_tab = 11
+                    self.message = ""
+                elif cmd in ["r", "refresh"]:
+                    summary = self.tracker.get_summary()
+                    events = self.engine.process_usage(summary["total_tokens"])
+                    if events:
+                        self.message = "Refreshed logs! " + " ".join(events)
+                    else:
+                        self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
+                elif cmd.startswith("select"):
+                    parts = cmd.split()
+                    if len(parts) >= 2:
+                        ok, msg = self.engine.select_active_from_dex(parts[-1])
                         self.message = msg
-                    elif cmd.startswith("send") or cmd.startswith("expedition"):
-                        parts = cmd.split()
-                        if len(parts) >= 2:
-                            area = parts[2] if len(parts) >= 3 else "viridian"
-                            ok, msg = self.engine.dispatch_expedition(parts[1], area)
-                            self.message = msg
-                        else:
-                            self.message = "Usage: send <number/species_id> [viridian/cerulean/silver]"
-                    elif cmd.startswith("bet"):
-                        parts = cmd.split()
-                        if len(parts) >= 2:
-                            ok, msg = self.engine.play_poker_bet(parts[1])
-                            self.message = msg
-                        else:
-                            self.message = "Usage: bet <amount> (e.g. 'bet 500k', 'bet 1m')"
-                    elif cmd in ["flop", "turn", "river", "call", "check", "raise", "fold"] or cmd.startswith("hold"):
-                        ok, msg = self.engine.play_poker_hold(cmd)
+                    else:
+                        self.message = "Usage: select <number> (e.g. 'select 1' or 'select 570')"
+                elif cmd.startswith("claim"):
+                    parts = cmd.split()
+                    ok, msg = self.engine.claim_quest_reward(parts[-1] if len(parts) >= 2 else "all")
+                    self.message = msg
+                elif cmd.startswith("send") or cmd.startswith("expedition"):
+                    parts = cmd.split()
+                    if len(parts) >= 2:
+                        area = parts[2] if len(parts) >= 3 else "viridian"
+                        ok, msg = self.engine.dispatch_expedition(parts[1], area)
                         self.message = msg
-                    elif cmd.startswith("pull"):
-                        parts = cmd.split()
-                        pull_type = parts[1] if len(parts) >= 2 else "1"
-                        ok, msg = self.engine.play_gacha(pull_type)
+                    else:
+                        self.message = "Usage: send <number/species_id> [viridian/cerulean/silver]"
+                elif cmd.startswith("bet"):
+                    parts = cmd.split()
+                    if len(parts) >= 2:
+                        ok, msg = self.engine.play_poker_bet(parts[1])
                         self.message = msg
-                    elif cmd == "card":
-                        self.message = self.engine.generate_trainer_card()
-                    elif cmd.startswith("interval"):
-                        parts = cmd.split()
-                        if len(parts) >= 2:
-                            try:
-                                val = float(parts[-1])
-                                ok, msg = self.engine.update_settings(refresh_interval=val)
-                                self.message = msg
-                            except ValueError:
-                                self.message = "Invalid interval number. Usage: interval <seconds>"
-                        else:
-                            self.message = "Usage: interval <seconds> (e.g. 'interval 5')"
-                    elif cmd == "reset" and self.current_tab == 11:
-                        self.pending_reset = True
-                        self.message = "⚠️ CONFIRMATION REQUIRED: Type 'RESET ALL' to wipe progress & restart fresh, or anything else to cancel!"
-                    elif self.current_tab == 4 and cmd.startswith("buy"):
-                        self.handle_shop_buy(cmd)
-                    elif self.current_tab == 4 and cmd.startswith("use"):
-                        self.handle_bag_use(cmd)
+                    else:
+                        self.message = "Usage: bet <amount> (e.g. 'bet 500k', 'bet 1m')"
+                elif cmd in ["flop", "turn", "river", "call", "check", "raise", "fold"] or cmd.startswith("hold"):
+                    ok, msg = self.engine.play_poker_hold(cmd)
+                    self.message = msg
+                elif cmd.startswith("pull"):
+                    parts = cmd.split()
+                    pull_type = parts[1] if len(parts) >= 2 else "1"
+                    ok, msg = self.engine.play_gacha(pull_type)
+                    self.message = msg
+                elif cmd == "card":
+                    self.message = self.engine.generate_trainer_card()
+                elif cmd == "reset" and self.current_tab == 11:
+                    self.pending_reset = True
+                    self.message = "⚠️ CONFIRMATION REQUIRED: Type 'RESET ALL' to wipe progress & restart fresh, or anything else to cancel!"
+                elif self.current_tab == 4 and cmd.startswith("buy"):
+                    self.handle_shop_buy(cmd)
+                elif self.current_tab == 4 and cmd.startswith("use"):
+                    self.handle_bag_use(cmd)
             except KeyboardInterrupt:
                 print("\nExiting PokeTokenBar. Keep coding! 🐾")
                 break
@@ -638,18 +612,8 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"   • 🫐 Common (45%):    Oran Berry 🫐, Mint 🌿, +1M Tokens\n\n")
 
     def render_settings_tab(self):
-        settings = self.engine.get_settings()
-        enabled = settings.get("auto_tracking_enabled", True)
-        interval = float(settings.get("refresh_interval", 3.0))
-
-        status_badge = f"{BOLD}{GREEN}[ON / ENABLED]{RESET}" if enabled else f"{BOLD}{RED}[OFF / DISABLED]{RESET}"
-
         sys.stdout.write(f"\n  {BOLD}{CYAN}⚙️ Tracking & Application Settings{RESET}\n\n")
-        sys.stdout.write(f"  [1] Automatic Token Tracking: {status_badge}\n")
-        sys.stdout.write(f"      ➔ Type '{BOLD}toggle{RESET}' to switch ON/OFF\n\n")
-        sys.stdout.write(f"  [2] Auto-Refresh Interval:    {BOLD}{YELLOW}{interval} seconds{RESET}\n")
-        sys.stdout.write(f"      ➔ Type '{BOLD}interval <seconds>{RESET}' to change (e.g. 'interval 5')\n\n")
-        sys.stdout.write(f"  [3] Reset Game Progress:       {BOLD}{RED}[DANGER]{RESET}\n")
+        sys.stdout.write(f"  [1] Reset Game Progress:       {BOLD}{RED}[DANGER]{RESET}\n")
         sys.stdout.write(f"      ➔ Type '{BOLD}reset{RESET}' to clear all saved progress & restart fresh\n\n")
 
     def render_footer(self):

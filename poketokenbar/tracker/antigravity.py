@@ -308,9 +308,8 @@ class AntigravityUsageReader:
                         if entry:
                             db_entries.append(entry)
 
-                aggregated = self._aggregate_entries(db_entries, conv_id)
-                self._cache[db_path] = (stat_key, aggregated)
-                entries.extend(aggregated)
+                self._cache[db_path] = (stat_key, db_entries)
+                entries.extend(db_entries)
 
             except Exception:
                 cached_key, cached_entries = self._cache.get(db_path, (None, None))
@@ -338,9 +337,8 @@ class AntigravityUsageReader:
                     continue
 
                 pb_entries = parse_pb_file(pb_path, mtime)
-                aggregated = self._aggregate_entries(pb_entries, pb_path.stem)
-                self._cache[pb_path] = (stat_key, aggregated)
-                entries.extend(aggregated)
+                self._cache[pb_path] = (stat_key, pb_entries)
+                entries.extend(pb_entries)
             except Exception:
                 cached_key, cached_entries = self._cache.get(pb_path, (None, None))
                 if cached_entries:

@@ -54,29 +54,9 @@ class CompanionEngine:
     def save(self):
         StorageManager.save_state(self.state)
 
-    def get_settings(self) -> Dict[str, Any]:
-        defaults = {"auto_tracking_enabled": True, "refresh_interval": 3.0}
-        saved = self.state.get("settings", {})
-        return {**defaults, **saved}
-
-    def update_settings(self, auto_tracking_enabled: Optional[bool] = None, refresh_interval: Optional[float] = None) -> Tuple[bool, str]:
-        settings = self.get_settings()
-        if auto_tracking_enabled is not None:
-            settings["auto_tracking_enabled"] = auto_tracking_enabled
-        if refresh_interval is not None:
-            if refresh_interval < 0.5:
-                return False, "Interval must be at least 0.5 seconds."
-            settings["refresh_interval"] = float(refresh_interval)
-
-        self.state["settings"] = settings
-        self.save()
-        return True, "Settings updated successfully."
-
     def reset_game_state(self) -> Tuple[bool, str]:
         """Resets all game progress, inventory, companions, and Pokédex entries."""
-        old_settings = self.get_settings()
         self.state = StorageManager.default_state()
-        self.state["settings"] = old_settings
         self.save()
         return True, "✨ Game progress has been completely reset! Started fresh."
 
@@ -147,21 +127,31 @@ class CompanionEngine:
             return events
 
         # Handle case where logs were cleared/rotated (total_tokens dropped)
-        if new_total_tokens < old_used:
-            diff = old_used - new_total_tokens
-            self.state["used_since_install"] = new_total_tokens
-            self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - diff)
-            self.save()
-            old_used = new_total_tokens
+        # Instead of subtracting from spent_tokens, we accumulate the missing tokens.
+        indexed_tokens = self.state.get("indexed_tokens", old_used)
+        archived_tokens = self.state.get("archived_tokens", 0)
+        
+        if new_total_tokens < indexed_tokens:
+            diff = indexed_tokens - new_total_tokens
+            archived_tokens += diff
+            self.state["archived_tokens"] = archived_tokens
+            
+        self.state["indexed_tokens"] = new_total_tokens
+        
+        # Calculate true lifetime total tokens
+        true_total_tokens = new_total_tokens + archived_tokens
+        
+        # Now we process delta based on true_total_tokens
+        old_used = self.state.get("used_since_install", 0)
 
         # Always evaluate day rollover, streak, and daily quests first
-        delta = max(0, new_total_tokens - old_used)
+        delta = max(0, true_total_tokens - old_used)
         self._update_streak_and_quests(delta, events, active_days)
 
         if delta == 0:
             return events
 
-        self.state["used_since_install"] = new_total_tokens
+        self.state["used_since_install"] = true_total_tokens
         active = self.active_mon
         diff = self.current_difficulty
 
@@ -225,23 +215,26 @@ class CompanionEngine:
         last_date = self.state.get("last_active_date", "")
         active = self.active_mon
 
+        # Natural streak progression based on last_date
+        current_streak = self.state.get("streak_days", 1)
+        if last_date and last_date != today_str:
+            try:
+                last_dt = datetime.datetime.strptime(last_date, "%Y-%m-%d")
+                today_dt = datetime.datetime.strptime(today_str, "%Y-%m-%d")
+                diff = (today_dt - last_dt).days
+                if diff == 1:
+                    current_streak += 1
+                elif diff > 1:
+                    current_streak = 1
+            except Exception:
+                current_streak = 1
+        
+        # Retroactive log check
         if active_days:
             log_streak = self._calculate_streak_from_active_days(active_days, today_str)
-            self.state["streak_days"] = log_streak
-        elif last_date != today_str:
-            if last_date:
-                try:
-                    last_dt = datetime.datetime.strptime(last_date, "%Y-%m-%d")
-                    today_dt = datetime.datetime.strptime(today_str, "%Y-%m-%d")
-                    diff = (today_dt - last_dt).days
-                    if diff == 1:
-                        self.state["streak_days"] = self.state.get("streak_days", 1) + 1
-                    elif diff > 1:
-                        self.state["streak_days"] = 1
-                except Exception:
-                    self.state["streak_days"] = 1
-            else:
-                self.state["streak_days"] = 1
+            current_streak = max(current_streak, log_streak)
+            
+        self.state["streak_days"] = current_streak
 
         if last_date != today_str:
             if last_date:
