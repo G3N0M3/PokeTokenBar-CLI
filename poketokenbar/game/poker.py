@@ -137,45 +137,59 @@ class TexasHoldemEngine:
 
     @staticmethod
     def evaluate_5_cards(hand: List[Card]) -> Tuple[str, int]:
-        ranks = sorted([c.value for c in hand])
+        ranks = sorted([c.value for c in hand], reverse=True)
         suits = [c.suit for c in hand]
         rank_counts = {r: ranks.count(r) for r in set(ranks)}
-        counts = sorted(rank_counts.values(), reverse=True)
-
+        
+        # Sort by count descending, then rank descending
+        # Example: Full house KKK22 -> [ (3, 13), (2, 2) ]
+        sorted_rc = sorted(rank_counts.items(), key=lambda x: (x[1], x[0]), reverse=True)
+        counts = [x[1] for x in sorted_rc]
+        ordered_ranks = []
+        for r, c in sorted_rc:
+            ordered_ranks.extend([r] * c)
+            
         is_flush = len(set(suits)) == 1
-        is_straight = (len(set(ranks)) == 5) and (ranks[4] - ranks[0] == 4 or ranks == [2, 3, 4, 5, 14])
+        
+        # Check straight
+        is_straight = False
+        if ranks == [14, 5, 4, 3, 2]:
+            is_straight = True
+            ordered_ranks = [5, 4, 3, 2, 1] # Treat Ace as 1 for tiebreaker
+        elif len(set(ranks)) == 5 and ranks[0] - ranks[4] == 4:
+            is_straight = True
+            ordered_ranks = ranks
+
+        def score(tier, r):
+            res = tier << 20
+            for i, val in enumerate(r):
+                res |= (val << (16 - i * 4))
+            return res
 
         if is_straight and is_flush:
-            if ranks == [10, 11, 12, 13, 14]:
-                return "Royal Flush", 10_000_000 + max(ranks)
-            return "Straight Flush", 9_000_000 + max(ranks)
-
+            if ordered_ranks[0] == 14:
+                return "Royal Flush", score(9, ordered_ranks)
+            return "Straight Flush", score(8, ordered_ranks)
+            
         if counts == [4, 1]:
-            four_rank = [r for r, c in rank_counts.items() if c == 4][0]
-            return "Four of a Kind", 8_000_000 + four_rank * 100 + max(ranks)
-
+            return "Four of a Kind", score(7, ordered_ranks)
+            
         if counts == [3, 2]:
-            three_rank = [r for r, c in rank_counts.items() if c == 3][0]
-            pair_rank = [r for r, c in rank_counts.items() if c == 2][0]
-            return "Full House", 7_000_000 + three_rank * 100 + pair_rank
-
+            return "Full House", score(6, ordered_ranks)
+            
         if is_flush:
-            return "Flush", 6_000_000 + sum(ranks)
-
+            return "Flush", score(5, ordered_ranks)
+            
         if is_straight:
-            return "Straight", 5_000_000 + max(ranks)
-
+            return "Straight", score(4, ordered_ranks)
+            
         if counts == [3, 1, 1]:
-            three_rank = [r for r, c in rank_counts.items() if c == 3][0]
-            return "Three of a Kind", 4_000_000 + three_rank * 100 + sum(ranks)
-
+            return "Three of a Kind", score(3, ordered_ranks)
+            
         if counts == [2, 2, 1]:
-            pairs = sorted([r for r, c in rank_counts.items() if c == 2], reverse=True)
-            kicker = [r for r, c in rank_counts.items() if c == 1][0]
-            return "Two Pair", 3_000_000 + pairs[0] * 1000 + pairs[1] * 100 + kicker
-
+            return "Two Pair", score(2, ordered_ranks)
+            
         if counts == [2, 1, 1, 1]:
-            pair_rank = [r for r, c in rank_counts.items() if c == 2][0]
-            return "One Pair", 2_000_000 + pair_rank * 100 + sum(ranks)
-
-        return "High Card", 1_000_000 + max(ranks) * 100 + sum(ranks)
+            return "One Pair", score(1, ordered_ranks)
+            
+        return "High Card", score(0, ordered_ranks)
