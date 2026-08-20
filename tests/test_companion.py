@@ -90,5 +90,22 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertEqual(self.engine.state["last_active_date"], today_str)
         self.assertEqual(self.engine.state["streak_days"], 2)
 
+    def test_expedition_roster_restriction(self):
+        self.engine.reset_game_state()
+        # Register an evolved species entry (e.g. Dratini #147 with status evolved)
+        self.engine.state["dex"] = [
+            {"id": "sp_147", "species_id": 147, "base_id": 147, "chain_order": [147, 148, 149], "status": "evolved"},
+            {"id": "sp_149", "species_id": 149, "base_id": 147, "chain_order": [147, 148, 149], "status": "inactive"}
+        ]
+        # Attempt to dispatch evolved Dratini (#147)
+        ok, msg = self.engine.dispatch_expedition("#147", "viridian")
+        self.assertFalse(ok)
+        self.assertIn("not found in Roster", msg)
+
+        # Attempt to dispatch active roster Dragonite (#149)
+        ok2, msg2 = self.engine.dispatch_expedition("#149", "viridian")
+        self.assertTrue(ok2)
+        self.assertIn("Dispatched", msg2)
+
 if __name__ == "__main__":
     unittest.main()

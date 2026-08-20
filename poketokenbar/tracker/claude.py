@@ -11,6 +11,7 @@ class ClaudeUsageReader:
             self.root_dir = Path(root_dir)
         else:
             self.root_dir = Path.home() / ".claude" / "projects"
+        self._cache = {}  # jsonl_file -> (mtime, List[UsageEntry])
 
     def get_entries(self) -> List[UsageEntry]:
         if not self.root_dir.exists():
@@ -19,6 +20,13 @@ class ClaudeUsageReader:
         entries: List[UsageEntry] = []
         for jsonl_file in self.root_dir.glob("**/*.jsonl"):
             try:
+                mtime = jsonl_file.stat().st_mtime
+                cached_mtime, cached_entries = self._cache.get(jsonl_file, (None, None))
+                if cached_mtime == mtime and cached_entries is not None:
+                    entries.extend(cached_entries)
+                    continue
+
+                file_entries = []
                 with open(jsonl_file, "r", encoding="utf-8") as f:
                     for line_idx, line in enumerate(f):
                         line = line.strip()
@@ -42,12 +50,12 @@ class ClaudeUsageReader:
                             try:
                                 dt = datetime.datetime.fromisoformat(ts_str.replace("Z", "+00:00")).astimezone()
                             except ValueError:
-                                dt = datetime.datetime.fromtimestamp(jsonl_file.stat().st_mtime, tz=datetime.timezone.utc).astimezone()
+                                dt = datetime.datetime.fromtimestamp(mtime, tz=datetime.timezone.utc).astimezone()
                         else:
-                            dt = datetime.datetime.fromtimestamp(jsonl_file.stat().st_mtime, tz=datetime.timezone.utc).astimezone()
+                            dt = datetime.datetime.fromtimestamp(mtime, tz=datetime.timezone.utc).astimezone()
 
                         msg_id = data.get("message_id", data.get("id", f"{jsonl_file.stem}_{line_idx}"))
-                        entries.append(UsageEntry(
+                        file_entries.append(UsageEntry(
                             id=f"claude|{msg_id}",
                             date=dt,
                             local_day=dt.strftime("%Y-%m-%d"),
@@ -57,6 +65,9 @@ class ClaudeUsageReader:
                             cache_write_tokens=cache_w,
                             cache_read_tokens=cache_r
                         ))
+
+                self._cache[jsonl_file] = (mtime, file_entries)
+                entries.extend(file_entries)
             except Exception:
                 continue
 

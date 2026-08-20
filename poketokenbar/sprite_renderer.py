@@ -99,8 +99,25 @@ class PNGDecoder:
 class SpriteRenderer:
     """Renders pixel data into TrueColor ANSI block characters for Linux CLI terminal."""
 
+    _ansi_cache = {}  # (str(file_path), max_cols, mtime) -> ansi_str
+
     @classmethod
     def render_png_to_ansi(cls, file_path: Path, max_cols: int = 32) -> str:
+        try:
+            mtime = file_path.stat().st_mtime
+            cache_key = (str(file_path.resolve()), max_cols, mtime)
+            if cache_key in cls._ansi_cache:
+                return cls._ansi_cache[cache_key]
+        except Exception:
+            cache_key = None
+
+        ansi_res = cls._compute_ansi(file_path, max_cols)
+        if cache_key and ansi_res:
+            cls._ansi_cache[cache_key] = ansi_res
+        return ansi_res
+
+    @classmethod
+    def _compute_ansi(cls, file_path: Path, max_cols: int = 32) -> str:
         # Try PIL first if available
         try:
             from PIL import Image
@@ -113,7 +130,7 @@ class SpriteRenderer:
                     row.append(img.getpixel((x, y)))
                 pixels.append(row)
             return cls._draw_ansi_blocks(w, h, pixels, max_cols)
-        except ImportError:
+        except Exception:
             pass
 
         # Fall back to pure Python PNG decoder

@@ -986,15 +986,27 @@ class CompanionEngine:
 
         expeditions = self.state.get("expeditions", [])
         exp_map = {e["sp_id"]: e for e in expeditions}
-        roster = [d for d in dex if d.get("status") != "evolved"]
+        all_discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
+        roster = []
+        for d in dex:
+            if d.get("status") == "evolved":
+                continue
+            sp_id = d.get("species_id", d.get("final_id", d.get("base_id")))
+            chain = d.get("chain_order", [])
+            if chain and sp_id in chain:
+                idx_in_chain = chain.index(sp_id)
+                higher_forms = [h for h in chain[idx_in_chain + 1:] if h in all_discovered_sp_ids]
+                if higher_forms:
+                    continue
+            roster.append(d)
 
         s_input = selection_input.strip()
         target_entry = None
 
-        # 1. If starts with '#', match strictly by species_id
+        # 1. If starts with '#', match strictly by species_id within ROSTER
         if s_input.startswith("#"):
             target_sp = s_input[1:]
-            for d in dex:
+            for d in roster:
                 sp_id = str(d.get("species_id", d.get("base_id")))
                 if target_sp == sp_id:
                     target_entry = d
@@ -1008,16 +1020,16 @@ class CompanionEngine:
             except ValueError:
                 pass
 
-            # 3. Fallback to species_id match
+            # 3. Fallback to species_id match within ROSTER
             if target_entry is None:
-                for d in dex:
+                for d in roster:
                     sp_id = str(d.get("species_id", d.get("base_id")))
                     if s_input == sp_id:
                         target_entry = d
                         break
 
         if target_entry is None:
-            return False, f"Companion '{selection_input}' not found in Roster! Use roster index (1..{len(roster)}) or '#<species_id>'."
+            return False, f"Companion '{selection_input}' not found in Roster! Only active companions in your Roster can be dispatched on expeditions (use roster index 1..{len(roster)} or species ID)."
 
         sp_id = target_entry.get("species_id", target_entry.get("base_id"))
         sp_name = self.api.get_species_name(sp_id)

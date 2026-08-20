@@ -161,6 +161,7 @@ class AntigravityUsageReader:
             self.root_dir = Path(root_dir)
         else:
             self.root_dir = Path.home() / ".gemini" / "antigravity-cli" / "conversations"
+        self._cache = {}  # db_path -> (mtime, List[UsageEntry])
 
     def get_entries(self, modified_since: Optional[datetime.datetime] = None) -> List[UsageEntry]:
         if not self.root_dir.exists() or not self.root_dir.is_dir():
@@ -182,6 +183,11 @@ class AntigravityUsageReader:
                     if mtime < cutoff:
                         continue
 
+                cached_mtime, cached_entries = self._cache.get(db_path, (None, None))
+                if cached_mtime == mtime and cached_entries is not None:
+                    entries.extend(cached_entries)
+                    continue
+
                 conv_id = db_path.stem
                 conn_uri = f"file:{db_path.resolve()}?mode=ro"
                 try:
@@ -195,11 +201,15 @@ class AntigravityUsageReader:
                 rows = cursor.fetchall()
                 conn.close()
 
+                db_entries = []
                 for row_idx, blob in rows:
                     if blob:
                         entry = parse_generation_metadata(blob, conv_id, row_idx, mtime)
                         if entry:
-                            entries.append(entry)
+                            db_entries.append(entry)
+
+                self._cache[db_path] = (mtime, db_entries)
+                entries.extend(db_entries)
 
             except Exception:
                 continue

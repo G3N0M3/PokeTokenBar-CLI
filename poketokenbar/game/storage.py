@@ -29,11 +29,18 @@ class StorageManager:
     @staticmethod
     def save_state(state_data: Dict[str, Any]) -> bool:
         STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp_file = STATE_FILE.with_suffix(".json.tmp")
         try:
-            with open(STATE_FILE, "w", encoding="utf-8") as f:
+            with open(tmp_file, "w", encoding="utf-8") as f:
                 json.dump(state_data, f, indent=2, ensure_ascii=False)
+            tmp_file.replace(STATE_FILE)
             return True
         except Exception:
+            if tmp_file.exists():
+                try:
+                    tmp_file.unlink()
+                except Exception:
+                    pass
             return False
 
     @staticmethod
