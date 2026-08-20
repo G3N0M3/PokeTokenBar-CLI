@@ -2,5 +2,5 @@
 PokeTokenBar CLI - Turn your AI coding tokens into a Pokémon companion in your terminal!
 """
 
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 __author__ = "PokeTokenBar Contributors"
