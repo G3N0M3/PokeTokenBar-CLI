@@ -18,7 +18,17 @@ class ClaudeUsageReader:
             return []
 
         entries: List[UsageEntry] = []
-        for jsonl_file in self.root_dir.glob("**/*.jsonl"):
+        
+        # Optimize by avoiding recursive ** glob. Look specifically in root_dir/<project>/*.jsonl
+        jsonl_files = []
+        try:
+            for proj_dir in self.root_dir.iterdir():
+                if proj_dir.is_dir():
+                    jsonl_files.extend(proj_dir.glob("*.jsonl"))
+        except Exception:
+            pass
+
+        for jsonl_file in jsonl_files:
             try:
                 st = jsonl_file.stat()
                 mtime = st.st_mtime

@@ -18,7 +18,19 @@ class GeminiUsageReader:
             return []
 
         entries: List[UsageEntry] = []
-        for chat_file in self.root_dir.glob("**/chats/*.json*"):
+        
+        # Optimize by avoiding recursive ** glob. Look specifically in root_dir/<project>/chats/
+        chat_files = []
+        try:
+            for proj_dir in self.root_dir.iterdir():
+                if proj_dir.is_dir():
+                    chats_dir = proj_dir / "chats"
+                    if chats_dir.exists() and chats_dir.is_dir():
+                        chat_files.extend(chats_dir.glob("*.json*"))
+        except Exception:
+            pass
+
+        for chat_file in chat_files:
             try:
                 st = chat_file.stat()
                 mtime = st.st_mtime

@@ -227,6 +227,32 @@ class AntigravityUsageReader:
             self.root_dir = Path.home() / ".gemini" / "antigravity-cli" / "conversations"
         self._cache = {}  # db_path -> (stat_key, List[UsageEntry])
 
+    def _aggregate_entries(self, entries: List[UsageEntry], file_id: str) -> List[UsageEntry]:
+        if not entries:
+            return []
+        
+        by_day = {}
+        for e in entries:
+            if e.local_day not in by_day:
+                by_day[e.local_day] = []
+            by_day[e.local_day].append(e)
+            
+        agg = []
+        for day, day_entries in by_day.items():
+            day_entries.sort(key=lambda e: e.date)
+            latest = day_entries[-1]
+            agg.append(UsageEntry(
+                id=f"antigravity|{file_id}|agg|{day}",
+                date=latest.date,
+                local_day=day,
+                model=latest.model,
+                input_tokens=sum(e.input_tokens for e in day_entries),
+                output_tokens=sum(e.output_tokens for e in day_entries),
+                cache_write_tokens=sum(e.cache_write_tokens for e in day_entries),
+                cache_read_tokens=sum(e.cache_read_tokens for e in day_entries)
+            ))
+        return agg
+
     def get_entries(self, modified_since: Optional[datetime.datetime] = None) -> List[UsageEntry]:
         if not self.root_dir.exists() or not self.root_dir.is_dir():
             return []
@@ -282,8 +308,9 @@ class AntigravityUsageReader:
                         if entry:
                             db_entries.append(entry)
 
-                self._cache[db_path] = (stat_key, db_entries)
-                entries.extend(db_entries)
+                aggregated = self._aggregate_entries(db_entries, conv_id)
+                self._cache[db_path] = (stat_key, aggregated)
+                entries.extend(aggregated)
 
             except Exception:
                 cached_key, cached_entries = self._cache.get(db_path, (None, None))
@@ -311,8 +338,9 @@ class AntigravityUsageReader:
                     continue
 
                 pb_entries = parse_pb_file(pb_path, mtime)
-                self._cache[pb_path] = (stat_key, pb_entries)
-                entries.extend(pb_entries)
+                aggregated = self._aggregate_entries(pb_entries, pb_path.stem)
+                self._cache[pb_path] = (stat_key, aggregated)
+                entries.extend(aggregated)
             except Exception:
                 cached_key, cached_entries = self._cache.get(pb_path, (None, None))
                 if cached_entries:

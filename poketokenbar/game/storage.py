@@ -29,7 +29,7 @@ class StorageManager:
     @staticmethod
     def save_state(state_data: Dict[str, Any]) -> bool:
         STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        tmp_file = STATE_FILE.with_suffix(".json.tmp")
+        tmp_file = STATE_FILE.with_suffix(f".{uuid.uuid4().hex}.json.tmp")
         try:
             with open(tmp_file, "w", encoding="utf-8") as f:
                 json.dump(state_data, f, indent=2, ensure_ascii=False)

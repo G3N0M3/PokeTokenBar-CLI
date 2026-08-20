@@ -5,7 +5,6 @@ import datetime
 from typing import Optional
 
 from poketokenbar.tracker.manager import UsageManager
-from poketokenbar.tracker.auto_tracker import AutoTracker
 from poketokenbar.game.companion import CompanionEngine
 from poketokenbar.game.models import ItemKind, Rarity, PokemonBalance
 from poketokenbar.sprite_renderer import SpriteRenderer
@@ -30,13 +29,6 @@ class PokeTokenBarTUI:
         self.message = ""
         self.pending_reset = False
 
-        # Background auto-tracker
-        self.auto_tracker = AutoTracker(callback=self._on_auto_events, engine=self.engine, tracker=self.tracker)
-
-    def _on_auto_events(self, events: list):
-        if events:
-            self.message = "\n".join(events)
-
     def clear_screen(self):
         sys.stdout.write("\033[H\033[2J")
         sys.stdout.flush()
@@ -46,73 +38,69 @@ class PokeTokenBarTUI:
         # Initial refresh
         summary = self.tracker.get_summary()
         self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
-        
-        # Start background auto tracker
-        self.auto_tracker.start()
 
-        try:
-            while True:
-                self.clear_screen()
-                settings = self.engine.get_settings()
-                summary = self.tracker.get_summary()
+        while True:
+            self.clear_screen()
+            settings = self.engine.get_settings()
+            summary = self.tracker.get_summary()
 
-                # Process growth if tracking is enabled
-                if settings.get("auto_tracking_enabled", True):
-                    events = self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
-                    if events:
-                        self.message = "\n".join(events)
+            # Process growth if tracking is enabled
+            if settings.get("auto_tracking_enabled", True):
+                events = self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
+                if events:
+                    self.message = "\n".join(events)
 
-                self.render_header(summary)
-                self.render_tabs()
+            self.render_header(summary)
+            self.render_tabs()
 
-                if self.current_tab == 1:
-                    self.render_companion_tab(summary)
-                elif self.current_tab == 2:
-                    self.render_pokedex_tab()
-                elif self.current_tab == 3:
-                    self.render_roster_tab()
-                elif self.current_tab == 4:
-                    self.render_shop_tab()
-                elif self.current_tab == 5:
-                    self.render_expeditions_tab()
-                elif self.current_tab == 6:
-                    self.render_battles_tab()
-                elif self.current_tab == 7:
-                    self.render_quests_tab()
-                elif self.current_tab == 8:
-                    self.render_monitor_tab(summary)
-                elif self.current_tab == 9:
-                    self.render_poker_tab()
-                elif self.current_tab == 10:
-                    self.render_gacha_tab()
-                elif self.current_tab == 11:
-                    self.render_settings_tab()
+            if self.current_tab == 1:
+                self.render_companion_tab(summary)
+            elif self.current_tab == 2:
+                self.render_pokedex_tab()
+            elif self.current_tab == 3:
+                self.render_roster_tab()
+            elif self.current_tab == 4:
+                self.render_shop_tab()
+            elif self.current_tab == 5:
+                self.render_expeditions_tab()
+            elif self.current_tab == 6:
+                self.render_battles_tab()
+            elif self.current_tab == 7:
+                self.render_quests_tab()
+            elif self.current_tab == 8:
+                self.render_monitor_tab(summary)
+            elif self.current_tab == 9:
+                self.render_poker_tab()
+            elif self.current_tab == 10:
+                self.render_gacha_tab()
+            elif self.current_tab == 11:
+                self.render_settings_tab()
 
-                self.render_footer()
+            self.render_footer()
 
-                interval = float(settings.get("refresh_interval", 3.0))
-                auto_on = settings.get("auto_tracking_enabled", True)
-                status_str = f"Auto: {'ON' if auto_on else 'OFF'} ({interval}s)"
+            interval = float(settings.get("refresh_interval", 3.0))
+            auto_on = settings.get("auto_tracking_enabled", True)
+            status_str = f"Auto: {'ON' if auto_on else 'OFF'} ({interval}s)"
 
-                sys.stdout.write(f"\n{BOLD}Select tab (1-11), command, r=Refresh, q=Quit [{status_str}]: {RESET}")
-                sys.stdout.flush()
+            sys.stdout.write(f"\n{BOLD}Select tab (1-11), command, r=Refresh, q=Quit [{status_str}]: {RESET}")
+            sys.stdout.flush()
 
-                try:
-                    import select
-                    select_timeout = interval if auto_on else None
-                    readable, _, _ = select.select([sys.stdin], [], [], select_timeout)
-                    if readable:
-                        cmd = sys.stdin.readline().strip().lower()
-                        if self.pending_reset:
-                            self.pending_reset = False
-                            if cmd == "reset all":
-                                ok, msg = self.engine.reset_game_state()
-                                self.message = f"🧹 {msg}"
-                            else:
-                                self.message = "❌ Reset cancelled."
-                        elif cmd in ["q", "exit", "quit"]:
-                            print("\nExiting PokeTokenBar. Keep coding! 🐾")
-                            break
+            try:
+                import select
+                select_timeout = interval if auto_on else None
+                readable, _, _ = select.select([sys.stdin], [], [], select_timeout)
+                if readable:
+                    cmd = sys.stdin.readline().strip().lower()
+                    if self.pending_reset:
+                        self.pending_reset = False
+                        if cmd == "reset all":
+                            ok, msg = self.engine.reset_game_state()
+                            self.message = f"🧹 {msg}"
+                        else:
+                            self.message = "❌ Reset cancelled."
+                    elif cmd in ["q", "exit", "quit"]:
+                        print("\nExiting PokeTokenBar. Keep coding! 🐾")
+                        break
                         elif cmd == "1":
                             self.current_tab = 1
                             self.message = ""
@@ -207,15 +195,13 @@ class PokeTokenBarTUI:
                         elif cmd == "reset" and self.current_tab == 11:
                             self.pending_reset = True
                             self.message = "⚠️ CONFIRMATION REQUIRED: Type 'RESET ALL' to wipe progress & restart fresh, or anything else to cancel!"
-                        elif self.current_tab == 4 and cmd.startswith("buy"):
-                            self.handle_shop_buy(cmd)
-                        elif self.current_tab == 4 and cmd.startswith("use"):
-                            self.handle_bag_use(cmd)
-                except KeyboardInterrupt:
-                    print("\nExiting PokeTokenBar. Keep coding! 🐾")
-                    break
-        finally:
-            self.auto_tracker.stop()
+                    elif self.current_tab == 4 and cmd.startswith("buy"):
+                        self.handle_shop_buy(cmd)
+                    elif self.current_tab == 4 and cmd.startswith("use"):
+                        self.handle_bag_use(cmd)
+            except KeyboardInterrupt:
+                print("\nExiting PokeTokenBar. Keep coding! 🐾")
+                break
 
     def render_header(self, summary: dict):
         sys.stdout.write(f"{HEADER}{'='*72}{RESET}\n")
