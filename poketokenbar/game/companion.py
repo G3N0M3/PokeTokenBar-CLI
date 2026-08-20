@@ -740,9 +740,9 @@ class CompanionEngine:
         shiny_str = "✨ Shiny " if mon.is_shiny else ""
         return True, f"Switched active companion to {shiny_str}{sp_name} (#{sp_id})!"
 
-    def hatch_egg(self, initial_xp: int = 0) -> Tuple[MonState, List[str]]:
+    def hatch_egg(self, initial_xp: int = 0, force_tier: Optional[str] = None, force_shiny: bool = False) -> Tuple[MonState, List[str]]:
         events = []
-        tier_guarantee = self.state.get("egg_tier")
+        tier_guarantee = force_tier or self.state.get("egg_tier")
         
         # Select base species
         base_id, rarity, chain_ids, is_legendary = self._pick_species(tier_guarantee)
@@ -750,7 +750,8 @@ class CompanionEngine:
         # Roll Shiny odds (1/64 base or 1/48 if user has Shiny Charm)
         has_charm = self.state.get("inventory", {}).get(ItemKind.SHINY_CHARM.value, 0) > 0
         denom = 48 if has_charm else 64
-        is_shiny = (random.randint(1, denom) == 1)
+        is_shiny = force_shiny or (self.state.get("golden_razz_active", False)) or (random.randint(1, denom) == 1)
+        self.state["golden_razz_active"] = False
 
         # Roll Nature
         nature = random.choice(list(PokemonNature))
@@ -779,6 +780,8 @@ class CompanionEngine:
         shiny_str = "✨ Shiny " if is_shiny else ""
         nature_str = nature.display_name
 
+        self.state["egg_usage"] = 0
+        self.set_active_mon(mon)
         self._register_to_dex(mon, status="active")
 
         events.append(f"🐣 Egg Hatched! You got a {shiny_str}{species_name} (#{base_id})! Nature: {nature_str}, Rarity: {rarity.value.upper()}")
@@ -957,15 +960,25 @@ class CompanionEngine:
         elif item_kind == ItemKind.MASTER_BALL:
             eggs = self.state.get("incubating_eggs", {})
             if not eggs:
-                return False, "You need an incubating egg to use the Master Ball!"
+                # If they have an active legacy egg
+                if self.active_mon is None:
+                    curr_tier = self.state.get("current_egg_tier") or self.state.get("egg_tier") or "normal"
+                    eggs[curr_tier] = self.state.get("egg_usage", 0)
+                else:
+                    return False, "You need an incubating egg to use the Master Ball!"
+            
             inv[item_kind.value] -= 1
             
             # Find the egg with the most progress to hatch
             best_tier = max(eggs.keys(), key=lambda t: eggs[t])
-            # Force hatch as shiny
-            self.state["golden_razz_active"] = True 
             events = []
-            self._hatch_egg(best_tier, True, events)
+            
+            # Ensure the current active mon (if any) is archived first just in case
+            if self.active_mon:
+                self._register_to_dex(self.active_mon, status="inactive")
+                
+            mon, hatch_events = self.hatch_egg(initial_xp=0, force_tier=best_tier, force_shiny=True)
+            events.extend(hatch_events)
             del eggs[best_tier]
             self.state["incubating_eggs"] = eggs
             self.state["inventory"] = inv
