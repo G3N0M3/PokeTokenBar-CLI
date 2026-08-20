@@ -20,9 +20,12 @@ class ClaudeUsageReader:
         entries: List[UsageEntry] = []
         for jsonl_file in self.root_dir.glob("**/*.jsonl"):
             try:
-                mtime = jsonl_file.stat().st_mtime
-                cached_mtime, cached_entries = self._cache.get(jsonl_file, (None, None))
-                if cached_mtime == mtime and cached_entries is not None:
+                st = jsonl_file.stat()
+                mtime = st.st_mtime
+                size = st.st_size
+                stat_key = (mtime, size)
+                cached_key, cached_entries = self._cache.get(jsonl_file, (None, None))
+                if cached_key == stat_key and cached_entries is not None:
                     entries.extend(cached_entries)
                     continue
 
@@ -66,7 +69,7 @@ class ClaudeUsageReader:
                             cache_read_tokens=cache_r
                         ))
 
-                self._cache[jsonl_file] = (mtime, file_entries)
+                self._cache[jsonl_file] = (stat_key, file_entries)
                 entries.extend(file_entries)
             except Exception:
                 continue

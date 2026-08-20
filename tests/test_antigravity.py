@@ -19,5 +19,11 @@ class TestAntigravityTracker(unittest.TestCase):
         phase1 = PokemonBalance.phase_threshold(Rarity.COMMON, 3, 0)
         self.assertEqual(phase1, 8_333_333)
 
+    def test_pb_file_parsing(self):
+        from poketokenbar.tracker.antigravity import AntigravityUsageReader
+        reader = AntigravityUsageReader()
+        entries = reader.get_entries()
+        self.assertIsInstance(entries, list)
+
 if __name__ == "__main__":
     unittest.main()

@@ -20,9 +20,12 @@ class GeminiUsageReader:
         entries: List[UsageEntry] = []
         for chat_file in self.root_dir.glob("**/chats/*.json*"):
             try:
-                mtime = chat_file.stat().st_mtime
-                cached_mtime, cached_entries = self._cache.get(chat_file, (None, None))
-                if cached_mtime == mtime and cached_entries is not None:
+                st = chat_file.stat()
+                mtime = st.st_mtime
+                size = st.st_size
+                stat_key = (mtime, size)
+                cached_key, cached_entries = self._cache.get(chat_file, (None, None))
+                if cached_key == stat_key and cached_entries is not None:
                     entries.extend(cached_entries)
                     continue
 
@@ -71,7 +74,7 @@ class GeminiUsageReader:
                             cache_write_tokens=0,
                             cache_read_tokens=0
                         ))
-                self._cache[chat_file] = (mtime, file_entries)
+                self._cache[chat_file] = (stat_key, file_entries)
                 entries.extend(file_entries)
             except Exception:
                 continue

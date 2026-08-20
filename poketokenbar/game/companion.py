@@ -108,21 +108,6 @@ class CompanionEngine:
         if not active_days:
             return 1
 
-        install_date = self.state.get("install_date")
-        if not install_date:
-            dex = self.state.get("dex", [])
-            caught_dates = [d.get("caught_at", "")[:10] for d in dex if d.get("caught_at")]
-            if caught_dates:
-                install_date = min(caught_dates)
-                self.state["install_date"] = install_date
-                self.save()
-
-        if install_date:
-            active_days = [d for d in active_days if d >= install_date]
-
-        if not active_days:
-            return 1
-
         days_set = set(active_days)
         try:
             today_dt = datetime.datetime.strptime(today_str, "%Y-%m-%d")
@@ -160,6 +145,14 @@ class CompanionEngine:
             self.save()
             self._update_streak_and_quests(0, events, active_days)
             return events
+
+        # Handle case where logs were cleared/rotated (total_tokens dropped)
+        if new_total_tokens < old_used:
+            diff = old_used - new_total_tokens
+            self.state["used_since_install"] = new_total_tokens
+            self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - diff)
+            self.save()
+            old_used = new_total_tokens
 
         # Always evaluate day rollover, streak, and daily quests first
         delta = max(0, new_total_tokens - old_used)

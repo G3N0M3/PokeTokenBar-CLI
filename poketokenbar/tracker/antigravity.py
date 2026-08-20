@@ -111,16 +111,18 @@ def parse_created_at(chat_model_bytes: bytes) -> Optional[datetime.datetime]:
 def parse_generation_metadata(blob: bytes, conversation_id: str, row_idx: int, mtime: Optional[float] = None) -> Optional[UsageEntry]:
     chat_model = AntigravityProtoDecoder.get_message(blob, 1)
     if not chat_model:
-        return None
-    
+        chat_model = blob
+
     usage_msg = AntigravityProtoDecoder.get_message(chat_model, 4)
     if not usage_msg:
-        return None
-    
+        usage_msg = AntigravityProtoDecoder.get_message(blob, 4)
+        if not usage_msg:
+            usage_msg = chat_model
+
     dt = parse_created_at(chat_model)
 
     response_id = AntigravityProtoDecoder.get_string(usage_msg, 11)
-    entry_id = f"antigravity|{response_id}" if response_id else f"antigravity|{conversation_id}|{row_idx}"
+    entry_id = f"antigravity|{conversation_id}|{row_idx}|{response_id}" if response_id else f"antigravity|{conversation_id}|{row_idx}"
 
     model = AntigravityProtoDecoder.get_string(chat_model, 19) or "unknown"
 
@@ -128,6 +130,11 @@ def parse_generation_metadata(blob: bytes, conversation_id: str, row_idx: int, m
     out = AntigravityProtoDecoder.get_varint(usage_msg, 3) or 0
     cache_w = AntigravityProtoDecoder.get_varint(usage_msg, 4) or 0
     cache_r = AntigravityProtoDecoder.get_varint(usage_msg, 5) or 0
+
+    if inp + out + cache_w + cache_r == 0:
+        tot = AntigravityProtoDecoder.get_varint(usage_msg, 1)
+        if tot and 0 < tot <= TOKEN_CEILING:
+            inp = tot
 
     if inp > TOKEN_CEILING or out > TOKEN_CEILING or cache_w > TOKEN_CEILING or cache_r > TOKEN_CEILING:
         return None
@@ -155,36 +162,99 @@ def parse_generation_metadata(blob: bytes, conversation_id: str, row_idx: int, m
         cache_read_tokens=cache_r
     )
 
+def parse_pb_file(pb_path: Path, mtime: float) -> List[UsageEntry]:
+    try:
+        with open(pb_path, "rb") as f:
+            content = f.read()
+        if not content:
+            return []
+
+        conv_id = pb_path.stem
+        entries = []
+
+        # 1. Try parsing whole content as single generation metadata blob
+        entry = parse_generation_metadata(content, conv_id, 0, mtime)
+        if entry:
+            entries.append(entry)
+
+        # 2. Walk length-delimited sub-messages within .pb file
+        idx = 0
+        row_idx = 1
+        length = len(content)
+        while idx < length:
+            varint_res = AntigravityProtoDecoder.decode_varint(content, idx)
+            if not varint_res:
+                break
+            key, idx = varint_res
+            field_num = key >> 3
+            wire_type = key & 0x7
+
+            if wire_type == 2:  # Length-delimited message
+                len_res = AntigravityProtoDecoder.decode_varint(content, idx)
+                if not len_res:
+                    break
+                sub_len, idx = len_res
+                if idx + sub_len > length:
+                    break
+                sub_bytes = content[idx:idx + sub_len]
+                idx += sub_len
+
+                sub_entry = parse_generation_metadata(sub_bytes, conv_id, row_idx, mtime)
+                if sub_entry:
+                    entries.append(sub_entry)
+                    row_idx += 1
+            elif wire_type == 0:  # Varint
+                v_res = AntigravityProtoDecoder.decode_varint(content, idx)
+                if not v_res:
+                    break
+                _, idx = v_res
+            elif wire_type == 1:  # 64-bit fixed
+                idx += 8
+            elif wire_type == 5:  # 32-bit fixed
+                idx += 4
+            else:
+                idx += 1
+
+        return entries
+    except Exception:
+        return []
+
 class AntigravityUsageReader:
     def __init__(self, root_dir: Optional[str] = None):
         if root_dir:
             self.root_dir = Path(root_dir)
         else:
             self.root_dir = Path.home() / ".gemini" / "antigravity-cli" / "conversations"
-        self._cache = {}  # db_path -> (mtime, List[UsageEntry])
+        self._cache = {}  # db_path -> (stat_key, List[UsageEntry])
 
     def get_entries(self, modified_since: Optional[datetime.datetime] = None) -> List[UsageEntry]:
         if not self.root_dir.exists() or not self.root_dir.is_dir():
             return []
 
         entries: List[UsageEntry] = []
+        
+        # Scan SQLite .db files
         db_files = list(self.root_dir.glob("*.db"))
-
         for db_path in db_files:
             try:
-                # Stat main file + WAL file
-                mtime = db_path.stat().st_mtime
+                main_stat = db_path.stat()
+                mtime = main_stat.st_mtime
+                main_size = main_stat.st_size
                 wal_path = db_path.with_name(db_path.name + "-wal")
+                wal_size = 0
                 if wal_path.exists():
-                    mtime = max(mtime, wal_path.stat().st_mtime)
+                    wal_stat = wal_path.stat()
+                    mtime = max(mtime, wal_stat.st_mtime)
+                    wal_size = wal_stat.st_size
 
                 if modified_since:
                     cutoff = modified_since.timestamp()
                     if mtime < cutoff:
                         continue
 
-                cached_mtime, cached_entries = self._cache.get(db_path, (None, None))
-                if cached_mtime == mtime and cached_entries is not None:
+                stat_key = (mtime, main_size, wal_size)
+                cached_key, cached_entries = self._cache.get(db_path, (None, None))
+                if cached_key == stat_key and cached_entries is not None:
                     entries.extend(cached_entries)
                     continue
 
@@ -193,7 +263,6 @@ class AntigravityUsageReader:
                 try:
                     conn = sqlite3.connect(conn_uri, uri=True, timeout=10.0)
                 except sqlite3.OperationalError:
-                    # Fallback for immutable
                     conn = sqlite3.connect(f"file:{db_path.resolve()}?immutable=1", uri=True, timeout=10.0)
 
                 try:
@@ -213,12 +282,39 @@ class AntigravityUsageReader:
                         if entry:
                             db_entries.append(entry)
 
-                self._cache[db_path] = (mtime, db_entries)
+                self._cache[db_path] = (stat_key, db_entries)
                 entries.extend(db_entries)
 
             except Exception:
-                # If reading DB fails (e.g. file lock during active write), reuse last valid cached entries
-                cached_mtime, cached_entries = self._cache.get(db_path, (None, None))
+                cached_key, cached_entries = self._cache.get(db_path, (None, None))
+                if cached_entries:
+                    entries.extend(cached_entries)
+                continue
+
+        # Scan Protobuf .pb files
+        pb_files = list(self.root_dir.glob("*.pb"))
+        for pb_path in pb_files:
+            try:
+                pb_stat = pb_path.stat()
+                mtime = pb_stat.st_mtime
+                pb_size = pb_stat.st_size
+
+                if modified_since:
+                    cutoff = modified_since.timestamp()
+                    if mtime < cutoff:
+                        continue
+
+                stat_key = (mtime, pb_size)
+                cached_key, cached_entries = self._cache.get(pb_path, (None, None))
+                if cached_key == stat_key and cached_entries is not None:
+                    entries.extend(cached_entries)
+                    continue
+
+                pb_entries = parse_pb_file(pb_path, mtime)
+                self._cache[pb_path] = (stat_key, pb_entries)
+                entries.extend(pb_entries)
+            except Exception:
+                cached_key, cached_entries = self._cache.get(pb_path, (None, None))
                 if cached_entries:
                     entries.extend(cached_entries)
                 continue
