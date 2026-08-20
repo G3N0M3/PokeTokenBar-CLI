@@ -71,6 +71,7 @@ class UsageManager:
                 five_min_tokens += t
 
         tokens_per_min = five_min_tokens / 5.0
+        active_days = sorted(list(set(e.local_day for e in entries)))
 
         return {
             "today_tokens": today_tokens,
@@ -82,5 +83,6 @@ class UsageManager:
             "gemini_today": gemini_today,
             "claude_today": claude_today,
             "total_entries": len(entries),
+            "active_days": active_days,
             "last_updated": now
         }

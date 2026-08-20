@@ -45,7 +45,7 @@ class PokeTokenBarTUI:
         """Main interactive event loop."""
         # Initial refresh
         summary = self.tracker.get_summary()
-        self.engine.process_usage(summary["total_tokens"])
+        self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
         
         # Start background auto tracker
         self.auto_tracker.start()
@@ -58,7 +58,7 @@ class PokeTokenBarTUI:
 
                 # Process growth if tracking is enabled
                 if settings.get("auto_tracking_enabled", True):
-                    events = self.engine.process_usage(summary["total_tokens"])
+                    events = self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
                     if events:
                         self.message = "\n".join(events)
 

@@ -36,7 +36,7 @@ class AutoTracker:
             if enabled:
                 try:
                     summary = self.tracker.get_summary()
-                    events = self.engine.process_usage(summary["total_tokens"])
+                    events = self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
                     if events and self.callback:
                         self.callback(events)
                 except Exception:

@@ -12,7 +12,7 @@ from poketokenbar.tui import PokeTokenBarTUI
 
 def cmd_status(tracker: UsageManager, engine: CompanionEngine):
     summary = tracker.get_summary()
-    events = engine.process_usage(summary["total_tokens"])
+    events = engine.process_usage(summary["total_tokens"], summary.get("active_days"))
 
     active = engine.active_mon
     today_tok = format_tokens(summary["today_tokens"])
@@ -35,7 +35,7 @@ def cmd_watch(tracker: UsageManager, engine: CompanionEngine, interval: float = 
     try:
         while True:
             summary = tracker.get_summary()
-            events = engine.process_usage(summary["total_tokens"])
+            events = engine.process_usage(summary["total_tokens"], summary.get("active_days"))
             
             sys.stdout.write("\033[H\033[2J")
             sys.stdout.flush()

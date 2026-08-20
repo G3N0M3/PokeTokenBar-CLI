@@ -71,5 +71,24 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertTrue(ok)
         self.assertIn("Dispatched", msg)
 
+    def test_streak_calculation(self):
+        today_str = "2026-08-20"
+        active_days = ["2026-08-19", "2026-08-20"]
+        streak = self.engine._calculate_streak_from_active_days(active_days, today_str)
+        self.assertEqual(streak, 2)
+
+    def test_day_rollover_zero_delta(self):
+        self.engine.reset_game_state()
+        self.engine.state["last_active_date"] = "2026-08-19"
+        self.engine.state["used_since_install"] = 100_000
+        self.engine.state["install_baseline_set"] = True
+
+        today_str = "2026-08-20"
+        active_days = ["2026-08-19", "2026-08-20"]
+        # Call process_usage with 0 delta on a new day
+        self.engine.process_usage(100_000, active_days)
+        self.assertEqual(self.engine.state["last_active_date"], today_str)
+        self.assertEqual(self.engine.state["streak_days"], 2)
+
 if __name__ == "__main__":
     unittest.main()

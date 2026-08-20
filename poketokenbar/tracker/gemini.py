@@ -42,10 +42,22 @@ class GeminiUsageReader:
                         inp = rec.get("promptTokenCount", rec.get("inputTokens", tokens))
                         out = rec.get("candidatesTokenCount", rec.get("outputTokens", 0))
                         entry_id = f"gemini|{chat_file.stem}|{idx}"
+
+                        ts_raw = rec.get("timestamp", rec.get("created_at", rec.get("time")))
+                        rec_dt = dt
+                        if ts_raw:
+                            try:
+                                if isinstance(ts_raw, (int, float)):
+                                    rec_dt = datetime.datetime.fromtimestamp(ts_raw, tz=datetime.timezone.utc).astimezone()
+                                elif isinstance(ts_raw, str):
+                                    rec_dt = datetime.datetime.fromisoformat(ts_raw.replace("Z", "+00:00")).astimezone()
+                            except Exception:
+                                pass
+
                         entries.append(UsageEntry(
                             id=entry_id,
-                            date=dt,
-                            local_day=local_day,
+                            date=rec_dt,
+                            local_day=rec_dt.strftime("%Y-%m-%d"),
                             model="gemini-cli",
                             input_tokens=inp if isinstance(inp, int) else tokens,
                             output_tokens=out if isinstance(out, int) else 0,

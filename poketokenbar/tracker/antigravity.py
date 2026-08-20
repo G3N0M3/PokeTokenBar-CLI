@@ -135,11 +135,12 @@ def parse_generation_metadata(blob: bytes, conversation_id: str, row_idx: int, m
     if inp + out + cache_w + cache_r == 0:
         return None
 
-    if mtime:
-        mtime_dt = datetime.datetime.fromtimestamp(mtime, tz=datetime.timezone.utc).astimezone()
-        local_dt = max(dt.astimezone(), mtime_dt) if dt else mtime_dt
+    if dt:
+        local_dt = dt.astimezone()
+    elif mtime:
+        local_dt = datetime.datetime.fromtimestamp(mtime, tz=datetime.timezone.utc).astimezone()
     else:
-        local_dt = dt.astimezone() if dt else datetime.datetime.now().astimezone()
+        local_dt = datetime.datetime.now().astimezone()
 
     local_day = local_dt.strftime("%Y-%m-%d")
 

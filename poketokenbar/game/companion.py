@@ -45,6 +45,12 @@ class CompanionEngine:
         self.state = StorageManager.load_state()
         self.poker = TexasHoldemEngine()
 
+        if "install_date" not in self.state:
+            dex = self.state.get("dex", [])
+            caught_dates = [d.get("caught_at", "")[:10] for d in dex if d.get("caught_at")]
+            self.state["install_date"] = min(caught_dates) if caught_dates else datetime.datetime.now().strftime("%Y-%m-%d")
+            self.save()
+
     def save(self):
         StorageManager.save_state(self.state)
 
@@ -98,17 +104,67 @@ class CompanionEngine:
         except Exception:
             return DifficultyMode.MEDIUM
 
-    def process_usage(self, new_total_tokens: int) -> List[str]:
+    def _calculate_streak_from_active_days(self, active_days: List[str], today_str: str) -> int:
+        if not active_days:
+            return 1
+
+        install_date = self.state.get("install_date")
+        if not install_date:
+            dex = self.state.get("dex", [])
+            caught_dates = [d.get("caught_at", "")[:10] for d in dex if d.get("caught_at")]
+            if caught_dates:
+                install_date = min(caught_dates)
+                self.state["install_date"] = install_date
+                self.save()
+
+        if install_date:
+            active_days = [d for d in active_days if d >= install_date]
+
+        if not active_days:
+            return 1
+
+        days_set = set(active_days)
+        try:
+            today_dt = datetime.datetime.strptime(today_str, "%Y-%m-%d")
+        except Exception:
+            return 1
+        
+        # Check if today has entries or if we start counting back from yesterday
+        if today_str in days_set:
+            curr_dt = today_dt
+        else:
+            curr_dt = today_dt - datetime.timedelta(days=1)
+            if curr_dt.strftime("%Y-%m-%d") not in days_set:
+                return 1
+
+        streak = 0
+        while True:
+            d_str = curr_dt.strftime("%Y-%m-%d")
+            if d_str in days_set:
+                streak += 1
+                curr_dt -= datetime.timedelta(days=1)
+            else:
+                break
+        return max(1, streak)
+
+    def process_usage(self, new_total_tokens: int, active_days: Optional[List[str]] = None) -> List[str]:
         """Call this with cumulative tokens used since install."""
         events = []
         old_used = self.state.get("used_since_install", 0)
+
         if not self.state.get("install_baseline_set", False):
             self.state["used_since_install"] = new_total_tokens
             self.state["install_baseline_set"] = True
+            if not self.state.get("install_date"):
+                self.state["install_date"] = datetime.datetime.now().strftime("%Y-%m-%d")
             self.save()
+            self._update_streak_and_quests(0, events, active_days)
             return events
 
+        # Always evaluate day rollover, streak, and daily quests first
         delta = max(0, new_total_tokens - old_used)
+        self._update_streak_and_quests(delta, events, active_days)
+
         if delta == 0:
             return events
 
@@ -128,9 +184,6 @@ class CompanionEngine:
         if active and active.is_mega:
             xp_multiplier += 0.50  # Mega Evolution grants +50% XP boost!
         effective_xp = int(delta * xp_multiplier)
-
-        # Update coding streak & daily quests
-        self._update_streak_and_quests(delta, events)
 
         # Update boss battle damage if active
         boss_events = self._update_boss_battle(delta)
@@ -164,23 +217,9 @@ class CompanionEngine:
             dex = self.state.get("dex", [])
             discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
             is_already_evolved = (active.stage_index < len(active.path_ids) - 1) and (active.path_ids[active.stage_index + 1] in discovered_sp_ids)
-            active.used_at_stage += delta
             self.set_active_mon(active)
             evo_events = self._check_growth(active)
             events.extend(evo_events)
-
-        # Check mini trainer auto battle
-        self._check_trainer_battle(delta, events)
-
-        # Check gym boss raid
-        boss_events = self._update_boss_battle(delta)
-        events.extend(boss_events)
-
-        # Check expedition progress
-        self._update_expeditions(delta, events)
-
-        # Update coding streak & daily quest metrics
-        self._update_streak_and_quests(delta, events)
 
         # Check achievements
         ach_events = self._check_achievements()
@@ -188,10 +227,28 @@ class CompanionEngine:
 
         return events
 
-    def _update_streak_and_quests(self, delta: int, events: List[str]):
+    def _update_streak_and_quests(self, delta: int, events: List[str], active_days: Optional[List[str]] = None):
         today_str = datetime.datetime.now().strftime("%Y-%m-%d")
         last_date = self.state.get("last_active_date", "")
         active = self.active_mon
+
+        if active_days:
+            log_streak = self._calculate_streak_from_active_days(active_days, today_str)
+            self.state["streak_days"] = log_streak
+        elif last_date != today_str:
+            if last_date:
+                try:
+                    last_dt = datetime.datetime.strptime(last_date, "%Y-%m-%d")
+                    today_dt = datetime.datetime.strptime(today_str, "%Y-%m-%d")
+                    diff = (today_dt - last_dt).days
+                    if diff == 1:
+                        self.state["streak_days"] = self.state.get("streak_days", 1) + 1
+                    elif diff > 1:
+                        self.state["streak_days"] = 1
+                except Exception:
+                    self.state["streak_days"] = 1
+            else:
+                self.state["streak_days"] = 1
 
         if last_date != today_str:
             if last_date:
@@ -200,12 +257,10 @@ class CompanionEngine:
                     today_dt = datetime.datetime.strptime(today_str, "%Y-%m-%d")
                     diff = (today_dt - last_dt).days
                     if diff == 1:
-                        self.state["streak_days"] = self.state.get("streak_days", 1) + 1
                         if active:
                             active.happiness = min(100, active.happiness + 10)
                             self.set_active_mon(active)
                     elif diff > 1:
-                        self.state["streak_days"] = 1
                         decay = (diff - 1) * 25
                         if active:
                             active.happiness = max(0, active.happiness - decay)
@@ -215,10 +270,9 @@ class CompanionEngine:
                             hap_val = 0
                         events.append(f"💔 You missed {diff-1} day(s) of coding! Companion Happiness dropped to {hap_val}%. Feed Oran Berries 🫐 to cheer them up!")
                 except Exception:
-                    self.state["streak_days"] = 1
-            else:
-                self.state["streak_days"] = 1
+                    pass
             self.state["last_active_date"] = today_str
+            self.save()
 
         # Generate / check daily quests dynamically
         qdata = self.state.get("daily_quests", {})
