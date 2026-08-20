@@ -130,13 +130,13 @@ class PokeTokenBarTUI:
                         self.message = "Refreshed logs! " + " ".join(events)
                     else:
                         self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
-                elif cmd.startswith("select"):
+                elif cmd.startswith("select") or cmd.startswith("sel ") or cmd == "sel":
                     parts = cmd.split()
                     if len(parts) >= 2:
-                        ok, msg = self.engine.select_active_from_dex(parts[-1])
+                        ok, msg = self.engine.select_active_from_dex(parts[1])
                         self.message = msg
                     else:
-                        self.message = "Usage: select <number> (e.g. 'select 1' or 'select 570')"
+                        self.message = "Usage: sel <ROW INDEX> or sel #<POKEMON INDEX> or sel egg"
                 elif cmd.startswith("claim"):
                     parts = cmd.split()
                     ok, msg = self.engine.claim_quest_reward(parts[-1] if len(parts) >= 2 else "all")
@@ -148,7 +148,7 @@ class PokeTokenBarTUI:
                         ok, msg = self.engine.dispatch_expedition(parts[1], area)
                         self.message = msg
                     else:
-                        self.message = "Usage: send <number/species_id> [viridian/cerulean/silver]"
+                        self.message = "Usage: send <ROW INDEX> [area] or send #<POKEMON INDEX> [area]"
                 elif cmd.startswith("bet"):
                     parts = cmd.split()
                     if len(parts) >= 2:
@@ -362,8 +362,8 @@ class PokeTokenBarTUI:
 
                 sys.stdout.write(f"  {idx:2d}. {shiny_str} {BOLD}{name}{RESET} (#{sp_id}) [{rarity}] 💖{hap_val}% {status_badge}\n")
 
-        sys.stdout.write(f"\n  ➔ Type '{BOLD}select <id>{RESET}' or '{BOLD}select egg{RESET}' to switch active companion!\n")
-        sys.stdout.write(f"  ➔ Type '{BOLD}send <id> [viridian/cerulean/silver]{RESET}' on expedition!\n\n")
+        sys.stdout.write(f"\n  ➔ Type '{BOLD}sel <ROW INDEX>{RESET}', '{BOLD}sel #<POKEMON INDEX>{RESET}', or '{BOLD}sel egg{RESET}' to switch active companion!\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}send <ROW INDEX> [area]{RESET}' or '{BOLD}send #<POKEMON INDEX> [area]{RESET}' on expedition!\n\n")
 
     def render_shop_tab(self):
         avail = self.engine.available_tokens
@@ -507,7 +507,7 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"   • Viridian Forest - Target: 5.0M tokens  - Reward: 🌿 Mint\n")
         sys.stdout.write(f"   • Cerulean Cave   - Target: 15.0M tokens - Reward: 🍬 Rare Candy\n")
         sys.stdout.write(f"   • Mt. Silver      - Target: 30.0M tokens - Reward: 🍇 Golden Razz Berry\n\n")
-        sys.stdout.write(f"  ➔ Type '{BOLD}send <number/species_id> [viridian/cerulean/silver]{RESET}' to dispatch!\n\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}send <ROW INDEX> [area]{RESET}' or '{BOLD}send #<POKEMON INDEX> [area]{RESET}' to dispatch!\n\n")
 
         sys.stdout.write(f"  {BOLD}🗺️ Active Expeditions Status:{RESET}\n")
         if not expeditions:
