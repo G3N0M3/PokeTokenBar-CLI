@@ -107,5 +107,34 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertTrue(ok2)
         self.assertIn("Dispatched", msg2)
 
+    def test_expedition_progress_advancement(self):
+        self.engine.reset_game_state()
+        self.engine.state["dex"] = [
+            {"id": "sp_149", "species_id": 149, "base_id": 147, "chain_order": [147, 148, 149], "status": "inactive"}
+        ]
+        self.engine.dispatch_expedition("#149", "viridian")
+        old_used = self.engine.state.get("used_since_install", 0)
+        self.engine.process_usage(old_used + 1_000_000)
+        expeditions = self.engine.state.get("expeditions", [])
+        self.assertEqual(len(expeditions), 1)
+        self.assertGreater(expeditions[0]["progress"], 0)
+
+    def test_active_pokemon_xp_and_evolution(self):
+        self.engine.reset_game_state()
+        mon, events = self.engine.hatch_egg(0)
+        self.assertIsNotNone(self.engine.active_mon)
+        
+        initial_stage = self.engine.active_mon.stage_index
+        initial_xp = self.engine.active_mon.used_at_stage
+        
+        # Burn 10,000,000 tokens
+        old_used = self.engine.state.get("used_since_install", 0)
+        events = self.engine.process_usage(old_used + 10_000_000)
+        
+        active = self.engine.active_mon
+        if active:
+            # XP should have increased
+            self.assertGreater(active.used_at_stage, initial_xp)
+
 if __name__ == "__main__":
     unittest.main()

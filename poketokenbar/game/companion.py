@@ -189,8 +189,8 @@ class CompanionEngine:
         boss_events = self._update_boss_battle(delta)
         events.extend(boss_events)
 
-        # Update Pokédex expeditions progress
-        self._update_expeditions(delta, events)
+        # Update Pokédex expeditions progress (benefits from Happiness & Mega multipliers!)
+        self._update_expeditions(effective_xp, events)
 
         # Check mini-trainer auto-battles
         self._check_trainer_battle(delta, events)
@@ -941,14 +941,14 @@ class CompanionEngine:
         else:
             return True, f"{name} reverted back to standard form."
 
-    def _update_expeditions(self, delta: int, events: List[str]):
+    def _update_expeditions(self, effective_xp: int, events: List[str]):
         expeditions = self.state.get("expeditions", [])
         if not expeditions:
             return
 
         remaining = []
         for exp in expeditions:
-            exp["progress"] += delta
+            exp["progress"] += effective_xp
             if exp["progress"] >= exp["target"]:
                 sp_id = exp["sp_id"]
                 sp_name = self.api.get_species_name(sp_id)

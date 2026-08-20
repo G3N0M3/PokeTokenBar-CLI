@@ -31,7 +31,7 @@ class PokeTokenBarTUI:
         self.pending_reset = False
 
         # Background auto-tracker
-        self.auto_tracker = AutoTracker(callback=self._on_auto_events)
+        self.auto_tracker = AutoTracker(callback=self._on_auto_events, engine=self.engine, tracker=self.tracker)
 
     def _on_auto_events(self, events: list):
         if events:

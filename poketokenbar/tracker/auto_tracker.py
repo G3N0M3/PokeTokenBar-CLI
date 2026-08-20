@@ -8,9 +8,9 @@ from poketokenbar.game.companion import CompanionEngine
 class AutoTracker:
     """Background thread worker that automatically tracks AI token usage and updates Pokémon growth."""
 
-    def __init__(self, callback: Optional[Callable[[List[str]], None]] = None):
-        self.tracker = UsageManager()
-        self.engine = CompanionEngine()
+    def __init__(self, callback: Optional[Callable[[List[str]], None]] = None, engine: Optional[CompanionEngine] = None, tracker: Optional[UsageManager] = None):
+        self.tracker = tracker if tracker is not None else UsageManager()
+        self.engine = engine if engine is not None else CompanionEngine()
         self.callback = callback
         self.running = False
         self._thread: Optional[threading.Thread] = None

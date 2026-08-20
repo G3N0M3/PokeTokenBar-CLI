@@ -191,10 +191,15 @@ class AntigravityUsageReader:
                 conv_id = db_path.stem
                 conn_uri = f"file:{db_path.resolve()}?mode=ro"
                 try:
-                    conn = sqlite3.connect(conn_uri, uri=True, timeout=1.0)
+                    conn = sqlite3.connect(conn_uri, uri=True, timeout=10.0)
                 except sqlite3.OperationalError:
                     # Fallback for immutable
-                    conn = sqlite3.connect(f"file:{db_path.resolve()}?immutable=1", uri=True, timeout=1.0)
+                    conn = sqlite3.connect(f"file:{db_path.resolve()}?immutable=1", uri=True, timeout=10.0)
+
+                try:
+                    conn.execute("PRAGMA busy_timeout = 5000")
+                except Exception:
+                    pass
 
                 cursor = conn.cursor()
                 cursor.execute("SELECT idx, data FROM gen_metadata WHERE data IS NOT NULL")
@@ -212,6 +217,10 @@ class AntigravityUsageReader:
                 entries.extend(db_entries)
 
             except Exception:
+                # If reading DB fails (e.g. file lock during active write), reuse last valid cached entries
+                cached_mtime, cached_entries = self._cache.get(db_path, (None, None))
+                if cached_entries:
+                    entries.extend(cached_entries)
                 continue
 
         # Deduplicate by entry ID
