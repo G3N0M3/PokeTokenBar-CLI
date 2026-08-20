@@ -38,6 +38,12 @@ Designed specifically for **Linux CLI** environments, **Antigravity CLI** (`~/.g
 
 ---
 
+## 🗺️ Roadmap / Future Plans
+
+- **Individualized Mega Stones**: Transition from the current "Universal Key Item" Mega Stone to species-specific Mega Stones (e.g., *Charizardite X*, *Venusaurite*, *Lucarionite*). This will require players to hunt or pull the exact Mega Stone corresponding to their Pokémon to achieve Mega Evolution, adding deeper collection mechanics!
+
+---
+
 ## 🖥️ 11-Tab Interactive TUI Layout
 
 ```text
