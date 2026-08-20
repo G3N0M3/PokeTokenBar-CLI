@@ -901,6 +901,77 @@ class CompanionEngine:
         elif item_kind == ItemKind.MEGA_STONE:
             return self.toggle_mega_evolution()
 
+        elif item_kind == ItemKind.EXPEDITION_PASS:
+            expeditions = self.state.get("expeditions", [])
+            if not expeditions:
+                return False, "You have no active expeditions to complete!"
+            inv[item_kind.value] -= 1
+            # Complete the first expedition instantly
+            exp = expeditions[0]
+            remaining_xp = exp["target"] - exp["progress"]
+            events = []
+            self._update_expeditions(remaining_xp, events)
+            self.state["inventory"] = inv
+            self.save()
+            return True, "\n".join(events)
+
+        elif item_kind == ItemKind.POKE_FLUTE:
+            if self.state.get("active_boss"):
+                return False, "A Gym Boss is already active! Defeat them first!"
+            
+            # Find an undefeated boss, or pick a random one if all defeated
+            bosses = [
+                {"id": "boss_1", "name": "Brock & Geodude", "sp_id": 74, "badge": "🪨 Boulder Badge", "hp": 2_000_000, "reward": "rare_candy"},
+                {"id": "boss_2", "name": "Misty & Starmie", "sp_id": 121, "badge": "💧 Cascade Badge", "hp": 5_000_000, "reward": "mint"},
+                {"id": "boss_3", "name": "Lt. Surge & Raichu", "sp_id": 26, "badge": "⚡ Thunder Badge", "hp": 10_000_000, "reward": "tokens_10m"},
+                {"id": "boss_4", "name": "Erika & Vileplume", "sp_id": 45, "badge": "🌸 Rainbow Badge", "hp": 18_000_000, "reward": "rare_candy"},
+                {"id": "boss_5", "name": "Koga & Weezing", "sp_id": 110, "badge": "🟣 Soul Badge", "hp": 25_000_000, "reward": "mint"},
+                {"id": "boss_6", "name": "Sabrina & Alakazam", "sp_id": 65, "badge": "🔮 Marsh Badge", "hp": 35_000_000, "reward": "tokens_15m"},
+                {"id": "boss_7", "name": "Blaine & Arcanine", "sp_id": 59, "badge": "🔥 Volcano Badge", "hp": 45_000_000, "reward": "rare_candy"},
+                {"id": "boss_8", "name": "Giovanni & Mewtwo", "sp_id": 150, "badge": "👑 Earth Badge", "hp": 60_000_000, "reward": "shiny_charm"},
+                {"id": "boss_9", "name": "Lance & Dragonite", "sp_id": 149, "badge": "🐉 Dragon Badge", "hp": 80_000_000, "reward": "tokens_20m"},
+                {"id": "boss_10", "name": "Cynthia & Garchomp", "sp_id": 445, "badge": "🏆 Champion Badge", "hp": 100_000_000, "reward": "tokens_50m"}
+            ]
+            gym_badges = set(self.state.get("gym_badges", []))
+            available = [b for b in bosses if b["badge"] not in gym_badges]
+            
+            if not available:
+                available = bosses  # All defeated, spawn any for fun
+            
+            b = random.choice(available)
+            active_boss = {
+                "id": b["id"],
+                "name": b["name"],
+                "sp_id": b["sp_id"],
+                "badge": b["badge"],
+                "total_hp": b["hp"],
+                "current_hp": b["hp"],
+                "reward": b["reward"]
+            }
+            self.state["active_boss"] = active_boss
+            inv[item_kind.value] -= 1
+            self.state["inventory"] = inv
+            self.save()
+            return True, f"🪈 You played the Poké Flute! A wild Gym Boss {b['name']} (#{b['sp_id']}) was summoned! (HP: {format_tokens(b['hp'])})"
+
+        elif item_kind == ItemKind.MASTER_BALL:
+            eggs = self.state.get("incubating_eggs", {})
+            if not eggs:
+                return False, "You need an incubating egg to use the Master Ball!"
+            inv[item_kind.value] -= 1
+            
+            # Find the egg with the most progress to hatch
+            best_tier = max(eggs.keys(), key=lambda t: eggs[t])
+            # Force hatch as shiny
+            self.state["golden_razz_active"] = True 
+            events = []
+            self._hatch_egg(best_tier, True, events)
+            del eggs[best_tier]
+            self.state["incubating_eggs"] = eggs
+            self.state["inventory"] = inv
+            self.save()
+            return True, f"Threw a Master Ball 🌟! Guaranteed Shiny hatch!\n" + "\n".join(events)
+
         elif item_kind == ItemKind.SHINY_CHARM:
             return False, "Shiny Charm is a passive item and works automatically on all future egg hatches!"
 
@@ -1243,6 +1314,15 @@ class CompanionEngine:
             pulls = [GachaEngine.pull_one()]
             results_txt.append("🔮 \033[1mGACHA CAPSULE PULL RESULT:\033[0m")
 
+        pity = self.state.get("gacha_pity", 0)
+        for i in range(len(pulls)):
+            pity += 1
+            if pity >= 100:
+                pulls[i] = ("LEGENDARY", "🌟 1x Master Ball (Guaranteed Shiny Hatch!)", "item", "master_ball")
+                pity = 0
+                results_txt[0] += " \033[1m\033[32m[PITY TRIGGERED!]\033[0m"
+        self.state["gacha_pity"] = pity
+
         for tier, name, r_type, val in pulls:
             color = "\033[36m" if tier == "COMMON" else ("\033[33m" if tier in ["UNCOMMON", "RARE"] else "\033[32m")
             results_txt.append(f"  • [{color}{tier}\033[0m] {name}")
@@ -1252,12 +1332,19 @@ class CompanionEngine:
             elif r_type == "tokens":
                 self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - val)
             elif r_type == "egg":
-                self.state["incubating_eggs"] = self.state.get("incubating_eggs", {})
-                self.state["incubating_eggs"][val] = self.state["incubating_eggs"].get(val, 0)
-            elif r_type == "legendary":
-                self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - val)
-                self.state["golden_razz_active"] = True
+                eggs = self.state.get("incubating_eggs", {})
+                current_tier = self.state.get("current_egg_tier") or self.state.get("egg_tier") or "normal"
+                has_legacy = (self.active_mon is None) and (current_tier == val or (val == "normal" and current_tier == "normal"))
+                
+                if val in eggs or has_legacy:
+                    # Refund tokens for duplicate egg (15M to make it fair)
+                    self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - 15_000_000)
+                    results_txt[-1] += " \033[1m\033[33m(DUPLICATE! Refunded +15.0M Tokens)\033[0m"
+                else:
+                    self.state["incubating_eggs"] = eggs
+                    self.state["incubating_eggs"][val] = 0
 
         self.state["inventory"] = inv
         self.save()
+        results_txt.append(f"\n  \033[90mLegendary Pity Counter: {pity}/100\033[0m")
         return True, "\n".join(results_txt)

@@ -11,13 +11,15 @@ GACHA_LOOT_TABLE = [
     ("COMMON", "💰 +1.0M Spendable Tokens", 20, "tokens", 1_000_000),
     ("UNCOMMON", "🍬 1x Rare Candy", 15, "item", "rare_candy"),
     ("UNCOMMON", "🍇 1x Golden Razz Berry", 10, "item", "berry_golden"),
+    ("UNCOMMON", "🎫 1x Expedition Pass (Insta-Complete!)", 5, "item", "expedition_pass"),
     ("UNCOMMON", "💰 +3.0M Spendable Tokens", 10, "tokens", 3_000_000),
     ("RARE", "🥚 1x Standard Egg Tier", 5, "egg", "normal"),
     ("RARE", "🥚 1x Uncommon Egg Tier", 4, "egg", "uncommon"),
     ("RARE", "🔮 1x Mega Stone", 4, "item", "mega_stone"),
+    ("RARE", "🪈 1x Poké Flute (Summons Boss!)", 3, "item", "poke_flute"),
     ("EPIC", "✨ 1x Shiny Charm", 2, "item", "shiny_charm"),
     ("EPIC", "🥚 1x Rare Egg Tier", 2, "egg", "rare"),
-    ("LEGENDARY", "🌟 1x Guaranteed Shiny Companion (or +50M Tokens!)", 1, "legendary", 50_000_000),
+    ("LEGENDARY", "🌟 1x Master Ball (Guaranteed Shiny Hatch!)", 1, "item", "master_ball"),
 ]
 
 class GachaEngine:

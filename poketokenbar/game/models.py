@@ -125,6 +125,9 @@ class ItemKind(str, Enum):
     BERRY_ORAN = "berry_oran"
     BERRY_GOLDEN = "berry_golden"
     MEGA_STONE = "mega_stone"
+    EXPEDITION_PASS = "expedition_pass"
+    POKE_FLUTE = "poke_flute"
+    MASTER_BALL = "master_ball"
 
     def price_for(self, difficulty: DifficultyMode = DifficultyMode.EASY) -> int:
         prices = {
@@ -134,6 +137,9 @@ class ItemKind(str, Enum):
             ItemKind.BERRY_ORAN: 1_000_000,
             ItemKind.BERRY_GOLDEN: 5_000_000,
             ItemKind.MEGA_STONE: 50_000_000,
+            ItemKind.EXPEDITION_PASS: 15_000_000,
+            ItemKind.POKE_FLUTE: 25_000_000,
+            ItemKind.MASTER_BALL: 500_000_000,
         }
         return prices.get(self, 5_000_000)
 
@@ -150,6 +156,9 @@ class ItemKind(str, Enum):
             ItemKind.BERRY_ORAN: "Oran Berry",
             ItemKind.BERRY_GOLDEN: "Golden Razz Berry",
             ItemKind.MEGA_STONE: "Mega Stone",
+            ItemKind.EXPEDITION_PASS: "Expedition Pass",
+            ItemKind.POKE_FLUTE: "Poké Flute",
+            ItemKind.MASTER_BALL: "Master Ball",
         }[self]
 
     @property
@@ -161,6 +170,9 @@ class ItemKind(str, Enum):
             ItemKind.BERRY_ORAN: "🫐",
             ItemKind.BERRY_GOLDEN: "🍇",
             ItemKind.MEGA_STONE: "🔮",
+            ItemKind.EXPEDITION_PASS: "🎫",
+            ItemKind.POKE_FLUTE: "🪈",
+            ItemKind.MASTER_BALL: "🌟",
         }[self]
 
 @dataclass
