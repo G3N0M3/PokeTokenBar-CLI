@@ -41,15 +41,19 @@ Designed specifically for **Linux CLI** environments, **Antigravity CLI** (`~/.g
 ## 🗺️ Roadmap / Future Plans
 
 - **Individualized Mega Stones**: Transition from the current "Universal Key Item" Mega Stone to species-specific Mega Stones (e.g., *Charizardite X*, *Venusaurite*, *Lucarionite*). This will require players to hunt or pull the exact Mega Stone corresponding to their Pokémon to achieve Mega Evolution, adding deeper collection mechanics!
+- **Split-Evolution Mechanics**: Introduce elemental stones (Water Stone, Thunder Stone, Fire Stone, etc.) to the Shop or Gacha to allow players to manually choose branch evolutions for species like Eevee, Poliwhirl, or Gloom, rather than defaulting to the first Pokédex entry!
+- **Hold'em All-in System**: Allow players to go "All-in" with their entire token balance during Poker matches for massive high-risk, high-reward gameplay.
+- **Token Bank System**: Introduce a banking mechanic where players can deposit tokens to earn interest over time, or take out token loans with an interest rate!
+- **Expedition Fatigue**: Decrease a Pokémon's happiness when they depart for and return from expeditions to add more resource management.
 
 ---
 
-## 🖥️ 11-Tab Interactive TUI Layout
+## 🖥️ 12-Tab Interactive TUI Layout
 
 ```text
   [1] Companion   [2] Pokédex   [3] Roster      [4] Shop & Bag
   [5] Expeditions [6] Battles   [7] Quests      [8] Monitor
-  [9] Poker       [10] Gacha    [11] Settings
+  [9] Hold 'em    [10] Gacha    [11] Bank       [12] Settings
 ```
 
 ---
@@ -86,19 +90,23 @@ ptb
 ## 💻 Usage & Commands
 
 ### Interactive TUI Commands:
-- `1`..`11`: Switch directly between all 11 dedicated tabs.
+- `1`..`12`: Switch directly between all 12 dedicated tabs.
 - `select <roster_idx>` / `select #<species_id>` / `select egg`: Switch active partner companion or egg.
 - `send <roster_idx> [viridian/cerulean/silver]`: Dispatch companion on expedition.
+- `deposit <amount>`: Deposit tokens into your Token Bank (e.g. `deposit 1m` or `deposit all`).
+- `withdraw <amount>`: Withdraw your deposited tokens.
+- `loan <amount>`: Take out a token loan from your Token Bank (up to 500M).
+- `payoff <amount>`: Pay off your active token loan (e.g. `payoff all`).
 - `bet <amount>`: Start a Video Poker hand (e.g. `bet 500k`, `bet 1m`).
 - `hold <1..5>`: Select held cards in Poker (or `hold none` / `hold all`).
 - `pull [1/10]`: Pull 1x or 10x Gacha Capsules.
 - `buy <number>`: Purchase shop items.
+- `sell <number>`: Sell items from Bag for tokens.
 - `use <number>`: Feed berries or use items from Bag.
 - `claim <id>`: Claim daily quest rewards.
 - `card`: View ASCII Trainer Profile Card.
-- `toggle`: Toggle automatic token tracking ON/OFF (in Settings).
+- `n` / `p` / `page <num>`: Navigate Pokédex pages (in Pokédex tab).
 - `reset`: Initiate two-step game progress reset prompt (in Settings).
-- `interval <sec>`: Set auto-refresh interval in seconds.
 - `r`: Force immediate log re-scan.
 - `q`: Exit application.
 
@@ -109,6 +117,7 @@ ptb watch        # Continuous live monitor loop with animated sprite
 ptb card         # Display shareable ASCII Trainer Profile Card
 ptb dex          # Quick Pokédex archive printout
 ptb shop         # Quick Shop & Bag listing
+ptb settings     # View or update tracking settings (--auto-track, --interval)
 ```
 
 ---

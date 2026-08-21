@@ -255,6 +255,41 @@ class CompanionEngine:
                     last_dt = datetime.datetime.strptime(last_date, "%Y-%m-%d")
                     today_dt = datetime.datetime.strptime(today_str, "%Y-%m-%d")
                     diff = (today_dt - last_dt).days
+                    
+                    bank_balance = self.state.get("bank_balance", 0)
+                    bank_loan = self.state.get("bank_loan", 0)
+                    
+                    if diff > 0:
+                        days_to_apply = min(diff, 100)
+                        
+                        if bank_balance > 0:
+                            new_balance = bank_balance
+                            for _ in range(days_to_apply):
+                                new_balance = int(new_balance * 1.05)
+                            events.append(f"🏦 Your Token Bank earned {format_tokens(new_balance - bank_balance)} tokens in interest!")
+                            self.state["bank_balance"] = new_balance
+
+                        if bank_loan > 0:
+                            new_loan = bank_loan
+                            for _ in range(days_to_apply):
+                                new_loan = int(new_loan * 1.10)
+                            events.append(f"🏦 Your Token Bank loan accumulated {format_tokens(new_loan - bank_loan)} tokens in interest!")
+                            self.state["bank_loan"] = new_loan
+                            
+                            loan_days = self.state.get("loan_days_active", 0) + days_to_apply
+                            self.state["loan_days_active"] = loan_days
+                            
+                            if loan_days >= 7:
+                                self.state["bank_balance"] = 0
+                                self.state["bank_loan"] = 0
+                                self.state["inventory"] = {}
+                                self.state["loan_days_active"] = 0
+                                self.state["spent_tokens"] = self.state.get("used_since_install", 0)
+                                if active:
+                                    active.happiness = 0
+                                    self.set_active_mon(active)
+                                events.append("🚨 BANK REPOSSESSION! 7 days have passed since your loan! The bank seized your tokens, liquidated your bag, and left your companion distressed (0% Happiness)!")
+
                     if diff == 1:
                         if active:
                             active.happiness = min(100, active.happiness + 10)
@@ -760,7 +795,9 @@ class CompanionEngine:
 
     def hatch_egg(self, initial_xp: int = 0, force_tier: Optional[str] = None, force_shiny: bool = False) -> Tuple[MonState, List[str]]:
         events = []
-        used_tier = force_tier or self.state.get("egg_tier") or "normal"
+        used_tier = force_tier or self.state.get("egg_tier") or "common"
+        if used_tier == "normal":
+            used_tier = "common"
         
         # Clean up keys completely
         self.state["egg_tier"] = None
@@ -769,7 +806,7 @@ class CompanionEngine:
         self.state.pop("current_egg_tier", None)
         
         # Select base species
-        base_id, rarity, chain_ids, is_legendary = self._pick_species(tier_guarantee)
+        base_id, rarity, chain_ids, is_legendary = self._pick_species(used_tier)
 
         # Roll Shiny odds (1/64 base or 1/48 if user has Shiny Charm)
         has_charm = self.state.get("inventory", {}).get(ItemKind.SHINY_CHARM.value, 0) > 0
@@ -1090,6 +1127,14 @@ class CompanionEngine:
                     reward_str = "+1 Golden Razz Berry 🍇"
 
                 self.state["inventory"] = inv
+
+                dex = self.state.get("dex", [])
+                for d in dex:
+                    sp_id_dex = d.get("species_id", d.get("base_id"))
+                    if sp_id_dex == sp_id:
+                        d["happiness"] = max(0, d.get("happiness", 100) - 10)
+                        break
+
                 now_str = datetime.datetime.now().strftime("%H:%M:%S")
                 logs = self.state.get("expedition_logs", [])
                 logs.append(f"[{now_str}] 🗺️ {sp_name} returned from {area} with {reward_str}")
@@ -1174,6 +1219,8 @@ class CompanionEngine:
         key = area_name.lower().split()[0]
         area_tuple = areas.get(key, ("Viridian Forest", 5_000_000, "mint"))
         area_title, target_xp, reward_type = area_tuple
+
+        target_entry["happiness"] = max(0, target_entry.get("happiness", 100) - 10)
 
         expeditions.append({
             "sp_id": sp_id,
@@ -1294,17 +1341,84 @@ class CompanionEngine:
         tier_str = f"{tier.value.upper()}+" if tier else "Standard"
         return True, f"Obtained a fresh {tier_str} Pokémon Egg! Previous companion saved to Pokédex."
 
+    def handle_bank_transaction(self, action: str, amount_str: str) -> Tuple[bool, str]:
+        clean_str = amount_str.lower().strip()
+        try:
+            if clean_str in ["all", "all-in"]:
+                if action == "deposit": amount = self.available_tokens
+                elif action == "withdraw": amount = self.state.get("bank_balance", 0)
+                elif action == "payoff": amount = min(self.available_tokens, self.state.get("bank_loan", 0))
+                else: return False, "Cannot use 'all' with loan!"
+            elif clean_str.endswith("m"):
+                amount = int(float(clean_str[:-1]) * 1_000_000)
+            elif clean_str.endswith("k"):
+                amount = int(float(clean_str[:-1]) * 1_000)
+            else:
+                amount = int(clean_str)
+        except ValueError:
+            return False, "Invalid amount! Example: 'deposit 500k', 'withdraw 1m', 'loan 10m', 'payoff all'."
+        
+        if amount <= 0:
+            return False, "Amount must be greater than 0!"
+            
+        if action == "deposit":
+            if amount > self.available_tokens:
+                return False, f"Not enough tokens to deposit! You only have {format_tokens(self.available_tokens)}."
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + amount
+            self.state["bank_balance"] = self.state.get("bank_balance", 0) + amount
+            self.save()
+            return True, f"🏦 Deposited {format_tokens(amount)} tokens. New balance: {format_tokens(self.state['bank_balance'])}"
+            
+        elif action == "withdraw":
+            current_bank = self.state.get("bank_balance", 0)
+            if current_bank - amount < 0:
+                return False, f"🏦 You cannot withdraw {format_tokens(amount)} tokens! You only have {format_tokens(current_bank)} deposited."
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - amount
+            self.state["bank_balance"] = current_bank - amount
+            self.save()
+            return True, f"🏦 Withdrew {format_tokens(amount)} tokens. New balance: {format_tokens(self.state['bank_balance'])}"
+            
+        elif action == "loan":
+            current_loan = self.state.get("bank_loan", 0)
+            if current_loan + amount > 500_000_000:
+                return False, "🏦 Loan denied! Maximum token loan limit is 500M tokens."
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - amount
+            self.state["bank_loan"] = current_loan + amount
+            if current_loan == 0:
+                self.state["loan_days_active"] = 0
+            self.save()
+            return True, f"🏦 Took out a loan of {format_tokens(amount)} tokens. Total debt: {format_tokens(self.state['bank_loan'])}"
+            
+        elif action == "payoff":
+            current_loan = self.state.get("bank_loan", 0)
+            if current_loan == 0:
+                return False, "🏦 You do not have any active loans to pay off!"
+            amount_to_pay = min(amount, current_loan)
+            if amount_to_pay > self.available_tokens:
+                return False, f"Not enough tokens to pay off! You only have {format_tokens(self.available_tokens)}."
+                
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + amount_to_pay
+            self.state["bank_loan"] = current_loan - amount_to_pay
+            if self.state["bank_loan"] == 0:
+                self.state["loan_days_active"] = 0
+            self.save()
+            return True, f"🏦 Paid off {format_tokens(amount_to_pay)} tokens towards your loan! Remaining debt: {format_tokens(self.state['bank_loan'])}"
+        else:
+            return False, "Invalid bank action."
+
     def play_poker_bet(self, amount_str: str) -> Tuple[bool, str]:
         clean_str = amount_str.lower().strip()
         try:
-            if clean_str.endswith("m"):
+            if clean_str in ["all", "all-in"]:
+                bet = self.available_tokens
+            elif clean_str.endswith("m"):
                 bet = int(float(clean_str[:-1]) * 1_000_000)
             elif clean_str.endswith("k"):
                 bet = int(float(clean_str[:-1]) * 1_000)
             else:
                 bet = int(clean_str)
         except ValueError:
-            return False, "Invalid bet amount! Example: 'bet 500k', 'bet 1m', or 'bet 2000000'."
+            return False, "Invalid bet amount! Example: 'bet 500k', 'bet 1m', 'bet all', or 'bet 2000000'."
 
         if bet <= 0:
             return False, "Bet amount must be greater than 0!"

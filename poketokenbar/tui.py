@@ -97,11 +97,13 @@ class PokeTokenBarTUI:
             elif self.current_tab == 10:
                 self.render_gacha_tab()
             elif self.current_tab == 11:
+                self.render_bank_tab()
+            elif self.current_tab == 12:
                 self.render_settings_tab()
 
             self.render_footer()
 
-            sys.stdout.write(f"\n{BOLD}Select tab (1-11), command, r=Refresh, q=Quit: {RESET}")
+            sys.stdout.write(f"\n{BOLD}Select tab (1-12), command, r=Refresh, q=Quit: {RESET}")
             sys.stdout.flush()
 
             try:
@@ -152,6 +154,9 @@ class PokeTokenBarTUI:
                     self.message = ""
                 elif cmd == "11":
                     self.current_tab = 11
+                    self.message = ""
+                elif cmd == "12":
+                    self.current_tab = 12
                     self.message = ""
                 elif cmd in ["r", "refresh"]:
                     summary = self.tracker.get_summary()
@@ -208,7 +213,7 @@ class PokeTokenBarTUI:
                     self.message = msg
                 elif cmd == "card":
                     self.message = self.engine.generate_trainer_card()
-                elif cmd == "reset" and self.current_tab == 11:
+                elif cmd == "reset" and self.current_tab == 12:
                     self.pending_reset = True
                     self.message = "⚠️ CONFIRMATION REQUIRED: Type 'RESET ALL' to wipe progress & restart fresh, or anything else to cancel!"
                 elif self.current_tab == 4 and cmd.startswith("buy"):
@@ -217,6 +222,15 @@ class PokeTokenBarTUI:
                     self.handle_bag_use(cmd)
                 elif self.current_tab == 4 and cmd.startswith("sell"):
                     self.handle_bag_sell(cmd)
+                elif cmd.startswith("deposit") or cmd.startswith("withdraw") or cmd.startswith("loan") or cmd.startswith("payoff"):
+                    parts = cmd.split()
+                    if len(parts) >= 2:
+                        action = parts[0]
+                        amount_str = parts[1]
+                        ok, msg = self.engine.handle_bank_transaction(action, amount_str)
+                        self.message = msg
+                    else:
+                        self.message = "Usage: deposit, withdraw, loan, or payoff <amount>"
             except KeyboardInterrupt:
                 print("\nExiting PokeTokenBar. Keep coding! 🐾")
                 break
@@ -237,11 +251,12 @@ class PokeTokenBarTUI:
         t8 = f"{BOLD}{CYAN}[8] Monitor{RESET}" if self.current_tab == 8 else "[8] Monitor"
         t9 = f"{BOLD}{CYAN}[9] Hold 'em{RESET}" if self.current_tab == 9 else "[9] Hold 'em"
         t10 = f"{BOLD}{CYAN}[10] Gacha{RESET}" if self.current_tab == 10 else "[10] Gacha"
-        t11 = f"{BOLD}{CYAN}[11] Settings{RESET}" if self.current_tab == 11 else "[11] Settings"
+        t11 = f"{BOLD}{CYAN}[11] Bank{RESET}" if self.current_tab == 11 else "[11] Bank"
+        t12 = f"{BOLD}{CYAN}[12] Settings{RESET}" if self.current_tab == 12 else "[12] Settings"
 
         sys.stdout.write(f"  {t1}   {t2}     {t3}      {t4}\n")
         sys.stdout.write(f"  {t5} {t6}     {t7}      {t8}\n")
-        sys.stdout.write(f"  {t9}    {t10}      {t11}\n")
+        sys.stdout.write(f"  {t9}    {t10}      {t11}       {t12}\n")
         sys.stdout.write("-" * 72 + "\n")
 
     def render_companion_tab(self, summary: dict):
@@ -754,6 +769,26 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"   • 🔮 Rare (15%):      Standard/Uncommon Eggs 🥚, Mega Stone 🔮\n")
         sys.stdout.write(f"   • 🍬 Uncommon (30%):  Rare Candy 🍬, Golden Razz Berry 🍇, +3M Tokens\n")
         sys.stdout.write(f"   • 🫐 Common (45%):    Oran Berry 🫐, Mint 🌿, +1M Tokens\n\n")
+
+    def render_bank_tab(self):
+        avail = self.engine.available_tokens
+        bank = self.engine.state.get("bank_balance", 0)
+        loan = self.engine.state.get("bank_loan", 0)
+        loan_days = self.engine.state.get("loan_days_active", 0)
+
+        sys.stdout.write(f"\n  {BOLD}{GREEN}🏦 Token Bank{RESET}  (Available Spendable Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET})\n\n")
+        sys.stdout.write(f"  {BOLD}Deposited Balance:{RESET} {BOLD}{GREEN}{format_tokens(bank)}{RESET} tokens\n")
+        sys.stdout.write(f"  {BOLD}Active Loan Debt:{RESET}  {BOLD}{RED}{format_tokens(loan)}{RESET} tokens\n")
+        
+        if loan > 0:
+            sys.stdout.write(f"  {BOLD}{RED}🚨 Loan Deadline:{RESET} {loan_days}/7 days until repossession!\n")
+            
+        sys.stdout.write(f"\n  {BOLD}Interest Rates (Daily Compounding):{RESET}\n")
+        sys.stdout.write(f"  • {GREEN}Deposits:{RESET} +5% interest\n")
+        sys.stdout.write(f"  • {RED}Loans:{RESET}    -10% interest (Max Loan: 500.0M tokens)\n\n")
+        sys.stdout.write(f"  {BOLD}Commands:{RESET}\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}deposit <amount>{RESET}' / '{BOLD}withdraw <amount>{RESET}' (e.g. 'deposit 1m')\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}loan <amount>{RESET}' / '{BOLD}payoff <amount>{RESET}' (e.g. 'payoff all')\n\n")
 
     def render_settings_tab(self):
         sys.stdout.write(f"\n  {BOLD}{CYAN}⚙️ Tracking & Application Settings{RESET}\n\n")
