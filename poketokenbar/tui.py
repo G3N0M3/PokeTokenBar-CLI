@@ -681,8 +681,7 @@ class PokeTokenBarTUI:
                 sp_id = exp["sp_id"]
                 sp_name = self.engine.api.get_species_name(sp_id)
                 area = exp["area"]
-                bar = format_progress_bar(exp["progress"], exp["target"], width=10)
-                sys.stdout.write(f"   • {BOLD}{CYAN}{sp_name} (#{sp_id}){RESET} @ {area}: {bar} ({format_tokens(exp['progress'])} / {format_tokens(exp['target'])})\n")
+                sys.stdout.write(f"   • {BOLD}{CYAN}{sp_name} (#{sp_id}){RESET} @ {area}: {format_tokens(exp['progress'])} / {format_tokens(exp['target'])}\n")
             sys.stdout.write("\n")
 
         # Recent Expedition Logs
