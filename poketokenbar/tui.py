@@ -29,6 +29,7 @@ class PokeTokenBarTUI:
         self.message = ""
         self.pending_reset = False
         self.pokedex_page = 1
+        self.roster_page = 1
 
     def clear_screen(self):
         sys.stdout.write("\033[H\033[2J")
@@ -165,15 +166,19 @@ class PokeTokenBarTUI:
                         self.message = "Refreshed logs! " + " ".join(events)
                     else:
                         self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
-                elif cmd in ["n", "next"] and self.current_tab == 2:
-                    self.pokedex_page += 1
+                elif cmd in ["n", "next"] and self.current_tab in [2, 3]:
+                    if self.current_tab == 2: self.pokedex_page += 1
+                    else: self.roster_page += 1
                     self.message = ""
-                elif cmd in ["p", "prev", "previous"] and self.current_tab == 2:
-                    self.pokedex_page = max(1, self.pokedex_page - 1)
+                elif cmd in ["p", "prev", "previous"] and self.current_tab in [2, 3]:
+                    if self.current_tab == 2: self.pokedex_page = max(1, self.pokedex_page - 1)
+                    else: self.roster_page = max(1, self.roster_page - 1)
                     self.message = ""
-                elif cmd.startswith("page ") and self.current_tab == 2:
+                elif cmd.startswith("page ") and self.current_tab in [2, 3]:
                     try:
-                        self.pokedex_page = max(1, int(cmd.split()[1]))
+                        page = max(1, int(cmd.split()[1]))
+                        if self.current_tab == 2: self.pokedex_page = page
+                        else: self.roster_page = page
                         self.message = ""
                     except ValueError:
                         self.message = "Usage: page <number>"
@@ -414,7 +419,16 @@ class PokeTokenBarTUI:
         if not roster:
             sys.stdout.write("  No active companions in your roster. Incubate an egg to start!\n\n")
         else:
-            for idx, entry in enumerate(roster, 1):
+            page_size = 14
+            import math
+            total = len(roster)
+            total_pages = max(1, math.ceil(total / page_size))
+            
+            self.roster_page = min(self.roster_page, total_pages)
+            start_idx = (self.roster_page - 1) * page_size
+            page_roster = roster[start_idx : start_idx + page_size]
+
+            for idx, entry in enumerate(page_roster, start_idx + 1):
                 sp_id = entry.get("species_id", entry.get("final_id", entry.get("base_id")))
                 name = self.engine.api.get_species_name(sp_id)
                 shiny_str = f"{YELLOW}✨{RESET}" if entry.get("is_shiny") else ""
@@ -435,6 +449,9 @@ class PokeTokenBarTUI:
                     status_badge = f"{BOLD}{CYAN}[GRADUATED]{RESET}"
 
                 sys.stdout.write(f"  {idx:2d}. {shiny_str} {BOLD}{name}{RESET} (#{sp_id}) [{rarity}] 💖{hap_val}% {status_badge}\n")
+
+            if total_pages > 1:
+                sys.stdout.write(f"\n  ➔ Page {self.roster_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")
 
         sys.stdout.write(f"\n  ➔ Type '{BOLD}sel <ROW INDEX>|#<POKEMON INDEX>{RESET}', or '{BOLD}sel egg{RESET}' to switch active companion!\n")
         sys.stdout.write(f"  ➔ Type '{BOLD}send <ROW INDEX>|#<POKEMON INDEX> [area]{RESET}' on expedition!\n")
