@@ -852,14 +852,15 @@ class CompanionEngine:
         return mon, events
 
     def _pick_species(self, tier_guarantee: Optional[str] = None) -> Tuple[int, Rarity, List[int], bool]:
-        # Exclude legendaries completely from egg hatches
-        candidates = [c for c in BASE_SPECIES_STARTERS if not c[3]]
-        
-        if tier_guarantee:
-            req_rank = Rarity(tier_guarantee).sort_rank
-            candidates = [c for c in candidates if Rarity.from_capture_rate(c[2], c[3]).sort_rank >= req_rank]
-            if not candidates:
-                candidates = [c for c in BASE_SPECIES_STARTERS if not c[3]]
+        if tier_guarantee == "legendary":
+            candidates = [c for c in BASE_SPECIES_STARTERS if c[3]]
+        else:
+            candidates = [c for c in BASE_SPECIES_STARTERS if not c[3]]
+            if tier_guarantee:
+                req_rank = Rarity(tier_guarantee).sort_rank
+                candidates = [c for c in candidates if Rarity.from_capture_rate(c[2], c[3]).sort_rank >= req_rank]
+                if not candidates:
+                    candidates = [c for c in BASE_SPECIES_STARTERS if not c[3]]
 
         # Block spawning of Pokemon already in the roster (active or inactive)
         dex = self.state.get("dex", [])
@@ -1148,12 +1149,22 @@ class CompanionEngine:
                 if reward == "rare_candy":
                     inv["rare_candy"] = inv.get("rare_candy", 0) + 1
                     reward_str = "+1 Rare Candy 🍬"
+                    if random.random() < 0.05:
+                        inv["map_fragment"] = inv.get("map_fragment", 0) + 1
+                        reward_str += " & +1 Map 📜!"
                 elif reward == "mint":
                     inv["mint"] = inv.get("mint", 0) + 1
                     reward_str = "+1 Mint 🌿"
+                elif reward == "legendary_egg":
+                    self.state["egg_tier"] = "legendary"
+                    self.state["egg_usage"] = 0
+                    reward_str = "a LEGENDARY EGG 🌟!"
                 else:
                     inv["berry_golden"] = inv.get("berry_golden", 0) + 1
                     reward_str = "+1 Golden Razz Berry 🍇"
+                    if random.random() < 0.15:
+                        inv["map_fragment"] = inv.get("map_fragment", 0) + 1
+                        reward_str += " & +1 Map 📜!"
 
                 self.state["inventory"] = inv
 
@@ -1242,10 +1253,20 @@ class CompanionEngine:
         areas = {
             "viridian": ("Viridian Forest", 5_000_000, "mint"),
             "cerulean": ("Cerulean Cave", 15_000_000, "rare_candy"),
-            "silver": ("Mt. Silver", 30_000_000, "golden_razz")
+            "silver": ("Mt. Silver", 30_000_000, "golden_razz"),
+            "spear": ("Spear Pillar (Deep)", 100_000_000, "legendary_egg")
         }
 
         key = area_name.lower().split()[0]
+        if key == "spear":
+            inv = self.state.get("inventory", {})
+            if inv.get("map_fragment", 0) < 3:
+                return False, "You need 3x Maps to dispatch a Deep Expedition to Spear Pillar!"
+            if target_entry.get("happiness", 100) < 100:
+                return False, "Only a companion with 100% Happiness can brave a Deep Expedition to Spear Pillar!"
+            inv["map_fragment"] -= 3
+            self.state["inventory"] = inv
+
         area_tuple = areas.get(key, ("Viridian Forest", 5_000_000, "mint"))
         area_title, target_xp, reward_type = area_tuple
 

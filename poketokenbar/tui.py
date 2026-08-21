@@ -493,6 +493,7 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  [6] 🎫 Expedition Pass: {inv.get('expedition_pass', 0)} owned\n")
         sys.stdout.write(f"  [7] 🪈 Poké Flute:  {inv.get('poke_flute', 0)} owned\n")
         sys.stdout.write(f"  [8] 🌟 Master Ball: {inv.get('master_ball', 0)} owned\n")
+        sys.stdout.write(f"  [9] 📜 Map: {inv.get('map_fragment', 0)} owned\n")
         has_charm = "OWNED (Active)" if inv.get("shiny_charm", 0) > 0 else "Not owned"
         sys.stdout.write(f"  [+] ✨ Shiny Charm: {has_charm}\n\n")
 
@@ -584,6 +585,7 @@ class PokeTokenBarTUI:
             "6": ItemKind.EXPEDITION_PASS,
             "7": ItemKind.POKE_FLUTE,
             "8": ItemKind.MASTER_BALL,
+            "9": ItemKind.MAP_FRAGMENT,
         }
         item_kind = mapping.get(choice)
         if not item_kind:
@@ -670,7 +672,11 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  {BOLD}Available Expedition Destinations:{RESET}\n")
         sys.stdout.write(f"   • Viridian Forest - Target: 5.0M tokens  - Reward: 🌿 Mint\n")
         sys.stdout.write(f"   • Cerulean Cave   - Target: 15.0M tokens - Reward: 🍬 Rare Candy\n")
-        sys.stdout.write(f"   • Mt. Silver      - Target: 30.0M tokens - Reward: 🍇 Golden Razz Berry\n\n")
+        sys.stdout.write(f"                       (+5% chance of finding a Map)\n")
+        sys.stdout.write(f"   • Mt. Silver      - Target: 30.0M tokens - Reward: 🍇 Golden Razz\n")
+        sys.stdout.write(f"                       (+15% chance of finding a Map)\n")
+        sys.stdout.write(f"   • Spear Pillar    - Target: 100.0M tokens (Requires 3x Maps)\n")
+        sys.stdout.write(f"                       Reward: 🌟 LEGENDARY EGG\n\n")
         sys.stdout.write(f"  ➔ Type '{BOLD}send <ROW INDEX>|#<POKEMON INDEX> [area]{RESET}' to dispatch!\n\n")
 
         sys.stdout.write(f"  {BOLD}🗺️ Active Expeditions Status:{RESET}\n")
@@ -681,7 +687,8 @@ class PokeTokenBarTUI:
                 sp_id = exp["sp_id"]
                 sp_name = self.engine.api.get_species_name(sp_id)
                 area = exp["area"]
-                sys.stdout.write(f"   • {BOLD}{CYAN}{sp_name} (#{sp_id}){RESET} @ {area}: {format_tokens(exp['progress'])} / {format_tokens(exp['target'])}\n")
+                pct = (exp["progress"] / exp["target"]) * 100 if exp["target"] > 0 else 0
+                sys.stdout.write(f"   • {BOLD}{CYAN}{sp_name} (#{sp_id}){RESET} @ {area}: {format_tokens(exp['progress'])} / {format_tokens(exp['target'])} ({pct:.0f}%)\n")
             sys.stdout.write("\n")
 
         # Recent Expedition Logs
