@@ -808,10 +808,13 @@ class CompanionEngine:
         # Select base species
         base_id, rarity, chain_ids, is_legendary = self._pick_species(used_tier)
 
-        # Roll Shiny odds (1/64 base or 1/48 if user has Shiny Charm)
+        # Roll Shiny odds (1/64 base, 1/48 with Shiny Charm, or 1/24 with Golden Razz Berry)
         has_charm = self.state.get("inventory", {}).get(ItemKind.SHINY_CHARM.value, 0) > 0
         denom = 48 if has_charm else 64
-        is_shiny = force_shiny or (self.state.get("golden_razz_active", False)) or (random.randint(1, denom) == 1)
+        if self.state.get("golden_razz_active", False):
+            denom = 24
+            
+        is_shiny = force_shiny or (random.randint(1, denom) == 1)
         self.state["golden_razz_active"] = False
 
         # Roll Nature
