@@ -9,6 +9,7 @@ Designed specifically for **Linux CLI** environments, **Antigravity CLI** (`~/.g
 ## ⚡ Key Features
 
 - 🐾 **Terminal Pokémon Companion**: Incubate eggs, hatch Gen 1–5 Pokémon, evolve them, and archive them into your Pokédex as you write code!
+  - **Smart Egg Hatching**: Features rarity-weighted hatch rates based on capture odds, guaranteed duplicate-prevention for your active roster, and legendary exclusion logic!
 - 🎨 **TrueColor ANSI Sprite Rendering**: Renders crisp, colored 24-bit ANSI Pokémon sprites directly inside your Linux CLI.
 - 📡 **Active Token Usage Tracker**: Reads real-time token spend directly from Antigravity CLI SQLite DBs (`gen_metadata` protobuf step stats), Gemini CLI, and Claude Code log files.
 - 📖 **Dedicated Pokédex Archive (Tab [2]) & Roster (Tab [3])**:
@@ -42,9 +43,7 @@ Designed specifically for **Linux CLI** environments, **Antigravity CLI** (`~/.g
 
 - **Individualized Mega Stones**: Transition from the current "Universal Key Item" Mega Stone to species-specific Mega Stones (e.g., *Charizardite X*, *Venusaurite*, *Lucarionite*). This will require players to hunt or pull the exact Mega Stone corresponding to their Pokémon to achieve Mega Evolution, adding deeper collection mechanics!
 - **Split-Evolution Mechanics**: Introduce elemental stones (Water Stone, Thunder Stone, Fire Stone, etc.) to the Shop or Gacha to allow players to manually choose branch evolutions for species like Eevee, Poliwhirl, or Gloom, rather than defaulting to the first Pokédex entry!
-- **Hold'em All-in System**: Allow players to go "All-in" with their entire token balance during Poker matches for massive high-risk, high-reward gameplay.
-- **Token Bank System**: Introduce a banking mechanic where players can deposit tokens to earn interest over time, or take out token loans with an interest rate!
-- **Expedition Fatigue**: Decrease a Pokémon's happiness when they depart for and return from expeditions to add more resource management.
+- **Legendary Spawn Mechanism**: Design and implement a new gameplay mechanism to encounter and catch Legendary Pokémon, since they have been fully excluded from standard egg hatches.
 
 ---
 

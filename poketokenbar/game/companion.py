@@ -852,15 +852,28 @@ class CompanionEngine:
         return mon, events
 
     def _pick_species(self, tier_guarantee: Optional[str] = None) -> Tuple[int, Rarity, List[int], bool]:
-        # Filter candidate pool
-        candidates = BASE_SPECIES_STARTERS
+        # Exclude legendaries completely from egg hatches
+        candidates = [c for c in BASE_SPECIES_STARTERS if not c[3]]
+        
         if tier_guarantee:
             req_rank = Rarity(tier_guarantee).sort_rank
             candidates = [c for c in candidates if Rarity.from_capture_rate(c[2], c[3]).sort_rank >= req_rank]
             if not candidates:
-                candidates = BASE_SPECIES_STARTERS
+                candidates = [c for c in BASE_SPECIES_STARTERS if not c[3]]
 
-        chosen = random.choice(candidates)
+        # Block spawning of Pokemon already in the roster (active or inactive)
+        dex = self.state.get("dex", [])
+        roster_base_ids = {d.get("base_id") for d in dex if d.get("status") in ["active", "inactive"]}
+        filtered_candidates = [c for c in candidates if c[0] not in roster_base_ids]
+        
+        # Fallback if somehow they have all possible Pokemon in the roster
+        if not filtered_candidates:
+            filtered_candidates = candidates
+
+        # Use capture rate as weight for random selection
+        weights = [c[2] for c in filtered_candidates]
+        chosen = random.choices(filtered_candidates, weights=weights, k=1)[0]
+
         sp_id, name, cap_rate, is_leg = chosen
         rarity = Rarity.from_capture_rate(cap_rate, is_leg)
 
