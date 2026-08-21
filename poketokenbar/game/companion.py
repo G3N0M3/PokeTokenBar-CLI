@@ -856,21 +856,49 @@ class CompanionEngine:
             pass
         return ids
 
-    def buy_item(self, item_kind: ItemKind) -> Tuple[bool, str]:
+    def buy_item(self, item_kind: ItemKind, qty: int = 1) -> Tuple[bool, str]:
+        if qty <= 0:
+            return False, "Quantity must be greater than 0!"
+            
         diff = self.current_difficulty
-        cost = item_kind.price_for(diff)
+        unit_cost = item_kind.price_for(diff)
+        cost = unit_cost * qty
+        
         if self.available_tokens < cost:
             return False, f"Not enough tokens! Required: {format_tokens(cost)}, Available: {format_tokens(self.available_tokens)}"
 
         inv = self.state.get("inventory", {})
-        if item_kind == ItemKind.SHINY_CHARM and inv.get(ItemKind.SHINY_CHARM.value, 0) > 0:
-            return False, "You already own the Shiny Charm!"
+        if item_kind == ItemKind.SHINY_CHARM:
+            if qty > 1:
+                return False, "You can only buy 1 Shiny Charm!"
+            if inv.get(ItemKind.SHINY_CHARM.value, 0) > 0:
+                return False, "You already own the Shiny Charm!"
 
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + cost
-        inv[item_kind.value] = inv.get(item_kind.value, 0) + 1
+        inv[item_kind.value] = inv.get(item_kind.value, 0) + qty
         self.state["inventory"] = inv
         self.save()
-        return True, f"Successfully purchased {item_kind.name_en} ({item_kind.emoji})!"
+        return True, f"Successfully purchased {qty}x {item_kind.name_en} ({item_kind.emoji})!"
+
+    def sell_item(self, item_kind: ItemKind, qty: int = 1) -> Tuple[bool, str]:
+        if qty <= 0:
+            return False, "Quantity must be greater than 0!"
+            
+        inv = self.state.get("inventory", {})
+        count = inv.get(item_kind.value, 0)
+        if count < qty:
+            return False, f"You don't have {qty}x {item_kind.name_en} in your Bag to sell!"
+
+        diff = self.current_difficulty
+        unit_cost = item_kind.price_for(diff)
+        sell_value = int(unit_cost * 0.8) * qty
+
+        inv[item_kind.value] -= qty
+        self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - sell_value)
+        self.state["inventory"] = inv
+        self.save()
+        
+        return True, f"Successfully sold {qty}x {item_kind.name_en} ({item_kind.emoji}) for +{format_tokens(sell_value)} Tokens!"
 
     def use_item(self, item_kind: ItemKind) -> Tuple[bool, str]:
         inv = self.state.get("inventory", {})
@@ -1127,6 +1155,11 @@ class CompanionEngine:
 
         sp_id = target_entry.get("species_id", target_entry.get("base_id"))
         sp_name = self.api.get_species_name(sp_id)
+
+        # Check if active companion
+        active = self.active_mon
+        if active and active.current_id == sp_id:
+            return False, f"You cannot send your currently active companion ({sp_name}) on an expedition! Select a different companion first."
 
         # Check if already on expedition
         if any(e["sp_id"] == sp_id for e in expeditions):

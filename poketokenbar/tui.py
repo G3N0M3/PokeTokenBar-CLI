@@ -28,6 +28,7 @@ class PokeTokenBarTUI:
         self.current_tab = 1
         self.message = ""
         self.pending_reset = False
+        self.pokedex_page = 1
 
     def clear_screen(self):
         sys.stdout.write("\033[H\033[2J")
@@ -159,6 +160,18 @@ class PokeTokenBarTUI:
                         self.message = "Refreshed logs! " + " ".join(events)
                     else:
                         self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
+                elif cmd in ["n", "next"] and self.current_tab == 2:
+                    self.pokedex_page += 1
+                    self.message = ""
+                elif cmd in ["p", "prev", "previous"] and self.current_tab == 2:
+                    self.pokedex_page = max(1, self.pokedex_page - 1)
+                    self.message = ""
+                elif cmd.startswith("page ") and self.current_tab == 2:
+                    try:
+                        self.pokedex_page = max(1, int(cmd.split()[1]))
+                        self.message = ""
+                    except ValueError:
+                        self.message = "Usage: page <number>"
                 elif cmd.startswith("select") or cmd.startswith("sel ") or cmd == "sel":
                     parts = cmd.split()
                     if len(parts) >= 2:
@@ -202,6 +215,8 @@ class PokeTokenBarTUI:
                     self.handle_shop_buy(cmd)
                 elif self.current_tab == 4 and cmd.startswith("use"):
                     self.handle_bag_use(cmd)
+                elif self.current_tab == 4 and cmd.startswith("sell"):
+                    self.handle_bag_sell(cmd)
             except KeyboardInterrupt:
                 print("\nExiting PokeTokenBar. Keep coding! 🐾")
                 break
@@ -226,7 +241,7 @@ class PokeTokenBarTUI:
 
         sys.stdout.write(f"  {t1}   {t2}     {t3}      {t4}\n")
         sys.stdout.write(f"  {t5} {t6}     {t7}      {t8}\n")
-        sys.stdout.write(f"  {t9}    {t10}    {t11}\n")
+        sys.stdout.write(f"  {t9}    {t10}      {t11}\n")
         sys.stdout.write("-" * 72 + "\n")
 
     def render_companion_tab(self, summary: dict):
@@ -319,7 +334,15 @@ class PokeTokenBarTUI:
             expeditions = self.engine.state.get("expeditions", [])
             exp_map = {e["sp_id"]: e for e in expeditions}
 
-            for idx, entry in enumerate(dex, 1):
+            page_size = 15
+            total_pages = max(1, (len(dex) - 1) // page_size + 1)
+            self.pokedex_page = max(1, min(self.pokedex_page, total_pages))
+
+            start_idx = (self.pokedex_page - 1) * page_size
+            end_idx = start_idx + page_size
+            page_dex = dex[start_idx:end_idx]
+
+            for idx, entry in enumerate(page_dex, start_idx + 1):
                 sp_id = entry.get("species_id", entry.get("final_id", entry.get("base_id")))
                 name = self.engine.api.get_species_name(sp_id)
                 shiny_str = f"{YELLOW}✨{RESET}" if entry.get("is_shiny") else ""
@@ -341,7 +364,10 @@ class PokeTokenBarTUI:
 
                 sys.stdout.write(f"  {idx:2d}. {shiny_str} {BOLD}{name}{RESET} (#{sp_id}) [{rarity}] {status_badge}\n")
 
-        sys.stdout.write(f"\n  ➔ Complete evolutions and hatch eggs to discover all Pokédex entries!\n\n")
+            if total_pages > 1:
+                sys.stdout.write(f"\n  ➔ Page {self.pokedex_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")
+            else:
+                sys.stdout.write(f"\n  ➔ Complete evolutions and hatch eggs to discover all Pokédex entries!\n\n")
 
     def render_roster_tab(self):
         active = self.engine.active_mon
@@ -416,7 +442,7 @@ class PokeTokenBarTUI:
         p_egg2 = format_tokens(prices["egg_uncommon"])
 
         sys.stdout.write(f"\n  {BOLD}{YELLOW}🛒 Token Shop & Bag{RESET}  (Available Spendable Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET})\n\n")
-        sys.stdout.write(f"  {BOLD}Shop Items (Type 'buy <number>' to purchase):{RESET}\n")
+        sys.stdout.write(f"  {BOLD}Shop Items (Type 'buy <number> [qty]' to purchase):{RESET}\n")
         sys.stdout.write(f"  [1] 🍬 Rare Candy     - Cost: {p_rc:<6} tokens  (Grants +{p_rc_xp} XP)\n")
         sys.stdout.write(f"  [2] 🌿 Mint           - Cost: {p_mint:<6} tokens  (Rerolls nature)\n")
         sys.stdout.write(f"  [3] ✨ Shiny Charm    - Cost: {p_charm:<6} tokens  (Passive 1/48 shiny odds)\n")
@@ -426,7 +452,7 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  [7] 🍇 Golden Razz    - Cost: 5.0M   tokens  (Boosts next egg shiny odds to 1/24!)\n")
         sys.stdout.write(f"  [8] 🔮 Mega Stone     - Cost: 50.0M  tokens  (Mega Evolve eligible final forms!)\n\n")
 
-        sys.stdout.write(f"  {BOLD}Your Bag (Type 'use <number>' to use):{RESET}\n")
+        sys.stdout.write(f"  {BOLD}Your Bag (Type 'use <number>' to use, or 'sell <number> [qty]' to sell):{RESET}\n")
         sys.stdout.write(f"  [1] 🍬 Rare Candy: {inv.get('rare_candy', 0)} owned\n")
         sys.stdout.write(f"  [2] 🌿 Mint:       {inv.get('mint', 0)} owned\n")
         sys.stdout.write(f"  [3] 🫐 Oran Berry: {inv.get('berry_oran', 0)} owned\n")
@@ -439,23 +465,38 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  [+] ✨ Shiny Charm: {has_charm}\n\n")
 
     def handle_shop_buy(self, cmd: str):
-        choice = cmd.split()[-1]
+        parts = cmd.split()
+        choice = parts[1] if len(parts) > 1 else ""
+        qty = 1
+        if len(parts) >= 3:
+            try:
+                qty = int(parts[2])
+            except ValueError:
+                self.message = "Invalid quantity."
+                return
+
         if choice == "1":
-            ok, msg = self.engine.buy_item(ItemKind.RARE_CANDY)
+            ok, msg = self.engine.buy_item(ItemKind.RARE_CANDY, qty)
         elif choice == "2":
-            ok, msg = self.engine.buy_item(ItemKind.MINT)
+            ok, msg = self.engine.buy_item(ItemKind.MINT, qty)
         elif choice == "3":
-            ok, msg = self.engine.buy_item(ItemKind.SHINY_CHARM)
+            ok, msg = self.engine.buy_item(ItemKind.SHINY_CHARM, qty)
         elif choice == "4":
+            if qty > 1:
+                self.message = "You can only hold one egg!"
+                return
             ok, msg = self.engine.buy_egg(None)
         elif choice == "5":
+            if qty > 1:
+                self.message = "You can only hold one egg!"
+                return
             ok, msg = self.engine.buy_egg(Rarity.UNCOMMON)
         elif choice == "6":
-            ok, msg = self.engine.buy_item(ItemKind.BERRY_ORAN)
+            ok, msg = self.engine.buy_item(ItemKind.BERRY_ORAN, qty)
         elif choice == "7":
-            ok, msg = self.engine.buy_item(ItemKind.BERRY_GOLDEN)
+            ok, msg = self.engine.buy_item(ItemKind.BERRY_GOLDEN, qty)
         elif choice == "8":
-            ok, msg = self.engine.buy_item(ItemKind.MEGA_STONE)
+            ok, msg = self.engine.buy_item(ItemKind.MEGA_STONE, qty)
         else:
             ok, msg = False, "Invalid shop selection."
         self.message = msg
@@ -481,6 +522,51 @@ class PokeTokenBarTUI:
         else:
             ok, msg = False, "Invalid bag selection."
         self.message = msg
+
+    def handle_bag_sell(self, cmd: str):
+        parts = cmd.split()
+        choice = parts[1] if len(parts) > 1 else ""
+        qty = 1
+        if len(parts) >= 3:
+            try:
+                qty = int(parts[2])
+            except ValueError:
+                self.message = "Invalid quantity."
+                return
+
+        mapping = {
+            "1": ItemKind.RARE_CANDY,
+            "2": ItemKind.MINT,
+            "3": ItemKind.BERRY_ORAN,
+            "4": ItemKind.BERRY_GOLDEN,
+            "5": ItemKind.MEGA_STONE,
+            "6": ItemKind.EXPEDITION_PASS,
+            "7": ItemKind.POKE_FLUTE,
+            "8": ItemKind.MASTER_BALL,
+        }
+        item_kind = mapping.get(choice)
+        if not item_kind:
+            self.message = "Invalid bag selection."
+            return
+
+        inv = self.engine.state.get("inventory", {})
+        if inv.get(item_kind.value, 0) < qty:
+            self.message = f"You don't have {qty}x {item_kind.name_en} in your Bag to sell!"
+            return
+
+        cost = item_kind.price_for(self.engine.current_difficulty)
+        sell_value = int(cost * 0.8) * qty
+
+        sys.stdout.write(f"\n  {BOLD}{YELLOW}💰 SELL CONFIRMATION{RESET}\n")
+        sys.stdout.write(f"  Are you sure you want to sell {qty}x {item_kind.name_en} ({item_kind.emoji}) for +{format_tokens(sell_value)} Tokens? (y/n)> ")
+        sys.stdout.flush()
+        
+        ans = sys.stdin.readline().strip().lower()
+        if ans in ["y", "yes"]:
+            ok, msg = self.engine.sell_item(item_kind, qty)
+            self.message = msg
+        else:
+            self.message = f"Canceled selling {qty}x {item_kind.name_en}."
 
     def render_quests_tab(self):
         qdata = self.engine.state.get("daily_quests", {})
