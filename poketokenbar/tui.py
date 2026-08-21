@@ -396,7 +396,11 @@ class PokeTokenBarTUI:
                 sys.stdout.write(f"  {idx:2d}. {shiny_str} {BOLD}{name}{RESET} (#{sp_id}) [{rarity}] 💖{hap_val}% {status_badge}\n")
 
         sys.stdout.write(f"\n  ➔ Type '{BOLD}sel <ROW INDEX>|#<POKEMON INDEX>{RESET}', or '{BOLD}sel egg{RESET}' to switch active companion!\n")
-        sys.stdout.write(f"  ➔ Type '{BOLD}send <ROW INDEX>|#<POKEMON INDEX> [area]{RESET}' on expedition!\n\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}send <ROW INDEX>|#<POKEMON INDEX> [area]{RESET}' on expedition!\n")
+        sys.stdout.write(f"     Areas:\n")
+        sys.stdout.write(f"       • '{BOLD}viridian{RESET}' (5M, Mint)\n")
+        sys.stdout.write(f"       • '{BOLD}cerulean{RESET}' (15M, Rare Candy)\n")
+        sys.stdout.write(f"       • '{BOLD}silver{RESET}'   (30M, Golden Razz)\n\n")
 
     def render_shop_tab(self):
         avail = self.engine.available_tokens
