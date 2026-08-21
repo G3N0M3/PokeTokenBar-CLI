@@ -517,23 +517,32 @@ class PokeTokenBarTUI:
         self.message = msg
 
     def handle_bag_use(self, cmd: str):
-        choice = cmd.split()[-1]
+        parts = cmd.split()
+        choice = parts[1] if len(parts) > 1 else ""
+        qty = 1
+        if len(parts) > 2:
+            try:
+                qty = int(parts[2])
+            except ValueError:
+                self.message = "Invalid quantity."
+                return
+
         if choice == "1":
-            ok, msg = self.engine.use_item(ItemKind.RARE_CANDY)
+            ok, msg = self.engine.use_item(ItemKind.RARE_CANDY, qty)
         elif choice == "2":
-            ok, msg = self.engine.use_item(ItemKind.MINT)
+            ok, msg = self.engine.use_item(ItemKind.MINT, qty)
         elif choice == "3":
-            ok, msg = self.engine.use_item(ItemKind.BERRY_ORAN)
+            ok, msg = self.engine.use_item(ItemKind.BERRY_ORAN, qty)
         elif choice == "4":
-            ok, msg = self.engine.use_item(ItemKind.BERRY_GOLDEN)
+            ok, msg = self.engine.use_item(ItemKind.BERRY_GOLDEN, qty)
         elif choice == "5":
-            ok, msg = self.engine.use_item(ItemKind.MEGA_STONE)
+            ok, msg = self.engine.use_item(ItemKind.MEGA_STONE, qty)
         elif choice == "6":
-            ok, msg = self.engine.use_item(ItemKind.EXPEDITION_PASS)
+            ok, msg = self.engine.use_item(ItemKind.EXPEDITION_PASS, qty)
         elif choice == "7":
-            ok, msg = self.engine.use_item(ItemKind.POKE_FLUTE)
+            ok, msg = self.engine.use_item(ItemKind.POKE_FLUTE, qty)
         elif choice == "8":
-            ok, msg = self.engine.use_item(ItemKind.MASTER_BALL)
+            ok, msg = self.engine.use_item(ItemKind.MASTER_BALL, qty)
         else:
             ok, msg = False, "Invalid bag selection."
         self.message = msg

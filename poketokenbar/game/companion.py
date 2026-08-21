@@ -937,32 +937,37 @@ class CompanionEngine:
         
         return True, f"Successfully sold {qty}x {item_kind.name_en} ({item_kind.emoji}) for +{format_tokens(sell_value)} Tokens!"
 
-    def use_item(self, item_kind: ItemKind) -> Tuple[bool, str]:
+    def use_item(self, item_kind: ItemKind, qty: int = 1) -> Tuple[bool, str]:
+        if qty <= 0:
+            return False, "Quantity must be greater than 0."
+            
         inv = self.state.get("inventory", {})
         count = inv.get(item_kind.value, 0)
-        if count <= 0:
-            return False, f"You don't have any {item_kind.name_en} in your Bag!"
+        if count < qty:
+            return False, f"You don't have enough {item_kind.name_en} in your Bag!"
 
         active = self.active_mon
         if item_kind == ItemKind.RARE_CANDY:
             if active is None:
                 return False, "You need an active Pokémon companion to give Rare Candy!"
-            inv[item_kind.value] -= 1
+            inv[item_kind.value] -= qty
             self.state["inventory"] = inv
 
-            xp_grant = int(self.current_difficulty.shop_prices["rare_candy"] * 0.6)
+            xp_grant = int(self.current_difficulty.shop_prices["rare_candy"] * 0.6) * qty
             active.used_at_stage += xp_grant
             self.set_active_mon(active)
 
             events = self._check_growth(active)
             self.save()
 
-            msg = f"Gave 1 Rare Candy 🍬 to {self.api.get_species_name(active.current_id)}! (+{format_tokens(xp_grant)} XP)"
+            msg = f"Gave {qty} Rare Candy 🍬 to {self.api.get_species_name(active.current_id)}! (+{format_tokens(xp_grant)} XP)"
             if events:
                 msg += "\n" + "\n".join(events)
             return True, msg
 
         elif item_kind == ItemKind.MINT:
+            if qty > 1:
+                return False, "You can only use one Mint at a time!"
             if active is None:
                 return False, "You need an active Pokémon companion to use a Mint!"
             inv[item_kind.value] -= 1
@@ -976,14 +981,16 @@ class CompanionEngine:
         elif item_kind == ItemKind.BERRY_ORAN:
             if active is None:
                 return False, "You need an active Pokémon companion to feed an Oran Berry!"
-            inv[item_kind.value] -= 1
-            active.happiness = min(100, active.happiness + 25)
+            inv[item_kind.value] -= qty
+            active.happiness = min(100, active.happiness + (25 * qty))
             self.set_active_mon(active)
             self.state["inventory"] = inv
             self.save()
-            return True, f"Fed Oran Berry 🫐 to {self.api.get_species_name(active.current_id)}! (+25% Happiness! Current: {active.happiness}%)"
+            return True, f"Fed {qty} Oran Berry 🫐 to {self.api.get_species_name(active.current_id)}! (+{25 * qty}% Happiness! Current: {active.happiness}%)"
 
         elif item_kind == ItemKind.BERRY_GOLDEN:
+            if qty > 1:
+                return False, "You can only use one Golden Razz Berry at a time!"
             inv[item_kind.value] -= 1
             self.state["golden_razz_active"] = True
             self.state["inventory"] = inv
@@ -991,9 +998,13 @@ class CompanionEngine:
             return True, "Used Golden Razz Berry 🍇! Shiny odds on your NEXT egg hatch boosted to 1/24! ✨"
 
         elif item_kind == ItemKind.MEGA_STONE:
+            if qty > 1:
+                return False, "You can only use one Mega Stone at a time!"
             return self.toggle_mega_evolution()
 
         elif item_kind == ItemKind.EXPEDITION_PASS:
+            if qty > 1:
+                return False, "You can only use one Expedition Pass at a time!"
             expeditions = self.state.get("expeditions", [])
             if not expeditions:
                 return False, "You have no active expeditions to complete!"
@@ -1008,6 +1019,8 @@ class CompanionEngine:
             return True, "\n".join(events)
 
         elif item_kind == ItemKind.POKE_FLUTE:
+            if qty > 1:
+                return False, "You can only use one Poké Flute at a time!"
             if self.state.get("active_boss"):
                 return False, "A Gym Boss is already active! Defeat them first!"
             
