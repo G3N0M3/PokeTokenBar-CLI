@@ -39,7 +39,9 @@ class PokeTokenBarTUI:
         """Main interactive event loop."""
         # Initial refresh
         summary = self.tracker.get_summary()
-        self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
+        events = self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
+        if events:
+            self.message = "\n".join(events)
 
         while True:
             pending_eggs = self.engine.state.get("pending_eggs", [])
@@ -163,7 +165,7 @@ class PokeTokenBarTUI:
                     summary = self.tracker.get_summary()
                     events = self.engine.process_usage(summary["total_tokens"])
                     if events:
-                        self.message = "Refreshed logs! " + " ".join(events)
+                        self.message = "Refreshed logs!\n" + "\n".join(events)
                     else:
                         self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
                 elif cmd in ["n", "next"] and self.current_tab in [2, 3]:
@@ -830,7 +832,13 @@ class PokeTokenBarTUI:
     def render_footer(self):
         sys.stdout.write("-" * 72 + "\n")
         if self.message:
-            sys.stdout.write(f"  {GREEN}➔ {self.message}{RESET}\n")
+            for line in self.message.split("\n"):
+                if line.lstrip().startswith("➔"):
+                    sys.stdout.write(f"  {GREEN}  {line.lstrip()}{RESET}\n")
+                elif line.startswith("  "):
+                    sys.stdout.write(f"  {GREEN}{line}{RESET}\n")
+                else:
+                    sys.stdout.write(f"  {GREEN}➔ {line}{RESET}\n")
 
 def main():
     tui = PokeTokenBarTUI()
