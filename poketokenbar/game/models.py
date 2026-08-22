@@ -193,6 +193,7 @@ class MonState:
     ditto_disguise: Optional[int] = None
     ditto_revealed: bool = False
     is_mega: bool = False
+    mega_form: Optional[str] = None
     happiness: int = 100
 
     @property
@@ -213,3 +214,25 @@ class DexEntry:
     is_shiny: bool = False
     nature: Optional[PokemonNature] = None
     names: Dict[int, Dict[str, str]] = field(default_factory=dict)
+
+MEGA_STONES = {
+    "3": "Venusaurite",
+    "6_X": "Charizardite X",
+    "6_Y": "Charizardite Y",
+    "9": "Blastoisinite",
+    "65": "Alakazite",
+    "94": "Gengarite",
+    "130": "Gyaradosite",
+    "142": "Aerodactylite",
+    "150_X": "Mewtwonite X",
+    "150_Y": "Mewtwonite Y",
+    "181": "Ampharosite",
+    "212": "Scizorite",
+    "248": "Tyranitarite",
+    "282": "Gardevoirite",
+    "359": "Absolite",
+    "373": "Salamencite",
+    "376": "Metagrossite",
+    "445": "Garchompite",
+    "448": "Lucarionite"
+}

@@ -94,7 +94,7 @@ class PokeTokenBarTUI:
             elif self.current_tab == 7:
                 self.render_quests_tab()
             elif self.current_tab == 8:
-                self.render_monitor_tab(summary)
+                self.render_mega_evo_tab()
             elif self.current_tab == 9:
                 self.render_poker_tab()
             elif self.current_tab == 10:
@@ -229,6 +229,9 @@ class PokeTokenBarTUI:
                     self.handle_bag_use(cmd)
                 elif self.current_tab == 4 and cmd.startswith("sell"):
                     self.handle_bag_sell(cmd)
+                elif self.current_tab == 8 and cmd == "use":
+                    ok, msg = self.engine.use_item(ItemKind.MEGA_STONE, 1)
+                    self.message = msg
                 elif cmd.startswith("deposit") or cmd.startswith("withdraw") or cmd.startswith("loan") or cmd.startswith("payoff"):
                     parts = cmd.split()
                     if len(parts) >= 2:
@@ -255,7 +258,7 @@ class PokeTokenBarTUI:
         t5 = f"{BOLD}{CYAN}[5] Expeditions{RESET}" if self.current_tab == 5 else "[5] Expeditions"
         t6 = f"{BOLD}{CYAN}[6] Battles{RESET}" if self.current_tab == 6 else "[6] Battles"
         t7 = f"{BOLD}{CYAN}[7] Quests{RESET}" if self.current_tab == 7 else "[7] Quests"
-        t8 = f"{BOLD}{CYAN}[8] Monitor{RESET}" if self.current_tab == 8 else "[8] Monitor"
+        t8 = f"{BOLD}{CYAN}[8] Mega-Evo{RESET}" if self.current_tab == 8 else "[8] Mega-Evo"
         t9 = f"{BOLD}{CYAN}[9] Hold 'em{RESET}" if self.current_tab == 9 else "[9] Hold 'em"
         t10 = f"{BOLD}{CYAN}[10] Gacha{RESET}" if self.current_tab == 10 else "[10] Gacha"
         t11 = f"{BOLD}{CYAN}[11] Bank{RESET}" if self.current_tab == 11 else "[11] Bank"
@@ -298,14 +301,28 @@ class PokeTokenBarTUI:
             render_id = sp_id
             if active.is_mega:
                 mega_map = {
-                    3: 10033,   # Mega Venusaur
-                    6: 10034,   # Mega Charizard X
-                    9: 10036,   # Mega Blastoise
-                    94: 10038,  # Mega Gengar
-                    150: 10043, # Mega Mewtwo X
-                    448: 10059  # Mega Lucario
+                    "3": 10033,
+                    "6_X": 10034,
+                    "6_Y": 10035,
+                    "9": 10036,
+                    "65": 10065, 
+                    "94": 10038,
+                    "130": 10041,
+                    "142": 10042,
+                    "150_X": 10043,
+                    "150_Y": 10044,
+                    "181": 10045,
+                    "212": 10046,
+                    "248": 10049,
+                    "282": 10051,
+                    "359": 10057,
+                    "373": 10089,
+                    "376": 10076,
+                    "445": 10058,
+                    "448": 10059
                 }
-                render_id = mega_map.get(sp_id, sp_id)
+                form_key = f"{sp_id}_{active.mega_form}" if getattr(active, 'mega_form', None) in ["X", "Y"] else str(sp_id)
+                render_id = mega_map.get(form_key, sp_id)
                 
             sprite_path = self.engine.api.download_sprite(render_id, is_shiny=active.is_shiny)
             if sprite_path:
@@ -484,14 +501,24 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  [5] 🥚 Uncommon Egg   - Cost: {p_egg2:<6} tokens  (Guarantees Uncommon+ egg)\n")
         sys.stdout.write(f"  [6] 🫐 Oran Berry     - Cost: 1.0M   tokens  (+25% Companion Happiness)\n")
         sys.stdout.write(f"  [7] 🍇 Golden Razz    - Cost: 5.0M   tokens  (Boosts next egg shiny odds to 1/24!)\n")
-        sys.stdout.write(f"  [8] 🔮 Mega Stone     - Cost: 50.0M  tokens  (Mega Evolve eligible final forms!)\n\n")
+        sys.stdout.write(f"  [8] 🔮 Mega Stone (Mystery) - Cost: 50.0M tokens (Grants a random species Mega Stone!)\n\n")
 
         sys.stdout.write(f"  {BOLD}Your Bag (Type 'use <number>' to use, or 'sell <number> [qty]' to sell):{RESET}\n")
         sys.stdout.write(f"  [1] 🍬 Rare Candy: {inv.get('rare_candy', 0)} owned\n")
         sys.stdout.write(f"  [2] 🌿 Mint:       {inv.get('mint', 0)} owned\n")
         sys.stdout.write(f"  [3] 🫐 Oran Berry: {inv.get('berry_oran', 0)} owned\n")
         sys.stdout.write(f"  [4] 🍇 Golden Razz: {inv.get('berry_golden', 0)} owned\n")
-        sys.stdout.write(f"  [5] 🔮 Mega Stone:  {inv.get('mega_stone', 0)} owned\n")
+        
+        stones = []
+        from poketokenbar.game.models import MEGA_STONES
+        for sp_id, stone_name in MEGA_STONES.items():
+            k = f"mega_stone_{sp_id}"
+            c = inv.get(k, 0)
+            if c > 0: stones.append(f"{stone_name} x{c}")
+        if inv.get("mega_stone", 0) > 0: stones.append(f"Universal Stone x{inv['mega_stone']}")
+        stones_str = ", ".join(stones) if stones else "0 owned"
+        sys.stdout.write(f"  [5] 🔮 Mega Stones: {stones_str}\n")
+        
         sys.stdout.write(f"  [6] 🎫 Expedition Pass: {inv.get('expedition_pass', 0)} owned\n")
         sys.stdout.write(f"  [7] 🪈 Poké Flute:  {inv.get('poke_flute', 0)} owned\n")
         sys.stdout.write(f"  [8] 🌟 Master Ball: {inv.get('master_ball', 0)} owned\n")
@@ -602,8 +629,25 @@ class PokeTokenBarTUI:
         cost = item_kind.price_for(self.engine.current_difficulty)
         sell_value = int(cost * 0.8) * qty
 
+        item_name = item_kind.name_en
+        if item_kind == item_kind.MEGA_STONE:
+            found_key = "mega_stone"
+            item_name = "Universal Mega Stone"
+            if inv.get("mega_stone", 0) < qty:
+                found_key = None
+                from poketokenbar.game.models import MEGA_STONES
+                for sp_id, s_name in MEGA_STONES.items():
+                    k = f"mega_stone_{sp_id}"
+                    if inv.get(k, 0) >= qty:
+                        found_key = k
+                        item_name = s_name
+                        break
+            if not found_key:
+                self.message = f"You don't have {qty}x of any specific Mega Stone in your Bag to sell!"
+                return
+
         sys.stdout.write(f"\n  {BOLD}{YELLOW}💰 SELL CONFIRMATION{RESET}\n")
-        sys.stdout.write(f"  Are you sure you want to sell {qty}x {item_kind.name_en} ({item_kind.emoji}) for +{format_tokens(sell_value)} Tokens? (y/n)> ")
+        sys.stdout.write(f"  Are you sure you want to sell {qty}x {item_name} ({item_kind.emoji}) for +{format_tokens(sell_value)} Tokens? (y/n)> ")
         sys.stdout.flush()
         
         ans = sys.stdin.readline().strip().lower()
@@ -721,7 +765,11 @@ class PokeTokenBarTUI:
             bar = format_progress_bar(hp_cur, hp_tot)
             sys.stdout.write(f"   Boss: {BOLD}{RED}{b_name} (#{b_sp_id}){RESET} - Reward: {badge}\n")
             sys.stdout.write(f"   Boss HP: {bar} ({format_tokens(hp_cur)} / {format_tokens(hp_tot)})\n")
-            sys.stdout.write("   ➔ Attack the boss by spending tokens in Antigravity CLI!\n\n")
+            active = self.engine.active_mon
+            if active and active.is_mega:
+                sys.stdout.write(f"   ➔ {GREEN}✨ MEGA BONUS: Dealing 2x Damage!{RESET} Spend tokens to attack!\n\n")
+            else:
+                sys.stdout.write("   ➔ Attack the boss by spending tokens in Antigravity CLI!\n\n")
         else:
             sys.stdout.write("   No active Boss Raid. Reach daily token milestones to summon Gym Bosses!\n\n")
 
@@ -738,15 +786,45 @@ class PokeTokenBarTUI:
                 sys.stdout.write(f"   {log}\n")
             sys.stdout.write("\n")
 
-    def render_monitor_tab(self, summary: dict):
-        sys.stdout.write(f"\n  {BOLD}{CYAN}📡 Live Token Usage Monitor{RESET}\n\n")
-        sys.stdout.write(f"  Active Log Sources Detected:\n")
-        sys.stdout.write(f"   • Antigravity CLI (~/.gemini/antigravity-cli/conversations/*.db)\n")
-        sys.stdout.write(f"   • Gemini CLI      (~/.gemini/tmp/**/chats/*.json*)\n")
-        sys.stdout.write(f"   • Claude Code     (~/.claude/projects/**/*.jsonl)\n\n")
-        sys.stdout.write(f"  Current Burn Rate: {BOLD}{YELLOW}{format_tokens(summary['burn_rate_tpm'])} tokens/minute{RESET}\n")
-        sys.stdout.write(f"  Total Indexed Calls: {summary['total_entries']:,}\n")
-        sys.stdout.write(f"  Last Scan Timestamp: {summary['last_updated'].strftime('%H:%M:%S')}\n\n")
+    def render_mega_evo_tab(self):
+        sys.stdout.write(f"\n  {BOLD}{HEADER}🔮 Mega Evolution Interface{RESET}\n\n")
+        
+        active = self.engine.active_mon
+        if active:
+            sp_name = self.engine.api.get_species_name(active.current_id)
+            sp_id = str(active.current_id)
+            from poketokenbar.game.models import MEGA_STONES
+            is_eligible = any(str(k).startswith(sp_id) for k in MEGA_STONES.keys())
+            
+            sys.stdout.write(f"  {BOLD}Active Companion:{RESET} {CYAN}{sp_name} (#{active.current_id}){RESET}\n")
+            if is_eligible:
+                if active.is_mega:
+                    form_str = f" {active.mega_form}" if getattr(active, 'mega_form', None) in ["X", "Y"] else ""
+                    sys.stdout.write(f"  {BOLD}Status:{RESET} {GREEN}MEGA EVOLVED! ✨ (Form{form_str} +50% Bonus XP active){RESET}\n")
+                else:
+                    sys.stdout.write(f"  {BOLD}Status:{RESET} Standard Form (Available for Mega-Evo!)\n")
+            else:
+                sys.stdout.write(f"  {BOLD}Status:{RESET} {RED}Not Eligible for Mega Evolution{RESET}\n")
+        else:
+            sys.stdout.write(f"  {BOLD}Active Companion:{RESET} None (Select a companion from the Roster!)\n")
+        
+        sys.stdout.write(f"\n  {BOLD}Your Mega Stones:{RESET}\n")
+        inv = self.engine.state.get("inventory", {})
+        stones = []
+        from poketokenbar.game.models import MEGA_STONES
+        for sp_id, stone_name in MEGA_STONES.items():
+            k = f"mega_stone_{sp_id}"
+            c = inv.get(k, 0)
+            if c > 0: stones.append(f"{stone_name} x{c}")
+        if inv.get("mega_stone", 0) > 0: stones.append(f"Universal Stone x{inv['mega_stone']}")
+        
+        if not stones:
+            sys.stdout.write("   You don't own any Mega Stones yet. Find them in the Gacha or Shop!\n")
+        else:
+            for s in stones:
+                sys.stdout.write(f"   • {s}\n")
+                
+        sys.stdout.write(f"\n  ➔ Type '{BOLD}use{RESET}' to use a compatible Mega Stone on your Active Companion!\n\n")
 
     def render_poker_tab(self):
         avail = self.engine.available_tokens

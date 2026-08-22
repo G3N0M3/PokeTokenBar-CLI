@@ -456,7 +456,9 @@ class CompanionEngine:
                     break
 
         if active_boss is not None:
-            active_boss["current_hp"] -= delta
+            active = self.active_mon
+            damage = int(delta * 2.0) if (active and active.is_mega) else delta
+            active_boss["current_hp"] -= damage
             if active_boss["current_hp"] <= 0:
                 active_boss["current_hp"] = 0
                 badge = active_boss["badge"]
@@ -928,6 +930,18 @@ class CompanionEngine:
             if inv.get(ItemKind.SHINY_CHARM.value, 0) > 0:
                 return False, "You already own the Shiny Charm!"
 
+        if item_kind == ItemKind.MEGA_STONE:
+            import random
+            from poketokenbar.game.models import MEGA_STONES
+            stone_id = random.choice(list(MEGA_STONES.keys()))
+            stone_key = f"mega_stone_{stone_id}"
+            stone_name = MEGA_STONES[stone_id]
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + cost
+            inv[stone_key] = inv.get(stone_key, 0) + qty
+            self.state["inventory"] = inv
+            self.save()
+            return True, f"Successfully purchased {qty}x Mystery Mega Stone! You unboxed: 🔮 {stone_name}!"
+
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + cost
         inv[item_kind.value] = inv.get(item_kind.value, 0) + qty
         self.state["inventory"] = inv
@@ -939,6 +953,31 @@ class CompanionEngine:
             return False, "Quantity must be greater than 0!"
             
         inv = self.state.get("inventory", {})
+        
+        if item_kind == ItemKind.MEGA_STONE:
+            target_key = "mega_stone"
+            target_name = "Universal Mega Stone"
+            if inv.get("mega_stone", 0) < qty:
+                target_key = None
+                from poketokenbar.game.models import MEGA_STONES
+                for sp_id, s_name in MEGA_STONES.items():
+                    k = f"mega_stone_{sp_id}"
+                    if inv.get(k, 0) >= qty:
+                        target_key = k
+                        target_name = s_name
+                        break
+            if not target_key:
+                return False, f"You don't have {qty}x of any specific Mega Stone in your Bag to sell!"
+            
+            diff = self.current_difficulty
+            unit_cost = item_kind.price_for(diff)
+            sell_value = int(unit_cost * 0.8) * qty
+            inv[target_key] -= qty
+            self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - sell_value)
+            self.state["inventory"] = inv
+            self.save()
+            return True, f"Successfully sold {qty}x {target_name} (🔮) for +{format_tokens(sell_value)} Tokens!"
+
         count = inv.get(item_kind.value, 0)
         if count < qty:
             return False, f"You don't have {qty}x {item_kind.name_en} in your Bag to sell!"
@@ -1114,21 +1153,53 @@ class CompanionEngine:
         if active is None:
             return False, "You need an active Pokémon companion to Mega Evolve!"
 
-        mega_eligible = {3, 6, 9, 94, 150, 448}  # Venusaur, Charizard, Blastoise, Gengar, Mewtwo, Lucario
-        if active.current_id not in mega_eligible:
-            return False, f"Species #{active.current_id} ({self.api.get_species_name(active.current_id)}) is not eligible for Mega Evolution!"
-
+        sp_id = str(active.current_id)
+        
         inv = self.state.get("inventory", {})
-        if inv.get(ItemKind.MEGA_STONE.value, 0) <= 0 and not active.is_mega:
-            return False, "You need a Mega Stone 🔮 from the Shop ([3]) to Mega Evolve!"
-
-        active.is_mega = not active.is_mega
-        self.set_active_mon(active)
-        name = self.api.get_species_name(active.current_id)
-        if active.is_mega:
-            return True, f"✨ MEGA EVOLUTION! {name} has Mega Evolved! (+50% Bonus XP active!)"
+        from poketokenbar.game.models import MEGA_STONES
+        
+        is_eligible = any(str(k).startswith(sp_id) for k in MEGA_STONES.keys())
+        if not is_eligible:
+            return False, f"Species #{sp_id} ({self.api.get_species_name(active.current_id)}) is not eligible for Mega Evolution!"
+            
+        owned_forms = []
+        has_universal = inv.get("mega_stone", 0) > 0
+        
+        if f"{sp_id}_X" in MEGA_STONES and (inv.get(f"mega_stone_{sp_id}_X", 0) > 0 or has_universal):
+            owned_forms.append("X")
+        if f"{sp_id}_Y" in MEGA_STONES and (inv.get(f"mega_stone_{sp_id}_Y", 0) > 0 or has_universal):
+            owned_forms.append("Y")
+        if sp_id in MEGA_STONES and (inv.get(f"mega_stone_{sp_id}", 0) > 0 or has_universal):
+            owned_forms.append("Normal")
+            
+        if not owned_forms:
+            return False, f"You need a corresponding Mega Stone 🔮 to Mega Evolve {self.api.get_species_name(active.current_id)}!"
+            
+        if not active.is_mega:
+            next_form = owned_forms[0]
         else:
-            return True, f"{name} reverted back to standard form."
+            current_idx = -1
+            curr = active.mega_form if getattr(active, 'mega_form', None) else "Normal"
+            if curr in owned_forms:
+                current_idx = owned_forms.index(curr)
+            
+            if current_idx + 1 < len(owned_forms):
+                next_form = owned_forms[current_idx + 1]
+            else:
+                next_form = None 
+                
+        if next_form is None:
+            active.is_mega = False
+            active.mega_form = None
+            msg = f"{self.api.get_species_name(active.current_id)} reverted back to standard form."
+        else:
+            active.is_mega = True
+            active.mega_form = next_form if next_form in ["X", "Y"] else None
+            form_str = f" {next_form}" if next_form in ["X", "Y"] else ""
+            msg = f"✨ MEGA EVOLUTION! {self.api.get_species_name(active.current_id)} has Mega Evolved into Mega Form{form_str}! (+50% Bonus XP active!)"
+
+        self.set_active_mon(active)
+        return True, msg
 
     def _update_expeditions(self, effective_xp: int, events: List[str]):
         expeditions = self.state.get("expeditions", [])
@@ -1156,8 +1227,14 @@ class CompanionEngine:
                     inv["mint"] = inv.get("mint", 0) + 1
                     reward_str = "+1 Mint 🌿"
                 elif reward == "legendary_egg":
-                    self.state["egg_tier"] = "legendary"
-                    self.state["egg_usage"] = 0
+                    current_tier = self.state.get("egg_tier")
+                    if current_tier is None:
+                        self.state["egg_tier"] = "legendary"
+                        self.state["egg_usage"] = 0
+                    else:
+                        pending = self.state.get("pending_eggs", [])
+                        pending.append("legendary")
+                        self.state["pending_eggs"] = pending
                     reward_str = "a LEGENDARY EGG 🌟!"
                 else:
                     inv["berry_golden"] = inv.get("berry_golden", 0) + 1
@@ -1241,20 +1318,21 @@ class CompanionEngine:
         sp_id = target_entry.get("species_id", target_entry.get("base_id"))
         sp_name = self.api.get_species_name(sp_id)
 
-        # Check if active companion
+        # Check if active companion (comparing base_id)
         active = self.active_mon
-        if active and active.current_id == sp_id:
+        if active and active.base_id == target_entry.get("base_id"):
             return False, f"You cannot send your currently active companion ({sp_name}) on an expedition! Select a different companion first."
 
         # Check if already on expedition
         if any(e["sp_id"] == sp_id for e in expeditions):
             return False, f"{sp_name} is already on an expedition!"
 
+        from poketokenbar.game.models import PokemonBalance
         areas = {
-            "viridian": ("Viridian Forest", 5_000_000, "mint"),
-            "cerulean": ("Cerulean Cave", 15_000_000, "rare_candy"),
-            "silver": ("Mt. Silver", 30_000_000, "golden_razz"),
-            "spear": ("Spear Pillar (Deep)", 100_000_000, "legendary_egg")
+            "viridian": ("Viridian Forest", PokemonBalance.EXPEDITION_VIRIDIAN, "mint"),
+            "cerulean": ("Cerulean Cave", PokemonBalance.EXPEDITION_CERULEAN, "rare_candy"),
+            "silver": ("Mt. Silver", PokemonBalance.EXPEDITION_SILVER, "berry_golden"),
+            "spear": ("Spear Pillar (Deep)", PokemonBalance.EXPEDITION_SPEAR_PILLAR, "legendary_egg")
         }
 
         key = area_name.lower().split()[0]
