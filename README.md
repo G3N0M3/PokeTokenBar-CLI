@@ -51,7 +51,7 @@ Designed specifically for **Linux CLI** environments, **Antigravity CLI** (`~/.g
 
 ```text
   [1] Companion   [2] Pokédex   [3] Roster      [4] Shop & Bag
-  [5] Expeditions [6] Battles   [7] Quests      [8] Monitor
+  [5] Expeditions [6] Battles   [7] Quests      [8] Mega-Evo
   [9] Hold 'em    [10] Gacha    [11] Bank       [12] Settings
 ```
 
