@@ -1693,10 +1693,10 @@ class CompanionEngine:
 
         results_txt = []
         if pull_type == "10":
-            pulls = GachaEngine.pull_ten()
+            pulls = GachaEngine.pull_ten(inv)
             results_txt.append("🔮 \033[1m10-CAPSULE GACHA PULL RESULTS:\033[0m")
         else:
-            pulls = [GachaEngine.pull_one()]
+            pulls = [GachaEngine.pull_one(inv)]
             results_txt.append("🔮 \033[1mGACHA CAPSULE PULL RESULT:\033[0m")
 
         pity = self.state.get("gacha_pity", 0)

@@ -24,19 +24,34 @@ GACHA_LOOT_TABLE = [
 
 class GachaEngine:
     @staticmethod
-    def pull_one() -> Tuple[str, str, str, Any]:
+    def pull_one(inv: Dict[str, Any] = None) -> Tuple[str, str, str, Any]:
         """Returns (Rarity, DisplayName, Type, Value)"""
         weights = [item[2] for item in GACHA_LOOT_TABLE]
         choice = list(random.choices(GACHA_LOOT_TABLE, weights=weights, k=1)[0])
         
         if choice[4] == "mega_stone":
             from poketokenbar.game.models import MEGA_STONES
-            stone_id = random.choice(list(MEGA_STONES.keys()))
-            choice[1] = f"🔮 1x {MEGA_STONES[stone_id]}"
-            choice[4] = f"mega_stone_{stone_id}"
+            available_stones = list(MEGA_STONES.keys())
+            if inv:
+                available_stones = [s for s in available_stones if inv.get(f"mega_stone_{s}", 0) == 0]
+            if not available_stones:
+                choice[1] = "💰 +5.0M Spendable Tokens (Duplicate Mega Stone converted)"
+                choice[3] = "tokens"
+                choice[4] = 5_000_000
+            else:
+                stone_id = random.choice(available_stones)
+                choice[1] = f"🔮 1x {MEGA_STONES[stone_id]}"
+                choice[4] = f"mega_stone_{stone_id}"
             
         return choice[0], choice[1], choice[3], choice[4]
 
     @staticmethod
-    def pull_ten() -> List[Tuple[str, str, str, Any]]:
-        return [GachaEngine.pull_one() for _ in range(10)]
+    def pull_ten(inv: Dict[str, Any] = None) -> List[Tuple[str, str, str, Any]]:
+        local_inv = dict(inv) if inv else {}
+        results = []
+        for _ in range(10):
+            res = GachaEngine.pull_one(local_inv)
+            if res[2] == "item":
+                local_inv[res[3]] = local_inv.get(res[3], 0) + 1
+            results.append(res)
+        return results

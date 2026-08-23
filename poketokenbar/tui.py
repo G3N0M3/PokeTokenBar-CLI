@@ -543,8 +543,8 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  [4] 🍇 Golden Razz: {inv.get('berry_golden', 0)} owned\n")
         
         sys.stdout.write(f"  [5] 🎫 Expedition Pass: {inv.get('expedition_pass', 0)} owned\n")
-        sys.stdout.write(f"  [6] 🪈 Poké Flute:  {inv.get('poke_flute', 0)} owned\n")
-        sys.stdout.write(f"  [7] 🌟 Master Ball: {inv.get('master_ball', 0)} owned\n")
+        sys.stdout.write(f"  [6] 🪈 Poké Flute:  {inv.get('poke_flute', 0)} owned (Summons a Gym Boss)\n")
+        sys.stdout.write(f"  [7] 🌟 Master Ball: {inv.get('master_ball', 0)} owned (Instantly hatches Shiny)\n")
         sys.stdout.write(f"  [8] 📜 Map: {inv.get('map_fragment', 0)} owned\n")
         has_charm = "OWNED (Active)" if inv.get("shiny_charm", 0) > 0 else "Not owned"
         sys.stdout.write(f"  [+] ✨ Shiny Charm: {has_charm}\n\n")
@@ -852,7 +852,7 @@ class PokeTokenBarTUI:
             for i, s in stones:
                 sys.stdout.write(f"   [{i}] {s}\n")
                 
-        sys.stdout.write(f"\n  ➔ Type '{BOLD}use <number>{RESET}' to use a Mega Stone on your Active Companion! (Or '{BOLD}use{RESET}' to cycle)\n\n")
+        sys.stdout.write(f"\n  ➔ Type '{BOLD}use <number>{RESET}' to Mega Evolve!\n\n")
 
     def render_poker_tab(self):
         avail = self.engine.available_tokens
