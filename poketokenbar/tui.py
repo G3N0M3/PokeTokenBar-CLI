@@ -534,8 +534,7 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  [4] 🥚 Pokémon Egg    - Cost: {p_egg1:<6} tokens  (Incubate new egg)\n")
         sys.stdout.write(f"  [5] 🥚 Uncommon Egg   - Cost: {p_egg2:<6} tokens  (Guarantees Uncommon+ egg)\n")
         sys.stdout.write(f"  [6] 🫐 Oran Berry     - Cost: 1.0M   tokens  (+25% Companion Happiness)\n")
-        sys.stdout.write(f"  [7] 🍇 Golden Razz    - Cost: 5.0M   tokens  (Boosts next egg shiny odds to 1/24!)\n")
-        sys.stdout.write(f"  [8] 🔮 Mega Stone     - Cost: 50.0M  tokens\n\n")
+        sys.stdout.write(f"  [7] 🍇 Golden Razz    - Cost: 5.0M   tokens  (Boosts next egg shiny odds to 1/24!)\n\n")
 
         sys.stdout.write(f"  {BOLD}Your Bag (Type 'use <number>' to use, or 'sell <number> [qty]' to sell):{RESET}\n")
         sys.stdout.write(f"  [1] 🍬 Rare Candy: {inv.get('rare_candy', 0)} owned\n")
@@ -543,20 +542,10 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  [3] 🫐 Oran Berry: {inv.get('berry_oran', 0)} owned\n")
         sys.stdout.write(f"  [4] 🍇 Golden Razz: {inv.get('berry_golden', 0)} owned\n")
         
-        stones = []
-        from poketokenbar.game.models import MEGA_STONES
-        for sp_id, stone_name in MEGA_STONES.items():
-            k = f"mega_stone_{sp_id}"
-            c = inv.get(k, 0)
-            if c > 0: stones.append(f"{stone_name} x{c}")
-        if inv.get("mega_stone", 0) > 0: stones.append(f"Universal Stone x{inv['mega_stone']}")
-        stones_str = ", ".join(stones) if stones else "0 owned"
-        sys.stdout.write(f"  [5] 🔮 Mega Stones: {stones_str}\n")
-        
-        sys.stdout.write(f"  [6] 🎫 Expedition Pass: {inv.get('expedition_pass', 0)} owned\n")
-        sys.stdout.write(f"  [7] 🪈 Poké Flute:  {inv.get('poke_flute', 0)} owned\n")
-        sys.stdout.write(f"  [8] 🌟 Master Ball: {inv.get('master_ball', 0)} owned\n")
-        sys.stdout.write(f"  [9] 📜 Map: {inv.get('map_fragment', 0)} owned\n")
+        sys.stdout.write(f"  [5] 🎫 Expedition Pass: {inv.get('expedition_pass', 0)} owned\n")
+        sys.stdout.write(f"  [6] 🪈 Poké Flute:  {inv.get('poke_flute', 0)} owned\n")
+        sys.stdout.write(f"  [7] 🌟 Master Ball: {inv.get('master_ball', 0)} owned\n")
+        sys.stdout.write(f"  [8] 📜 Map: {inv.get('map_fragment', 0)} owned\n")
         has_charm = "OWNED (Active)" if inv.get("shiny_charm", 0) > 0 else "Not owned"
         sys.stdout.write(f"  [+] ✨ Shiny Charm: {has_charm}\n\n")
 
@@ -591,8 +580,6 @@ class PokeTokenBarTUI:
             ok, msg = self.engine.buy_item(ItemKind.BERRY_ORAN, qty)
         elif choice == "7":
             ok, msg = self.engine.buy_item(ItemKind.BERRY_GOLDEN, qty)
-        elif choice == "8":
-            ok, msg = self.engine.buy_item(ItemKind.MEGA_STONE, qty)
         else:
             ok, msg = False, "Invalid shop selection."
         self.message = msg
@@ -617,12 +604,10 @@ class PokeTokenBarTUI:
         elif choice == "4":
             ok, msg = self.engine.use_item(ItemKind.BERRY_GOLDEN, qty)
         elif choice == "5":
-            ok, msg = self.engine.use_item(ItemKind.MEGA_STONE, qty)
-        elif choice == "6":
             ok, msg = self.engine.use_item(ItemKind.EXPEDITION_PASS, qty)
-        elif choice == "7":
+        elif choice == "6":
             ok, msg = self.engine.use_item(ItemKind.POKE_FLUTE, qty)
-        elif choice == "8":
+        elif choice == "7":
             ok, msg = self.engine.use_item(ItemKind.MASTER_BALL, qty)
         else:
             ok, msg = False, "Invalid bag selection."
@@ -644,11 +629,10 @@ class PokeTokenBarTUI:
             "2": ItemKind.MINT,
             "3": ItemKind.BERRY_ORAN,
             "4": ItemKind.BERRY_GOLDEN,
-            "5": ItemKind.MEGA_STONE,
-            "6": ItemKind.EXPEDITION_PASS,
-            "7": ItemKind.POKE_FLUTE,
-            "8": ItemKind.MASTER_BALL,
-            "9": ItemKind.MAP_FRAGMENT,
+            "5": ItemKind.EXPEDITION_PASS,
+            "6": ItemKind.POKE_FLUTE,
+            "7": ItemKind.MASTER_BALL,
+            "8": ItemKind.MAP_FRAGMENT,
         }
         item_kind = mapping.get(choice)
         if not item_kind:
