@@ -229,8 +229,16 @@ class PokeTokenBarTUI:
                     self.handle_bag_use(cmd)
                 elif self.current_tab == 4 and cmd.startswith("sell"):
                     self.handle_bag_sell(cmd)
-                elif self.current_tab == 8 and cmd == "use":
-                    ok, msg = self.engine.use_item(ItemKind.MEGA_STONE, 1)
+                elif self.current_tab == 8 and cmd.startswith("use"):
+                    parts = cmd.split()
+                    if len(parts) > 1:
+                        target = parts[1]
+                        if hasattr(self, 'mega_stone_map') and target in self.mega_stone_map:
+                            ok, msg = self.engine.toggle_mega_evolution(self.mega_stone_map[target])
+                        else:
+                            ok, msg = False, "Invalid stone number!"
+                    else:
+                        ok, msg = self.engine.toggle_mega_evolution()
                     self.message = msg
                 elif cmd.startswith("deposit") or cmd.startswith("withdraw") or cmd.startswith("loan") or cmd.startswith("payoff"):
                     parts = cmd.split()
@@ -305,8 +313,9 @@ class PokeTokenBarTUI:
                     "6_X": 10034,
                     "6_Y": 10035,
                     "9": 10036,
-                    "65": 10065, 
+                    "65": 10037, 
                     "94": 10038,
+                    "254": 10065,
                     "130": 10041,
                     "142": 10042,
                     "150_X": 10043,
@@ -767,7 +776,7 @@ class PokeTokenBarTUI:
             sys.stdout.write(f"   Boss HP: {bar} ({format_tokens(hp_cur)} / {format_tokens(hp_tot)})\n")
             active = self.engine.active_mon
             if active and active.is_mega:
-                sys.stdout.write(f"   ➔ {GREEN}✨ MEGA BONUS: Dealing 2x Damage!{RESET} Spend tokens to attack!\n\n")
+                sys.stdout.write(f"   ➔ {GREEN}✨ MEGA BONUS: 2x Damage & 1.5x Token Rewards!{RESET} Spend tokens to attack!\n\n")
             else:
                 sys.stdout.write("   ➔ Attack the boss by spending tokens in Antigravity CLI!\n\n")
         else:
@@ -812,19 +821,29 @@ class PokeTokenBarTUI:
         inv = self.engine.state.get("inventory", {})
         stones = []
         from poketokenbar.game.models import MEGA_STONES
-        for sp_id, stone_name in MEGA_STONES.items():
-            k = f"mega_stone_{sp_id}"
+        
+        self.mega_stone_map = {}
+        idx = 1
+        for sid, stone_name in MEGA_STONES.items():
+            k = f"mega_stone_{sid}"
             c = inv.get(k, 0)
-            if c > 0: stones.append(f"{stone_name} x{c}")
-        if inv.get("mega_stone", 0) > 0: stones.append(f"Universal Stone x{inv['mega_stone']}")
+            if c > 0: 
+                stones.append((idx, f"{stone_name} x{c}"))
+                self.mega_stone_map[str(idx)] = k
+                idx += 1
+                
+        if inv.get("mega_stone", 0) > 0: 
+            stones.append((idx, f"Universal Stone x{inv['mega_stone']}"))
+            self.mega_stone_map[str(idx)] = "mega_stone"
+            idx += 1
         
         if not stones:
             sys.stdout.write("   You don't own any Mega Stones yet. Find them in the Gacha or Shop!\n")
         else:
-            for s in stones:
-                sys.stdout.write(f"   • {s}\n")
+            for i, s in stones:
+                sys.stdout.write(f"   [{i}] {s}\n")
                 
-        sys.stdout.write(f"\n  ➔ Type '{BOLD}use{RESET}' to use a compatible Mega Stone on your Active Companion!\n\n")
+        sys.stdout.write(f"\n  ➔ Type '{BOLD}use <number>{RESET}' to use a Mega Stone on your Active Companion! (Or '{BOLD}use{RESET}' to cycle)\n\n")
 
     def render_poker_tab(self):
         avail = self.engine.available_tokens

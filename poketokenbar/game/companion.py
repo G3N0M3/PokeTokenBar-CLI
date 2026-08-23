@@ -469,6 +469,9 @@ class CompanionEngine:
                 # Grant reward
                 r_type = active_boss["reward"]
                 inv = self.state.get("inventory", {})
+                is_mega = active and active.is_mega
+                multiplier = 1.5 if is_mega else 1.0
+                
                 if r_type == "rare_candy":
                     inv["rare_candy"] = inv.get("rare_candy", 0) + 1
                     self.state["inventory"] = inv
@@ -479,15 +482,17 @@ class CompanionEngine:
                     inv["shiny_charm"] = inv.get("shiny_charm", 0) + 1
                     self.state["inventory"] = inv
                 elif r_type == "tokens_10m":
-                    self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - 10_000_000)
+                    self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - int(10_000_000 * multiplier))
                 elif r_type == "tokens_15m":
-                    self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - 15_000_000)
+                    self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - int(15_000_000 * multiplier))
                 elif r_type == "tokens_20m":
-                    self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - 20_000_000)
+                    self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - int(20_000_000 * multiplier))
                 elif r_type == "tokens_50m":
-                    self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - 50_000_000)
+                    self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - int(50_000_000 * multiplier))
 
                 events.append(f"🏆 BOSS DEFEATED! You defeated Boss {b_name} and earned the {badge}!")
+                if is_mega and r_type.startswith("tokens_"):
+                    events.append("✨ MEGA BONUS! Gym Boss token reward increased by 1.5x!")
                 self.state["active_boss"] = None
 
         self.save()
@@ -1148,7 +1153,7 @@ class CompanionEngine:
 
         return False, "Unknown item action."
 
-    def toggle_mega_evolution(self) -> Tuple[bool, str]:
+    def toggle_mega_evolution(self, target_stone_key: Optional[str] = None) -> Tuple[bool, str]:
         active = self.active_mon
         if active is None:
             return False, "You need an active Pokémon companion to Mega Evolve!"
@@ -1175,18 +1180,40 @@ class CompanionEngine:
         if not owned_forms:
             return False, f"You need a corresponding Mega Stone 🔮 to Mega Evolve {self.api.get_species_name(active.current_id)}!"
             
-        if not active.is_mega:
-            next_form = owned_forms[0]
-        else:
-            current_idx = -1
-            curr = active.mega_form if getattr(active, 'mega_form', None) else "Normal"
-            if curr in owned_forms:
-                current_idx = owned_forms.index(curr)
+        if target_stone_key and target_stone_key != "mega_stone":
+            if not target_stone_key.startswith(f"mega_stone_{sp_id}"):
+                stone_name = "Mega Stone"
+                for k, v in MEGA_STONES.items():
+                    if f"mega_stone_{k}" == target_stone_key:
+                        stone_name = v
+                        break
+                return False, f"The {stone_name} is not compatible with {self.api.get_species_name(active.current_id)}!"
             
-            if current_idx + 1 < len(owned_forms):
-                next_form = owned_forms[current_idx + 1]
+            if target_stone_key == f"mega_stone_{sp_id}_X":
+                req_form = "X"
+            elif target_stone_key == f"mega_stone_{sp_id}_Y":
+                req_form = "Y"
             else:
-                next_form = None 
+                req_form = "Normal"
+            
+            curr = active.mega_form if getattr(active, 'mega_form', None) else "Normal"
+            if active.is_mega and curr == req_form:
+                next_form = None
+            else:
+                next_form = req_form
+        else:
+            if not active.is_mega:
+                next_form = owned_forms[0]
+            else:
+                current_idx = -1
+                curr = active.mega_form if getattr(active, 'mega_form', None) else "Normal"
+                if curr in owned_forms:
+                    current_idx = owned_forms.index(curr)
+                
+                if current_idx + 1 < len(owned_forms):
+                    next_form = owned_forms[current_idx + 1]
+                else:
+                    next_form = None 
                 
         if next_form is None:
             active.is_mega = False
@@ -1391,10 +1418,20 @@ class CompanionEngine:
 
             if player_stage >= req_stage or random.randint(1, 3) != 1:
                 battles["wins"] += 1
-                self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - 2_000_000)
-                msg = f"⚔️ TRAINER BATTLE! You defeated {opp_name} in an auto-battle! Earned +2.0M Spendable Tokens!"
+                
+                if active and active.is_mega:
+                    token_reward = 3_000_000
+                    reward_str = "3.0M"
+                    bonus_msg = " ✨ MEGA BONUS!"
+                else:
+                    token_reward = 2_000_000
+                    reward_str = "2.0M"
+                    bonus_msg = ""
+                    
+                self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - token_reward)
+                msg = f"⚔️ TRAINER BATTLE! You defeated {opp_name} in an auto-battle! Earned +{reward_str} Spendable Tokens!{bonus_msg}"
                 events.append(msg)
-                logs.append(f"[{now_str}] 🏆 WIN vs {opp_name} (Earned +2.0M Tokens)")
+                logs.append(f"[{now_str}] 🏆 WIN vs {opp_name} (Earned +{reward_str} Tokens)")
             else:
                 battles["losses"] += 1
                 if active:
