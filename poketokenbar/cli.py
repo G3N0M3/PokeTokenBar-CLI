@@ -54,7 +54,7 @@ def cmd_watch(tracker: UsageManager, engine: CompanionEngine, interval: float = 
 
                 sprite_path = engine.api.download_sprite(sp_id, is_shiny=active.is_shiny)
                 if sprite_path:
-                    ansi = SpriteRenderer.render_png_to_ansi(sprite_path, max_cols=20)
+                    ansi = SpriteRenderer.render_png_to_ansi(sprite_path, max_cols=20, center_width=58)
                     print("\n" + ansi + "\n")
             else:
                 print(" Companion: 🥚 Incubating Egg...")
