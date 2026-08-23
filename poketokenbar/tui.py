@@ -535,7 +535,7 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  [5] 🥚 Uncommon Egg   - Cost: {p_egg2:<6} tokens  (Guarantees Uncommon+ egg)\n")
         sys.stdout.write(f"  [6] 🫐 Oran Berry     - Cost: 1.0M   tokens  (+25% Companion Happiness)\n")
         sys.stdout.write(f"  [7] 🍇 Golden Razz    - Cost: 5.0M   tokens  (Boosts next egg shiny odds to 1/24!)\n")
-        sys.stdout.write(f"  [8] 🔮 Mega Stone           - Cost: 50.0M  tokens\n\n")
+        sys.stdout.write(f"  [8] 🔮 Mega Stone     - Cost: 50.0M  tokens\n\n")
 
         sys.stdout.write(f"  {BOLD}Your Bag (Type 'use <number>' to use, or 'sell <number> [qty]' to sell):{RESET}\n")
         sys.stdout.write(f"  [1] 🍬 Rare Candy: {inv.get('rare_candy', 0)} owned\n")
