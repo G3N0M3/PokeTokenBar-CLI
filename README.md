@@ -41,9 +41,8 @@ Designed specifically for **Linux CLI** environments, **Antigravity CLI** (`~/.g
 
 ## 🗺️ Roadmap / Future Plans
 
-- **Individualized Mega Stones**: Transition from the current "Universal Key Item" Mega Stone to species-specific Mega Stones (e.g., *Charizardite X*, *Venusaurite*, *Lucarionite*). This will require players to hunt or pull the exact Mega Stone corresponding to their Pokémon to achieve Mega Evolution, adding deeper collection mechanics!
 - **Split-Evolution Mechanics**: Introduce elemental stones (Water Stone, Thunder Stone, Fire Stone, etc.) to the Shop or Gacha to allow players to manually choose branch evolutions for species like Eevee, Poliwhirl, or Gloom, rather than defaulting to the first Pokédex entry!
-- **Legendary Spawn Mechanism**: Design and implement a new gameplay mechanism to encounter and catch Legendary Pokémon, since they have been fully excluded from standard egg hatches.
+
 
 ---
 
