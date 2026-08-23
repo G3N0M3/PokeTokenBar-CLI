@@ -27,7 +27,14 @@ class GachaEngine:
     def pull_one() -> Tuple[str, str, str, Any]:
         """Returns (Rarity, DisplayName, Type, Value)"""
         weights = [item[2] for item in GACHA_LOOT_TABLE]
-        choice = random.choices(GACHA_LOOT_TABLE, weights=weights, k=1)[0]
+        choice = list(random.choices(GACHA_LOOT_TABLE, weights=weights, k=1)[0])
+        
+        if choice[4] == "mega_stone":
+            from poketokenbar.game.models import MEGA_STONES
+            stone_id = random.choice(list(MEGA_STONES.keys()))
+            choice[1] = f"🔮 1x {MEGA_STONES[stone_id]}"
+            choice[4] = f"mega_stone_{stone_id}"
+            
         return choice[0], choice[1], choice[3], choice[4]
 
     @staticmethod

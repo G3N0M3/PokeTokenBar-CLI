@@ -1249,7 +1249,10 @@ class CompanionEngine:
                 for d in dex:
                     sp_id_dex = d.get("species_id", d.get("base_id"))
                     if sp_id_dex == sp_id:
-                        d["happiness"] = max(0, d.get("happiness", 100) - 10)
+                        if "mon_state" in d and isinstance(d["mon_state"], dict):
+                            d["mon_state"]["happiness"] = max(0, d["mon_state"].get("happiness", 100) - 10)
+                        else:
+                            d["happiness"] = max(0, d.get("happiness", 100) - 10)
                         break
 
                 now_str = datetime.datetime.now().strftime("%H:%M:%S")
