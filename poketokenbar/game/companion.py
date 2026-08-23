@@ -332,6 +332,17 @@ class CompanionEngine:
                     q["progress"] = q["target"]
                     events.append(f"🎯 Quest Complete: [{q['text']}]! Type 'claim {q['id']}' to collect your reward!")
 
+    def _progress_quest_by_type(self, q_type: str, delta: int = 1) -> List[str]:
+        events = []
+        qdata = self.state.get("daily_quests", {})
+        for q in qdata.get("quests", []):
+            if q.get("type") == q_type and not q.get("claimed", False):
+                q["progress"] += delta
+                if q["progress"] >= q["target"]:
+                    q["progress"] = q["target"]
+                    events.append(f"🎯 Quest Complete: [{q['text']}]! Type 'claim {q['id']}' to collect your reward!")
+        return events
+
     def _generate_daily_quests(self, date_str: str) -> Dict[str, Any]:
         """Dynamically generates 3 daily quests using a deterministic seed for today's date."""
         rng = random.Random(date_str)
@@ -554,6 +565,7 @@ class CompanionEngine:
 
                 shiny_str = "✨ Shiny " if mon.is_shiny else ""
                 events.append(f"🎉 Evolution! Your companion evolved into {shiny_str}{mon_name} (#{new_id})!")
+                events.extend(self._progress_quest_by_type("progression"))
                 self._register_to_dex(mon, status="active")
                 target_xp = PokemonBalance.phase_threshold(mon.rarity, mon.total_forms, mon.stage_index, diff)
             else:
@@ -856,6 +868,7 @@ class CompanionEngine:
         self._register_to_dex(mon, status="active")
 
         events.append(f"🐣 Egg Hatched! You got a {shiny_str}{species_name} (#{base_id})! Nature: {nature_str}, Rarity: {rarity.value.upper()}")
+        events.extend(self._progress_quest_by_type("progression"))
         return mon, events
 
     def _pick_species(self, tier_guarantee: Optional[str] = None) -> Tuple[int, Rarity, List[int], bool]:
