@@ -168,25 +168,25 @@ class PokeTokenBarTUI:
                         self.message = "Refreshed logs!\n" + "\n".join(events)
                     else:
                         self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
-                elif cmd in ["n", "next"] and self.current_tab in [2, 3, 11]:
+                elif cmd in ["n", "next"] and self.current_tab in [2, 3, 5]:
                     if self.current_tab == 2: self.pokedex_page += 1
-                    elif self.current_tab == 11:
+                    elif self.current_tab == 5:
                         if not hasattr(self, 'expedition_page'): self.expedition_page = 1
                         self.expedition_page += 1
                     else: self.roster_page += 1
                     self.message = ""
-                elif cmd in ["p", "prev", "previous"] and self.current_tab in [2, 3, 11]:
+                elif cmd in ["p", "prev", "previous"] and self.current_tab in [2, 3, 5]:
                     if self.current_tab == 2: self.pokedex_page = max(1, self.pokedex_page - 1)
-                    elif self.current_tab == 11:
+                    elif self.current_tab == 5:
                         if not hasattr(self, 'expedition_page'): self.expedition_page = 1
                         self.expedition_page = max(1, self.expedition_page - 1)
                     else: self.roster_page = max(1, self.roster_page - 1)
                     self.message = ""
-                elif cmd.startswith("page ") and self.current_tab in [2, 3, 11]:
+                elif cmd.startswith("page ") and self.current_tab in [2, 3, 5]:
                     try:
                         page = max(1, int(cmd.split()[1]))
                         if self.current_tab == 2: self.pokedex_page = page
-                        elif self.current_tab == 11: self.expedition_page = page
+                        elif self.current_tab == 5: self.expedition_page = page
                         else: self.roster_page = page
                         self.message = ""
                     except ValueError:
