@@ -1326,20 +1326,23 @@ class CompanionEngine:
                 self.state["inventory"] = inv
 
                 dex = self.state.get("dex", [])
+                xp_gain = int(exp["target"] * 0.5)
                 for d in dex:
                     sp_id_dex = d.get("species_id", d.get("base_id"))
                     if sp_id_dex == sp_id:
                         if "mon_state" in d and isinstance(d["mon_state"], dict):
                             d["mon_state"]["happiness"] = max(0, d["mon_state"].get("happiness", 100) - 10)
+                            d["mon_state"]["used_at_stage"] = d["mon_state"].get("used_at_stage", 0) + xp_gain
                         else:
                             d["happiness"] = max(0, d.get("happiness", 100) - 10)
+                            d["used_at_stage"] = d.get("used_at_stage", 0) + xp_gain
                         break
 
                 now_str = datetime.datetime.now().strftime("%H:%M:%S")
                 logs = self.state.get("expedition_logs", [])
-                logs.append(f"[{now_str}] 🗺️ {sp_name} returned from {area} with {reward_str}")
+                logs.append(f"[{now_str}] 🗺️ {sp_name} returned from {area} with {reward_str} (+{format_tokens(xp_gain)} XP)")
                 self.state["expedition_logs"] = logs[-5:]
-                events.append(f"🗺️ EXPEDITION COMPLETE! {sp_name} returned from {area} with {reward_str}!")
+                events.append(f"🗺️ EXPEDITION COMPLETE! {sp_name} returned from {area} with {reward_str}! (+{format_tokens(xp_gain)} XP)")
             else:
                 remaining.append(exp)
 
