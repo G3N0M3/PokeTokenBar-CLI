@@ -262,6 +262,8 @@ MEGA_STONES = {
     "376": "Metagrossite",
     "380": "Latiasite",
     "381": "Latiosite",
+    "382": "Blue Orb",
+    "383": "Red Orb",
     "384": "Meteorite",
     "428": "Lopunnite",
     "445": "Garchompite",
