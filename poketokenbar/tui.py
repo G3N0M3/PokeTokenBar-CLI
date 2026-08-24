@@ -874,15 +874,15 @@ class PokeTokenBarTUI:
             if self.engine.poker.game_state == "preflop":
                 board = "[?] [?] [?] [?] [?]"
                 d_hole = "[?] [?]"
-                state_str = "Pre-Flop (Type 'check' to see Flop, 'raise' to double bet, or 'fold')"
+                state_str = "Pre-Flop (Type 'call' to see Flop, 'raise' to double bet, or 'fold')"
             elif self.engine.poker.game_state == "flop":
                 board = " ".join([str(c) for c in self.engine.poker.community_cards[:3]]) + " [?] [?]"
                 d_hole = "[?] [?]"
-                state_str = "The Flop (Type 'check' to see Turn, 'raise' to double bet, or 'fold')"
+                state_str = "The Flop (Type 'call' to see Turn, 'raise' to double bet, or 'fold')"
             elif self.engine.poker.game_state == "turn":
                 board = " ".join([str(c) for c in self.engine.poker.community_cards[:4]]) + " [?]"
                 d_hole = "[?] [?]"
-                state_str = "The Turn (Type 'check' for Showdown, 'raise' to double bet, or 'fold')"
+                state_str = "The Turn (Type 'call' for Showdown, 'raise' to double bet, or 'fold')"
             else:
                 board = " ".join([str(c) for c in self.engine.poker.community_cards])
                 d_hole = " ".join([str(c) for c in self.engine.poker.dealer_hole])

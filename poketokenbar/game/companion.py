@@ -1614,7 +1614,7 @@ class CompanionEngine:
 
         ok, msg = self.poker.start_hand(bet)
         p_cards = " ".join([str(c) for c in self.poker.player_hole])
-        return True, f"♠️ TEXAS HOLD 'EM BET {format_tokens(bet)} TOKENS!\n  Your Hole Cards: {p_cards}\n  Community Board: [?] [?] [?] [?] [?]\n  ➔ Type 'flop' (or 'call') to reveal the 3 Flop cards!"
+        return True, f"♠️ TEXAS HOLD 'EM BET {format_tokens(bet)} TOKENS!\n  Your Hole Cards: {p_cards}\n  Community Board: [?] [?] [?] [?] [?]\n  ➔ Type 'call' to reveal the 3 Flop cards!"
 
     def play_poker_hold(self, hold_str: str) -> Tuple[bool, str]:
         cmd = hold_str.lower().strip()

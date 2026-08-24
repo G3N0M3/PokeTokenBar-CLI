@@ -50,7 +50,7 @@ class TexasHoldemEngine:
         self.game_state = "preflop"
 
         p_cards = " ".join([str(c) for c in self.player_hole])
-        return True, f"♠️ TEXAS HOLD 'EM DEALT!\n  Your Hole: {p_cards}\n  Board:     [?] [?] [?] [?] [?]\n  ➔ Type 'check' to see Flop, 'raise' to double bet, or 'fold'."
+        return True, f"♠️ TEXAS HOLD 'EM DEALT!\n  Your Hole: {p_cards}\n  Board:     [?] [?] [?] [?] [?]\n  ➔ Type 'call' to see Flop, 'raise' to double bet, or 'fold'."
 
     def play_flop(self) -> Tuple[bool, str]:
         if self.game_state != "preflop":
@@ -59,16 +59,16 @@ class TexasHoldemEngine:
         self.game_state = "flop"
         p_cards = " ".join([str(c) for c in self.player_hole])
         flop_cards = " ".join([str(c) for c in self.community_cards[:3]])
-        return True, f"♦️ THE FLOP REVEALED!\n  Your Hole: {p_cards}\n  Board:     {flop_cards} [?] [?]\n  ➔ Type 'check' to see Turn, 'raise' to double bet, or 'fold'."
+        return True, f"♦️ THE FLOP REVEALED!\n  Your Hole: {p_cards}\n  Board:     {flop_cards} [?] [?]\n  ➔ Type 'call' to see Turn, 'raise' to double bet, or 'fold'."
 
     def play_turn(self) -> Tuple[bool, str]:
         if self.game_state != "flop":
-            return False, "Not in Flop phase! Type 'flop' first."
+            return False, "Not in Flop phase! Type 'call' first."
 
         self.game_state = "turn"
         p_cards = " ".join([str(c) for c in self.player_hole])
         turn_cards = " ".join([str(c) for c in self.community_cards[:4]])
-        return True, f"♦️ THE TURN REVEALED!\n  Your Hole: {p_cards}\n  Board:     {turn_cards} [?]\n  ➔ Type 'check' for Showdown, 'raise' to double bet, or 'fold'."
+        return True, f"♦️ THE TURN REVEALED!\n  Your Hole: {p_cards}\n  Board:     {turn_cards} [?]\n  ➔ Type 'call' for Showdown, 'raise' to double bet, or 'fold'."
 
     def play_fold(self) -> Tuple[str, int]:
         """Player surrenders current hand."""
