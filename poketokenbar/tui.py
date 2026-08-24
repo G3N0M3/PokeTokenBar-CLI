@@ -769,7 +769,7 @@ class PokeTokenBarTUI:
             sys.stdout.write("   No companions currently on expedition.\n\n")
         else:
             page_size = 10
-            total_pages = max(1, math.ceil(len(expeditions) / page_size))
+            total_pages = max(1, (len(expeditions) - 1) // page_size + 1)
             if not hasattr(self, 'expedition_page'):
                 self.expedition_page = 1
             self.expedition_page = min(self.expedition_page, total_pages)
