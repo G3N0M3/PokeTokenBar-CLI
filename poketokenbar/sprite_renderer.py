@@ -174,5 +174,11 @@ class SpriteRenderer:
                     # Both visible: foreground top, background bottom
                     line_str += f"\033[38;2;{top_r};{top_g};{top_b}m\033[48;2;{bot_r};{bot_g};{bot_b}m▀\033[0m"
             lines.append(line_str)
+            
+        # Crop empty transparent padding lines from top and bottom
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        while lines and not lines[-1].strip():
+            lines.pop()
 
         return "\n".join(lines)
