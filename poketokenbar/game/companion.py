@@ -558,6 +558,13 @@ class CompanionEngine:
                 new_id = mon.current_id
                 mon_name = self.api.get_species_name(new_id)
                 
+                # Update rarity based on the evolved form's capture rate
+                sp_data = self.api.get_pokemon_species(new_id)
+                if sp_data:
+                    cap_rate = sp_data.get("capture_rate", 255)
+                    is_leg = sp_data.get("is_legendary", False) or sp_data.get("is_mythical", False)
+                    mon.rarity = Rarity.from_capture_rate(cap_rate, is_leg)
+
                 # Check Ditto reveal
                 if mon.ditto_disguise and not mon.ditto_revealed:
                     mon.ditto_revealed = True
@@ -595,7 +602,15 @@ class CompanionEngine:
         unlocked_ids = mon.path_ids[:mon.stage_index + 1] if mon.path_ids else [mon.base_id]
         
         for idx, sp_id in enumerate(unlocked_ids):
-            target_xp = PokemonBalance.phase_threshold(mon.rarity, mon.total_forms, idx, diff)
+            stage_rarity = mon.rarity
+            if sp_id != mon.current_id:
+                sp_data = self.api.get_pokemon_species(sp_id)
+                if sp_data:
+                    cap_rate = sp_data.get("capture_rate", 255)
+                    is_leg = sp_data.get("is_legendary", False) or sp_data.get("is_mythical", False)
+                    stage_rarity = Rarity.from_capture_rate(cap_rate, is_leg)
+
+            target_xp = PokemonBalance.phase_threshold(stage_rarity, mon.total_forms, idx, diff)
             if status == "graduated" or idx < mon.stage_index:
                 sp_status = "graduated" if status == "graduated" else "evolved"
                 stage_xp = target_xp
@@ -610,7 +625,7 @@ class CompanionEngine:
                 planned_path_ids=mon.planned_path_ids,
                 stage_index=idx,
                 used_at_stage=stage_xp,
-                rarity=mon.rarity,
+                rarity=stage_rarity,
                 total_forms=mon.total_forms,
                 is_shiny=mon.is_shiny,
                 nature=mon.nature,
