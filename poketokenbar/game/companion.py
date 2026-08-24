@@ -945,6 +945,44 @@ class CompanionEngine:
             pass
         return ids
 
+    def _find_stone_evolution(self, current_id: int, api_item_name: str) -> Optional[int]:
+        sp_data = self.api.get_pokemon_species(current_id)
+        if not sp_data or "evolution_chain" not in sp_data:
+            return None
+        
+        chain_url = sp_data["evolution_chain"]["url"]
+        try:
+            chain_id = int(chain_url.rstrip("/").split("/")[-1])
+            evo_data = self.api.get_evolution_chain(chain_id)
+            if not evo_data:
+                return None
+                
+            def search_chain(node, target_id):
+                sp_url = node["species"]["url"]
+                node_id = int(sp_url.rstrip("/").split("/")[-1])
+                
+                if node_id == target_id:
+                    for branch in node.get("evolves_to", []):
+                        for detail in branch.get("evolution_details", []):
+                            trigger = detail.get("trigger", {}).get("name") if detail.get("trigger") else None
+                            item = detail.get("item", {})
+                            item_name = item.get("name") if item else None
+                            
+                            if trigger == "use-item" and item_name == api_item_name:
+                                branch_url = branch["species"]["url"]
+                                return int(branch_url.rstrip("/").split("/")[-1])
+                    return None
+                    
+                for branch in node.get("evolves_to", []):
+                    res = search_chain(branch, target_id)
+                    if res is not None:
+                        return res
+                return None
+                
+            return search_chain(evo_data["chain"], current_id)
+        except Exception:
+            return None
+
     def buy_item(self, item_kind: ItemKind, qty: int = 1) -> Tuple[bool, str]:
         if qty <= 0:
             return False, "Quantity must be greater than 0!"
@@ -1090,6 +1128,55 @@ class CompanionEngine:
             if qty > 1:
                 return False, "You can only use one Mega Stone at a time!"
             return self.toggle_mega_evolution()
+
+        elif item_kind.value.endswith("_stone") and item_kind != ItemKind.MEGA_STONE:
+            if qty > 1:
+                return False, "You can only use one Evolution Stone at a time!"
+            active = self.active_mon
+            if not active:
+                return False, "You need an active companion to use an Evolution Stone!"
+            
+            api_item_name = item_kind.value.replace("_", "-")
+            target_evo_id = self._find_stone_evolution(active.current_id, api_item_name)
+            
+            if not target_evo_id:
+                return False, f"The {item_kind.name_en} has no effect on {self.api.get_species_name(active.current_id)}!"
+                
+            inv[item_kind.value] -= 1
+            if inv[item_kind.value] <= 0:
+                del inv[item_kind.value]
+                
+            prev_name = self.api.get_species_name(active.current_id)
+            active.stage_index += 1
+            
+            if active.stage_index >= len(active.path_ids):
+                active.path_ids.append(target_evo_id)
+            else:
+                active.path_ids[active.stage_index] = target_evo_id
+                active.path_ids = active.path_ids[:active.stage_index + 1]
+                
+            active.total_forms = len(active.path_ids)
+            new_name = self.api.get_species_name(target_evo_id)
+            
+            sp_data = self.api.get_pokemon_species(target_evo_id)
+            if sp_data:
+                cap_rate = sp_data.get("capture_rate", 255)
+                is_leg = sp_data.get("is_legendary", False) or sp_data.get("is_mythical", False)
+                active.rarity = Rarity.from_capture_rate(cap_rate, is_leg)
+                
+            active.used_at_stage = 0 
+            
+            self._register_to_dex(active, status="active")
+            self.set_active_mon(active)
+            self.state["inventory"] = inv
+            self.save()
+            
+            shiny_str = "✨ Shiny " if active.is_shiny else ""
+            quests_msg = "\n".join(self._progress_quest_by_type("progression"))
+            msg = f"🎉 Amazing! {shiny_str}{prev_name} evolved into {shiny_str}{new_name} using the {item_kind.name_en}!"
+            if quests_msg:
+                msg += f"\n{quests_msg}"
+            return True, msg
 
         elif item_kind == ItemKind.EXPEDITION_PASS:
             if qty > 1:

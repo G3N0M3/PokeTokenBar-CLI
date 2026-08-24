@@ -135,6 +135,16 @@ class ItemKind(str, Enum):
     MASTER_BALL = "master_ball"
     MAP_FRAGMENT = "map_fragment"
     EXPEDITION_LICENSE = "expedition_license"
+    WATER_STONE = "water_stone"
+    FIRE_STONE = "fire_stone"
+    THUNDER_STONE = "thunder_stone"
+    LEAF_STONE = "leaf_stone"
+    MOON_STONE = "moon_stone"
+    SUN_STONE = "sun_stone"
+    ICE_STONE = "ice_stone"
+    SHINY_STONE = "shiny_stone"
+    DUSK_STONE = "dusk_stone"
+    DAWN_STONE = "dawn_stone"
 
     def price_for(self, difficulty: DifficultyMode = DifficultyMode.EASY) -> int:
         prices = {
@@ -145,10 +155,20 @@ class ItemKind(str, Enum):
             ItemKind.BERRY_GOLDEN: 5_000_000,
             ItemKind.MEGA_STONE: 50_000_000,
             ItemKind.EXPEDITION_PASS: 15_000_000,
-            ItemKind.POKE_FLUTE: 25_000_000,
+            ItemKind.POKE_FLUTE: 50_000_000,
             ItemKind.MASTER_BALL: 500_000_000,
-            ItemKind.MAP_FRAGMENT: 1_000_000,
+            ItemKind.MAP_FRAGMENT: 10_000_000,
             ItemKind.EXPEDITION_LICENSE: 200_000_000,
+            ItemKind.WATER_STONE: 50_000_000,
+            ItemKind.FIRE_STONE: 50_000_000,
+            ItemKind.THUNDER_STONE: 50_000_000,
+            ItemKind.LEAF_STONE: 50_000_000,
+            ItemKind.MOON_STONE: 50_000_000,
+            ItemKind.SUN_STONE: 50_000_000,
+            ItemKind.ICE_STONE: 50_000_000,
+            ItemKind.SHINY_STONE: 50_000_000,
+            ItemKind.DUSK_STONE: 50_000_000,
+            ItemKind.DAWN_STONE: 50_000_000,
         }
         return prices.get(self, 5_000_000)
 
@@ -170,6 +190,16 @@ class ItemKind(str, Enum):
             ItemKind.MASTER_BALL: "Master Ball",
             ItemKind.MAP_FRAGMENT: "Map",
             ItemKind.EXPEDITION_LICENSE: "Expedition License",
+            ItemKind.WATER_STONE: "Water Stone",
+            ItemKind.FIRE_STONE: "Fire Stone",
+            ItemKind.THUNDER_STONE: "Thunder Stone",
+            ItemKind.LEAF_STONE: "Leaf Stone",
+            ItemKind.MOON_STONE: "Moon Stone",
+            ItemKind.SUN_STONE: "Sun Stone",
+            ItemKind.ICE_STONE: "Ice Stone",
+            ItemKind.SHINY_STONE: "Shiny Stone",
+            ItemKind.DUSK_STONE: "Dusk Stone",
+            ItemKind.DAWN_STONE: "Dawn Stone",
         }[self]
 
     @property

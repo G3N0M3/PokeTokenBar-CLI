@@ -577,7 +577,8 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  [5] 🥚 Uncommon Egg   - Cost: {p_egg2:<6} tokens  (Guarantees Uncommon+ egg)\n")
         sys.stdout.write(f"  [6] 🫐 Oran Berry     - Cost: 1.0M   tokens  (+25% Companion Happiness)\n")
         sys.stdout.write(f"  [7] 🍇 Golden Razz    - Cost: 5.0M   tokens  (Boosts next egg shiny odds to 1/24!)\n")
-        sys.stdout.write(f"  [8] 📜 Exped. License - Cost: 200.0M tokens  (+10 expedition slots)\n\n")
+        sys.stdout.write(f"  [8] 📜 Exped. License - Cost: 200.0M tokens  (+10 expedition slots)\n")
+        sys.stdout.write(f"  [+] 💎 Evo Stones     - Cost: 50.0M  tokens  (Type 'buy water_stone', 'buy fire_stone', etc.)\n\n")
 
         sys.stdout.write(f"  {BOLD}Your Bag (Type 'use <number>' to use, or 'sell <number> [qty]' to sell):{RESET}\n")
         sys.stdout.write(f"  [1] 🍬 Rare Candy: {inv.get('rare_candy', 0)} owned\n")
@@ -590,6 +591,14 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  [7] 🌟 Master Ball: {inv.get('master_ball', 0)} owned (Instantly hatches Shiny)\n")
         sys.stdout.write(f"  [8] 📜 Map: {inv.get('map_fragment', 0)} owned\n")
         sys.stdout.write(f"  [9] 📜 Exped. License: {inv.get('expedition_license', 0)} owned (+10 exp. slots)\n")
+        
+        stone_keys = ["water_stone", "fire_stone", "thunder_stone", "leaf_stone", "moon_stone", "sun_stone", "ice_stone", "shiny_stone", "dusk_stone", "dawn_stone"]
+        owned_stones = [k for k in stone_keys if inv.get(k, 0) > 0]
+        if owned_stones:
+            stone_str = ', '.join(f"{k.replace('_', ' ').title()} ({inv[k]})" for k in owned_stones)
+            sys.stdout.write(f"  [+] 💎 Evo Stones: {stone_str}\n")
+            sys.stdout.write(f"      (Type 'use water_stone', etc. to evolve active companion)\n")
+
         has_charm = "OWNED (Active)" if inv.get("shiny_charm", 0) > 0 else "Not owned"
         sys.stdout.write(f"  [+] ✨ Shiny Charm: {has_charm}\n\n")
 
@@ -626,6 +635,8 @@ class PokeTokenBarTUI:
             ok, msg = self.engine.buy_item(ItemKind.BERRY_GOLDEN, qty)
         elif choice == "8":
             ok, msg = self.engine.buy_item(ItemKind.EXPEDITION_LICENSE, qty)
+        elif choice in [s.value for s in ItemKind if s.value.endswith("_stone") and s != ItemKind.MEGA_STONE]:
+            ok, msg = self.engine.buy_item(ItemKind(choice), qty)
         else:
             ok, msg = False, "Invalid shop selection."
         self.message = msg
@@ -657,6 +668,8 @@ class PokeTokenBarTUI:
             ok, msg = self.engine.use_item(ItemKind.MASTER_BALL, qty)
         elif choice == "9":
             ok, msg = self.engine.use_item(ItemKind.EXPEDITION_LICENSE, qty)
+        elif choice in [s.value for s in ItemKind if s.value.endswith("_stone") and s != ItemKind.MEGA_STONE]:
+            ok, msg = self.engine.use_item(ItemKind(choice), qty)
         else:
             ok, msg = False, "Invalid bag selection."
         self.message = msg
@@ -683,6 +696,12 @@ class PokeTokenBarTUI:
             "8": ItemKind.MAP_FRAGMENT,
             "9": ItemKind.EXPEDITION_LICENSE,
         }
+        
+        # Add stones to mapping
+        for s in ItemKind:
+            if s.value.endswith("_stone") and s != ItemKind.MEGA_STONE:
+                mapping[s.value] = s
+
         item_kind = mapping.get(choice)
         if not item_kind:
             self.message = "Invalid bag selection."
