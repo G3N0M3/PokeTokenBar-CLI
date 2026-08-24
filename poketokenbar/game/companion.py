@@ -1288,8 +1288,6 @@ class CompanionEngine:
                 mult = 1.25
             elif rarity == Rarity.RARE:
                 mult = 1.5
-            elif rarity == Rarity.EPIC:
-                mult = 2.0
             elif rarity == Rarity.LEGENDARY:
                 mult = 3.0
 
