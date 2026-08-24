@@ -9,10 +9,11 @@ class Rarity(str, Enum):
     UNCOMMON = "uncommon"
     RARE = "rare"
     LEGENDARY = "legendary"
+    MEGA = "mega"
 
     @property
     def sort_rank(self) -> int:
-        ranks = {Rarity.COMMON: 0, Rarity.UNCOMMON: 1, Rarity.RARE: 2, Rarity.LEGENDARY: 3}
+        ranks = {Rarity.COMMON: 0, Rarity.UNCOMMON: 1, Rarity.RARE: 2, Rarity.LEGENDARY: 3, Rarity.MEGA: 4}
         return ranks[self]
 
     def graduation_total_for(self, difficulty: 'DifficultyMode' = None) -> int:
@@ -40,15 +41,15 @@ class DifficultyMode(str, Enum):
     @property
     def graduation_totals(self) -> Dict[Rarity, int]:
         if self == DifficultyMode.SPEED:
-            return {Rarity.COMMON: 2_000_000, Rarity.UNCOMMON: 5_000_000, Rarity.RARE: 10_000_000, Rarity.LEGENDARY: 20_000_000}
+            return {Rarity.COMMON: 2_000_000, Rarity.UNCOMMON: 5_000_000, Rarity.RARE: 10_000_000, Rarity.LEGENDARY: 20_000_000, Rarity.MEGA: 40_000_000}
         elif self == DifficultyMode.EASY:
-            return {Rarity.COMMON: 10_000_000, Rarity.UNCOMMON: 25_000_000, Rarity.RARE: 50_000_000, Rarity.LEGENDARY: 100_000_000}
+            return {Rarity.COMMON: 10_000_000, Rarity.UNCOMMON: 25_000_000, Rarity.RARE: 50_000_000, Rarity.LEGENDARY: 100_000_000, Rarity.MEGA: 200_000_000}
         elif self == DifficultyMode.HARD:
-            return {Rarity.COMMON: 150_000_000, Rarity.UNCOMMON: 375_000_000, Rarity.RARE: 750_000_000, Rarity.LEGENDARY: 1_500_000_000}
+            return {Rarity.COMMON: 150_000_000, Rarity.UNCOMMON: 375_000_000, Rarity.RARE: 750_000_000, Rarity.LEGENDARY: 1_500_000_000, Rarity.MEGA: 3_000_000_000}
         elif self == DifficultyMode.ORIGINAL:
-            return {Rarity.COMMON: 750_000_000, Rarity.UNCOMMON: 1_875_000_000, Rarity.RARE: 3_000_000_000, Rarity.LEGENDARY: 6_000_000_000}
+            return {Rarity.COMMON: 750_000_000, Rarity.UNCOMMON: 1_875_000_000, Rarity.RARE: 3_000_000_000, Rarity.LEGENDARY: 6_000_000_000, Rarity.MEGA: 12_000_000_000}
         else: # MEDIUM (Default)
-            return {Rarity.COMMON: 50_000_000, Rarity.UNCOMMON: 125_000_000, Rarity.RARE: 250_000_000, Rarity.LEGENDARY: 500_000_000}
+            return {Rarity.COMMON: 50_000_000, Rarity.UNCOMMON: 125_000_000, Rarity.RARE: 250_000_000, Rarity.LEGENDARY: 500_000_000, Rarity.MEGA: 1_000_000_000}
 
     @property
     def hatch_threshold(self) -> int:

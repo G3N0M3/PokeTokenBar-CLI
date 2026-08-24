@@ -191,6 +191,26 @@ class PokeTokenBarTUI:
                         self.message = ""
                     except ValueError:
                         self.message = "Usage: page <number>"
+                elif cmd.startswith("pagesize ") and self.current_tab == 12:
+                    parts = cmd.split()
+                    if len(parts) >= 3:
+                        target, size_str = parts[1], parts[2]
+                        try:
+                            val = int(size_str)
+                            if target == "dex":
+                                self.engine.state["page_size_pokedex"] = val
+                                self.message = f"Pokédex page size set to {val}."
+                            elif target == "roster":
+                                self.engine.state["page_size_roster"] = val
+                                self.message = f"Roster page size set to {val}."
+                            elif target in ["exp", "expeditions"]:
+                                self.engine.state["page_size_expedition"] = val
+                                self.message = f"Expeditions page size set to {val}."
+                            else:
+                                self.message = "Usage: pagesize <dex|roster|exp> <number>"
+                            self.engine.save()
+                        except ValueError:
+                            self.message = "Invalid size. Usage: pagesize <dex|roster|exp> <number>"
                 elif cmd.startswith("select") or cmd.startswith("sel ") or cmd == "sel":
                     parts = cmd.split()
                     if len(parts) >= 2:
@@ -422,12 +442,9 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"\n  {BOLD}{HEADER}📖 Pokédex Archives ({len(dex)} species registered){RESET}\n\n")
 
         if not dex:
-            sys.stdout.write("  Your Pokédex is empty! Incubate and raise your Pokémon companions to fill it.\n\n")
+            sys.stdout.write("   Your Pokédex is currently empty. Hatch eggs to discover Pokémon!\n")
         else:
-            expeditions = self.engine.state.get("expeditions", [])
-            exp_map = {e["sp_id"]: e for e in expeditions}
-
-            page_size = 15
+            page_size = self.engine.state.get("page_size_pokedex", 15)
             total_pages = max(1, (len(dex) - 1) // page_size + 1)
             self.pokedex_page = max(1, min(self.pokedex_page, total_pages))
 
@@ -441,6 +458,9 @@ class PokeTokenBarTUI:
                 shiny_str = f"{YELLOW}✨{RESET}" if entry.get("is_shiny") else ""
                 rarity = entry.get("rarity", "common").upper()
                 status = entry.get("status", "discovered")
+
+                expeditions = self.engine.state.get("expeditions", [])
+                exp_map = {e["sp_id"]: e for e in expeditions}
 
                 if sp_id in exp_map:
                     exp_info = exp_map[sp_id]
@@ -490,9 +510,9 @@ class PokeTokenBarTUI:
         roster = [d for d in dex if d.get("status") != "evolved"]
 
         if not roster:
-            sys.stdout.write("  No active companions in your roster. Incubate an egg to start!\n\n")
+            sys.stdout.write("   You don't have any companions in your roster yet!\n")
         else:
-            page_size = 14
+            page_size = self.engine.state.get("page_size_roster", 14)
             import math
             total = len(roster)
             total_pages = max(1, math.ceil(total / page_size))
@@ -554,7 +574,8 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  [4] 🥚 Pokémon Egg    - Cost: {p_egg1:<6} tokens  (Incubate new egg)\n")
         sys.stdout.write(f"  [5] 🥚 Uncommon Egg   - Cost: {p_egg2:<6} tokens  (Guarantees Uncommon+ egg)\n")
         sys.stdout.write(f"  [6] 🫐 Oran Berry     - Cost: 1.0M   tokens  (+25% Companion Happiness)\n")
-        sys.stdout.write(f"  [7] 🍇 Golden Razz    - Cost: 5.0M   tokens  (Boosts next egg shiny odds to 1/24!)\n\n")
+        sys.stdout.write(f"  [7] 🍇 Golden Razz    - Cost: 5.0M   tokens  (Boosts next egg shiny odds to 1/24!)\n")
+        sys.stdout.write(f"  [8] 📜 Exped. License - Cost: 200.0M tokens  (+10 expedition slots)\n\n")
 
         sys.stdout.write(f"  {BOLD}Your Bag (Type 'use <number>' to use, or 'sell <number> [qty]' to sell):{RESET}\n")
         sys.stdout.write(f"  [1] 🍬 Rare Candy: {inv.get('rare_candy', 0)} owned\n")
@@ -566,6 +587,7 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  [6] 🪈 Poké Flute:  {inv.get('poke_flute', 0)} owned (Summons a Gym Boss)\n")
         sys.stdout.write(f"  [7] 🌟 Master Ball: {inv.get('master_ball', 0)} owned (Instantly hatches Shiny)\n")
         sys.stdout.write(f"  [8] 📜 Map: {inv.get('map_fragment', 0)} owned\n")
+        sys.stdout.write(f"  [9] 📜 Exped. License: {inv.get('expedition_license', 0)} owned (+10 exp. slots)\n")
         has_charm = "OWNED (Active)" if inv.get("shiny_charm", 0) > 0 else "Not owned"
         sys.stdout.write(f"  [+] ✨ Shiny Charm: {has_charm}\n\n")
 
@@ -600,6 +622,8 @@ class PokeTokenBarTUI:
             ok, msg = self.engine.buy_item(ItemKind.BERRY_ORAN, qty)
         elif choice == "7":
             ok, msg = self.engine.buy_item(ItemKind.BERRY_GOLDEN, qty)
+        elif choice == "8":
+            ok, msg = self.engine.buy_item(ItemKind.EXPEDITION_LICENSE, qty)
         else:
             ok, msg = False, "Invalid shop selection."
         self.message = msg
@@ -629,6 +653,8 @@ class PokeTokenBarTUI:
             ok, msg = self.engine.use_item(ItemKind.POKE_FLUTE, qty)
         elif choice == "7":
             ok, msg = self.engine.use_item(ItemKind.MASTER_BALL, qty)
+        elif choice == "9":
+            ok, msg = self.engine.use_item(ItemKind.EXPEDITION_LICENSE, qty)
         else:
             ok, msg = False, "Invalid bag selection."
         self.message = msg
@@ -653,6 +679,7 @@ class PokeTokenBarTUI:
             "6": ItemKind.POKE_FLUTE,
             "7": ItemKind.MASTER_BALL,
             "8": ItemKind.MAP_FRAGMENT,
+            "9": ItemKind.EXPEDITION_LICENSE,
         }
         item_kind = mapping.get(choice)
         if not item_kind:
@@ -755,6 +782,7 @@ class PokeTokenBarTUI:
         slot_limit = self.engine.state.get("expedition_slots", 10)
         sys.stdout.write(f"\n  {BOLD}{HEADER}🗺️ Pokédex Expeditions ({len(expeditions)}/{slot_limit} Active){RESET}\n\n")
         sys.stdout.write(f"  {BOLD}Available Expedition Destinations:{RESET}\n")
+        sys.stdout.write(f"   (💡 {YELLOW}Hint: Higher rarity and MEGA companions complete expeditions much faster!{RESET})\n")
         sys.stdout.write(f"   • Viridian Forest - Target: 5.0M tokens  - Reward: 🌿 Mint + XP + 🪙\n")
         sys.stdout.write(f"   • Cerulean Cave   - Target: 15.0M tokens - Reward: 🍬 Rare Candy + XP + 🪙\n")
         sys.stdout.write(f"                       (+5% chance of finding a Map)\n")
@@ -768,7 +796,7 @@ class PokeTokenBarTUI:
         if not expeditions:
             sys.stdout.write("   No companions currently on expedition.\n\n")
         else:
-            page_size = 10
+            page_size = self.engine.state.get("page_size_expedition", 10)
             total_pages = max(1, (len(expeditions) - 1) // page_size + 1)
             if not hasattr(self, 'expedition_page'):
                 self.expedition_page = 1
@@ -970,7 +998,20 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  [1] Sprite Resolution:         {BOLD}{current_size} columns{RESET}\n")
         sys.stdout.write(f"      ➔ Type '{BOLD}size <number>{RESET}' to adjust (e.g. 'size 24' or 'size 48')\n\n")
 
-        sys.stdout.write(f"  [2] Reset Game Progress:       {BOLD}{RED}[DANGER]{RESET}\n")
+        pokedex_size = self.engine.state.get("page_size_pokedex", 15)
+        roster_size = self.engine.state.get("page_size_roster", 14)
+        expedition_size = self.engine.state.get("page_size_expedition", 10)
+
+        sys.stdout.write(f"  [2] Pokédex Page Size:         {BOLD}{pokedex_size} items{RESET}\n")
+        sys.stdout.write(f"      ➔ Type '{BOLD}pagesize dex <number>{RESET}' to adjust\n\n")
+
+        sys.stdout.write(f"  [3] Roster Page Size:          {BOLD}{roster_size} items{RESET}\n")
+        sys.stdout.write(f"      ➔ Type '{BOLD}pagesize roster <number>{RESET}' to adjust\n\n")
+
+        sys.stdout.write(f"  [4] Expeditions Page Size:     {BOLD}{expedition_size} items{RESET}\n")
+        sys.stdout.write(f"      ➔ Type '{BOLD}pagesize exp <number>{RESET}' to adjust\n\n")
+
+        sys.stdout.write(f"  [5] Reset Game Progress:       {BOLD}{RED}[DANGER]{RESET}\n")
         sys.stdout.write(f"      ➔ Type '{BOLD}reset{RESET}' to clear all saved progress & restart fresh\n\n")
 
     def render_footer(self):

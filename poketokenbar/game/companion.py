@@ -1282,7 +1282,10 @@ class CompanionEngine:
             rarity_val = "common"
             for d in dex:
                 if d.get("species_id", d.get("base_id")) == sp_id:
-                    rarity_val = d.get("rarity", "common")
+                    if d.get("mon_state", {}).get("is_mega", False):
+                        rarity_val = "mega"
+                    else:
+                        rarity_val = d.get("rarity", "common")
                     break
             
             try:
@@ -1297,6 +1300,8 @@ class CompanionEngine:
                 mult = 1.5
             elif rarity == Rarity.LEGENDARY:
                 mult = 3.0
+            elif rarity == Rarity.MEGA:
+                mult = 5.0
 
             exp["progress"] += int(effective_xp * mult)
             
