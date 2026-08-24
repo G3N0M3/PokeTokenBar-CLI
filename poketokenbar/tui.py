@@ -223,6 +223,18 @@ class PokeTokenBarTUI:
                 elif cmd == "reset" and self.current_tab == 12:
                     self.pending_reset = True
                     self.message = "⚠️ CONFIRMATION REQUIRED: Type 'RESET ALL' to wipe progress & restart fresh, or anything else to cancel!"
+                elif cmd.startswith("size") and self.current_tab == 12:
+                    parts = cmd.split()
+                    if len(parts) == 2 and parts[1].isdigit():
+                        new_size = int(parts[1])
+                        if 10 <= new_size <= 72:
+                            self.engine.state["sprite_size"] = new_size
+                            self.engine.save()
+                            self.message = f"Sprite resolution set to {new_size} columns!"
+                        else:
+                            self.message = "Sprite size must be between 10 and 72."
+                    else:
+                        self.message = "Usage: size <number> (e.g. 'size 30')"
                 elif self.current_tab == 4 and cmd.startswith("buy"):
                     self.handle_shop_buy(cmd)
                 elif self.current_tab == 4 and cmd.startswith("use"):
@@ -360,7 +372,8 @@ class PokeTokenBarTUI:
                 
             sprite_path = self.engine.api.download_sprite(render_id, is_shiny=active.is_shiny)
             if sprite_path:
-                sprite_ansi = SpriteRenderer.render_png_to_ansi(sprite_path, max_cols=30, center_width=72)
+                sprite_size = self.engine.state.get("sprite_size", 30)
+                sprite_ansi = SpriteRenderer.render_png_to_ansi(sprite_path, max_cols=sprite_size, center_width=72)
                 sys.stdout.write("\n" + sprite_ansi + "\n\n")
 
             # Growth / Evolution progress
@@ -932,7 +945,12 @@ class PokeTokenBarTUI:
 
     def render_settings_tab(self):
         sys.stdout.write(f"\n  {BOLD}{CYAN}⚙️ Tracking & Application Settings{RESET}\n\n")
-        sys.stdout.write(f"  [1] Reset Game Progress:       {BOLD}{RED}[DANGER]{RESET}\n")
+        
+        current_size = self.engine.state.get("sprite_size", 30)
+        sys.stdout.write(f"  [1] Sprite Resolution:         {BOLD}{current_size} columns{RESET}\n")
+        sys.stdout.write(f"      ➔ Type '{BOLD}size <number>{RESET}' to adjust (e.g. 'size 24' or 'size 48')\n\n")
+
+        sys.stdout.write(f"  [2] Reset Game Progress:       {BOLD}{RED}[DANGER]{RESET}\n")
         sys.stdout.write(f"      ➔ Type '{BOLD}reset{RESET}' to clear all saved progress & restart fresh\n\n")
 
     def render_footer(self):
