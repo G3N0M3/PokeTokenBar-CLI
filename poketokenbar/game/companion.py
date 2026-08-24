@@ -1246,14 +1246,41 @@ class CompanionEngine:
         if not expeditions:
             return
 
+        from poketokenbar.game.models import Rarity
+        
         remaining = []
         for exp in expeditions:
-            exp["progress"] += effective_xp
+            sp_id = exp["sp_id"]
+            sp_name = self.api.get_species_name(sp_id)
+            area = exp["area"]
+            reward = exp["reward"]
+
+            # Fetch rarity from dex to apply multiplier
+            dex = self.state.get("dex", [])
+            rarity_val = "common"
+            for d in dex:
+                if d.get("species_id", d.get("base_id")) == sp_id:
+                    rarity_val = d.get("rarity", "common")
+                    break
+            
+            try:
+                rarity = Rarity(rarity_val)
+            except ValueError:
+                rarity = Rarity.COMMON
+
+            mult = 1.0
+            if rarity == Rarity.UNCOMMON:
+                mult = 1.25
+            elif rarity == Rarity.RARE:
+                mult = 1.5
+            elif rarity == Rarity.EPIC:
+                mult = 2.0
+            elif rarity == Rarity.LEGENDARY:
+                mult = 3.0
+
+            exp["progress"] += int(effective_xp * mult)
+            
             if exp["progress"] >= exp["target"]:
-                sp_id = exp["sp_id"]
-                sp_name = self.api.get_species_name(sp_id)
-                area = exp["area"]
-                reward = exp["reward"]
 
                 # Grant reward
                 inv = self.state.get("inventory", {})
