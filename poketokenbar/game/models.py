@@ -78,6 +78,10 @@ class DifficultyMode(str, Enum):
 
 class PokemonBalance:
     EGG_HATCH_THRESHOLD = 1_500_000
+    EXPEDITION_VIRIDIAN = 5_000_000
+    EXPEDITION_CERULEAN = 15_000_000
+    EXPEDITION_SILVER = 30_000_000
+    EXPEDITION_SPEAR_PILLAR = 100_000_000
 
     @staticmethod
     def phase_threshold(rarity: Rarity, total_forms: int, stage_index: int, difficulty: DifficultyMode = DifficultyMode.MEDIUM) -> int:
