@@ -168,18 +168,25 @@ class PokeTokenBarTUI:
                         self.message = "Refreshed logs!\n" + "\n".join(events)
                     else:
                         self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
-                elif cmd in ["n", "next"] and self.current_tab in [2, 3]:
+                elif cmd in ["n", "next"] and self.current_tab in [2, 3, 11]:
                     if self.current_tab == 2: self.pokedex_page += 1
+                    elif self.current_tab == 11:
+                        if not hasattr(self, 'expedition_page'): self.expedition_page = 1
+                        self.expedition_page += 1
                     else: self.roster_page += 1
                     self.message = ""
-                elif cmd in ["p", "prev", "previous"] and self.current_tab in [2, 3]:
+                elif cmd in ["p", "prev", "previous"] and self.current_tab in [2, 3, 11]:
                     if self.current_tab == 2: self.pokedex_page = max(1, self.pokedex_page - 1)
+                    elif self.current_tab == 11:
+                        if not hasattr(self, 'expedition_page'): self.expedition_page = 1
+                        self.expedition_page = max(1, self.expedition_page - 1)
                     else: self.roster_page = max(1, self.roster_page - 1)
                     self.message = ""
-                elif cmd.startswith("page ") and self.current_tab in [2, 3]:
+                elif cmd.startswith("page ") and self.current_tab in [2, 3, 11]:
                     try:
                         page = max(1, int(cmd.split()[1]))
                         if self.current_tab == 2: self.pokedex_page = page
+                        elif self.current_tab == 11: self.expedition_page = page
                         else: self.roster_page = page
                         self.message = ""
                     except ValueError:
@@ -745,27 +752,40 @@ class PokeTokenBarTUI:
 
     def render_expeditions_tab(self):
         expeditions = self.engine.state.get("expeditions", [])
-        sys.stdout.write(f"\n  {BOLD}{HEADER}🗺️ Pokédex Expeditions ({len(expeditions)} Active){RESET}\n\n")
+        slot_limit = self.engine.state.get("expedition_slots", 10)
+        sys.stdout.write(f"\n  {BOLD}{HEADER}🗺️ Pokédex Expeditions ({len(expeditions)}/{slot_limit} Active){RESET}\n\n")
         sys.stdout.write(f"  {BOLD}Available Expedition Destinations:{RESET}\n")
-        sys.stdout.write(f"   • Viridian Forest - Target: 5.0M tokens  - Reward: 🌿 Mint\n")
-        sys.stdout.write(f"   • Cerulean Cave   - Target: 15.0M tokens - Reward: 🍬 Rare Candy\n")
+        sys.stdout.write(f"   • Viridian Forest - Target: 5.0M tokens  - Reward: 🌿 Mint + XP + 🪙\n")
+        sys.stdout.write(f"   • Cerulean Cave   - Target: 15.0M tokens - Reward: 🍬 Rare Candy + XP + 🪙\n")
         sys.stdout.write(f"                       (+5% chance of finding a Map)\n")
-        sys.stdout.write(f"   • Mt. Silver      - Target: 30.0M tokens - Reward: 🍇 Golden Razz\n")
+        sys.stdout.write(f"   • Mt. Silver      - Target: 30.0M tokens - Reward: 🍇 Golden Razz + XP + 🪙\n")
         sys.stdout.write(f"                       (+15% chance of finding a Map)\n")
         sys.stdout.write(f"   • Spear Pillar    - Target: 100.0M tokens (Requires 3x Maps)\n")
-        sys.stdout.write(f"                       Reward: 🌟 LEGENDARY EGG\n\n")
+        sys.stdout.write(f"                       Reward: 🌟 LEGENDARY EGG + XP + 🪙\n\n")
         sys.stdout.write(f"  ➔ Type '{BOLD}send <ROW INDEX>|#<POKEMON INDEX> [area]{RESET}' to dispatch!\n\n")
 
         sys.stdout.write(f"  {BOLD}🗺️ Active Expeditions Status:{RESET}\n")
         if not expeditions:
             sys.stdout.write("   No companions currently on expedition.\n\n")
         else:
-            for exp in expeditions:
+            page_size = 10
+            total_pages = max(1, math.ceil(len(expeditions) / page_size))
+            if not hasattr(self, 'expedition_page'):
+                self.expedition_page = 1
+            self.expedition_page = min(self.expedition_page, total_pages)
+            
+            start_idx = (self.expedition_page - 1) * page_size
+            page_exps = expeditions[start_idx : start_idx + page_size]
+            
+            for exp in page_exps:
                 sp_id = exp["sp_id"]
                 sp_name = self.engine.api.get_species_name(sp_id)
                 area = exp["area"]
                 pct = (exp["progress"] / exp["target"]) * 100 if exp["target"] > 0 else 0
                 sys.stdout.write(f"   • {BOLD}{CYAN}{sp_name} (#{sp_id}){RESET} @ {area}: {format_tokens(exp['progress'])} / {format_tokens(exp['target'])} ({pct:.0f}%)\n")
+                
+            if total_pages > 1:
+                sys.stdout.write(f"\n  ➔ Page {self.expedition_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")
             sys.stdout.write("\n")
 
         # Recent Expedition Logs

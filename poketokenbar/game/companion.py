@@ -1176,6 +1176,13 @@ class CompanionEngine:
             self.save()
             return True, f"Threw a Master Ball 🌟! Guaranteed Shiny hatch!\n" + "\n".join(events)
 
+        elif item_kind == ItemKind.EXPEDITION_LICENSE:
+            inv[item_kind.value] -= 1
+            self.state["expedition_slots"] = self.state.get("expedition_slots", 10) + 10
+            self.state["inventory"] = inv
+            self.save()
+            return True, "📜 Used an Expedition License! You can now send 10 more Pokémon on expeditions simultaneously!"
+
         elif item_kind == ItemKind.SHINY_CHARM:
             return False, "Shiny Charm is a passive item and works automatically on all future egg hatches!"
 
@@ -1327,6 +1334,11 @@ class CompanionEngine:
 
                 dex = self.state.get("dex", [])
                 xp_gain = int(exp["target"] * 0.5)
+                tokens_gain = int(exp["target"] * 0.2)
+                
+                # Grant tokens by refunding spent_tokens
+                self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - tokens_gain)
+                
                 for d in dex:
                     sp_id_dex = d.get("species_id", d.get("base_id"))
                     if sp_id_dex == sp_id:
@@ -1340,9 +1352,9 @@ class CompanionEngine:
 
                 now_str = datetime.datetime.now().strftime("%H:%M:%S")
                 logs = self.state.get("expedition_logs", [])
-                logs.append(f"[{now_str}] 🗺️ {sp_name} returned from {area} with {reward_str} (+{format_tokens(xp_gain)} XP)")
+                logs.append(f"[{now_str}] 🗺️ {sp_name}: {reward_str} | +{format_tokens(tokens_gain)} 🪙 | +{format_tokens(xp_gain)} XP")
                 self.state["expedition_logs"] = logs[-5:]
-                events.append(f"🗺️ EXPEDITION COMPLETE! {sp_name} returned from {area} with {reward_str}! (+{format_tokens(xp_gain)} XP)")
+                events.append(f"🗺️ {sp_name} finished {area}: {reward_str} | +{format_tokens(tokens_gain)} 🪙 | +{format_tokens(xp_gain)} XP")
             else:
                 remaining.append(exp)
 
@@ -1412,6 +1424,10 @@ class CompanionEngine:
         # Check if already on expedition
         if any(e["sp_id"] == sp_id for e in expeditions):
             return False, f"{sp_name} is already on an expedition!"
+            
+        slot_limit = self.state.get("expedition_slots", 10)
+        if len(expeditions) >= slot_limit:
+            return False, f"You have reached the maximum limit of {slot_limit} active expeditions! You must wait for them to finish or use an Expedition License (📜) to expand your slots."
 
         from poketokenbar.game.models import PokemonBalance
         areas = {
