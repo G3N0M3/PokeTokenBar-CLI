@@ -360,7 +360,7 @@ class PokeTokenBarTUI:
                 
             sprite_path = self.engine.api.download_sprite(render_id, is_shiny=active.is_shiny)
             if sprite_path:
-                sprite_ansi = SpriteRenderer.render_png_to_ansi(sprite_path, max_cols=36, center_width=72)
+                sprite_ansi = SpriteRenderer.render_png_to_ansi(sprite_path, max_cols=30, center_width=72)
                 sys.stdout.write("\n" + sprite_ansi + "\n\n")
 
             # Growth / Evolution progress
