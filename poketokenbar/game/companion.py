@@ -1775,7 +1775,7 @@ class CompanionEngine:
         if cmd == "fold":
             outcome, lost = self.poker.play_fold()
             return True, f"🏳️ \033[1m\033[31mYOU FOLDED!\033[0m Surrendered {format_tokens(lost)} tokens to the House."
-        elif cmd in ["flop", "turn", "river", "check", "call"]:
+        elif cmd in ["check", "call"]:
             if self.poker.game_state == "preflop":
                 return self.poker.play_flop()
             elif self.poker.game_state == "flop":
