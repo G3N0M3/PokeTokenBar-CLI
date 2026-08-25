@@ -1784,24 +1784,37 @@ class CompanionEngine:
                 return self._format_poker_showdown()
             else:
                 return False, "Game already over."
-        elif cmd == "raise":
+        elif cmd in ["raise", "allin", "all-in"]:
             avail = self.available_tokens
-            if avail < self.poker.current_bet:
-                return False, f"Not enough tokens to double bet! Needed: {format_tokens(self.poker.current_bet)}"
+            
+            if cmd == "raise":
+                bet_amount = self.poker.current_bet
+            else:
+                bet_amount = avail
+                
+            if bet_amount <= 0:
+                return False, "You don't have any more tokens to bet!"
+                
+            if avail < bet_amount:
+                return False, f"Not enough tokens to double bet! Needed: {format_tokens(bet_amount)}"
+                
             # Deduct raise bet (increase spent_tokens)
-            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + self.poker.current_bet
-            self.poker.current_bet *= 2
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + bet_amount
+            self.poker.current_bet += bet_amount
             self.save()
+            
+            verb = "ALL-IN!" if cmd in ["allin", "all-in"] else "Raised!"
             
             # Advance state automatically after raising
             if self.poker.game_state == "preflop":
                 msg = self.poker.play_flop()[1]
-                return True, f"💰 Raised! " + msg
+                return True, f"💰 {verb} " + msg
             elif self.poker.game_state == "flop":
                 msg = self.poker.play_turn()[1]
-                return True, f"💰 Raised! " + msg
+                return True, f"💰 {verb} " + msg
             elif self.poker.game_state == "turn":
-                return self._format_poker_showdown()
+                ok, showdown_msg = self._format_poker_showdown()
+                return True, f"💰 {verb}\n" + showdown_msg
             else:
                 return False, "Game already over."
         else:

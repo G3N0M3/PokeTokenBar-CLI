@@ -257,7 +257,7 @@ class PokeTokenBarTUI:
                         self.message = msg
                     else:
                         self.message = "Usage: bet <amount> (e.g. 'bet 500k', 'bet 1m')"
-                elif cmd in ["flop", "turn", "river", "call", "check", "raise", "fold"] or cmd.startswith("hold"):
+                elif cmd in ["flop", "turn", "river", "call", "check", "raise", "fold", "allin", "all-in"] or cmd.startswith("hold"):
                     ok, msg = self.engine.play_poker_hold(cmd)
                     self.message = msg
                 elif cmd.startswith("pull"):
@@ -1008,9 +1008,9 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"   • Winning Bonus Multipliers: Royal Flush [50x] | Straight Flush [15x]\n")
         sys.stdout.write(f"   • Four of a Kind [8x] | Full House [5x] | Flush [4x] | Straight [3x]\n\n")
 
-        sys.stdout.write(f"  ➔ Step 1: Type '{BOLD}bet <amount>{RESET}' to deal 2 Hole Cards (e.g. 'bet 500k', 'bet 1m')\n")
+        sys.stdout.write(f"  ➔ Step 1: Type '{BOLD}bet <amount>{RESET}' to deal 2 Hole Cards (e.g. 'bet 500k', 'bet 1m', 'bet all')\n")
         sys.stdout.write(f"  ➔ Step 2: Type '{BOLD}check{RESET}' to reveal community cards for free, or '{BOLD}fold{RESET}'\n")
-        sys.stdout.write(f"  ➔ Step 3: Type '{BOLD}raise{RESET}' anytime to double your bet before the next card is revealed!\n")
+        sys.stdout.write(f"  ➔ Step 3: Type '{BOLD}raise{RESET}' to double your bet, or '{BOLD}allin{RESET}' to bet EVERYTHING!\n")
         sys.stdout.write(f"  ➔ Note: You can raise multiple times in a single hand.\n\n")
 
         if self.engine.poker.player_hole:
@@ -1018,15 +1018,15 @@ class PokeTokenBarTUI:
             if self.engine.poker.game_state == "preflop":
                 board = "[?] [?] [?] [?] [?]"
                 d_hole = "[?] [?]"
-                state_str = "Pre-Flop (Type 'call' to see Flop, 'raise' to double bet, or 'fold')"
+                state_str = "Pre-Flop (Type 'call', 'raise', 'allin', or 'fold')"
             elif self.engine.poker.game_state == "flop":
                 board = " ".join([str(c) for c in self.engine.poker.community_cards[:3]]) + " [?] [?]"
                 d_hole = "[?] [?]"
-                state_str = "The Flop (Type 'call' to see Turn, 'raise' to double bet, or 'fold')"
+                state_str = "The Flop (Type 'call', 'raise', 'allin', or 'fold')"
             elif self.engine.poker.game_state == "turn":
                 board = " ".join([str(c) for c in self.engine.poker.community_cards[:4]]) + " [?]"
                 d_hole = "[?] [?]"
-                state_str = "The Turn (Type 'call' for Showdown, 'raise' to double bet, or 'fold')"
+                state_str = "The Turn (Type 'call' for Showdown, 'raise', 'allin', or 'fold')"
             else:
                 board = " ".join([str(c) for c in self.engine.poker.community_cards])
                 d_hole = " ".join([str(c) for c in self.engine.poker.dealer_hole])
