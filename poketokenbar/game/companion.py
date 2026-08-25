@@ -1274,7 +1274,7 @@ class CompanionEngine:
         inv = self.state.get("inventory", {})
         from poketokenbar.game.models import MEGA_STONES
         
-        is_eligible = any(str(k).startswith(sp_id) for k in MEGA_STONES.keys())
+        is_eligible = any(str(k) == sp_id or str(k).startswith(f"{sp_id}_") for k in MEGA_STONES.keys())
         if not is_eligible:
             return False, f"Species #{sp_id} ({self.api.get_species_name(active.current_id)}) is not eligible for Mega Evolution!"
             
@@ -1292,7 +1292,7 @@ class CompanionEngine:
             return False, f"You need a corresponding Mega Stone 🔮 to Mega Evolve {self.api.get_species_name(active.current_id)}!"
             
         if target_stone_key and target_stone_key != "mega_stone":
-            if not target_stone_key.startswith(f"mega_stone_{sp_id}"):
+            if not (target_stone_key == f"mega_stone_{sp_id}" or target_stone_key.startswith(f"mega_stone_{sp_id}_")):
                 stone_name = "Mega Stone"
                 for k, v in MEGA_STONES.items():
                     if f"mega_stone_{k}" == target_stone_key:

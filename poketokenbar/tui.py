@@ -943,7 +943,7 @@ class PokeTokenBarTUI:
         if active:
             sp_name = self.engine.api.get_species_name(active.current_id)
             sp_id = str(active.current_id)
-            is_eligible = any(str(k).startswith(sp_id) for k in MEGA_STONES.keys())
+            is_eligible = any(str(k) == sp_id or str(k).startswith(f"{sp_id}_") for k in MEGA_STONES.keys())
             
             sys.stdout.write(f"  {BOLD}Active Companion:{RESET} {CYAN}{sp_name} (#{active.current_id}){RESET}\n")
             if is_eligible:
@@ -953,7 +953,7 @@ class PokeTokenBarTUI:
                 else:
                     usable_idxs = []
                     for s_idx, k in self.mega_stone_map.items():
-                        if k == "mega_stone" or k.startswith(f"mega_stone_{sp_id}"):
+                        if k == "mega_stone" or k == f"mega_stone_{sp_id}" or k.startswith(f"mega_stone_{sp_id}_"):
                             usable_idxs.append(f"[{s_idx}]")
                             
                     sys.stdout.write(f"  {BOLD}Status:{RESET} Standard Form (Available for Mega-Evo!)\n")
