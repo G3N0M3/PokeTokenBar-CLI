@@ -1356,13 +1356,16 @@ class CompanionEngine:
             # Fetch rarity from dex to apply multiplier
             dex = self.state.get("dex", [])
             rarity_val = "common"
-            for d in dex:
-                if d.get("species_id", d.get("base_id")) == sp_id:
-                    if d.get("mon_state", {}).get("is_mega", False):
-                        rarity_val = "mega"
-                    else:
-                        rarity_val = d.get("rarity", "common")
-                    break
+            if exp.get("is_mega", False):
+                rarity_val = "mega"
+            else:
+                for d in dex:
+                    if d.get("species_id", d.get("base_id")) == sp_id:
+                        if d.get("mon_state", {}).get("is_mega", False):
+                            rarity_val = "mega"
+                        else:
+                            rarity_val = d.get("rarity", "common")
+                        break
             
             try:
                 rarity = Rarity(rarity_val)
@@ -1499,8 +1502,11 @@ class CompanionEngine:
 
         # Check if active companion (comparing base_id)
         active = self.active_mon
+        is_mega_dispatch = False
         if active and active.base_id == target_entry.get("base_id"):
-            return False, f"You cannot send your currently active companion ({sp_name}) on an expedition! Select a different companion first."
+            is_mega_dispatch = active.is_mega
+            self._register_to_dex(active, status="inactive")
+            self.set_active_mon(None)
 
         # Check if already on expedition
         if any(e["sp_id"] == sp_id for e in expeditions):
@@ -1538,7 +1544,8 @@ class CompanionEngine:
             "area": area_title,
             "progress": 0,
             "target": target_xp,
-            "reward": reward_type
+            "reward": reward_type,
+            "is_mega": is_mega_dispatch
         })
         self.state["expeditions"] = expeditions
         self.save()
