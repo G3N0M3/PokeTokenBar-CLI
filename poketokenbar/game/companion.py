@@ -1765,7 +1765,7 @@ class CompanionEngine:
 
         ok, msg = self.poker.start_hand(bet)
         p_cards = " ".join([str(c) for c in self.poker.player_hole])
-        return True, f"♠️ TEXAS HOLD'EM BET {format_tokens(bet)} TOKENS!\n  Your Hole Cards: {p_cards}\n  Community Board: [?] [?] [?] [?] [?]\n  ➔ Type 'call' to reveal the 3 Flop cards!"
+        return True, f"♠️ TEXAS HOLD'EM BET {format_tokens(bet)} TOKENS!\n  Your Hole Cards: {p_cards}\n  Community Board: [?] [?] [?] [?] [?]\n  ➔ Type 'check' to reveal the 3 Flop cards!"
 
     def play_poker_hold(self, hold_str: str) -> Tuple[bool, str]:
         cmd = hold_str.lower().strip()
@@ -1775,7 +1775,7 @@ class CompanionEngine:
         if cmd == "fold":
             outcome, lost = self.poker.play_fold()
             return True, f"🏳️ \033[1m\033[31mYOU FOLDED!\033[0m Surrendered {format_tokens(lost)} tokens to the House."
-        elif cmd in ["check", "call"]:
+        elif cmd == "check":
             if self.poker.game_state == "preflop":
                 return self.poker.play_flop()
             elif self.poker.game_state == "flop":
@@ -1784,7 +1784,7 @@ class CompanionEngine:
                 return self._format_poker_showdown()
             else:
                 return False, "Game already over."
-        elif cmd in ["raise", "allin", "all-in"]:
+        elif cmd in ["raise", "allin"]:
             avail = self.available_tokens
             
             if cmd == "raise":
@@ -1803,7 +1803,7 @@ class CompanionEngine:
             self.poker.current_bet += bet_amount
             self.save()
             
-            verb = "ALL-IN!" if cmd in ["allin", "all-in"] else "Raised!"
+            verb = "ALL-IN!" if cmd == "allin" else "Raised!"
             
             # Advance state automatically after raising
             if self.poker.game_state == "preflop":
