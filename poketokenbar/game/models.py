@@ -67,15 +67,15 @@ class DifficultyMode(str, Enum):
     @property
     def shop_prices(self) -> Dict[str, int]:
         if self == DifficultyMode.SPEED:
-            return {"rare_candy": 1_000_000, "mint": 200_000, "shiny_charm": 10_000_000, "egg_normal": 2_000_000, "egg_uncommon": 5_000_000, "egg_rare": 10_000_000}
+            return {"rare_candy": 1_000_000, "mint": 200_000, "egg_normal": 2_000_000, "egg_uncommon": 5_000_000, "egg_rare": 10_000_000}
         elif self == DifficultyMode.EASY:
-            return {"rare_candy": 5_000_000, "mint": 1_000_000, "shiny_charm": 30_000_000, "egg_normal": 10_000_000, "egg_uncommon": 25_000_000, "egg_rare": 50_000_000}
+            return {"rare_candy": 5_000_000, "mint": 1_000_000, "egg_normal": 10_000_000, "egg_uncommon": 25_000_000, "egg_rare": 50_000_000}
         elif self == DifficultyMode.HARD:
-            return {"rare_candy": 75_000_000, "mint": 15_000_000, "shiny_charm": 500_000_000, "egg_normal": 100_000_000, "egg_uncommon": 250_000_000, "egg_rare": 500_000_000}
+            return {"rare_candy": 75_000_000, "mint": 15_000_000, "egg_normal": 100_000_000, "egg_uncommon": 250_000_000, "egg_rare": 500_000_000}
         elif self == DifficultyMode.ORIGINAL:
-            return {"rare_candy": 500_000_000, "mint": 100_000_000, "shiny_charm": 3_000_000_000, "egg_normal": 1_000_000_000, "egg_uncommon": 2_500_000_000, "egg_rare": 4_000_000_000}
+            return {"rare_candy": 500_000_000, "mint": 100_000_000, "egg_normal": 1_000_000_000, "egg_uncommon": 2_500_000_000, "egg_rare": 4_000_000_000}
         else: # MEDIUM
-            return {"rare_candy": 25_000_000, "mint": 5_000_000, "shiny_charm": 150_000_000, "egg_normal": 30_000_000, "egg_uncommon": 75_000_000, "egg_rare": 150_000_000}
+            return {"rare_candy": 25_000_000, "mint": 5_000_000, "egg_normal": 30_000_000, "egg_uncommon": 75_000_000, "egg_rare": 150_000_000}
 
 class PokemonBalance:
     EGG_HATCH_THRESHOLD = 1_500_000
@@ -126,7 +126,6 @@ class PokemonNature(str, Enum):
 class ItemKind(str, Enum):
     RARE_CANDY = "rare_candy"
     MINT = "mint"
-    SHINY_CHARM = "shiny_charm"
     BERRY_ORAN = "berry_oran"
     BERRY_GOLDEN = "berry_golden"
     MEGA_STONE = "mega_stone"
@@ -150,7 +149,6 @@ class ItemKind(str, Enum):
         prices = {
             ItemKind.RARE_CANDY: difficulty.shop_prices.get("rare_candy", 5_000_000),
             ItemKind.MINT: difficulty.shop_prices.get("mint", 1_000_000),
-            ItemKind.SHINY_CHARM: difficulty.shop_prices.get("shiny_charm", 30_000_000),
             ItemKind.BERRY_ORAN: 1_000_000,
             ItemKind.BERRY_GOLDEN: 5_000_000,
             ItemKind.MEGA_STONE: 50_000_000,
@@ -181,7 +179,6 @@ class ItemKind(str, Enum):
         return {
             ItemKind.RARE_CANDY: "Rare Candy",
             ItemKind.MINT: "Mint",
-            ItemKind.SHINY_CHARM: "Shiny Charm",
             ItemKind.BERRY_ORAN: "Oran Berry",
             ItemKind.BERRY_GOLDEN: "Golden Razz Berry",
             ItemKind.MEGA_STONE: "Mega Stone",
@@ -207,7 +204,6 @@ class ItemKind(str, Enum):
         return {
             ItemKind.RARE_CANDY: "🍬",
             ItemKind.MINT: "🌿",
-            ItemKind.SHINY_CHARM: "✨",
             ItemKind.BERRY_ORAN: "🫐",
             ItemKind.BERRY_GOLDEN: "🍇",
             ItemKind.MEGA_STONE: "🔮",

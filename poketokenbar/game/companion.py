@@ -423,7 +423,7 @@ class CompanionEngine:
             {"id": "boss_5", "name": "Koga & Weezing", "sp_id": 110, "badge": "🟣 Soul Badge", "threshold": 75_000_000, "hp": 25_000_000, "reward": "mint"},
             {"id": "boss_6", "name": "Sabrina & Alakazam", "sp_id": 65, "badge": "🔮 Marsh Badge", "threshold": 105_000_000, "hp": 35_000_000, "reward": "tokens_15m"},
             {"id": "boss_7", "name": "Blaine & Arcanine", "sp_id": 59, "badge": "🔥 Volcano Badge", "threshold": 140_000_000, "hp": 45_000_000, "reward": "rare_candy"},
-            {"id": "boss_8", "name": "Giovanni & Mewtwo", "sp_id": 150, "badge": "👑 Earth Badge", "threshold": 180_000_000, "hp": 60_000_000, "reward": "shiny_charm"},
+            {"id": "boss_8", "name": "Giovanni & Mewtwo", "sp_id": 150, "badge": "👑 Earth Badge", "threshold": 180_000_000, "hp": 60_000_000, "reward": "master_ball"},
             {"id": "boss_9", "name": "Lance & Dragonite", "sp_id": 149, "badge": "🐉 Dragon Badge", "threshold": 230_000_000, "hp": 80_000_000, "reward": "tokens_20m"},
             {"id": "boss_10", "name": "Cynthia & Garchomp", "sp_id": 445, "badge": "🏆 Champion Badge", "threshold": 300_000_000, "hp": 100_000_000, "reward": "tokens_50m"}
         ]
@@ -488,9 +488,6 @@ class CompanionEngine:
                     self.state["inventory"] = inv
                 elif r_type == "mint":
                     inv["mint"] = inv.get("mint", 0) + 1
-                    self.state["inventory"] = inv
-                elif r_type == "shiny_charm":
-                    inv["shiny_charm"] = inv.get("shiny_charm", 0) + 1
                     self.state["inventory"] = inv
                 elif r_type == "tokens_10m":
                     self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - int(10_000_000 * multiplier))
@@ -842,9 +839,8 @@ class CompanionEngine:
         # Select base species
         base_id, rarity, chain_ids, is_legendary = self._pick_species(used_tier)
 
-        # Roll Shiny odds (1/64 base, 1/48 with Shiny Charm, or 1/24 with Golden Razz Berry)
-        has_charm = self.state.get("inventory", {}).get(ItemKind.SHINY_CHARM.value, 0) > 0
-        denom = 48 if has_charm else 64
+        # Roll Shiny odds (1/64 base, or 1/24 with Golden Razz Berry)
+        denom = 64
         if self.state.get("golden_razz_active", False):
             denom = 24
             
@@ -995,11 +991,7 @@ class CompanionEngine:
             return False, f"Not enough tokens! Required: {format_tokens(cost)}, Available: {format_tokens(self.available_tokens)}"
 
         inv = self.state.get("inventory", {})
-        if item_kind == ItemKind.SHINY_CHARM:
-            if qty > 1:
-                return False, "You can only buy 1 Shiny Charm!"
-            if inv.get(ItemKind.SHINY_CHARM.value, 0) > 0:
-                return False, "You already own the Shiny Charm!"
+
 
         if item_kind == ItemKind.MEGA_STONE:
             import random
@@ -1209,7 +1201,7 @@ class CompanionEngine:
                 {"id": "boss_5", "name": "Koga & Weezing", "sp_id": 110, "badge": "🟣 Soul Badge", "hp": 25_000_000, "reward": "mint"},
                 {"id": "boss_6", "name": "Sabrina & Alakazam", "sp_id": 65, "badge": "🔮 Marsh Badge", "hp": 35_000_000, "reward": "tokens_15m"},
                 {"id": "boss_7", "name": "Blaine & Arcanine", "sp_id": 59, "badge": "🔥 Volcano Badge", "hp": 45_000_000, "reward": "rare_candy"},
-                {"id": "boss_8", "name": "Giovanni & Mewtwo", "sp_id": 150, "badge": "👑 Earth Badge", "hp": 60_000_000, "reward": "shiny_charm"},
+                {"id": "boss_8", "name": "Giovanni & Mewtwo", "sp_id": 150, "badge": "👑 Earth Badge", "hp": 60_000_000, "reward": "master_ball"},
                 {"id": "boss_9", "name": "Lance & Dragonite", "sp_id": 149, "badge": "🐉 Dragon Badge", "hp": 80_000_000, "reward": "tokens_20m"},
                 {"id": "boss_10", "name": "Cynthia & Garchomp", "sp_id": 445, "badge": "🏆 Champion Badge", "hp": 100_000_000, "reward": "tokens_50m"}
             ]
@@ -1269,9 +1261,6 @@ class CompanionEngine:
             self.state["inventory"] = inv
             self.save()
             return True, "📜 Used an Expedition License! You can now send 10 more Pokémon on expeditions simultaneously!"
-
-        elif item_kind == ItemKind.SHINY_CHARM:
-            return False, "Shiny Charm is a passive item and works automatically on all future egg hatches!"
 
         return False, "Unknown item action."
 

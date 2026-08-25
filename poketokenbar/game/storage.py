@@ -56,7 +56,6 @@ class StorageManager:
             "inventory": {
                 "rare_candy": 0,
                 "mint": 0,
-                "shiny_charm": 0,
                 "berry_oran": 0,
                 "berry_golden": 0,
                 "mega_stone": 0

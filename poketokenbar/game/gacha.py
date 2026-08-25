@@ -17,7 +17,7 @@ GACHA_LOOT_TABLE = [
     ("RARE", "🥚 1x Uncommon Egg Tier", 4, "egg", "uncommon"),
     ("RARE", "🔮 1x Mega Stone", 4, "item", "mega_stone"),
     ("RARE", "🪈 1x Poké Flute (Summons Boss!)", 3, "item", "poke_flute"),
-    ("EPIC", "✨ 1x Shiny Charm", 2, "item", "shiny_charm"),
+    ("EPIC", "🍇 1x Golden Razz Berry", 2, "item", "berry_golden"),
     ("EPIC", "🥚 1x Rare Egg Tier", 2, "egg", "rare"),
     ("LEGENDARY", "🌟 1x Master Ball (Guaranteed Shiny Hatch!)", 1, "item", "master_ball"),
 ]

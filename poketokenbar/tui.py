@@ -587,20 +587,13 @@ class PokeTokenBarTUI:
         p_rc = format_tokens(prices["rare_candy"])
         p_rc_xp = format_tokens(int(prices["rare_candy"] * 0.6))
         p_mint = format_tokens(prices["mint"])
-        p_charm = format_tokens(prices["shiny_charm"])
-        p_egg1 = format_tokens(prices["egg_normal"])
-        p_egg2 = format_tokens(prices["egg_uncommon"])
-
-        sys.stdout.write(f"\n  {BOLD}{YELLOW}🛒 Token Shop & Bag{RESET}  (Available Spendable Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET})\n\n")
-        sys.stdout.write(f"  {BOLD}Shop Items (Type 'buy <number> [qty]' to purchase):{RESET}\n")
         sys.stdout.write(f"  [1] 🍬 Rare Candy     - Cost: {p_rc:<6} tokens  (Grants +{p_rc_xp} XP)\n")
         sys.stdout.write(f"  [2] 🌿 Mint           - Cost: {p_mint:<6} tokens  (Rerolls nature)\n")
-        sys.stdout.write(f"  [3] ✨ Shiny Charm    - Cost: {p_charm:<6} tokens  (Passive 1/48 shiny odds)\n")
-        sys.stdout.write(f"  [4] 🥚 Pokémon Egg    - Cost: {p_egg1:<6} tokens  (Incubate new egg)\n")
-        sys.stdout.write(f"  [5] 🥚 Uncommon Egg   - Cost: {p_egg2:<6} tokens  (Guarantees Uncommon+ egg)\n")
-        sys.stdout.write(f"  [6] 🫐 Oran Berry     - Cost: 1.0M   tokens  (+25% Companion Happiness)\n")
-        sys.stdout.write(f"  [7] 🍇 Golden Razz    - Cost: 5.0M   tokens  (Boosts next egg shiny odds to 1/24!)\n")
-        sys.stdout.write(f"  [8] 📜 Exped. License - Cost: 200.0M tokens  (+10 expedition slots)\n\n")
+        sys.stdout.write(f"  [3] 🥚 Pokémon Egg    - Cost: {p_egg1:<6} tokens  (Incubate new egg)\n")
+        sys.stdout.write(f"  [4] 🥚 Uncommon Egg   - Cost: {p_egg2:<6} tokens  (Guarantees Uncommon+ egg)\n")
+        sys.stdout.write(f"  [5] 🫐 Oran Berry     - Cost: 1.0M   tokens  (+25% Companion Happiness)\n")
+        sys.stdout.write(f"  [6] 🍇 Golden Razz    - Cost: 5.0M   tokens  (Boosts next egg shiny odds to 1/24!)\n")
+        sys.stdout.write(f"  [7] 📜 Exped. License - Cost: 200.0M tokens  (+10 expedition slots)\n\n")
 
         sys.stdout.write(f"  {BOLD}Your Bag (Type 'use <id>' to use, or 'sell <id> [qty]' to sell):{RESET}\n")
         
@@ -620,8 +613,7 @@ class PokeTokenBarTUI:
             if inv.get(k, 0) > 0:
                 bag_items.append((f"💎 {k.replace('_', ' ').title()}", k, inv[k]))
                 
-        if inv.get("shiny_charm", 0) > 0:
-            bag_items.append(("✨ Shiny Charm", "shiny_charm", "OWNED (Active)"))
+
             
         page_size = self.engine.state.get("page_size_bag", 10)
         total_pages = max(1, (len(bag_items) - 1) // page_size + 1)
@@ -656,22 +648,20 @@ class PokeTokenBarTUI:
         elif choice == "2":
             ok, msg = self.engine.buy_item(ItemKind.MINT, qty)
         elif choice == "3":
-            ok, msg = self.engine.buy_item(ItemKind.SHINY_CHARM, qty)
-        elif choice == "4":
             if qty > 1:
                 self.message = "You can only hold one egg!"
                 return
             ok, msg = self.engine.buy_egg(None)
-        elif choice == "5":
+        elif choice == "4":
             if qty > 1:
                 self.message = "You can only hold one egg!"
                 return
             ok, msg = self.engine.buy_egg(Rarity.UNCOMMON)
-        elif choice == "6":
+        elif choice == "5":
             ok, msg = self.engine.buy_item(ItemKind.BERRY_ORAN, qty)
-        elif choice == "7":
+        elif choice == "6":
             ok, msg = self.engine.buy_item(ItemKind.BERRY_GOLDEN, qty)
-        elif choice == "8":
+        elif choice == "7":
             ok, msg = self.engine.buy_item(ItemKind.EXPEDITION_LICENSE, qty)
         else:
             ok, msg = False, "Invalid shop selection."
