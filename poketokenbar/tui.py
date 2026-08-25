@@ -587,6 +587,11 @@ class PokeTokenBarTUI:
         p_rc = format_tokens(prices["rare_candy"])
         p_rc_xp = format_tokens(int(prices["rare_candy"] * 0.6))
         p_mint = format_tokens(prices["mint"])
+        p_egg1 = format_tokens(prices["egg_normal"])
+        p_egg2 = format_tokens(prices["egg_uncommon"])
+
+        sys.stdout.write(f"\n  {BOLD}{YELLOW}🛒 Token Shop & Bag{RESET}  (Available Spendable Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET})\n\n")
+        sys.stdout.write(f"  {BOLD}Shop Items (Type 'buy <number> [qty]' to purchase):{RESET}\n")
         sys.stdout.write(f"  [1] 🍬 Rare Candy     - Cost: {p_rc:<6} tokens  (Grants +{p_rc_xp} XP)\n")
         sys.stdout.write(f"  [2] 🌿 Mint           - Cost: {p_mint:<6} tokens  (Rerolls nature)\n")
         sys.stdout.write(f"  [3] 🥚 Pokémon Egg    - Cost: {p_egg1:<6} tokens  (Incubate new egg)\n")
