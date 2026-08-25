@@ -168,7 +168,7 @@ class PokeTokenBarTUI:
                         self.message = "Refreshed logs!\n" + "\n".join(events)
                     else:
                         self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
-                elif cmd in ["n", "next"] and self.current_tab in [2, 3, 4, 5]:
+                elif cmd in ["n", "next"] and self.current_tab in [2, 3, 4, 5, 8]:
                     if self.current_tab == 2: self.pokedex_page += 1
                     elif self.current_tab == 4:
                         if not hasattr(self, 'shop_page'): self.shop_page = 1
@@ -176,9 +176,12 @@ class PokeTokenBarTUI:
                     elif self.current_tab == 5:
                         if not hasattr(self, 'expedition_page'): self.expedition_page = 1
                         self.expedition_page += 1
+                    elif self.current_tab == 8:
+                        if not hasattr(self, 'mega_page'): self.mega_page = 1
+                        self.mega_page += 1
                     else: self.roster_page += 1
                     self.message = ""
-                elif cmd in ["p", "prev", "previous"] and self.current_tab in [2, 3, 4, 5]:
+                elif cmd in ["p", "prev", "previous"] and self.current_tab in [2, 3, 4, 5, 8]:
                     if self.current_tab == 2: self.pokedex_page = max(1, self.pokedex_page - 1)
                     elif self.current_tab == 4:
                         if not hasattr(self, 'shop_page'): self.shop_page = 1
@@ -186,14 +189,18 @@ class PokeTokenBarTUI:
                     elif self.current_tab == 5:
                         if not hasattr(self, 'expedition_page'): self.expedition_page = 1
                         self.expedition_page = max(1, self.expedition_page - 1)
+                    elif self.current_tab == 8:
+                        if not hasattr(self, 'mega_page'): self.mega_page = 1
+                        self.mega_page = max(1, self.mega_page - 1)
                     else: self.roster_page = max(1, self.roster_page - 1)
                     self.message = ""
-                elif cmd.startswith("page ") and self.current_tab in [2, 3, 4, 5]:
+                elif cmd.startswith("page ") and self.current_tab in [2, 3, 4, 5, 8]:
                     try:
                         page = max(1, int(cmd.split()[1]))
                         if self.current_tab == 2: self.pokedex_page = page
                         elif self.current_tab == 4: self.shop_page = page
                         elif self.current_tab == 5: self.expedition_page = page
+                        elif self.current_tab == 8: self.mega_page = page
                         else: self.roster_page = page
                         self.message = ""
                     except ValueError:
@@ -216,11 +223,14 @@ class PokeTokenBarTUI:
                             elif target == "bag":
                                 self.engine.state["page_size_bag"] = val
                                 self.message = f"Bag page size set to {val}."
+                            elif target == "mega":
+                                self.engine.state["page_size_mega"] = val
+                                self.message = f"Mega Evo page size set to {val}."
                             else:
-                                self.message = "Usage: pagesize <dex|roster|exp|bag> <number>"
+                                self.message = "Usage: pagesize <dex|roster|exp|bag|mega> <number>"
                             self.engine.save()
                         except ValueError:
-                            self.message = "Invalid size. Usage: pagesize <dex|roster|exp|bag> <number>"
+                            self.message = "Invalid size. Usage: pagesize <dex|roster|exp|bag|mega> <number>"
                 elif cmd.startswith("select") or cmd.startswith("sel ") or cmd == "sel":
                     parts = cmd.split()
                     if len(parts) >= 2:
@@ -963,11 +973,28 @@ class PokeTokenBarTUI:
             self.mega_stone_map[str(idx)] = "mega_stone"
             idx += 1
         
+        page_size = self.engine.state.get("page_size_mega", 14)
+        total_pages = max(1, (len(stones) - 1) // page_size + 1)
+        if not hasattr(self, 'mega_page'): self.mega_page = 1
+        self.mega_page = max(1, min(self.mega_page, total_pages))
+        
         if not stones:
             sys.stdout.write("   You don't own any Mega Stones yet. Find them in the Gacha or Shop!\n")
         else:
-            for i, s in stones:
-                sys.stdout.write(f"   [{i}] {s}\n")
+            start_idx = (self.mega_page - 1) * page_size
+            end_idx = start_idx + page_size
+            visible_stones = stones[start_idx:end_idx]
+
+            for i in range(0, len(visible_stones), 2):
+                col1 = f"[{visible_stones[i][0]}] {visible_stones[i][1]}"
+                if i + 1 < len(visible_stones):
+                    col2 = f"[{visible_stones[i+1][0]}] {visible_stones[i+1][1]}"
+                    sys.stdout.write(f"   {col1:<35} {col2}\n")
+                else:
+                    sys.stdout.write(f"   {col1}\n")
+                    
+            if total_pages > 1:
+                sys.stdout.write(f"\n  ➔ Page {self.mega_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")
                 
         sys.stdout.write(f"\n  ➔ Type '{BOLD}use <number>{RESET}' to Mega Evolve!\n\n")
 
@@ -1071,7 +1098,11 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  [5] Bag Page Size:             {BOLD}{bag_size} items{RESET}\n")
         sys.stdout.write(f"      ➔ Type '{BOLD}pagesize bag <number>{RESET}' to adjust\n\n")
 
-        sys.stdout.write(f"  [6] Reset Game Progress:       {BOLD}{RED}[DANGER]{RESET}\n")
+        mega_size = self.engine.state.get("page_size_mega", 14)
+        sys.stdout.write(f"  [6] Mega Evo Page Size:        {BOLD}{mega_size} items{RESET}\n")
+        sys.stdout.write(f"      ➔ Type '{BOLD}pagesize mega <number>{RESET}' to adjust\n\n")
+
+        sys.stdout.write(f"  [7] Reset Game Progress:       {BOLD}{RED}[DANGER]{RESET}\n")
         sys.stdout.write(f"      ➔ Type '{BOLD}reset{RESET}' to clear all saved progress & restart fresh\n\n")
 
     def render_footer(self):
