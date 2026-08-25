@@ -620,15 +620,6 @@ class PokeTokenBarTUI:
             if inv.get(k, 0) > 0:
                 bag_items.append((f"💎 {k.replace('_', ' ').title()}", k, inv[k]))
                 
-        from poketokenbar.game.models import MEGA_STONES
-        for k, qty in inv.items():
-            if k.startswith("mega_stone_") and qty > 0:
-                sid = k.replace("mega_stone_", "")
-                if sid in MEGA_STONES:
-                    bag_items.append((f"🔮 {MEGA_STONES[sid]}", k, f"{qty} (Use in Mega Evo tab!)"))
-            elif k == "mega_stone" and qty > 0:
-                bag_items.append(("🔮 Universal Mega Stone", k, f"{qty} (Use in Mega Evo tab!)"))
-                
         if inv.get("shiny_charm", 0) > 0:
             bag_items.append(("✨ Shiny Charm", "shiny_charm", "OWNED (Active)"))
             
