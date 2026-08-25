@@ -168,24 +168,31 @@ class PokeTokenBarTUI:
                         self.message = "Refreshed logs!\n" + "\n".join(events)
                     else:
                         self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
-                elif cmd in ["n", "next"] and self.current_tab in [2, 3, 5]:
+                elif cmd in ["n", "next"] and self.current_tab in [2, 3, 4, 5]:
                     if self.current_tab == 2: self.pokedex_page += 1
+                    elif self.current_tab == 4:
+                        if not hasattr(self, 'shop_page'): self.shop_page = 1
+                        self.shop_page += 1
                     elif self.current_tab == 5:
                         if not hasattr(self, 'expedition_page'): self.expedition_page = 1
                         self.expedition_page += 1
                     else: self.roster_page += 1
                     self.message = ""
-                elif cmd in ["p", "prev", "previous"] and self.current_tab in [2, 3, 5]:
+                elif cmd in ["p", "prev", "previous"] and self.current_tab in [2, 3, 4, 5]:
                     if self.current_tab == 2: self.pokedex_page = max(1, self.pokedex_page - 1)
+                    elif self.current_tab == 4:
+                        if not hasattr(self, 'shop_page'): self.shop_page = 1
+                        self.shop_page = max(1, self.shop_page - 1)
                     elif self.current_tab == 5:
                         if not hasattr(self, 'expedition_page'): self.expedition_page = 1
                         self.expedition_page = max(1, self.expedition_page - 1)
                     else: self.roster_page = max(1, self.roster_page - 1)
                     self.message = ""
-                elif cmd.startswith("page ") and self.current_tab in [2, 3, 5]:
+                elif cmd.startswith("page ") and self.current_tab in [2, 3, 4, 5]:
                     try:
                         page = max(1, int(cmd.split()[1]))
                         if self.current_tab == 2: self.pokedex_page = page
+                        elif self.current_tab == 4: self.shop_page = page
                         elif self.current_tab == 5: self.expedition_page = page
                         else: self.roster_page = page
                         self.message = ""
@@ -580,30 +587,45 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  [5] 🥚 Uncommon Egg   - Cost: {p_egg2:<6} tokens  (Guarantees Uncommon+ egg)\n")
         sys.stdout.write(f"  [6] 🫐 Oran Berry     - Cost: 1.0M   tokens  (+25% Companion Happiness)\n")
         sys.stdout.write(f"  [7] 🍇 Golden Razz    - Cost: 5.0M   tokens  (Boosts next egg shiny odds to 1/24!)\n")
-        sys.stdout.write(f"  [8] 📜 Exped. License - Cost: 200.0M tokens  (+10 expedition slots)\n")
-        sys.stdout.write(f"  [+] 💎 Evo Stones     - Cost: 50.0M  tokens  (Type 'buy water_stone', 'buy fire_stone', etc.)\n\n")
+        sys.stdout.write(f"  [8] 📜 Exped. License - Cost: 200.0M tokens  (+10 expedition slots)\n\n")
 
-        sys.stdout.write(f"  {BOLD}Your Bag (Type 'use <number>' to use, or 'sell <number> [qty]' to sell):{RESET}\n")
-        sys.stdout.write(f"  [1] 🍬 Rare Candy: {inv.get('rare_candy', 0)} owned\n")
-        sys.stdout.write(f"  [2] 🌿 Mint:       {inv.get('mint', 0)} owned\n")
-        sys.stdout.write(f"  [3] 🫐 Oran Berry: {inv.get('berry_oran', 0)} owned\n")
-        sys.stdout.write(f"  [4] 🍇 Golden Razz: {inv.get('berry_golden', 0)} owned\n")
+        sys.stdout.write(f"  {BOLD}Your Bag (Type 'use <id>' to use, or 'sell <id> [qty]' to sell):{RESET}\n")
         
-        sys.stdout.write(f"  [5] 🎫 Expedition Pass: {inv.get('expedition_pass', 0)} owned\n")
-        sys.stdout.write(f"  [6] 🪈 Poké Flute:  {inv.get('poke_flute', 0)} owned (Summons a Gym Boss)\n")
-        sys.stdout.write(f"  [7] 🌟 Master Ball: {inv.get('master_ball', 0)} owned (Instantly hatches Shiny)\n")
-        sys.stdout.write(f"  [8] 📜 Map: {inv.get('map_fragment', 0)} owned\n")
-        sys.stdout.write(f"  [9] 📜 Exped. License: {inv.get('expedition_license', 0)} owned (+10 exp. slots)\n")
+        bag_items = []
+        if inv.get('rare_candy', 0) > 0: bag_items.append(("🍬 Rare Candy", "1", inv['rare_candy']))
+        if inv.get('mint', 0) > 0: bag_items.append(("🌿 Mint", "2", inv['mint']))
+        if inv.get('berry_oran', 0) > 0: bag_items.append(("🫐 Oran Berry", "3", inv['berry_oran']))
+        if inv.get('berry_golden', 0) > 0: bag_items.append(("🍇 Golden Razz", "4", inv['berry_golden']))
+        if inv.get('expedition_pass', 0) > 0: bag_items.append(("🎫 Expedition Pass", "5", inv['expedition_pass']))
+        if inv.get('poke_flute', 0) > 0: bag_items.append(("🪈 Poké Flute (Summons Gym Boss)", "6", inv['poke_flute']))
+        if inv.get('master_ball', 0) > 0: bag_items.append(("🌟 Master Ball (Hatches Shiny)", "7", inv['master_ball']))
+        if inv.get('map_fragment', 0) > 0: bag_items.append(("📜 Map", "8", inv['map_fragment']))
+        if inv.get('expedition_license', 0) > 0: bag_items.append(("📜 Exped. License (+10 exp. slots)", "9", inv['expedition_license']))
         
         stone_keys = ["water_stone", "fire_stone", "thunder_stone", "leaf_stone", "moon_stone", "sun_stone", "ice_stone", "shiny_stone", "dusk_stone", "dawn_stone"]
-        owned_stones = [k for k in stone_keys if inv.get(k, 0) > 0]
-        if owned_stones:
-            stone_str = ', '.join(f"{k.replace('_', ' ').title()} ({inv[k]})" for k in owned_stones)
-            sys.stdout.write(f"  [+] 💎 Evo Stones: {stone_str}\n")
-            sys.stdout.write(f"      (Type 'use water_stone', etc. to evolve active companion)\n")
-
-        has_charm = "OWNED (Active)" if inv.get("shiny_charm", 0) > 0 else "Not owned"
-        sys.stdout.write(f"  [+] ✨ Shiny Charm: {has_charm}\n\n")
+        for k in stone_keys:
+            if inv.get(k, 0) > 0:
+                bag_items.append((f"💎 {k.replace('_', ' ').title()}", k, inv[k]))
+                
+        if inv.get("shiny_charm", 0) > 0:
+            bag_items.append(("✨ Shiny Charm", "shiny_charm", "OWNED (Active)"))
+            
+        page_size = self.engine.state.get("pagesize", 10)
+        total_pages = max(1, (len(bag_items) - 1) // page_size + 1)
+        if not hasattr(self, 'shop_page'): self.shop_page = 1
+        self.shop_page = max(1, min(self.shop_page, total_pages))
+        
+        if not bag_items:
+            sys.stdout.write("  (Your bag is empty)\n\n")
+        else:
+            start_idx = (self.shop_page - 1) * page_size
+            end_idx = start_idx + page_size
+            for name, cmd_id, qty in bag_items[start_idx:end_idx]:
+                sys.stdout.write(f"  [{cmd_id}] {name}: {qty} owned\n")
+                
+            if total_pages > 1:
+                sys.stdout.write(f"\n  ➔ Page {self.shop_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to navigate bag!\n")
+            sys.stdout.write("\n")
 
     def handle_shop_buy(self, cmd: str):
         parts = cmd.split()
@@ -638,8 +660,6 @@ class PokeTokenBarTUI:
             ok, msg = self.engine.buy_item(ItemKind.BERRY_GOLDEN, qty)
         elif choice == "8":
             ok, msg = self.engine.buy_item(ItemKind.EXPEDITION_LICENSE, qty)
-        elif choice in [s.value for s in ItemKind if s.value.endswith("_stone") and s != ItemKind.MEGA_STONE]:
-            ok, msg = self.engine.buy_item(ItemKind(choice), qty)
         else:
             ok, msg = False, "Invalid shop selection."
         self.message = msg
