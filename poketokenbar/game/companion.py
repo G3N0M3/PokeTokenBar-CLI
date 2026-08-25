@@ -1765,12 +1765,12 @@ class CompanionEngine:
 
         ok, msg = self.poker.start_hand(bet)
         p_cards = " ".join([str(c) for c in self.poker.player_hole])
-        return True, f"♠️ TEXAS HOLD 'EM BET {format_tokens(bet)} TOKENS!\n  Your Hole Cards: {p_cards}\n  Community Board: [?] [?] [?] [?] [?]\n  ➔ Type 'call' to reveal the 3 Flop cards!"
+        return True, f"♠️ TEXAS HOLD'EM BET {format_tokens(bet)} TOKENS!\n  Your Hole Cards: {p_cards}\n  Community Board: [?] [?] [?] [?] [?]\n  ➔ Type 'call' to reveal the 3 Flop cards!"
 
     def play_poker_hold(self, hold_str: str) -> Tuple[bool, str]:
         cmd = hold_str.lower().strip()
         if self.poker.game_state == "idle":
-            return False, "No active Texas Hold 'em hand! Type 'bet <amount>' to start a hand."
+            return False, "No active Texas Hold'em hand! Type 'bet <amount>' to start a hand."
 
         if cmd == "fold":
             outcome, lost = self.poker.play_fold()
@@ -1836,7 +1836,7 @@ class CompanionEngine:
         net_change = winnings - bet
         profit_str = f"+{format_tokens(net_change)}" if net_change >= 0 else f"-{format_tokens(abs(net_change))}"
 
-        res_header = f"♦️ TEXAS HOLD 'EM SHOWDOWN!\n  Community Board: {board}\n  🎴 YOUR HOLE:  {p_hole} (\033[1m\033[32m{p_rank}\033[0m)\n  🏠 HOUSE HOLE: {d_hole} (\033[1m\033[31m{d_rank}\033[0m)\n"
+        res_header = f"♦️ TEXAS HOLD'EM SHOWDOWN!\n  Community Board: {board}\n  🎴 YOUR HOLE:  {p_hole} (\033[1m\033[32m{p_rank}\033[0m)\n  🏠 HOUSE HOLE: {d_hole} (\033[1m\033[31m{d_rank}\033[0m)\n"
 
         if outcome == "WIN":
             return True, res_header + f"  🏆 Result: \033[1m\033[32mYOU BEAT THE HOUSE!\033[0m ({mult}x Payout! Won \033[1m\033[36m{format_tokens(winnings)}\033[0m Tokens! Net: {profit_str})"

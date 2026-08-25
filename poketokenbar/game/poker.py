@@ -50,7 +50,7 @@ class TexasHoldemEngine:
         self.game_state = "preflop"
 
         p_cards = " ".join([str(c) for c in self.player_hole])
-        return True, f"♠️ TEXAS HOLD 'EM DEALT!\n  Your Hole: {p_cards}\n  Board:     [?] [?] [?] [?] [?]\n  ➔ Type 'call' to see Flop, 'raise' to double bet, or 'fold'."
+        return True, f"♠️ TEXAS HOLD'EM DEALT!\n  Your Hole: {p_cards}\n  Board:     [?] [?] [?] [?] [?]\n  ➔ Type 'call' to see Flop, 'raise' to double bet, or 'fold'."
 
     def play_flop(self) -> Tuple[bool, str]:
         if self.game_state != "preflop":

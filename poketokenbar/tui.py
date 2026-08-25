@@ -326,7 +326,7 @@ class PokeTokenBarTUI:
         t6 = f"{BOLD}{CYAN}[6] Battles{RESET}" if self.current_tab == 6 else "[6] Battles"
         t7 = f"{BOLD}{CYAN}[7] Quests{RESET}" if self.current_tab == 7 else "[7] Quests"
         t8 = f"{BOLD}{CYAN}[8] Mega-Evo{RESET}" if self.current_tab == 8 else "[8] Mega-Evo"
-        t9 = f"{BOLD}{CYAN}[9] Hold 'em{RESET}" if self.current_tab == 9 else "[9] Hold 'em"
+        t9 = f"{BOLD}{CYAN}[9] Hold'em{RESET}" if self.current_tab == 9 else "[9] Hold'em"
         t10 = f"{BOLD}{CYAN}[10] Gacha{RESET}" if self.current_tab == 10 else "[10] Gacha"
         t11 = f"{BOLD}{CYAN}[11] Bank{RESET}" if self.current_tab == 11 else "[11] Bank"
         t12 = f"{BOLD}{CYAN}[12] Settings{RESET}" if self.current_tab == 12 else "[12] Settings"
@@ -1000,7 +1000,7 @@ class PokeTokenBarTUI:
 
     def render_poker_tab(self):
         avail = self.engine.available_tokens
-        sys.stdout.write(f"\n  {BOLD}{HEADER}♠️ Casino Texas Hold 'em (You vs. The House!){RESET}\n\n")
+        sys.stdout.write(f"\n  {BOLD}{HEADER}♠️ Casino Texas Hold'em (You vs. The House!){RESET}\n\n")
         sys.stdout.write(f"  Available Tokens to Bet: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n\n")
 
         sys.stdout.write(f"  {BOLD}🃏 Rules & Payout Multipliers:{RESET}\n")
