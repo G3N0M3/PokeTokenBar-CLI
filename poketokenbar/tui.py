@@ -920,26 +920,6 @@ class PokeTokenBarTUI:
     def render_mega_evo_tab(self):
         sys.stdout.write(f"\n  {BOLD}{HEADER}🔮 Mega Evolution Interface{RESET}\n\n")
         
-        active = self.engine.active_mon
-        if active:
-            sp_name = self.engine.api.get_species_name(active.current_id)
-            sp_id = str(active.current_id)
-            from poketokenbar.game.models import MEGA_STONES
-            is_eligible = any(str(k).startswith(sp_id) for k in MEGA_STONES.keys())
-            
-            sys.stdout.write(f"  {BOLD}Active Companion:{RESET} {CYAN}{sp_name} (#{active.current_id}){RESET}\n")
-            if is_eligible:
-                if active.is_mega:
-                    form_str = f" {active.mega_form}" if getattr(active, 'mega_form', None) in ["X", "Y"] else ""
-                    sys.stdout.write(f"  {BOLD}Status:{RESET} {GREEN}MEGA EVOLVED! ✨ (Form{form_str} +50% Bonus XP active){RESET}\n")
-                else:
-                    sys.stdout.write(f"  {BOLD}Status:{RESET} Standard Form (Available for Mega-Evo!)\n")
-            else:
-                sys.stdout.write(f"  {BOLD}Status:{RESET} {RED}Not Eligible for Mega Evolution{RESET}\n")
-        else:
-            sys.stdout.write(f"  {BOLD}Active Companion:{RESET} None (Select a companion from the Roster!)\n")
-        
-        sys.stdout.write(f"\n  {BOLD}Your Mega Stones:{RESET}\n")
         inv = self.engine.state.get("inventory", {})
         stones = []
         from poketokenbar.game.models import MEGA_STONES
@@ -958,6 +938,35 @@ class PokeTokenBarTUI:
             stones.append((idx, f"Universal Stone x{inv['mega_stone']}"))
             self.mega_stone_map[str(idx)] = "mega_stone"
             idx += 1
+            
+        active = self.engine.active_mon
+        if active:
+            sp_name = self.engine.api.get_species_name(active.current_id)
+            sp_id = str(active.current_id)
+            is_eligible = any(str(k).startswith(sp_id) for k in MEGA_STONES.keys())
+            
+            sys.stdout.write(f"  {BOLD}Active Companion:{RESET} {CYAN}{sp_name} (#{active.current_id}){RESET}\n")
+            if is_eligible:
+                if active.is_mega:
+                    form_str = f" {active.mega_form}" if getattr(active, 'mega_form', None) in ["X", "Y"] else ""
+                    sys.stdout.write(f"  {BOLD}Status:{RESET} {GREEN}MEGA EVOLVED! ✨ (Form{form_str} +50% Bonus XP active){RESET}\n")
+                else:
+                    usable_idxs = []
+                    for s_idx, k in self.mega_stone_map.items():
+                        if k == "mega_stone" or k.startswith(f"mega_stone_{sp_id}"):
+                            usable_idxs.append(f"[{s_idx}]")
+                            
+                    sys.stdout.write(f"  {BOLD}Status:{RESET} Standard Form (Available for Mega-Evo!)\n")
+                    if usable_idxs:
+                        sys.stdout.write(f"  {BOLD}Usable Items:{RESET} {YELLOW}Type 'use <idx>' with {', '.join(usable_idxs)}{RESET}\n")
+                    else:
+                        sys.stdout.write(f"  {BOLD}Usable Items:{RESET} {RED}None owned! (You need the specific Mega Stone or a Universal Stone){RESET}\n")
+            else:
+                sys.stdout.write(f"  {BOLD}Status:{RESET} {RED}Not Eligible for Mega Evolution{RESET}\n")
+        else:
+            sys.stdout.write(f"  {BOLD}Active Companion:{RESET} None (Select a companion from the Roster!)\n")
+        
+        sys.stdout.write(f"\n  {BOLD}Your Mega Stones:{RESET}\n")
         
         page_size = self.engine.state.get("page_size_mega", 14)
         total_pages = max(1, (len(stones) - 1) // page_size + 1)
