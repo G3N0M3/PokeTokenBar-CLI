@@ -213,11 +213,14 @@ class PokeTokenBarTUI:
                             elif target in ["exp", "expeditions"]:
                                 self.engine.state["page_size_expedition"] = val
                                 self.message = f"Expeditions page size set to {val}."
+                            elif target == "bag":
+                                self.engine.state["page_size_bag"] = val
+                                self.message = f"Bag page size set to {val}."
                             else:
-                                self.message = "Usage: pagesize <dex|roster|exp> <number>"
+                                self.message = "Usage: pagesize <dex|roster|exp|bag> <number>"
                             self.engine.save()
                         except ValueError:
-                            self.message = "Invalid size. Usage: pagesize <dex|roster|exp> <number>"
+                            self.message = "Invalid size. Usage: pagesize <dex|roster|exp|bag> <number>"
                 elif cmd.startswith("select") or cmd.startswith("sel ") or cmd == "sel":
                     parts = cmd.split()
                     if len(parts) >= 2:
@@ -610,7 +613,7 @@ class PokeTokenBarTUI:
         if inv.get("shiny_charm", 0) > 0:
             bag_items.append(("✨ Shiny Charm", "shiny_charm", "OWNED (Active)"))
             
-        page_size = self.engine.state.get("pagesize", 10)
+        page_size = self.engine.state.get("page_size_bag", 10)
         total_pages = max(1, (len(bag_items) - 1) // page_size + 1)
         if not hasattr(self, 'shop_page'): self.shop_page = 1
         self.shop_page = max(1, min(self.shop_page, total_pages))
@@ -1055,7 +1058,11 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  [4] Expeditions Page Size:     {BOLD}{expedition_size} items{RESET}\n")
         sys.stdout.write(f"      ➔ Type '{BOLD}pagesize exp <number>{RESET}' to adjust\n\n")
 
-        sys.stdout.write(f"  [5] Reset Game Progress:       {BOLD}{RED}[DANGER]{RESET}\n")
+        bag_size = self.engine.state.get("page_size_bag", 10)
+        sys.stdout.write(f"  [5] Bag Page Size:             {BOLD}{bag_size} items{RESET}\n")
+        sys.stdout.write(f"      ➔ Type '{BOLD}pagesize bag <number>{RESET}' to adjust\n\n")
+
+        sys.stdout.write(f"  [6] Reset Game Progress:       {BOLD}{RED}[DANGER]{RESET}\n")
         sys.stdout.write(f"      ➔ Type '{BOLD}reset{RESET}' to clear all saved progress & restart fresh\n\n")
 
     def render_footer(self):
