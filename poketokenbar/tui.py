@@ -353,14 +353,19 @@ class PokeTokenBarTUI:
         active = self.engine.active_mon
 
         if active is None:
-            # Egg state
-            egg_usage = self.engine.state.get("egg_usage", 0)
-            threshold = PokemonBalance.EGG_HATCH_THRESHOLD
-            bar = format_progress_bar(egg_usage, threshold)
+            egg_tier = self.engine.state.get("egg_tier")
+            if egg_tier:
+                # Egg state
+                egg_usage = self.engine.state.get("egg_usage", 0)
+                threshold = PokemonBalance.EGG_HATCH_THRESHOLD
+                bar = format_progress_bar(egg_usage, threshold)
 
-            sys.stdout.write(f"\n  {YELLOW}🥚 Pokémon Egg Incubating...{RESET}\n")
-            sys.stdout.write(f"  Incubation Progress: {bar} ({format_tokens(egg_usage)} / {format_tokens(threshold)} tokens)\n")
-            sys.stdout.write("  Keep spending tokens in Antigravity CLI to hatch your egg!\n\n")
+                sys.stdout.write(f"\n  {YELLOW}🥚 Pokémon Egg Incubating...{RESET}\n")
+                sys.stdout.write(f"  Incubation Progress: {bar} ({format_tokens(egg_usage)} / {format_tokens(threshold)} tokens)\n")
+                sys.stdout.write("  Keep spending tokens in Antigravity CLI to hatch your egg!\n\n")
+            else:
+                sys.stdout.write(f"\n  {BOLD}{RED}No active companion selected!{RESET}\n")
+                sys.stdout.write("  Visit the Roster tab (3) and type 'sel <number>' to select a companion to travel with you!\n\n")
         else:
             # Active Pokémon
             sp_id = active.current_id
