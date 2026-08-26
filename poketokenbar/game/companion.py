@@ -177,21 +177,27 @@ class CompanionEngine:
         else:
             happiness = 100
 
-        # Happiness XP multiplier (+20% bonus if 100% happy)
-        xp_multiplier = 1.20 if happiness >= 100 else 1.0
-        if active and active.is_mega:
-            xp_multiplier += 0.50  # Mega Evolution grants +50% XP boost!
-        effective_xp = int(delta * xp_multiplier)
+        if happiness == 0:
+            effective_xp = 0
+            xp_multiplier = 0.0
+        else:
+            # Happiness XP multiplier (+20% bonus if 100% happy)
+            xp_multiplier = 1.20 if happiness >= 100 else 1.0
+            if active and active.is_mega:
+                xp_multiplier += 0.50  # Mega Evolution grants +50% XP boost!
+            effective_xp = int(delta * xp_multiplier)
 
-        # Update boss battle damage if active
-        boss_events = self._update_boss_battle(delta)
-        events.extend(boss_events)
+        if happiness > 0:
+            # Update boss battle damage if active
+            boss_events = self._update_boss_battle(delta)
+            events.extend(boss_events)
 
         # Update Pokédex expeditions progress (benefits from Happiness & Mega multipliers!)
         self._update_expeditions(effective_xp, events)
 
-        # Check mini-trainer auto-battles
-        self._check_trainer_battle(delta, events)
+        if happiness > 0:
+            # Check mini-trainer auto-battles
+            self._check_trainer_battle(delta, events)
 
         if active is None:
             egg_tier = self.state.get("egg_tier")
@@ -1523,6 +1529,12 @@ class CompanionEngine:
         # Check if already on expedition
         if any(e["sp_id"] == sp_id for e in expeditions):
             return False, f"{sp_name} is already on an expedition!"
+
+        mon_state_dict = target_entry.get("mon_state", {})
+        current_hap = mon_state_dict.get("happiness", target_entry.get("happiness", 100)) if isinstance(mon_state_dict, dict) else target_entry.get("happiness", 100)
+        
+        if current_hap <= 0:
+            return False, f"{sp_name} is completely exhausted (0% Happiness) and refuses to go on an expedition! Please feed it Oran Berries 🫐 first."
             
         slot_limit = self.state.get("expedition_slots", 10)
         if len(expeditions) >= slot_limit:
