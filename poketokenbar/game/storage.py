@@ -90,6 +90,7 @@ class StorageManager:
             "ditto_disguise": mon.ditto_disguise,
             "ditto_revealed": mon.ditto_revealed,
             "is_mega": mon.is_mega,
+            "mega_form": mon.mega_form,
             "happiness": mon.happiness
         }
 
@@ -111,6 +112,7 @@ class StorageManager:
                 ditto_disguise=data.get("ditto_disguise"),
                 ditto_revealed=data.get("ditto_revealed", False),
                 is_mega=data.get("is_mega", False),
+                mega_form=data.get("mega_form"),
                 happiness=data.get("happiness", 100)
             )
         except Exception:

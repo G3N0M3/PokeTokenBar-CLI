@@ -12,6 +12,8 @@ class UsageManager:
         self.antigravity_reader = AntigravityUsageReader()
         self.gemini_reader = GeminiUsageReader()
         self.claude_reader = ClaudeUsageReader()
+        self._last_fetch_time = 0.0
+        self._cached_summary = None
 
     def fetch_all_entries(self) -> List[UsageEntry]:
         all_entries: List[UsageEntry] = []
@@ -26,7 +28,11 @@ class UsageManager:
 
         return sorted(seen.values(), key=lambda e: e.date)
 
-    def get_summary(self) -> Dict:
+    def get_summary(self, force: bool = False) -> Dict:
+        now_ts = datetime.datetime.now().timestamp()
+        if not force and self._cached_summary is not None and (now_ts - self._last_fetch_time) < 2.0:
+            return self._cached_summary
+
         entries = self.fetch_all_entries()
         now = datetime.datetime.now().astimezone()
         today_str = now.strftime("%Y-%m-%d")
@@ -73,7 +79,7 @@ class UsageManager:
         tokens_per_min = five_min_tokens / 5.0
         active_days = sorted(list(set(e.local_day for e in entries)))
 
-        return {
+        summary = {
             "today_tokens": today_tokens,
             "week_tokens": week_tokens,
             "month_tokens": month_tokens,
@@ -86,3 +92,7 @@ class UsageManager:
             "active_days": active_days,
             "last_updated": now
         }
+        
+        self._cached_summary = summary
+        self._last_fetch_time = now_ts
+        return summary

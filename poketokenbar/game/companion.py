@@ -632,7 +632,9 @@ class CompanionEngine:
                 nature=mon.nature,
                 happiness=mon.happiness,
                 ditto_disguise=mon.ditto_disguise,
-                ditto_revealed=mon.ditto_revealed
+                ditto_revealed=mon.ditto_revealed,
+                is_mega=mon.is_mega if idx == mon.stage_index else False,
+                mega_form=mon.mega_form if idx == mon.stage_index else None
             )
             sub_dict = StorageManager.mon_to_dict(sub_stage_mon)
 
@@ -1533,7 +1535,10 @@ class CompanionEngine:
             inv = self.state.get("inventory", {})
             if inv.get("map_fragment", 0) < 3:
                 return False, "You need 3x Maps to dispatch a Deep Expedition to Spear Pillar!"
-            if target_entry.get("happiness", 100) < 100:
+            
+            mon_state_dict = target_entry.get("mon_state", {})
+            hap = mon_state_dict.get("happiness", target_entry.get("happiness", 100)) if isinstance(mon_state_dict, dict) else target_entry.get("happiness", 100)
+            if hap < 100:
                 return False, "Only a companion with 100% Happiness can brave a Deep Expedition to Spear Pillar!"
             inv["map_fragment"] -= 3
             self.state["inventory"] = inv

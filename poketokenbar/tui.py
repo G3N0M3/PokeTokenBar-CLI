@@ -158,7 +158,7 @@ class PokeTokenBarTUI:
                     self.current_tab = 11
                     self.message = ""
                 elif cmd in ["r", "refresh"]:
-                    summary = self.tracker.get_summary()
+                    summary = self.tracker.get_summary(force=True)
                     events = self.engine.process_usage(summary["total_tokens"])
                     if events:
                         self.message = "Refreshed logs!\n" + "\n".join(events)
@@ -629,7 +629,8 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"     Areas:\n")
         sys.stdout.write(f"       • '{BOLD}viridian{RESET}' (5M, Mint)\n")
         sys.stdout.write(f"       • '{BOLD}cerulean{RESET}' (15M, Rare Candy)\n")
-        sys.stdout.write(f"       • '{BOLD}silver{RESET}'   (30M, Golden Razz)\n\n")
+        sys.stdout.write(f"       • '{BOLD}silver{RESET}'   (30M, Golden Razz)\n")
+        sys.stdout.write(f"       • '{BOLD}spear{RESET}'    (100M, Legendary Egg - Req. 3x Map & 100% Hap)\n\n")
 
     def render_shop_tab(self):
         avail = self.engine.available_tokens
