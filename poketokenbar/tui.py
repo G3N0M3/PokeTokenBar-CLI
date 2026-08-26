@@ -1078,7 +1078,7 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  Available Tokens to Bet: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n\n")
         
         sys.stdout.write(f"  {BOLD}Payouts (3 of a kind):{RESET}\n")
-        sys.stdout.write(f"  7️⃣ : 100x | 💎 : 25x | 🔔 : 15x | 🍉 : 10x | 🍇 : 8x | 🍋 : 5x | 🍒 : 3x\n")
+        sys.stdout.write(f"  ⭐ : 100x | 💎 : 25x | 🔔 : 15x | 🍉 : 10x | 🍇 : 8x | 🍋 : 5x | 🍒 : 3x\n")
         sys.stdout.write(f"  {BOLD}Consolation:{RESET} 🍒🍒 = 1.5x | 🍒 = 0.5x\n\n")
         
         if getattr(self, 'slot_animating', False):
@@ -1255,7 +1255,7 @@ class PokeTokenBarTUI:
 
     def animate_slot_spin(self, final_reels):
         self.slot_animating = True
-        symbols = ["🍒", "🍋", "🍇", "🍉", "🔔", "💎", "7️⃣"]
+        symbols = ["🍒", "🍋", "🍇", "🍉", "🔔", "💎", "⭐"]
         spins = 20
         for i in range(spins):
             r1 = final_reels[0] if i > spins * 0.4 else random.choice(symbols)

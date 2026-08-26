@@ -2,7 +2,7 @@ import random
 from typing import Tuple, List
 
 class SlotMachineEngine:
-    SYMBOLS = ["🍒", "🍋", "🍇", "🍉", "🔔", "💎", "7️⃣"]
+    SYMBOLS = ["🍒", "🍋", "🍇", "🍉", "🔔", "💎", "⭐"]
     
     # Weightings for each symbol (lower weight = rarer)
     WEIGHTS = [40, 30, 20, 15, 10, 5, 2]
@@ -14,7 +14,7 @@ class SlotMachineEngine:
         "🍉": 10,
         "🔔": 15,
         "💎": 25,
-        "7️⃣": 100,
+        "⭐": 100,
     }
     
     def __init__(self):
