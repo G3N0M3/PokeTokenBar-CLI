@@ -248,22 +248,26 @@ class PokeTokenBarTUI:
                         self.message = msg
                     else:
                         self.message = "Usage: send <ROW INDEX>|#<POKEMON INDEX> [area]"
-                elif cmd.startswith("play ") or cmd in ["1", "2", "3", "4"] and self.current_tab == 9 and getattr(self, "minigame_state", "menu") == "menu":
-                    game = cmd.split()[1] if cmd.startswith("play ") else cmd
-                    if game in ["poker", "holdem", "1"]:
-                        self.minigame_state = "poker"
-                        self.message = ""
-                    elif game in ["gacha", "2"]:
-                        self.minigame_state = "gacha"
-                        self.message = ""
-                    elif game in ["slot", "slots", "3"]:
-                        self.minigame_state = "slot"
-                        self.message = ""
-                    elif game in ["blackjack", "21", "4"]:
-                        self.minigame_state = "blackjack"
-                        self.message = ""
+                elif cmd.startswith("play "):
+                    parts = cmd.split()
+                    if len(parts) >= 2:
+                        game = parts[1]
+                        if game in ["poker", "holdem", "1"]:
+                            self.minigame_state = "poker"
+                            self.message = ""
+                        elif game in ["gacha", "2"]:
+                            self.minigame_state = "gacha"
+                            self.message = ""
+                        elif game in ["slot", "slots", "3"]:
+                            self.minigame_state = "slot"
+                            self.message = ""
+                        elif game in ["blackjack", "21", "4"]:
+                            self.minigame_state = "blackjack"
+                            self.message = ""
+                        else:
+                            self.message = "Game not found! Type 'play 1' for Poker, 'play 2' for Gacha, etc."
                     else:
-                        self.message = "Game not found! Type 'play poker', 'play gacha', etc."
+                        self.message = "Usage: play <number or name> (e.g. 'play 1' or 'play poker')"
                 elif cmd in ["leave", "back", "quit game", "exit game", "quit", "exit"] and self.current_tab == 9 and getattr(self, "minigame_state", "menu") != "menu":
                     self.minigame_state = "menu"
                     self.message = "Returned to Game Corner menu."
@@ -362,7 +366,7 @@ class PokeTokenBarTUI:
 
         sys.stdout.write(f"  {t1}   {t2}     {t3}      {t4}\n")
         sys.stdout.write(f"  {t5} {t6}     {t7}      {t8}\n")
-        sys.stdout.write(f"  {t9}     {t10}        {t11}\n")
+        sys.stdout.write(f"  {t9} {t10}       {t11}\n")
         sys.stdout.write("-" * 72 + "\n")
 
     def render_companion_tab(self, summary: dict):
@@ -1048,7 +1052,7 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"   {CYAN}2. Gacha Capsules{RESET} - Try your luck to win rare Pokémon, Eggs, and Mega Stones!\n")
         sys.stdout.write(f"   {CYAN}3. Token Slots{RESET}   - (Coming soon!) A fast-paced slot machine.\n")
         sys.stdout.write(f"   {CYAN}4. Blackjack{RESET}     - (Coming soon!) Classic 21 against the dealer.\n\n")
-        sys.stdout.write(f"  ➔ Type '{BOLD}play <game>{RESET}' (or just number 1-4) to start a game (e.g., 'play poker' or '1').\n\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}play <game>{RESET}' to start a game (e.g., 'play 1' or 'play poker').\n\n")
         
     def render_slot_tab(self):
         sys.stdout.write(f"\n  {BOLD}{HEADER}🎰 Token Slots{RESET}\n\n")
@@ -1071,7 +1075,8 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  ➔ Step 1: Type '{BOLD}bet <amount>{RESET}' to deal 2 Hole Cards (e.g. 'bet 500k', 'bet 1m', 'bet all')\n")
         sys.stdout.write(f"  ➔ Step 2: Type '{BOLD}check{RESET}' to reveal community cards, or '{BOLD}fold{RESET}'\n")
         sys.stdout.write(f"  ➔ Step 3: Type '{BOLD}raise{RESET}' to double your bet, or '{BOLD}allin{RESET}' to bet EVERYTHING!\n")
-        sys.stdout.write(f"  ➔ Note: You can raise multiple times in a single hand.\n\n")
+        sys.stdout.write(f"  ➔ Note: You can raise multiple times in a single hand.\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}leave{RESET}' to return to the Game Corner Menu.\n\n")
 
         if self.engine.poker.player_hole:
             p_hole = " ".join([str(c) for c in self.engine.poker.player_hole])
@@ -1105,7 +1110,8 @@ class PokeTokenBarTUI:
 
         sys.stdout.write(f"  {BOLD}🎰 Pull Options:{RESET}\n")
         sys.stdout.write(f"   • Single Capsule Pull (1x):  {BOLD}{YELLOW}5.0M Tokens{RESET}  (Type '{BOLD}pull 1{RESET}')\n")
-        sys.stdout.write(f"   • Multi Capsule Pull (10x):  {BOLD}{YELLOW}45.0M Tokens{RESET} (Type '{BOLD}pull 10{RESET}' - 1 Free!)\n\n")
+        sys.stdout.write(f"   • Multi Capsule Pull (10x):  {BOLD}{YELLOW}45.0M Tokens{RESET} (Type '{BOLD}pull 10{RESET}' - 1 Free!)\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}leave{RESET}' to return to the Game Corner Menu.\n\n")
 
         sys.stdout.write(f"  {BOLD}🎁 Drop Rates & Rewards:{RESET}\n")
         sys.stdout.write(f"   • 🌟 Legendary (2%):  Guaranteed Shiny Companion / +50M Tokens\n")
