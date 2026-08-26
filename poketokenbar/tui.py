@@ -1271,12 +1271,14 @@ class PokeTokenBarTUI:
                 
             self.slot_current_reels = grid
             
-            self.clear_screen()
+            # Use soft cursor-home instead of full clear to eliminate terminal flickering
+            sys.stdout.write("\033[H")
             summary = self.tracker.get_summary()
             self.render_header(summary)
             self.render_tabs()
             self.render_slot_tab()
             self.render_footer()
+            sys.stdout.write("\033[J") # Clear any leftover artifacts below the frame
             sys.stdout.flush()
             
             delay = 0.05 + (i / spins) * 0.1
