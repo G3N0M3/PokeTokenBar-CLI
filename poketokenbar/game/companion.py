@@ -407,11 +407,11 @@ class CompanionEngine:
             self.save()
             return True, f"Claimed Reward: +1 Mint 🌿 for completing [{target_q['text']}]!"
         elif reward_type == "tokens_10m":
-            self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - 10_000_000)
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - 10_000_000
             self.save()
             return True, f"Claimed Reward: +10.0M Spendable Tokens for completing [{target_q['text']}]!"
         elif reward_type == "tokens_20m":
-            self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - 20_000_000)
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - 20_000_000
             self.save()
             return True, f"Claimed Reward: +20.0M Spendable Tokens for completing [{target_q['text']}]!"
 
@@ -494,13 +494,13 @@ class CompanionEngine:
                     inv["mint"] = inv.get("mint", 0) + 1
                     self.state["inventory"] = inv
                 elif r_type == "tokens_10m":
-                    self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - int(10_000_000 * multiplier))
+                    self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - int(10_000_000 * multiplier)
                 elif r_type == "tokens_15m":
-                    self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - int(15_000_000 * multiplier))
+                    self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - int(15_000_000 * multiplier)
                 elif r_type == "tokens_20m":
-                    self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - int(20_000_000 * multiplier))
+                    self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - int(20_000_000 * multiplier)
                 elif r_type == "tokens_50m":
-                    self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - int(50_000_000 * multiplier))
+                    self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - int(50_000_000 * multiplier)
 
                 events.append(f"🏆 BOSS DEFEATED! You defeated Boss {b_name} and earned the {badge}!")
                 if is_mega and r_type.startswith("tokens_"):
@@ -1040,7 +1040,7 @@ class CompanionEngine:
             unit_cost = item_kind.price_for(diff)
             sell_value = int(unit_cost * 0.8) * qty
             inv[target_key] -= qty
-            self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - sell_value)
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - sell_value
             self.state["inventory"] = inv
             self.save()
             return True, f"Successfully sold {qty}x {target_name} (🔮) for +{format_tokens(sell_value)} Tokens!"
@@ -1054,7 +1054,7 @@ class CompanionEngine:
         sell_value = int(unit_cost * 0.8) * qty
 
         inv[item_kind.value] -= qty
-        self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - sell_value)
+        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - sell_value
         self.state["inventory"] = inv
         self.save()
         
@@ -1425,7 +1425,7 @@ class CompanionEngine:
                 tokens_gain = int(exp["target"] * 0.2)
                 
                 # Grant tokens by refunding spent_tokens
-                self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - tokens_gain)
+                self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - tokens_gain
                 
                 for d in dex:
                     sp_id_dex = d.get("species_id", d.get("base_id"))
@@ -1592,7 +1592,7 @@ class CompanionEngine:
                     reward_str = "2.0M"
                     bonus_msg = ""
                     
-                self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - token_reward)
+                self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - token_reward
                 msg = f"⚔️ TRAINER BATTLE! You defeated {opp_name} in an auto-battle! Earned +{reward_str} Spendable Tokens!{bonus_msg}"
                 events.append(msg)
                 logs.append(f"[{now_str}] 🏆 WIN vs {opp_name} (Earned +{reward_str} Tokens)")
@@ -1815,7 +1815,7 @@ class CompanionEngine:
         
         # Grant winnings by decreasing spent_tokens
         if winnings > 0:
-            self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - winnings)
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - winnings
             self.save()
 
         p_hole = " ".join([str(c) for c in self.poker.player_hole])
@@ -1869,7 +1869,7 @@ class CompanionEngine:
             if r_type == "item":
                 inv[val] = inv.get(val, 0) + 1
             elif r_type == "tokens":
-                self.state["spent_tokens"] = max(0, self.state.get("spent_tokens", 0) - val)
+                self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - val
             elif r_type == "egg":
                 current_tier = self.state.get("egg_tier")
                 if current_tier is None:
@@ -1903,7 +1903,7 @@ class CompanionEngine:
         
         grid_str = "\n".join([f"🎰 {' | '.join(row)} 🎰" for row in reels])
         if win_amount > 0:
-            self.state["spent_tokens"] = max(0, self.state["spent_tokens"] - win_amount)
+            self.state["spent_tokens"] = self.state["spent_tokens"] - win_amount
             msg = f"{grid_str}\n\nWINNER! ({mult:.1f}x Total Multiplier)\nYou won {format_tokens(win_amount)} tokens!"
         else:
             msg = f"{grid_str}\n\nNo luck this time! You lost {format_tokens(bet)} tokens."
@@ -1927,7 +1927,7 @@ class CompanionEngine:
         if ok:
             self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + bet
             if self.blackjack.game_state == "finished" and self.blackjack.last_winnings > 0:
-                self.state["spent_tokens"] = max(0, self.state["spent_tokens"] - self.blackjack.last_winnings)
+                self.state["spent_tokens"] = self.state["spent_tokens"] - self.blackjack.last_winnings
             self.save()
         return ok, msg
 
@@ -1948,7 +1948,7 @@ class CompanionEngine:
             
         if ok and self.blackjack.game_state == "finished":
             if self.blackjack.last_winnings > 0:
-                self.state["spent_tokens"] = max(0, self.state["spent_tokens"] - self.blackjack.last_winnings)
+                self.state["spent_tokens"] = self.state["spent_tokens"] - self.blackjack.last_winnings
             self.save()
             
         return ok, msg
