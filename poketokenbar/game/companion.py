@@ -1675,20 +1675,15 @@ class CompanionEngine:
 
     def handle_bank_transaction(self, action: str, amount_str: str) -> Tuple[bool, str]:
         clean_str = amount_str.lower().strip()
-        try:
-            if clean_str in ["all", "all-in"]:
-                if action == "deposit": amount = self.available_tokens
-                elif action == "withdraw": amount = self.state.get("bank_balance", 0)
-                elif action == "payoff": amount = min(self.available_tokens, self.state.get("bank_loan", 0))
-                else: return False, "Cannot use 'all' with loan!"
-            elif clean_str.endswith("m"):
-                amount = int(float(clean_str[:-1]) * 1_000_000)
-            elif clean_str.endswith("k"):
-                amount = int(float(clean_str[:-1]) * 1_000)
-            else:
-                amount = int(clean_str)
-        except ValueError:
-            return False, "Invalid amount! Example: 'deposit 500k', 'withdraw 1m', 'loan 10m', 'payoff all'."
+        if clean_str == "all":
+            if action == "deposit": amount = self.available_tokens
+            elif action == "withdraw": amount = self.state.get("bank_balance", 0)
+            elif action == "payoff": amount = min(self.available_tokens, self.state.get("bank_loan", 0))
+            else: return False, "Cannot use 'all' with loan!"
+        else:
+            amount = parse_tokens(amount_str)
+            if amount < 0:
+                return False, "Invalid amount! Example: 'deposit 500k', 'withdraw 1m', 'loan 10m', 'payoff all'."
         
         if amount <= 0:
             return False, "Amount must be greater than 0!"
@@ -1740,17 +1735,12 @@ class CompanionEngine:
 
     def play_poker_bet(self, amount_str: str) -> Tuple[bool, str]:
         clean_str = amount_str.lower().strip()
-        try:
-            if clean_str in ["all", "all-in"]:
-                bet = self.available_tokens
-            elif clean_str.endswith("m"):
-                bet = int(float(clean_str[:-1]) * 1_000_000)
-            elif clean_str.endswith("k"):
-                bet = int(float(clean_str[:-1]) * 1_000)
-            else:
-                bet = int(clean_str)
-        except ValueError:
-            return False, "Invalid bet amount! Example: 'bet 500k', 'bet 1m', 'bet all', or 'bet 2000000'."
+        if clean_str in ["all", "all-in"]:
+            bet = self.available_tokens
+        else:
+            bet = parse_tokens(amount_str)
+            if bet < 0:
+                return False, "Invalid bet amount! Example: 'bet 500k', 'bet 1m', 'bet all', or 'bet 2000000'."
 
         if bet <= 0:
             return False, "Bet amount must be greater than 0!"

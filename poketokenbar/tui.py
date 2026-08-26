@@ -105,7 +105,7 @@ class PokeTokenBarTUI:
 
             self.render_footer()
 
-            sys.stdout.write(f"\n{BOLD}Select tab (1-12), command, r=Refresh, q=Quit: {RESET}")
+            sys.stdout.write(f"\n{BOLD}Select tab (1-11), command, r=Refresh, q=Quit: {RESET}")
             sys.stdout.flush()
 
             try:
@@ -156,9 +156,6 @@ class PokeTokenBarTUI:
                     self.message = ""
                 elif cmd == "11":
                     self.current_tab = 11
-                    self.message = ""
-                elif cmd == "12":
-                    self.current_tab = 12
                     self.message = ""
                 elif cmd in ["r", "refresh"]:
                     summary = self.tracker.get_summary()
@@ -309,7 +306,7 @@ class PokeTokenBarTUI:
                 elif cmd == "reset" and self.current_tab == 11:
                     self.pending_reset = True
                     self.message = "⚠️ CONFIRMATION REQUIRED: Type 'RESET ALL' to wipe progress & restart fresh, or anything else to cancel!"
-                elif cmd.startswith("size") and self.current_tab == 12:
+                elif cmd.startswith("size") and self.current_tab == 11:
                     parts = cmd.split()
                     if len(parts) == 2 and parts[1].isdigit():
                         new_size = int(parts[1])
