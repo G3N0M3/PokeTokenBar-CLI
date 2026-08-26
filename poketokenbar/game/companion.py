@@ -1901,11 +1901,12 @@ class CompanionEngine:
         
         reels, mult, win_amount = self.slots.spin(bet)
         
+        grid_str = "\n".join([f"🎰 {' | '.join(row)} 🎰" for row in reels])
         if win_amount > 0:
             self.state["spent_tokens"] = max(0, self.state["spent_tokens"] - win_amount)
-            msg = f"🎰 {' | '.join(reels)} 🎰\n\nWINNER! ({mult}x Multiplier)\nYou won {format_tokens(win_amount)} tokens!"
+            msg = f"{grid_str}\n\nWINNER! ({mult:.1f}x Total Multiplier)\nYou won {format_tokens(win_amount)} tokens!"
         else:
-            msg = f"🎰 {' | '.join(reels)} 🎰\n\nNo luck this time! You lost {format_tokens(bet)} tokens."
+            msg = f"{grid_str}\n\nNo luck this time! You lost {format_tokens(bet)} tokens."
             
         self.save()
         return True, msg

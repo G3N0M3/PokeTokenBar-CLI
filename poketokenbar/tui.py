@@ -1082,16 +1082,20 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  {BOLD}Consolation:{RESET} 🍒🍒 = 1.5x | 🍒 = 0.5x\n\n")
         
         if getattr(self, 'slot_animating', False):
-            reels_str = " | ".join(getattr(self, 'slot_current_reels', ["?", "?", "?"]))
-            sys.stdout.write(f"  {BOLD}Spinning:{RESET} [ {reels_str} ]\n")
-            sys.stdout.write(f"  {BOLD}{YELLOW}Good luck...{RESET}\n\n")
-        elif self.engine.slots.last_win_amount > 0 or self.engine.slots.last_reels != ["-", "-", "-"]:
-            reels_str = " | ".join(self.engine.slots.last_reels)
-            sys.stdout.write(f"  {BOLD}Last Spin:{RESET} [ {reels_str} ]\n")
+            grid = getattr(self, 'slot_current_reels', [["?", "?", "?"], ["?", "?", "?"], ["?", "?", "?"]])
+            sys.stdout.write(f"  {BOLD}Spinning:{RESET}\n")
+            for row in grid:
+                sys.stdout.write(f"   [ {' | '.join(row)} ]\n")
+            sys.stdout.write(f"\n  {BOLD}{YELLOW}Good luck...{RESET}\n\n")
+        elif self.engine.slots.last_win_amount > 0 or self.engine.slots.last_reels != [["-", "-", "-"], ["-", "-", "-"], ["-", "-", "-"]]:
+            grid = self.engine.slots.last_reels
+            sys.stdout.write(f"  {BOLD}Last Spin:{RESET}\n")
+            for row in grid:
+                sys.stdout.write(f"   [ {' | '.join(row)} ]\n")
             if self.engine.slots.last_win_amount > 0:
-                sys.stdout.write(f"  {BOLD}{YELLOW}WINNER! {self.engine.slots.last_payout_mult}x payout! Won {format_tokens(self.engine.slots.last_win_amount)}{RESET}\n\n")
+                sys.stdout.write(f"\n  {BOLD}{YELLOW}WINNER! {self.engine.slots.last_payout_mult:.1f}x total payout! Won {format_tokens(self.engine.slots.last_win_amount)}{RESET}\n\n")
             else:
-                sys.stdout.write(f"  {BOLD}{RED}No payout.{RESET}\n\n")
+                sys.stdout.write(f"\n  {BOLD}{RED}No payout.{RESET}\n\n")
         
         sys.stdout.write(f"  ➔ Type '{BOLD}spin <amount>{RESET}' to play (e.g. 'spin 500k', 'spin 1m').\n")
         sys.stdout.write(f"  ➔ Type '{BOLD}leave{RESET}' to return to the Game Corner Menu.\n\n")
@@ -1258,10 +1262,14 @@ class PokeTokenBarTUI:
         symbols = ["🍒", "🍋", "🍇", "🍉", "🔔", "💎", "⭐"]
         spins = 20
         for i in range(spins):
-            r1 = final_reels[0] if i > spins * 0.4 else random.choice(symbols)
-            r2 = final_reels[1] if i > spins * 0.7 else random.choice(symbols)
-            r3 = final_reels[2] if i > spins * 0.9 else random.choice(symbols)
-            self.slot_current_reels = [r1, r2, r3]
+            grid = []
+            for r in range(3):
+                col1 = final_reels[r][0] if i > spins * 0.4 else random.choice(symbols)
+                col2 = final_reels[r][1] if i > spins * 0.7 else random.choice(symbols)
+                col3 = final_reels[r][2] if i > spins * 0.9 else random.choice(symbols)
+                grid.append([col1, col2, col3])
+                
+            self.slot_current_reels = grid
             
             self.clear_screen()
             summary = self.tracker.get_summary()

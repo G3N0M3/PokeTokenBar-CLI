@@ -18,26 +18,36 @@ class SlotMachineEngine:
     }
     
     def __init__(self):
-        self.last_reels = ["-", "-", "-"]
+        self.last_reels = [["-", "-", "-"], ["-", "-", "-"], ["-", "-", "-"]]
         self.last_payout_mult = 0.0
         self.last_win_amount = 0
     
-    def spin(self, bet: int) -> Tuple[List[str], float, int]:
+    def spin(self, bet: int) -> Tuple[List[List[str]], float, int]:
         """Spins the slots and returns (reels, multiplier, win_amount)"""
-        # Spin 3 reels independently based on weights
-        self.last_reels = random.choices(self.SYMBOLS, weights=self.WEIGHTS, k=3)
+        # Spin 3x3 grid
+        self.last_reels = [
+            random.choices(self.SYMBOLS, weights=self.WEIGHTS, k=3),
+            random.choices(self.SYMBOLS, weights=self.WEIGHTS, k=3),
+            random.choices(self.SYMBOLS, weights=self.WEIGHTS, k=3)
+        ]
         
-        # Check for 3 of a kind
-        if self.last_reels[0] == self.last_reels[1] == self.last_reels[2]:
-            self.last_payout_mult = self.PAYOUTS[self.last_reels[0]]
-        # Or check for 2 cherries as a small consolation
-        elif self.last_reels.count("🍒") == 2:
-            self.last_payout_mult = 1.5
-        # Or 1 cherry
-        elif self.last_reels.count("🍒") == 1:
-            self.last_payout_mult = 0.5
-        else:
-            self.last_payout_mult = 0.0
+        paylines = [
+            self.last_reels[0], # Top row
+            self.last_reels[1], # Middle row
+            self.last_reels[2], # Bottom row
+            [self.last_reels[0][0], self.last_reels[1][1], self.last_reels[2][2]], # Diagonal 1
+            [self.last_reels[2][0], self.last_reels[1][1], self.last_reels[0][2]]  # Diagonal 2
+        ]
+        
+        total_mult = 0.0
+        for line in paylines:
+            if line[0] == line[1] == line[2]:
+                total_mult += self.PAYOUTS[line[0]]
+            elif line.count("🍒") == 2:
+                total_mult += 1.5
+            elif line.count("🍒") == 1:
+                total_mult += 0.5
             
+        self.last_payout_mult = total_mult / 5.0
         self.last_win_amount = int(bet * self.last_payout_mult)
         return self.last_reels, self.last_payout_mult, self.last_win_amount
