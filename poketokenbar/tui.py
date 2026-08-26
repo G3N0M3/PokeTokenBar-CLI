@@ -1262,6 +1262,10 @@ class PokeTokenBarTUI:
         self.slot_animating = True
         symbols = ["🍒", "🍋", "🍇", "🍉", "🔔", "💎", "⭐"]
         spins = 20
+        
+        # Cache summary to prevent heavy disk I/O on every frame
+        cached_summary = self.tracker.get_summary()
+        
         for i in range(spins):
             grid = []
             for r in range(3):
@@ -1277,8 +1281,7 @@ class PokeTokenBarTUI:
             old_stdout = sys.stdout
             sys.stdout = buf
             
-            summary = self.tracker.get_summary()
-            self.render_header(summary)
+            self.render_header(cached_summary)
             self.render_tabs()
             self.render_slot_tab()
             self.render_footer()
