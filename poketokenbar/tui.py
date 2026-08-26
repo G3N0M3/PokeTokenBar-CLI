@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import random
 import datetime
 from typing import Optional
 
@@ -287,6 +288,8 @@ class PokeTokenBarTUI:
                     parts = cmd.split()
                     if len(parts) >= 2:
                         ok, msg = self.engine.play_slots(parts[1])
+                        if ok:
+                            self.animate_slot_spin(self.engine.slots.last_reels)
                         self.message = msg
                     else:
                         self.message = "Usage: spin <amount> (e.g. 'spin 500k')"
@@ -1078,7 +1081,11 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  7️⃣ : 100x | 💎 : 25x | 🔔 : 15x | 🍉 : 10x | 🍇 : 8x | 🍋 : 5x | 🍒 : 3x\n")
         sys.stdout.write(f"  {BOLD}Consolation:{RESET} 🍒🍒 = 1.5x | 🍒 = 0.5x\n\n")
         
-        if self.engine.slots.last_win_amount > 0 or self.engine.slots.last_reels != ["-", "-", "-"]:
+        if getattr(self, 'slot_animating', False):
+            reels_str = " | ".join(getattr(self, 'slot_current_reels', ["?", "?", "?"]))
+            sys.stdout.write(f"  {BOLD}Spinning:{RESET} [ {reels_str} ]\n")
+            sys.stdout.write(f"  {BOLD}{YELLOW}Good luck...{RESET}\n\n")
+        elif self.engine.slots.last_win_amount > 0 or self.engine.slots.last_reels != ["-", "-", "-"]:
             reels_str = " | ".join(self.engine.slots.last_reels)
             sys.stdout.write(f"  {BOLD}Last Spin:{RESET} [ {reels_str} ]\n")
             if self.engine.slots.last_win_amount > 0:
@@ -1237,7 +1244,7 @@ class PokeTokenBarTUI:
 
     def render_footer(self):
         sys.stdout.write("-" * 72 + "\n")
-        if self.message:
+        if self.message and not getattr(self, 'slot_animating', False):
             for line in self.message.split("\n"):
                 if line.lstrip().startswith("➔"):
                     sys.stdout.write(f"  {GREEN}  {line.lstrip()}{RESET}\n")
@@ -1245,6 +1252,29 @@ class PokeTokenBarTUI:
                     sys.stdout.write(f"  {GREEN}{line}{RESET}\n")
                 else:
                     sys.stdout.write(f"  {GREEN}➔ {line}{RESET}\n")
+
+    def animate_slot_spin(self, final_reels):
+        self.slot_animating = True
+        symbols = ["🍒", "🍋", "🍇", "🍉", "🔔", "💎", "7️⃣"]
+        spins = 20
+        for i in range(spins):
+            r1 = final_reels[0] if i > spins * 0.4 else random.choice(symbols)
+            r2 = final_reels[1] if i > spins * 0.7 else random.choice(symbols)
+            r3 = final_reels[2] if i > spins * 0.9 else random.choice(symbols)
+            self.slot_current_reels = [r1, r2, r3]
+            
+            self.clear_screen()
+            summary = self.tracker.get_summary()
+            self.render_header(summary)
+            self.render_tabs()
+            self.render_slot_tab()
+            self.render_footer()
+            sys.stdout.flush()
+            
+            delay = 0.05 + (i / spins) * 0.1
+            time.sleep(delay)
+            
+        self.slot_animating = False
 
 def main():
     tui = PokeTokenBarTUI()
