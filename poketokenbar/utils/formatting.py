@@ -15,6 +15,20 @@ def format_tokens(num: float) -> str:
             return str(int(val))
         return f"{val:.1f}"
 
+def parse_tokens(amount_str: str) -> int:
+    clean_str = str(amount_str).lower().strip()
+    if not clean_str:
+        return 0
+    try:
+        if clean_str.endswith("m"):
+            return int(float(clean_str[:-1]) * 1_000_000)
+        elif clean_str.endswith("k"):
+            return int(float(clean_str[:-1]) * 1_000)
+        else:
+            return int(clean_str)
+    except ValueError:
+        return -1
+
 def format_progress_bar(current: int, total: int, width: int = 20) -> str:
     """Renders a progress bar string."""
     if total <= 0:

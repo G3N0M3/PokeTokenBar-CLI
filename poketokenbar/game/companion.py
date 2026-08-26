@@ -7,7 +7,7 @@ from poketokenbar.game.models import (
 )
 from poketokenbar.game.pokeapi import PokeAPIClient
 from poketokenbar.game.storage import StorageManager
-from poketokenbar.utils.formatting import format_tokens
+from poketokenbar.utils.formatting import format_tokens, parse_tokens
 
 from poketokenbar.game.poker import TexasHoldemEngine
 from poketokenbar.game.slots import SlotMachineEngine
