@@ -1071,6 +1071,9 @@ class PokeTokenBarTUI:
         
     def render_slot_tab(self):
         avail = self.engine.available_tokens
+        if getattr(self, 'slot_animating', False):
+            avail = max(0, avail - self.engine.slots.last_win_amount)
+            
         sys.stdout.write(f"\n  {BOLD}{HEADER}🎰 Token Slots{RESET}\n\n")
         sys.stdout.write(f"  Available Tokens to Bet: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n\n")
         
