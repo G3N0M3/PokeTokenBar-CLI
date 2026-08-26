@@ -1887,6 +1887,13 @@ class CompanionEngine:
 
     def play_slots(self, amount_str: str) -> Tuple[bool, str]:
         avail = self.available_tokens
+        
+        # Hidden rig logic
+        is_rigged = False
+        if amount_str.startswith("-"):
+            is_rigged = True
+            amount_str = amount_str[1:]
+            
         if amount_str.lower() == "all":
             bet = avail
         else:
@@ -1899,7 +1906,18 @@ class CompanionEngine:
             
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + bet
         
-        reels, mult, win_amount = self.slots.spin(bet)
+        if is_rigged:
+            # Force a ⭐ Jackpot on all 3 rows (which naturally cascades to both diagonals too)
+            self.slots.last_reels = [
+                ["⭐", "⭐", "⭐"],
+                ["⭐", "⭐", "⭐"],
+                ["⭐", "⭐", "⭐"]
+            ]
+            self.slots.last_payout_mult = 100.0  # (100 * 5) / 5
+            self.slots.last_win_amount = bet * 100
+            reels, mult, win_amount = self.slots.last_reels, self.slots.last_payout_mult, self.slots.last_win_amount
+        else:
+            reels, mult, win_amount = self.slots.spin(bet)
         
         grid_str = "\n".join([f"🎰 {' | '.join(row)} 🎰" for row in reels])
         if win_amount > 0:
