@@ -1270,10 +1270,16 @@ class CompanionEngine:
 
         return False, "Unknown item action."
 
-    def toggle_mega_evolution(self, target_stone_key: Optional[str] = None) -> Tuple[bool, str]:
+    def toggle_mega_evolution(self, target_stone_key: Optional[str] = None, force_revert: bool = False) -> Tuple[bool, str]:
         active = self.active_mon
         if active is None:
             return False, "You need an active Pokémon companion to Mega Evolve!"
+
+        if force_revert:
+            active.is_mega = False
+            active.mega_form = None
+            self.set_active_mon(active)
+            return True, f"{self.api.get_species_name(active.current_id)} reverted back to standard form."
 
         sp_id = str(active.current_id)
         

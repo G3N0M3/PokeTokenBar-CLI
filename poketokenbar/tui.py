@@ -342,7 +342,7 @@ class PokeTokenBarTUI:
                 elif self.current_tab == 8 and cmd == "revert":
                     active = self.engine.active_mon
                     if active and active.is_mega:
-                        ok, msg = self.engine.toggle_mega_evolution()
+                        ok, msg = self.engine.toggle_mega_evolution(force_revert=True)
                     elif active:
                         ok, msg = False, "Companion is not Mega Evolved!"
                     else:
