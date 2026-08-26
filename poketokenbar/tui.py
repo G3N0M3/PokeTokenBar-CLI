@@ -293,11 +293,24 @@ class PokeTokenBarTUI:
                     if len(parts) > 1:
                         target = parts[1]
                         if hasattr(self, 'mega_stone_map') and target in self.mega_stone_map:
-                            ok, msg = self.engine.toggle_mega_evolution(self.mega_stone_map[target])
+                            active = self.engine.active_mon
+                            if active and active.is_mega:
+                                ok, msg = False, "Already Mega Evolved! Type 'revert' to return to standard form."
+                            else:
+                                ok, msg = self.engine.toggle_mega_evolution(self.mega_stone_map[target])
                         else:
                             ok, msg = False, "Invalid stone number!"
                     else:
+                        ok, msg = False, "Usage: use <number>"
+                    self.message = msg
+                elif self.current_tab == 8 and cmd == "revert":
+                    active = self.engine.active_mon
+                    if active and active.is_mega:
                         ok, msg = self.engine.toggle_mega_evolution()
+                    elif active:
+                        ok, msg = False, "Companion is not Mega Evolved!"
+                    else:
+                        ok, msg = False, "No active companion to revert!"
                     self.message = msg
                 elif cmd.startswith("deposit") or cmd.startswith("withdraw") or cmd.startswith("loan") or cmd.startswith("payoff"):
                     parts = cmd.split()
@@ -950,6 +963,7 @@ class PokeTokenBarTUI:
                 if active.is_mega:
                     form_str = f" {active.mega_form}" if getattr(active, 'mega_form', None) in ["X", "Y"] else ""
                     sys.stdout.write(f"  {BOLD}Status:{RESET} {GREEN}MEGA EVOLVED! ✨ (Form{form_str} +50% Bonus XP active){RESET}\n")
+                    sys.stdout.write(f"  {BOLD}Usable Items:{RESET} {YELLOW}Type 'revert' to return to standard form{RESET}\n")
                 else:
                     usable_idxs = []
                     for s_idx, k in self.mega_stone_map.items():
@@ -991,7 +1005,7 @@ class PokeTokenBarTUI:
             if total_pages > 1:
                 sys.stdout.write(f"\n  ➔ Page {self.mega_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")
                 
-        sys.stdout.write(f"\n  ➔ Type '{BOLD}use <number>{RESET}' to Mega Evolve!\n\n")
+        sys.stdout.write(f"\n  ➔ Type '{BOLD}use <number>{RESET}' to Mega Evolve, or '{BOLD}revert{RESET}' to return to standard form!\n\n")
 
     def render_poker_tab(self):
         avail = self.engine.available_tokens
