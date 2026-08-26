@@ -274,12 +274,27 @@ class PokeTokenBarTUI:
                 elif cmd.startswith("bet"):
                     parts = cmd.split()
                     if len(parts) >= 2:
-                        ok, msg = self.engine.play_poker_bet(parts[1])
+                        if getattr(self, "minigame_state", "menu") == "poker":
+                            ok, msg = self.engine.play_poker_bet(parts[1])
+                        elif getattr(self, "minigame_state", "menu") == "blackjack":
+                            ok, msg = self.engine.play_blackjack_bet(parts[1])
+                        else:
+                            ok, msg = False, "You must open Poker or Blackjack to bet."
                         self.message = msg
                     else:
                         self.message = "Usage: bet <amount> (e.g. 'bet 500k', 'bet 1m')"
-                elif cmd in ["check", "raise", "fold", "allin"]:
+                elif cmd.startswith("spin") and getattr(self, "minigame_state", "menu") == "slot":
+                    parts = cmd.split()
+                    if len(parts) >= 2:
+                        ok, msg = self.engine.play_slots(parts[1])
+                        self.message = msg
+                    else:
+                        self.message = "Usage: spin <amount> (e.g. 'spin 500k')"
+                elif cmd in ["check", "raise", "fold", "allin"] and getattr(self, "minigame_state", "menu") == "poker":
                     ok, msg = self.engine.play_poker_hold(cmd)
+                    self.message = msg
+                elif cmd in ["hit", "stand", "double"] and getattr(self, "minigame_state", "menu") == "blackjack":
+                    ok, msg = self.engine.play_blackjack_action(cmd)
                     self.message = msg
                 elif cmd.startswith("pull"):
                     parts = cmd.split()
@@ -1055,12 +1070,61 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  ➔ Type '{BOLD}play <game>{RESET}' to start a game (e.g., 'play 1' or 'play poker').\n\n")
         
     def render_slot_tab(self):
+        avail = self.engine.available_tokens
         sys.stdout.write(f"\n  {BOLD}{HEADER}🎰 Token Slots{RESET}\n\n")
-        sys.stdout.write("  Coming soon! Type 'leave' to go back.\n\n")
+        sys.stdout.write(f"  Available Tokens to Bet: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n\n")
+        
+        sys.stdout.write(f"  {BOLD}Payouts (3 of a kind):{RESET}\n")
+        sys.stdout.write(f"  7️⃣ : 100x | 💎 : 25x | 🔔 : 15x | 🍉 : 10x | 🍇 : 8x | 🍋 : 5x | 🍒 : 3x\n")
+        sys.stdout.write(f"  {BOLD}Consolation:{RESET} 🍒🍒 = 1.5x | 🍒 = 0.5x\n\n")
+        
+        if self.engine.slots.last_win_amount > 0 or self.engine.slots.last_reels != ["-", "-", "-"]:
+            reels_str = " | ".join(self.engine.slots.last_reels)
+            sys.stdout.write(f"  {BOLD}Last Spin:{RESET} [ {reels_str} ]\n")
+            if self.engine.slots.last_win_amount > 0:
+                sys.stdout.write(f"  {BOLD}{YELLOW}WINNER! {self.engine.slots.last_payout_mult}x payout! Won {format_tokens(self.engine.slots.last_win_amount)}{RESET}\n\n")
+            else:
+                sys.stdout.write(f"  {BOLD}{RED}No payout.{RESET}\n\n")
+        
+        sys.stdout.write(f"  ➔ Type '{BOLD}spin <amount>{RESET}' to play (e.g. 'spin 500k', 'spin 1m').\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}leave{RESET}' to return to the Game Corner Menu.\n\n")
         
     def render_blackjack_tab(self):
-        sys.stdout.write(f"\n  {BOLD}{HEADER}🃏 Token Blackjack{RESET}\n\n")
-        sys.stdout.write("  Coming soon! Type 'leave' to go back.\n\n")
+        avail = self.engine.available_tokens
+        sys.stdout.write(f"\n  {BOLD}{HEADER}🃏 Casino Blackjack (21){RESET}\n\n")
+        sys.stdout.write(f"  Available Tokens to Bet: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n\n")
+        
+        sys.stdout.write(f"  {BOLD}🃏 Rules:{RESET}\n")
+        sys.stdout.write(f"   • Get closer to 21 than the dealer without going over (Bust).\n")
+        sys.stdout.write(f"   • Dealer must hit on 16 and stand on 17. Blackjack pays 2.5x.\n\n")
+        
+        sys.stdout.write(f"  ➔ Step 1: Type '{BOLD}bet <amount>{RESET}' to start (e.g. 'bet 500k').\n")
+        sys.stdout.write(f"  ➔ Step 2: Type '{BOLD}hit{RESET}' to take a card, or '{BOLD}stand{RESET}' to hold your total.\n")
+        sys.stdout.write(f"  ➔ Step 3: Type '{BOLD}double{RESET}' to double your bet and take exactly one more card.\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}leave{RESET}' to return to the Game Corner Menu.\n\n")
+        
+        if self.engine.blackjack.game_state != "idle":
+            state_str = "Dealing Phase" if self.engine.blackjack.game_state == "playing" else "Showdown Completed"
+            p_hand = " ".join(self.engine.blackjack.player_hand)
+            p_val = self.engine.blackjack.get_value(self.engine.blackjack.player_hand)
+            
+            if self.engine.blackjack.game_state == "playing":
+                d_hand = self.engine.blackjack.dealer_hand[0] + " [?]"
+                d_val_str = "?"
+            else:
+                d_hand = " ".join(self.engine.blackjack.dealer_hand)
+                d_val_str = str(self.engine.blackjack.get_value(self.engine.blackjack.dealer_hand))
+                
+            sys.stdout.write(f"  {BOLD}Active Table [{state_str}]:{RESET}\n")
+            sys.stdout.write(f"   👤 Your Hand:  {p_hand}  (Total: {p_val})\n")
+            sys.stdout.write(f"   🏠 House Hand: {d_hand}  (Total: {d_val_str})\n")
+            sys.stdout.write(f"   Current Bet: {BOLD}{YELLOW}{format_tokens(self.engine.blackjack.current_bet)}{RESET} tokens\n\n")
+            
+            if self.engine.blackjack.game_state == "finished":
+                if self.engine.blackjack.last_winnings > 0:
+                    sys.stdout.write(f"  {BOLD}{GREEN}{self.engine.blackjack.last_result} Won {format_tokens(self.engine.blackjack.last_winnings)} tokens!{RESET}\n\n")
+                else:
+                    sys.stdout.write(f"  {BOLD}{RED}{self.engine.blackjack.last_result} Lost {format_tokens(self.engine.blackjack.current_bet)} tokens.{RESET}\n\n")
 
     def render_poker_tab(self):
         avail = self.engine.available_tokens

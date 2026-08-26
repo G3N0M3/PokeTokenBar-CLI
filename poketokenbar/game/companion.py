@@ -10,6 +10,8 @@ from poketokenbar.game.storage import StorageManager
 from poketokenbar.utils.formatting import format_tokens
 
 from poketokenbar.game.poker import TexasHoldemEngine
+from poketokenbar.game.slots import SlotMachineEngine
+from poketokenbar.game.blackjack import BlackjackEngine
 from poketokenbar.game.gacha import GachaEngine, GACHA_COST_SINGLE, GACHA_COST_MULTI
 
 # Gen 1-5 starters/base species sampling fallback table if offline
@@ -44,6 +46,8 @@ class CompanionEngine:
         self.api = PokeAPIClient()
         self.state = StorageManager.load_state()
         self.poker = TexasHoldemEngine()
+        self.blackjack = BlackjackEngine()
+        self.slots = SlotMachineEngine()
 
         if "install_date" not in self.state:
             dex = self.state.get("dex", [])
@@ -1890,3 +1894,70 @@ class CompanionEngine:
         self.save()
         results_txt.append(f"\n  \033[90mLegendary Pity Counter: {pity}/100\033[0m")
         return True, "\n".join(results_txt)
+
+    def play_slots(self, amount_str: str) -> Tuple[bool, str]:
+        avail = self.available_tokens
+        if amount_str.lower() == "all":
+            bet = avail
+        else:
+            bet = parse_tokens(amount_str)
+            
+        if bet <= 0:
+            return False, "Invalid bet amount!"
+        if bet > avail:
+            return False, f"Not enough tokens! You only have {format_tokens(avail)}."
+            
+        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + bet
+        
+        reels, mult, win_amount = self.slots.spin(bet)
+        
+        if win_amount > 0:
+            self.state["spent_tokens"] = max(0, self.state["spent_tokens"] - win_amount)
+            msg = f"🎰 {' | '.join(reels)} 🎰\n\nWINNER! ({mult}x Multiplier)\nYou won {format_tokens(win_amount)} tokens!"
+        else:
+            msg = f"🎰 {' | '.join(reels)} 🎰\n\nNo luck this time! You lost {format_tokens(bet)} tokens."
+            
+        self.save()
+        return True, msg
+
+    def play_blackjack_bet(self, amount_str: str) -> Tuple[bool, str]:
+        avail = self.available_tokens
+        if amount_str.lower() == "all":
+            bet = avail
+        else:
+            bet = parse_tokens(amount_str)
+            
+        if bet <= 0:
+            return False, "Invalid bet amount!"
+        if bet > avail:
+            return False, f"Not enough tokens! You only have {format_tokens(avail)}."
+            
+        ok, msg = self.blackjack.start_game(bet)
+        if ok:
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + bet
+            if self.blackjack.game_state == "finished" and self.blackjack.last_winnings > 0:
+                self.state["spent_tokens"] = max(0, self.state["spent_tokens"] - self.blackjack.last_winnings)
+            self.save()
+        return ok, msg
+
+    def play_blackjack_action(self, action: str) -> Tuple[bool, str]:
+        if action == "hit":
+            ok, msg = self.blackjack.hit()
+        elif action == "stand":
+            ok, msg = self.blackjack.stand()
+        elif action == "double":
+            avail = self.available_tokens
+            if self.blackjack.current_bet > avail:
+                return False, f"Not enough tokens to double! Need {format_tokens(self.blackjack.current_bet)}."
+            ok, msg, extra = self.blackjack.double()
+            if ok:
+                self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + extra
+        else:
+            return False, "Invalid action."
+            
+        if ok and self.blackjack.game_state == "finished":
+            if self.blackjack.last_winnings > 0:
+                self.state["spent_tokens"] = max(0, self.state["spent_tokens"] - self.blackjack.last_winnings)
+            self.save()
+            
+        return ok, msg
