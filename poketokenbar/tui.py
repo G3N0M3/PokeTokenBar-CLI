@@ -252,22 +252,22 @@ class PokeTokenBarTUI:
                     parts = cmd.split()
                     if len(parts) >= 2:
                         game = parts[1]
-                        if game in ["poker", "holdem", "1"]:
+                        if game == "1":
                             self.minigame_state = "poker"
                             self.message = ""
-                        elif game in ["gacha", "2"]:
+                        elif game == "2":
                             self.minigame_state = "gacha"
                             self.message = ""
-                        elif game in ["slot", "slots", "3"]:
+                        elif game == "3":
                             self.minigame_state = "slot"
                             self.message = ""
-                        elif game in ["blackjack", "21", "4"]:
+                        elif game == "4":
                             self.minigame_state = "blackjack"
                             self.message = ""
                         else:
                             self.message = "Game not found! Type 'play 1' for Poker, 'play 2' for Gacha, etc."
                     else:
-                        self.message = "Usage: play <number or name> (e.g. 'play 1' or 'play poker')"
+                        self.message = "Usage: play <idx> (e.g. 'play 1')"
                 elif cmd in ["leave", "back", "quit game", "exit game", "quit", "exit"] and self.current_tab == 9 and getattr(self, "minigame_state", "menu") != "menu":
                     self.minigame_state = "menu"
                     self.message = "Returned to Game Corner menu."
@@ -1065,9 +1065,9 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  {BOLD}Available Games:{RESET}\n")
         sys.stdout.write(f"   {CYAN}1. Hold'em Poker{RESET} - High stakes Texas Hold'em against the dealer.\n")
         sys.stdout.write(f"   {CYAN}2. Gacha Capsules{RESET} - Try your luck to win rare Pokémon, Eggs, and Mega Stones!\n")
-        sys.stdout.write(f"   {CYAN}3. Token Slots{RESET}   - (Coming soon!) A fast-paced slot machine.\n")
-        sys.stdout.write(f"   {CYAN}4. Blackjack{RESET}     - (Coming soon!) Classic 21 against the dealer.\n\n")
-        sys.stdout.write(f"  ➔ Type '{BOLD}play <game>{RESET}' to start a game (e.g., 'play 1' or 'play poker').\n\n")
+        sys.stdout.write(f"   {CYAN}3. Token Slots{RESET}    - A fast-paced slot machine.\n")
+        sys.stdout.write(f"   {CYAN}4. Blackjack{RESET}      - Classic 21 against the dealer.\n\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}play <idx>{RESET}' to start a game (e.g., 'play 1' for Poker).\n\n")
         
     def render_slot_tab(self):
         avail = self.engine.available_tokens
