@@ -96,12 +96,10 @@ class PokeTokenBarTUI:
             elif self.current_tab == 8:
                 self.render_mega_evo_tab()
             elif self.current_tab == 9:
-                self.render_poker_tab()
+                self.render_game_corner_tab()
             elif self.current_tab == 10:
-                self.render_gacha_tab()
-            elif self.current_tab == 11:
                 self.render_bank_tab()
-            elif self.current_tab == 12:
+            elif self.current_tab == 11:
                 self.render_settings_tab()
 
             self.render_footer()
@@ -205,7 +203,7 @@ class PokeTokenBarTUI:
                         self.message = ""
                     except ValueError:
                         self.message = "Usage: page <number>"
-                elif cmd.startswith("pagesize ") and self.current_tab == 12:
+                elif cmd.startswith("pagesize ") and self.current_tab == 11:
                     parts = cmd.split()
                     if len(parts) >= 3:
                         target, size_str = parts[1], parts[2]
@@ -250,6 +248,25 @@ class PokeTokenBarTUI:
                         self.message = msg
                     else:
                         self.message = "Usage: send <ROW INDEX>|#<POKEMON INDEX> [area]"
+                elif cmd.startswith("play ") or cmd in ["1", "2", "3", "4"] and self.current_tab == 9 and getattr(self, "minigame_state", "menu") == "menu":
+                    game = cmd.split()[1] if cmd.startswith("play ") else cmd
+                    if game in ["poker", "holdem", "1"]:
+                        self.minigame_state = "poker"
+                        self.message = ""
+                    elif game in ["gacha", "2"]:
+                        self.minigame_state = "gacha"
+                        self.message = ""
+                    elif game in ["slot", "slots", "3"]:
+                        self.minigame_state = "slot"
+                        self.message = ""
+                    elif game in ["blackjack", "21", "4"]:
+                        self.minigame_state = "blackjack"
+                        self.message = ""
+                    else:
+                        self.message = "Game not found! Type 'play poker', 'play gacha', etc."
+                elif cmd in ["leave", "back", "quit game", "exit game", "quit", "exit"] and self.current_tab == 9 and getattr(self, "minigame_state", "menu") != "menu":
+                    self.minigame_state = "menu"
+                    self.message = "Returned to Game Corner menu."
                 elif cmd.startswith("bet"):
                     parts = cmd.split()
                     if len(parts) >= 2:
@@ -267,7 +284,7 @@ class PokeTokenBarTUI:
                     self.message = msg
                 elif cmd == "card":
                     self.message = self.engine.generate_trainer_card()
-                elif cmd == "reset" and self.current_tab == 12:
+                elif cmd == "reset" and self.current_tab == 11:
                     self.pending_reset = True
                     self.message = "⚠️ CONFIRMATION REQUIRED: Type 'RESET ALL' to wipe progress & restart fresh, or anything else to cancel!"
                 elif cmd.startswith("size") and self.current_tab == 12:
@@ -339,14 +356,13 @@ class PokeTokenBarTUI:
         t6 = f"{BOLD}{CYAN}[6] Battles{RESET}" if self.current_tab == 6 else "[6] Battles"
         t7 = f"{BOLD}{CYAN}[7] Quests{RESET}" if self.current_tab == 7 else "[7] Quests"
         t8 = f"{BOLD}{CYAN}[8] Mega-Evo{RESET}" if self.current_tab == 8 else "[8] Mega-Evo"
-        t9 = f"{BOLD}{CYAN}[9] Hold'em{RESET}" if self.current_tab == 9 else "[9] Hold'em"
-        t10 = f"{BOLD}{CYAN}[10] Gacha{RESET}" if self.current_tab == 10 else "[10] Gacha"
-        t11 = f"{BOLD}{CYAN}[11] Bank{RESET}" if self.current_tab == 11 else "[11] Bank"
-        t12 = f"{BOLD}{CYAN}[12] Settings{RESET}" if self.current_tab == 12 else "[12] Settings"
+        t9 = f"{BOLD}{CYAN}[9] Game Corner{RESET}" if self.current_tab == 9 else "[9] Game Corner"
+        t10 = f"{BOLD}{CYAN}[10] Bank{RESET}" if self.current_tab == 10 else "[10] Bank"
+        t11 = f"{BOLD}{CYAN}[11] Settings{RESET}" if self.current_tab == 11 else "[11] Settings"
 
         sys.stdout.write(f"  {t1}   {t2}     {t3}      {t4}\n")
         sys.stdout.write(f"  {t5} {t6}     {t7}      {t8}\n")
-        sys.stdout.write(f"  {t9}    {t10}      {t11}       {t12}\n")
+        sys.stdout.write(f"  {t9}     {t10}        {t11}\n")
         sys.stdout.write("-" * 72 + "\n")
 
     def render_companion_tab(self, summary: dict):
@@ -1011,6 +1027,36 @@ class PokeTokenBarTUI:
                 sys.stdout.write(f"\n  ➔ Page {self.mega_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")
                 
         sys.stdout.write(f"\n  ➔ Type '{BOLD}use <number>{RESET}' to Mega Evolve, or '{BOLD}revert{RESET}' to return to standard form!\n\n")
+
+    def render_game_corner_tab(self):
+        state = getattr(self, 'minigame_state', 'menu')
+        if state == 'poker':
+            self.render_poker_tab()
+        elif state == 'gacha':
+            self.render_gacha_tab()
+        elif state == 'slot':
+            self.render_slot_tab()
+        elif state == 'blackjack':
+            self.render_blackjack_tab()
+        else:
+            self.render_game_corner_menu()
+
+    def render_game_corner_menu(self):
+        sys.stdout.write(f"\n  {BOLD}{HEADER}🎰 Welcome to the Token Game Corner!{RESET}\n\n")
+        sys.stdout.write(f"  {BOLD}Available Games:{RESET}\n")
+        sys.stdout.write(f"   {CYAN}1. Hold'em Poker{RESET} - High stakes Texas Hold'em against the dealer.\n")
+        sys.stdout.write(f"   {CYAN}2. Gacha Capsules{RESET} - Try your luck to win rare Pokémon, Eggs, and Mega Stones!\n")
+        sys.stdout.write(f"   {CYAN}3. Token Slots{RESET}   - (Coming soon!) A fast-paced slot machine.\n")
+        sys.stdout.write(f"   {CYAN}4. Blackjack{RESET}     - (Coming soon!) Classic 21 against the dealer.\n\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}play <game>{RESET}' (or just number 1-4) to start a game (e.g., 'play poker' or '1').\n\n")
+        
+    def render_slot_tab(self):
+        sys.stdout.write(f"\n  {BOLD}{HEADER}🎰 Token Slots{RESET}\n\n")
+        sys.stdout.write("  Coming soon! Type 'leave' to go back.\n\n")
+        
+    def render_blackjack_tab(self):
+        sys.stdout.write(f"\n  {BOLD}{HEADER}🃏 Token Blackjack{RESET}\n\n")
+        sys.stdout.write("  Coming soon! Type 'leave' to go back.\n\n")
 
     def render_poker_tab(self):
         avail = self.engine.available_tokens
