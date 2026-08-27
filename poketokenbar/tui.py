@@ -1187,6 +1187,7 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  {BOLD}🎰 Pull Options:{RESET}\n")
         sys.stdout.write(f"   • Single Capsule Pull (1x):  {BOLD}{YELLOW}5.0M Tokens{RESET}  (Type '{BOLD}pull 1{RESET}')\n")
         sys.stdout.write(f"   • Multi Capsule Pull (10x):  {BOLD}{YELLOW}45.0M Tokens{RESET} (Type '{BOLD}pull 10{RESET}' - 1 Free!)\n")
+        sys.stdout.write(f"   • Custom Quantity Pull:      {BOLD}{YELLOW}Auto-Calculated{RESET} (Type '{BOLD}pull <qty>{RESET}' e.g. 'pull 45')\n")
         sys.stdout.write(f"  ➔ Type '{BOLD}leave{RESET}' to return to the Game Corner Menu.\n\n")
 
         sys.stdout.write(f"  {BOLD}🎁 Drop Rates & Rewards:{RESET}\n")

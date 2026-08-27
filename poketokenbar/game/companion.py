@@ -1861,22 +1861,35 @@ class CompanionEngine:
             return True, res_header + f"  💀 Result: \033[1m\033[31mHOUSE WINS!\033[0m Lost {format_tokens(bet)} Tokens."
 
     def play_gacha(self, pull_type: str = "1") -> Tuple[bool, str]:
-        cost = GACHA_COST_MULTI if pull_type == "10" else GACHA_COST_SINGLE
+        try:
+            qty = int(pull_type)
+            if qty <= 0:
+                return False, "Invalid pull quantity."
+        except ValueError:
+            return False, "Invalid pull quantity."
+
+        num_tens = qty // 10
+        num_ones = qty % 10
+        cost = (num_tens * GACHA_COST_MULTI) + (num_ones * GACHA_COST_SINGLE)
+
         avail = self.available_tokens
         if avail < cost:
-            return False, f"Not enough tokens! Gacha pull requires {format_tokens(cost)} available tokens."
+            return False, f"Not enough tokens! {qty}x Gacha pull requires {format_tokens(cost)} available tokens."
 
         # Deduct cost by increasing spent_tokens
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + cost
         inv = self.state.get("inventory", {})
 
-        results_txt = []
-        if pull_type == "10":
-            pulls = GachaEngine.pull_ten(inv)
-            results_txt.append("🔮 \033[1m10-CAPSULE GACHA PULL RESULTS:\033[0m")
-        else:
-            pulls = [GachaEngine.pull_one(inv)]
-            results_txt.append("🔮 \033[1mGACHA CAPSULE PULL RESULT:\033[0m")
+        results_txt = [f"🔮 \033[1m{qty}-CAPSULE GACHA PULL RESULTS:\033[0m"]
+        pulls = []
+        
+        # Do all pulls one by one and update a local inv tracker for mega stones
+        local_inv = dict(inv)
+        for _ in range(qty):
+            res = GachaEngine.pull_one(local_inv)
+            if res[2] == "item":
+                local_inv[res[3]] = local_inv.get(res[3], 0) + 1
+            pulls.append(res)
 
         pity = self.state.get("gacha_pity", 0)
         for i in range(len(pulls)):
