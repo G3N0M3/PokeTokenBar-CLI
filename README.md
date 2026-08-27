@@ -20,11 +20,12 @@ Designed specifically for **Linux CLI** environments, **Antigravity CLI** (`~/.g
   - Bet your spendable tokens (`bet 500k`, `bet 1m`) and win payouts up to **250x** for a Royal Flush!
   - Draw unheld cards (`hold 1 3 5` or `hold none` / `hold all`).
 - 🔮 **Pokémon Gacha Capsule Machine (Tab [10])**:
-  - Spend tokens to pull rare capsule items and companions (`pull 1` for 5M or `pull 10` for 45M).
+  - Spend tokens to pull rare capsule items and companions (`pull <qty>`). The system auto-calculates discounts for 10-pull batches (45M) and pads the rest with singles (5M).
   - Rewards include **Shiny Charms**, **Rare Eggs**, **Mega Stones**, and **Legendary Shiny Partners**!
 - 💖 **Individual Companion Happiness**:
   - Every Pokémon in your roster tracks its own Happiness (0-100%).
   - Maintaining **100% Happiness** grants a **+20% XP Boost**.
+  - **0% Happiness** completely exhausts the companion: they will refuse to go on Expeditions, will not gain XP, and cannot participate in Auto-Battles or Gym Raids.
   - Restored via **Oran Berries 🫐** (+25%) and daily activity (+10%). Decays on missed coding days (-25%/day) and battle losses (-10%).
 - 🛡️ **Safe Reset Confirmation Prompt**:
   - Prevents accidental data wipes with a two-step prompt requiring `RESET ALL` confirmation.
@@ -91,13 +92,13 @@ ptb
 - `1`..`12`: Switch directly between all 12 dedicated tabs.
 - `select <roster_idx>` / `select #<species_id>` / `select egg`: Switch active partner companion or egg.
 - `send <roster_idx> [viridian/cerulean/silver]`: Dispatch companion on expedition.
-- `deposit <amount>`: Deposit tokens into your Token Bank (e.g. `deposit 1m` or `deposit all`).
+- `deposit <amount>`: Deposit tokens into your Token Bank (e.g. `deposit 1m`, `deposit 1.5b`, or `deposit all`).
 - `withdraw <amount>`: Withdraw your deposited tokens.
-- `loan <amount>`: Take out a token loan from your Token Bank (up to 500M).
+- `loan <amount>`: Take out a token loan from your Token Bank (Max: 500M or 10% of deposit).
 - `payoff <amount>`: Pay off your active token loan (e.g. `payoff all`).
 - `bet <amount>`: Start a Video Poker hand (e.g. `bet 500k`, `bet 1m`).
 - `hold <1..5>`: Select held cards in Poker (or `hold none` / `hold all`).
-- `pull [1/10]`: Pull 1x or 10x Gacha Capsules.
+- `pull <qty>`: Pull an arbitrary amount of Gacha Capsules (auto-calculates 10-pull discounts).
 - `buy <number>`: Purchase shop items.
 - `sell <number>`: Sell items from Bag for tokens.
 - `use <number>`: Feed berries or use items from Bag.

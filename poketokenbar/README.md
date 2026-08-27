@@ -26,7 +26,7 @@ poketokenbar/
 │   ├── slots.py          # `SlotMachineEngine`: Weighted reel randomization logic
 │   └── blackjack.py      # `BlackjackEngine`: Classic 21 logic and card value calculation
 └── utils/
-    └── formatting.py     # ANSI color wrappers, progress bars, and `parse_tokens` helper
+    └── formatting.py     # ANSI color wrappers, progress bars, and `parse_tokens` helper (supports k, m, b suffixes)
 ```
 
 ## 3. State Management
@@ -36,6 +36,7 @@ All persistent player data is stored in a local JSON file managed by `StorageMan
 - **Schema Highlights**:
   - `total_tokens`: Total all-time tokens tracked by the external daemon.
   - `spent_tokens`: The amount of tokens spent in the shop/casino. (Available = total - spent).
+  - `bank_balance` / `bank_loan`: Deposited tokens earning interest and active token debt.
   - `dex`: List of unlocked Pokédex IDs.
   - `roster`: List of Pokémon dictionaries (ID, name, level, exp, nature, shiny status, happiness).
   - `inventory`: Dictionary mapping item IDs to quantities.
