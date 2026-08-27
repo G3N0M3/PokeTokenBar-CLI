@@ -48,6 +48,9 @@ class CompanionEngine:
         self.poker = TexasHoldemEngine()
         self.blackjack = BlackjackEngine()
         self.slots = SlotMachineEngine()
+        
+        import json
+        self._last_saved_state_str = json.dumps(self.state, sort_keys=True)
 
         if "install_date" not in self.state:
             dex = self.state.get("dex", [])
@@ -56,7 +59,11 @@ class CompanionEngine:
             self.save()
 
     def save(self):
-        StorageManager.save_state(self.state)
+        import json
+        state_str = json.dumps(self.state, sort_keys=True)
+        if state_str != self._last_saved_state_str:
+            StorageManager.save_state(self.state)
+            self._last_saved_state_str = state_str
 
     def reset_game_state(self) -> Tuple[bool, str]:
         """Resets all game progress, inventory, companions, and Pokédex entries."""

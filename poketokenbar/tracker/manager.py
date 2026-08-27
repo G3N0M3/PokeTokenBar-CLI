@@ -1,4 +1,6 @@
 import datetime
+import threading
+import time
 from typing import Dict, List, Optional
 from poketokenbar.tracker.base import UsageEntry, DailyUsage, ProviderSnapshot
 from poketokenbar.tracker.antigravity import AntigravityUsageReader
@@ -12,10 +14,30 @@ class UsageManager:
         self.antigravity_reader = AntigravityUsageReader()
         self.gemini_reader = GeminiUsageReader()
         self.claude_reader = ClaudeUsageReader()
-        self._last_fetch_time = 0.0
-        self._cached_summary = None
+        
+        self._lock = threading.Lock()
+        # Initial synchronous fetch so TUI has data immediately
+        self._cached_summary = self._compute_summary(self._fetch_all_entries_sync())
+        
+        self._stop_event = threading.Event()
+        self._bg_thread = threading.Thread(target=self._background_fetch_loop, daemon=True)
+        self._bg_thread.start()
 
-    def fetch_all_entries(self) -> List[UsageEntry]:
+    def stop(self):
+        self._stop_event.set()
+
+    def _background_fetch_loop(self):
+        while not self._stop_event.is_set():
+            time.sleep(2.0)
+            try:
+                entries = self._fetch_all_entries_sync()
+                summary = self._compute_summary(entries)
+                with self._lock:
+                    self._cached_summary = summary
+            except Exception:
+                pass
+
+    def _fetch_all_entries_sync(self) -> List[UsageEntry]:
         all_entries: List[UsageEntry] = []
         all_entries.extend(self.antigravity_reader.get_entries())
         all_entries.extend(self.gemini_reader.get_entries())
@@ -28,12 +50,7 @@ class UsageManager:
 
         return sorted(seen.values(), key=lambda e: e.date)
 
-    def get_summary(self, force: bool = False) -> Dict:
-        now_ts = datetime.datetime.now().timestamp()
-        if not force and self._cached_summary is not None and (now_ts - self._last_fetch_time) < 2.0:
-            return self._cached_summary
-
-        entries = self.fetch_all_entries()
+    def _compute_summary(self, entries: List[UsageEntry]) -> Dict:
         now = datetime.datetime.now().astimezone()
         today_str = now.strftime("%Y-%m-%d")
 
@@ -79,7 +96,7 @@ class UsageManager:
         tokens_per_min = five_min_tokens / 5.0
         active_days = sorted(list(set(e.local_day for e in entries)))
 
-        summary = {
+        return {
             "today_tokens": today_tokens,
             "week_tokens": week_tokens,
             "month_tokens": month_tokens,
@@ -92,7 +109,17 @@ class UsageManager:
             "active_days": active_days,
             "last_updated": now
         }
-        
-        self._cached_summary = summary
-        self._last_fetch_time = now_ts
-        return summary
+
+    def fetch_all_entries(self) -> List[UsageEntry]:
+        return self._fetch_all_entries_sync()
+
+    def get_summary(self, force: bool = False) -> Dict:
+        if force:
+            entries = self._fetch_all_entries_sync()
+            summary = self._compute_summary(entries)
+            with self._lock:
+                self._cached_summary = summary
+            return summary
+            
+        with self._lock:
+            return self._cached_summary

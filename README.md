@@ -47,12 +47,12 @@ Designed specifically for **Linux CLI** environments, **Antigravity CLI** (`~/.g
 
 ---
 
-## 🖥️ 12-Tab Interactive TUI Layout
+## 🖥️ 11-Tab Interactive TUI Layout
 
 ```text
   [1] Companion   [2] Pokédex   [3] Roster      [4] Shop & Bag
   [5] Expeditions [6] Battles   [7] Quests      [8] Mega-Evo
-  [9] Hold 'em    [10] Gacha    [11] Bank       [12] Settings
+  [9] Game Corner [10] Bank     [11] Settings
 ```
 
 ---
