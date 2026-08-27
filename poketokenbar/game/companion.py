@@ -1503,7 +1503,7 @@ class CompanionEngine:
         
         # Instantly process completions
         events = []
-        self._update_expeditions(events)
+        self._update_expeditions(0, events)
         
         event_str = " ".join(events) if events else f"Expedition {idx + 1} instantly completed!"
         return True, f"Used 🎫 Expedition Pass! {event_str}"
