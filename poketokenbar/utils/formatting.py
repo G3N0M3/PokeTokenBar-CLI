@@ -20,7 +20,9 @@ def parse_tokens(amount_str: str) -> int:
     if not clean_str:
         return 0
     try:
-        if clean_str.endswith("m"):
+        if clean_str.endswith("b"):
+            return int(float(clean_str[:-1]) * 1_000_000_000)
+        elif clean_str.endswith("m"):
             return int(float(clean_str[:-1]) * 1_000_000)
         elif clean_str.endswith("k"):
             return int(float(clean_str[:-1]) * 1_000)
