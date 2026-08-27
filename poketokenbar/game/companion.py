@@ -1733,7 +1733,6 @@ class CompanionEngine:
             bank_balance = self.state.get("bank_balance", 0)
             max_loan = int(bank_balance * 0.10)
             if current_loan + amount > max_loan:
-                from poketokenbar.utils import format_tokens
                 return False, f"🏦 Loan denied! Maximum token loan limit is {format_tokens(max_loan)} (10% of bank balance)."
             self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - amount
             self.state["bank_loan"] = current_loan + amount
