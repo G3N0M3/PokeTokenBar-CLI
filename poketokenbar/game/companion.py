@@ -1731,9 +1731,9 @@ class CompanionEngine:
         elif action == "loan":
             current_loan = self.state.get("bank_loan", 0)
             bank_balance = self.state.get("bank_balance", 0)
-            max_loan = int(bank_balance * 0.10)
+            max_loan = max(500_000_000, int(bank_balance * 0.10))
             if current_loan + amount > max_loan:
-                return False, f"🏦 Loan denied! Maximum token loan limit is {format_tokens(max_loan)} (10% of bank balance)."
+                return False, f"🏦 Loan denied! Maximum token loan limit is {format_tokens(max_loan)}."
             self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - amount
             self.state["bank_loan"] = current_loan + amount
             if current_loan == 0:
