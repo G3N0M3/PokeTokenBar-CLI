@@ -1446,9 +1446,9 @@ class CompanionEngine:
                     sp_id_dex = d.get("species_id", d.get("base_id"))
                     if sp_id_dex == sp_id:
                         if "mon_state" in d and isinstance(d["mon_state"], dict):
-                            mon = MonState.from_dict(d["mon_state"])
+                            mon = StorageManager.dict_to_mon(d["mon_state"])
                         else:
-                            mon = MonState.from_dict(d)
+                            mon = StorageManager.dict_to_mon(d)
                             
                         mon.happiness = max(0, mon.happiness - 10)
                         mon.used_at_stage += xp_gain
