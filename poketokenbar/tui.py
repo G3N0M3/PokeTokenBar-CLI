@@ -902,7 +902,7 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  ➔ Type '{BOLD}send <ROW INDEX>|#<POKEMON INDEX> [area]{RESET}' to dispatch!\n")
         
         passes_count = self.engine.state.get("inventory", {}).get("expedition_pass", 0)
-        sys.stdout.write(f"  ➔ Type '{BOLD}pass <idx>{RESET}' to instantly complete an expedition! (You have: {BOLD}{YELLOW}{passes_count}x 🎫 Expedition Passes{RESET})\n\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}pass <idx>{RESET}' to instantly finish! (🎫 Passes: {BOLD}{YELLOW}{passes_count}{RESET})\n\n")
 
         sys.stdout.write(f"  {BOLD}🗺️ Active Expeditions Status:{RESET}\n")
         if not expeditions:
