@@ -1211,7 +1211,8 @@ class PokeTokenBarTUI:
             
         sys.stdout.write(f"\n  {BOLD}Interest Rates (Daily Compounding):{RESET}\n")
         sys.stdout.write(f"  • {GREEN}Deposits:{RESET} +5% interest\n")
-        sys.stdout.write(f"  • {RED}Loans:{RESET}    -10% interest (Max Loan: 500.0M tokens)\n\n")
+        max_loan = int(bank * 0.10)
+        sys.stdout.write(f"  • {RED}Loans:{RESET}    -10% interest (Max Loan: {format_tokens(max_loan)})\n\n")
         sys.stdout.write(f"  {BOLD}Commands:{RESET}\n")
         sys.stdout.write(f"  ➔ Type '{BOLD}deposit <amount>{RESET}' / '{BOLD}withdraw <amount>{RESET}' (e.g. 'deposit 1m')\n")
         sys.stdout.write(f"  ➔ Type '{BOLD}loan <amount>{RESET}' / '{BOLD}payoff <amount>{RESET}' (e.g. 'payoff all')\n\n")
