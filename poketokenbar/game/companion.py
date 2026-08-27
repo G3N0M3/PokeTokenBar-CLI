@@ -1441,15 +1441,23 @@ class CompanionEngine:
                 # Grant tokens by refunding spent_tokens
                 self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - tokens_gain
                 
+                from poketokenbar.game.models import MonState, PokemonBalance
                 for d in dex:
                     sp_id_dex = d.get("species_id", d.get("base_id"))
                     if sp_id_dex == sp_id:
                         if "mon_state" in d and isinstance(d["mon_state"], dict):
-                            d["mon_state"]["happiness"] = max(0, d["mon_state"].get("happiness", 100) - 10)
-                            d["mon_state"]["used_at_stage"] = d["mon_state"].get("used_at_stage", 0) + xp_gain
+                            mon = MonState.from_dict(d["mon_state"])
                         else:
-                            d["happiness"] = max(0, d.get("happiness", 100) - 10)
-                            d["used_at_stage"] = d.get("used_at_stage", 0) + xp_gain
+                            mon = MonState.from_dict(d)
+                            
+                        mon.happiness = max(0, mon.happiness - 10)
+                        mon.used_at_stage += xp_gain
+                        
+                        target_xp = PokemonBalance.phase_threshold(mon.rarity, mon.total_forms, mon.stage_index, self.current_difficulty)
+                        if mon.used_at_stage > target_xp:
+                            mon.used_at_stage = target_xp
+                            
+                        self._register_to_dex(mon, status=d.get("status", "inactive"))
                         break
 
                 now_str = datetime.datetime.now().strftime("%H:%M:%S")
