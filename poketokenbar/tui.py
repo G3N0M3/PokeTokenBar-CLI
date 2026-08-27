@@ -47,9 +47,18 @@ class PokeTokenBarTUI:
         while True:
             pending_eggs = self.engine.state.get("pending_eggs", [])
             if pending_eggs:
-                self.clear_screen()
                 new_egg = pending_eggs[0]
                 curr_egg = self.engine.state.get("egg_tier")
+                if curr_egg is None:
+                    # User has an open slot, auto-assign the egg
+                    self.engine.state["egg_tier"] = new_egg
+                    self.engine.state["egg_usage"] = 0
+                    self.engine.state["pending_eggs"] = pending_eggs[1:]
+                    self.engine.save()
+                    sys.stdout.write(f"\n  {GREEN}You found a {new_egg.capitalize()} Egg! It is now incubating.{RESET}\n")
+                    continue
+                    
+                self.clear_screen()
                 sys.stdout.write(f"\n  {BOLD}{YELLOW}🥚 EGG DECISION!{RESET}\n\n")
                 sys.stdout.write(f"  You found a {BOLD}{new_egg.capitalize()}{RESET} Egg, but you can only carry one egg at a time!\n")
                 sys.stdout.write(f"  You are currently holding a {BOLD}{curr_egg.capitalize()}{RESET} Egg.\n\n")
