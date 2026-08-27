@@ -1471,6 +1471,36 @@ class CompanionEngine:
         self.state["expeditions"] = remaining
         self.save()
 
+    def use_expedition_pass(self, idx_str: str) -> Tuple[bool, str]:
+        try:
+            idx = int(idx_str) - 1
+        except ValueError:
+            return False, "Invalid index. Usage: pass <idx>"
+            
+        expeditions = self.state.get("expeditions", [])
+        if not (0 <= idx < len(expeditions)):
+            return False, f"Invalid expedition index. Must be between 1 and {len(expeditions)}."
+            
+        inv = self.state.get("inventory", {})
+        if inv.get("expedition_pass", 0) <= 0:
+            return False, "You don't have any Expedition Passes (🎫)!"
+            
+        exp = expeditions[idx]
+        exp["progress"] = exp["target"]
+        inv["expedition_pass"] -= 1
+        if inv["expedition_pass"] <= 0:
+            del inv["expedition_pass"]
+            
+        self.state["inventory"] = inv
+        self.save()
+        
+        # Instantly process completions
+        events = []
+        self._update_expeditions(events)
+        
+        event_str = " ".join(events) if events else f"Expedition {idx + 1} instantly completed!"
+        return True, f"Used 🎫 Expedition Pass! {event_str}"
+
     def dispatch_expedition(self, selection_input: str, area_name: str = "Viridian Forest") -> Tuple[bool, str]:
         dex = self.state.get("dex", [])
         if not dex:

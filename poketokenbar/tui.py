@@ -246,6 +246,13 @@ class PokeTokenBarTUI:
                         self.message = msg
                     else:
                         self.message = "Usage: send <ROW INDEX>|#<POKEMON INDEX> [area]"
+                elif cmd.startswith("pass") and self.current_tab == 5:
+                    parts = cmd.split()
+                    if len(parts) >= 2:
+                        ok, msg = self.engine.use_expedition_pass(parts[1])
+                        self.message = msg
+                    else:
+                        self.message = "Usage: pass <idx>"
                 elif cmd.startswith("play "):
                     parts = cmd.split()
                     if len(parts) >= 2:
@@ -661,7 +668,6 @@ class PokeTokenBarTUI:
         if inv.get('mint', 0) > 0: bag_items.append(("🌿 Mint", "2", inv['mint']))
         if inv.get('berry_oran', 0) > 0: bag_items.append(("🫐 Oran Berry", "3", inv['berry_oran']))
         if inv.get('berry_golden', 0) > 0: bag_items.append(("🍇 Golden Razz", "4", inv['berry_golden']))
-        if inv.get('expedition_pass', 0) > 0: bag_items.append(("🎫 Expedition Pass", "5", inv['expedition_pass']))
         if inv.get('poke_flute', 0) > 0: bag_items.append(("🪈 Poké Flute (Summons Gym Boss)", "6", inv['poke_flute']))
         if inv.get('master_ball', 0) > 0: bag_items.append(("🌟 Master Ball (Hatches Shiny)", "7", inv['master_ball']))
         if inv.get('map_fragment', 0) > 0: bag_items.append(("📜 Map", "8", inv['map_fragment']))
@@ -745,8 +751,6 @@ class PokeTokenBarTUI:
             ok, msg = self.engine.use_item(ItemKind.BERRY_ORAN, qty)
         elif choice == "4":
             ok, msg = self.engine.use_item(ItemKind.BERRY_GOLDEN, qty)
-        elif choice == "5":
-            ok, msg = self.engine.use_item(ItemKind.EXPEDITION_PASS, qty)
         elif choice == "6":
             ok, msg = self.engine.use_item(ItemKind.POKE_FLUTE, qty)
         elif choice == "7":
@@ -775,7 +779,6 @@ class PokeTokenBarTUI:
             "2": ItemKind.MINT,
             "3": ItemKind.BERRY_ORAN,
             "4": ItemKind.BERRY_GOLDEN,
-            "5": ItemKind.EXPEDITION_PASS,
             "6": ItemKind.POKE_FLUTE,
             "7": ItemKind.MASTER_BALL,
             "8": ItemKind.MAP_FRAGMENT,
@@ -896,7 +899,10 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"                       (+15% chance of finding a Map)\n")
         sys.stdout.write(f"   • Spear Pillar    - Target: 100.0M tokens (Requires 3x Maps)\n")
         sys.stdout.write(f"                       Reward: 🌟 LEGENDARY EGG + XP + 🪙\n\n")
-        sys.stdout.write(f"  ➔ Type '{BOLD}send <ROW INDEX>|#<POKEMON INDEX> [area]{RESET}' to dispatch!\n\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}send <ROW INDEX>|#<POKEMON INDEX> [area]{RESET}' to dispatch!\n")
+        
+        passes_count = self.engine.state.get("inventory", {}).get("expedition_pass", 0)
+        sys.stdout.write(f"  ➔ Type '{BOLD}pass <idx>{RESET}' to instantly complete an expedition! (You have: {BOLD}{YELLOW}{passes_count}x 🎫 Expedition Passes{RESET})\n\n")
 
         sys.stdout.write(f"  {BOLD}🗺️ Active Expeditions Status:{RESET}\n")
         if not expeditions:
@@ -911,12 +917,12 @@ class PokeTokenBarTUI:
             start_idx = (self.expedition_page - 1) * page_size
             page_exps = expeditions[start_idx : start_idx + page_size]
             
-            for exp in page_exps:
+            for i, exp in enumerate(page_exps, start_idx + 1):
                 sp_id = exp["sp_id"]
                 sp_name = self.engine.api.get_species_name(sp_id)
                 area = exp["area"]
                 pct = (exp["progress"] / exp["target"]) * 100 if exp["target"] > 0 else 0
-                sys.stdout.write(f"   • {BOLD}{CYAN}{sp_name} (#{sp_id}){RESET} @ {area}: {format_tokens(exp['progress'])} / {format_tokens(exp['target'])} ({pct:.0f}%)\n")
+                sys.stdout.write(f"   [{i}] • {BOLD}{CYAN}{sp_name} (#{sp_id}){RESET} @ {area}: {format_tokens(exp['progress'])} / {format_tokens(exp['target'])} ({pct:.0f}%)\n")
                 
             if total_pages > 1:
                 sys.stdout.write(f"\n  ➔ Page {self.expedition_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")
