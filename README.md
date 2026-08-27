@@ -94,7 +94,7 @@ ptb
 - `send <roster_idx> [viridian/cerulean/silver]`: Dispatch companion on expedition.
 - `deposit <amount>`: Deposit tokens into your Token Bank (e.g. `deposit 1m`, `deposit 1.5b`, or `deposit all`).
 - `withdraw <amount>`: Withdraw your deposited tokens.
-- `loan <amount>`: Take out a token loan from your Token Bank (Max: 500M or 10% of deposit).
+- `loan <amount>`: Take out a token loan from your Token Bank (Max: 500M or 30% of deposit).
 - `payoff <amount>`: Pay off your active token loan (e.g. `payoff all`).
 - `bet <amount>`: Start a Video Poker hand (e.g. `bet 500k`, `bet 1m`).
 - `hold <1..5>`: Select held cards in Poker (or `hold none` / `hold all`).
