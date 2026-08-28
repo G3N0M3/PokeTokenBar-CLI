@@ -267,7 +267,6 @@ MEGA_STONES = {
     "150_X": "Mewtwonite X",
     "150_Y": "Mewtwonite Y",
     "154": "Meganiumite",
-    "157": "Typhlosionite",
     "160": "Feraligatrite",
     "181": "Ampharosite",
     "208": "Steelixite",

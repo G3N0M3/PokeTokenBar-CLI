@@ -22,6 +22,8 @@ git push origin main
 ```
 
 ## 2. Release & Version Bumping
+**IMPORTANT: Only bump the version strings and perform a release commit when explicitly instructed to do so by the user.**
+
 When preparing a new release (e.g., bumping to `1.3.0`), the changes must be committed as a `chore(release)` and the commit must be tagged.
 
 ### Step-by-Step Release Process
