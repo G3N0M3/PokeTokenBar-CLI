@@ -169,13 +169,14 @@ class CompanionEngine:
         if active:
             used_total = self.state.get("used_since_install", 0)
             last_decay = self.state.get("last_happiness_decay_token", used_total)
-            decay_amount = (used_total - last_decay) // 1_000_000
+            decay_rate = 800_000 if active.held_item == "choice_scarf" else 1_000_000
+            decay_amount = (used_total - last_decay) // decay_rate
             
             if decay_amount > 0:
                 old_hap = active.happiness
                 active.happiness = max(0, active.happiness - decay_amount)
                 self.set_active_mon(active)
-                self.state["last_happiness_decay_token"] = last_decay + (decay_amount * 1_000_000)
+                self.state["last_happiness_decay_token"] = last_decay + (decay_amount * decay_rate)
                 
                 if old_hap >= 50 and active.happiness < 50:
                     events.append(f"⚠️ {self.api.get_species_name(active.current_id)} is hungry (Happiness: {active.happiness}%)! Feed an Oran Berry 🫐 from the Shop!")
@@ -192,6 +193,8 @@ class CompanionEngine:
             xp_multiplier = 1.20 if happiness >= 100 else 1.0
             if active and active.is_mega:
                 xp_multiplier += 0.50  # Mega Evolution grants +50% XP boost!
+            if active and active.held_item == "lucky_egg":
+                xp_multiplier += 0.20  # Lucky Egg grants +20% XP boost!
             effective_xp = int(delta * xp_multiplier)
 
         if happiness > 0:
@@ -359,17 +362,21 @@ class CompanionEngine:
 
                     if diff == 1:
                         if active:
-                            active.happiness = min(100, active.happiness + 10)
+                            bonus = 15 if active.held_item == "leftovers" else 10
+                            active.happiness = min(100, active.happiness + bonus)
                             self.set_active_mon(active)
                     elif diff > 1:
-                        decay = (diff - 1) * 25
-                        if active:
-                            active.happiness = max(0, active.happiness - decay)
-                            self.set_active_mon(active)
-                            hap_val = active.happiness
+                        if active and active.held_item == "leftovers":
+                            events.append(f"🍎 Your companion missed {diff-1} day(s), but was snacking on Leftovers! Happiness preserved!")
                         else:
-                            hap_val = 0
-                        events.append(f"💔 You missed {diff-1} day(s) of coding! Companion Happiness dropped to {hap_val}%. Feed Oran Berries 🫐 to cheer them up!")
+                            decay = (diff - 1) * 25
+                            if active:
+                                active.happiness = max(0, active.happiness - decay)
+                                self.set_active_mon(active)
+                                hap_val = active.happiness
+                            else:
+                                hap_val = 0
+                            events.append(f"💔 You missed {diff-1} day(s) of coding! Companion Happiness dropped to {hap_val}%. Feed Oran Berries 🫐 to cheer them up!")
                 except Exception:
                     pass
             self.state["last_active_date"] = today_str
@@ -1151,22 +1158,31 @@ class CompanionEngine:
             active_name = self.api.get_species_name(active.current_id)
             return True, f"Fed {qty}x Rare Candy to {active_name}! (+{format_tokens(xp_grant)} XP)"
             
-        elif item_kind == ItemKind.EVERSTONE:
+        elif item_kind in [ItemKind.EVERSTONE, ItemKind.LUCKY_EGG, ItemKind.AMULET_COIN, ItemKind.LEFTOVERS, ItemKind.CHOICE_SCARF]:
             if active is None:
-                return False, "You need an active Pokémon to equip an Everstone!"
+                return False, f"You need an active Pokémon to equip a {item_kind.name_en}!"
             if qty > 1:
-                return False, "You can only equip one Everstone at a time."
+                return False, f"You can only equip one {item_kind.name_en} at a time."
                 
             if active.held_item:
                 # Unequip whatever is held first
                 inv[active.held_item] = inv.get(active.held_item, 0) + 1
                 
-            active.held_item = "everstone"
+            active.held_item = item_kind.value
             inv[item_kind.value] -= 1
             self.state["inventory"] = inv
             self.set_active_mon(active)
             self.save()
-            return True, f"Equipped Everstone 🪨 to {self.api.get_species_name(active.current_id)}! Its evolution is now halted."
+            
+            effect_text = {
+                ItemKind.EVERSTONE: "Its evolution is now halted.",
+                ItemKind.LUCKY_EGG: "It will now gain +20% more XP!",
+                ItemKind.AMULET_COIN: "It will now find +50% more tokens in battles and expeditions!",
+                ItemKind.LEFTOVERS: "It will now be protected from daily happiness decay!",
+                ItemKind.CHOICE_SCARF: "It will now complete expeditions 20% faster, but drain happiness faster!"
+            }.get(item_kind, "")
+            
+            return True, f"Equipped {item_kind.name_en} {item_kind.emoji} to {self.api.get_species_name(active.current_id)}! {effect_text}"
 
         elif item_kind == ItemKind.MINT:
             if qty > 1:
@@ -1505,6 +1521,13 @@ class CompanionEngine:
             elif rarity == Rarity.MEGA:
                 mult = 5.0
 
+            if exp.get("shiny"):
+                mult *= 2.0
+            
+            active = self.active_mon
+            if active and active.held_item == "choice_scarf":
+                mult *= 1.20
+
             exp["progress"] += int(effective_xp * mult)
             
             if exp["progress"] >= exp["target"]:
@@ -1543,6 +1566,10 @@ class CompanionEngine:
                 xp_gain = int(exp["target"] * 0.5)
                 tokens_gain = int(exp["target"] * 0.2)
                 
+                # Check for held item Amulet Coin
+                if active and active.held_item == "amulet_coin":
+                    tokens_gain = int(tokens_gain * 1.5)
+
                 # Grant tokens by refunding spent_tokens
                 self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - tokens_gain
                 
@@ -1757,6 +1784,12 @@ class CompanionEngine:
                     token_reward = 2_000_000
                     reward_str = "2.0M"
                     bonus_msg = ""
+                    
+                active = self.active_mon
+                if active and active.held_item == "amulet_coin":
+                    token_reward = int(token_reward * 1.5)
+                    reward_str = f"{token_reward / 1_000_000:.1f}M"
+                    bonus_msg += " (🪙 Amulet Coin Bonus!)"
                     
                 self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - token_reward
                 msg = f"⚔️ TRAINER BATTLE! You defeated {opp_name} in an auto-battle! Earned +{reward_str} Spendable Tokens!{bonus_msg}"

@@ -135,6 +135,10 @@ class ItemKind(str, Enum):
     MAP_FRAGMENT = "map_fragment"
     EXPEDITION_LICENSE = "expedition_license"
     EVERSTONE = "everstone"
+    LUCKY_EGG = "lucky_egg"
+    AMULET_COIN = "amulet_coin"
+    LEFTOVERS = "leftovers"
+    CHOICE_SCARF = "choice_scarf"
     WATER_STONE = "water_stone"
     FIRE_STONE = "fire_stone"
     THUNDER_STONE = "thunder_stone"
@@ -159,6 +163,10 @@ class ItemKind(str, Enum):
             ItemKind.MAP_FRAGMENT: 10_000_000,
             ItemKind.EXPEDITION_LICENSE: 200_000_000,
             ItemKind.EVERSTONE: 500_000,
+            ItemKind.LUCKY_EGG: 5_000_000,
+            ItemKind.AMULET_COIN: 2_000_000,
+            ItemKind.LEFTOVERS: 2_000_000,
+            ItemKind.CHOICE_SCARF: 2_000_000,
             ItemKind.WATER_STONE: 50_000_000,
             ItemKind.FIRE_STONE: 50_000_000,
             ItemKind.THUNDER_STONE: 50_000_000,
@@ -190,6 +198,10 @@ class ItemKind(str, Enum):
             ItemKind.MAP_FRAGMENT: "Map",
             ItemKind.EXPEDITION_LICENSE: "Expedition License",
             ItemKind.EVERSTONE: "Everstone",
+            ItemKind.LUCKY_EGG: "Lucky Egg",
+            ItemKind.AMULET_COIN: "Amulet Coin",
+            ItemKind.LEFTOVERS: "Leftovers",
+            ItemKind.CHOICE_SCARF: "Choice Scarf",
             ItemKind.WATER_STONE: "Water Stone",
             ItemKind.FIRE_STONE: "Fire Stone",
             ItemKind.THUNDER_STONE: "Thunder Stone",
@@ -216,6 +228,10 @@ class ItemKind(str, Enum):
             ItemKind.MAP_FRAGMENT: "📜",
             ItemKind.EXPEDITION_LICENSE: "📜",
             ItemKind.EVERSTONE: "🪨",
+            ItemKind.LUCKY_EGG: "🍀",
+            ItemKind.AMULET_COIN: "🪙",
+            ItemKind.LEFTOVERS: "🍎",
+            ItemKind.CHOICE_SCARF: "🥊",
         }[self]
 
 @dataclass

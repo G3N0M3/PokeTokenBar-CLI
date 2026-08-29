@@ -32,7 +32,11 @@ def render_shop_tab(app):
     sys.stdout.write(f"  [5] 🫐 Oran Berry     - Cost: 1.0M   tokens  (+25% Companion Happiness)\n")
     sys.stdout.write(f"  [6] 🍇 Golden Razz    - Cost: 5.0M   tokens  (Boosts next egg shiny odds to 1/24!)\n")
     sys.stdout.write(f"  [7] 📜 Exped. License - Cost: 200.0M tokens  (+10 expedition slots)\n")
-    sys.stdout.write(f"  [8] 🪨 Everstone      - Cost: 500.0K tokens  (Prevents evolution when equipped)\n\n")
+    sys.stdout.write(f"  [8] 🪨 Everstone      - Cost: 500.0K tokens  (Prevents evolution when equipped)\n")
+    sys.stdout.write(f"  [11] 🍀 Lucky Egg     - Cost: 5.0M   tokens  (+20% XP gain when equipped)\n")
+    sys.stdout.write(f"  [12] 🪙 Amulet Coin   - Cost: 2.0M   tokens  (+50% token gain from battles/expeditions)\n")
+    sys.stdout.write(f"  [13] 🍎 Leftovers     - Cost: 2.0M   tokens  (Protects happiness from daily decay)\n")
+    sys.stdout.write(f"  [14] 🥊 Choice Scarf  - Cost: 2.0M   tokens  (+20% expedition speed, faster happiness drain)\n\n")
 
     sys.stdout.write(f"  {BOLD}Your Bag (Type 'use <id>', 'sell <id> [qty]', or 'unequip'):{RESET}\n")
     
@@ -46,6 +50,10 @@ def render_shop_tab(app):
     if inv.get('map_fragment', 0) > 0: bag_items.append(("📜 Map", "8", inv['map_fragment']))
     if inv.get('expedition_license', 0) > 0: bag_items.append(("📜 Exped. License (+10 exp. slots)", "9", inv['expedition_license']))
     if inv.get('everstone', 0) > 0: bag_items.append(("🪨 Everstone (Prevents evolution)", "10", inv['everstone']))
+    if inv.get('lucky_egg', 0) > 0: bag_items.append(("🍀 Lucky Egg (+20% XP)", "11", inv['lucky_egg']))
+    if inv.get('amulet_coin', 0) > 0: bag_items.append(("🪙 Amulet Coin (+50% battle/exp tokens)", "12", inv['amulet_coin']))
+    if inv.get('leftovers', 0) > 0: bag_items.append(("🍎 Leftovers (Protects happiness)", "13", inv['leftovers']))
+    if inv.get('choice_scarf', 0) > 0: bag_items.append(("🥊 Choice Scarf (+20% exp speed)", "14", inv['choice_scarf']))
     
     stone_keys = ["water_stone", "fire_stone", "thunder_stone", "leaf_stone", "moon_stone", "sun_stone", "ice_stone", "shiny_stone", "dusk_stone", "dawn_stone"]
     for k in stone_keys:
@@ -102,6 +110,14 @@ def handle_shop_buy(app, cmd: str):
         ok, msg = app.engine.buy_item(ItemKind.EXPEDITION_LICENSE, qty)
     elif choice == "8":
         ok, msg = app.engine.buy_item(ItemKind.EVERSTONE, qty)
+    elif choice == "11":
+        ok, msg = app.engine.buy_item(ItemKind.LUCKY_EGG, qty)
+    elif choice == "12":
+        ok, msg = app.engine.buy_item(ItemKind.AMULET_COIN, qty)
+    elif choice == "13":
+        ok, msg = app.engine.buy_item(ItemKind.LEFTOVERS, qty)
+    elif choice == "14":
+        ok, msg = app.engine.buy_item(ItemKind.CHOICE_SCARF, qty)
     else:
         ok, msg = False, "Invalid shop selection."
     app.message = msg
@@ -138,6 +154,14 @@ def handle_bag_use(app, cmd: str):
         ok, msg = app.engine.use_item(ItemKind.EXPEDITION_LICENSE, qty)
     elif choice == "10":
         ok, msg = app.engine.use_item(ItemKind.EVERSTONE, qty)
+    elif choice == "11":
+        ok, msg = app.engine.use_item(ItemKind.LUCKY_EGG, qty)
+    elif choice == "12":
+        ok, msg = app.engine.use_item(ItemKind.AMULET_COIN, qty)
+    elif choice == "13":
+        ok, msg = app.engine.use_item(ItemKind.LEFTOVERS, qty)
+    elif choice == "14":
+        ok, msg = app.engine.use_item(ItemKind.CHOICE_SCARF, qty)
     elif choice in [s.value for s in ItemKind if s.value.endswith("_stone") and s != ItemKind.MEGA_STONE]:
         ok, msg = app.engine.use_item(ItemKind(choice), qty)
     else:
@@ -165,6 +189,10 @@ def handle_bag_sell(app, cmd: str):
         "8": ItemKind.MAP_FRAGMENT,
         "9": ItemKind.EXPEDITION_LICENSE,
         "10": ItemKind.EVERSTONE,
+        "11": ItemKind.LUCKY_EGG,
+        "12": ItemKind.AMULET_COIN,
+        "13": ItemKind.LEFTOVERS,
+        "14": ItemKind.CHOICE_SCARF,
     }
     
     for s in ItemKind:
