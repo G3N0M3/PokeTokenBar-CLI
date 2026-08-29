@@ -21,7 +21,10 @@ def render_bank_tab(app):
     sys.stdout.write(f"  {BOLD}Active Loan Debt:{RESET}  {BOLD}{RED}{format_tokens(loan)}{RESET} tokens\n")
     
     if loan > 0:
-        sys.stdout.write(f"  {BOLD}{RED}🚨 Loan Deadline:{RESET} {loan_days}/7 days until repossession!\n")
+        if loan_days == 7:
+            sys.stdout.write(f"  {BOLD}{RED}🚨 WARNING: FINAL DAY BEFORE REPOSSESSION! PAY OFF LOAN NOW!{RESET}\n")
+        else:
+            sys.stdout.write(f"  {BOLD}{RED}🚨 Loan Deadline:{RESET} {loan_days}/8 days until repossession!\n")
         
     sys.stdout.write(f"\n  {BOLD}Interest Rates (Daily Compounding):{RESET}\n")
     sys.stdout.write(f"  • {GREEN}Deposits:{RESET} +5% interest\n")

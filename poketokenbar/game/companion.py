@@ -296,16 +296,59 @@ class CompanionEngine:
                             loan_days = self.state.get("loan_days_active", 0) + days_to_apply
                             self.state["loan_days_active"] = loan_days
                             
-                            if loan_days >= 7:
-                                self.state["bank_balance"] = 0
+                            if loan_days >= 8:
+                                remaining_loan = new_loan
+                                
+                                # 1. Confiscate from Bank Balance
+                                bank_bal = self.state.get("bank_balance", 0)
+                                take_from_bank = min(bank_bal, remaining_loan)
+                                self.state["bank_balance"] -= take_from_bank
+                                remaining_loan -= take_from_bank
+                                
+                                # 2. Confiscate from Available Tokens
+                                avail_tokens = self.state.get("used_since_install", 0) - self.state.get("spent_tokens", 0)
+                                take_from_avail = min(avail_tokens, remaining_loan)
+                                self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + take_from_avail
+                                remaining_loan -= take_from_avail
+                                
+                                # 3. Liquidate Bag
+                                if remaining_loan > 0:
+                                    inv = self.state.get("inventory", {})
+                                    items_to_sell = list(inv.keys())
+                                    for item_key in items_to_sell:
+                                        if remaining_loan <= 0:
+                                            break
+                                        qty = inv.get(item_key, 0)
+                                        if qty <= 0:
+                                            continue
+                                            
+                                        try:
+                                            kind = ItemKind.MEGA_STONE if item_key.startswith("mega_stone_") else ItemKind(item_key)
+                                            sell_val = int(kind.price_for(self.current_difficulty) * 0.8)
+                                        except ValueError:
+                                            sell_val = 0
+                                            
+                                        if sell_val <= 0:
+                                            continue
+                                            
+                                        sell_qty = min(qty, (remaining_loan + sell_val - 1) // sell_val)
+                                        inv[item_key] -= sell_qty
+                                        if inv[item_key] <= 0:
+                                            del inv[item_key]
+                                            
+                                        remaining_loan -= (sell_qty * sell_val)
+                                    self.state["inventory"] = inv
+                                
+                                # 4. Forgive remaining debt
                                 self.state["bank_loan"] = 0
-                                self.state["inventory"] = {}
                                 self.state["loan_days_active"] = 0
-                                self.state["spent_tokens"] = self.state.get("used_since_install", 0)
+                                
+                                # 5. Distressed Companion
                                 if active:
-                                    active.happiness = 0
+                                    active.happiness = max(0, active.happiness - 50)
                                     self.set_active_mon(active)
-                                events.append("🚨 BANK REPOSSESSION! 7 days have passed since your loan! The bank seized your tokens, liquidated your bag, and left your companion distressed (0% Happiness)!")
+                                    
+                                events.append("🚨 BANK REPOSSESSION! 8 days have passed! The bank seized tokens and liquidated items to cover your debt, reducing your companion's happiness by 50%!")
 
                     if diff == 1:
                         if active:
