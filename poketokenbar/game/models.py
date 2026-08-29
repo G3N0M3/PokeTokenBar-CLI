@@ -134,6 +134,7 @@ class ItemKind(str, Enum):
     MASTER_BALL = "master_ball"
     MAP_FRAGMENT = "map_fragment"
     EXPEDITION_LICENSE = "expedition_license"
+    EVERSTONE = "everstone"
     WATER_STONE = "water_stone"
     FIRE_STONE = "fire_stone"
     THUNDER_STONE = "thunder_stone"
@@ -157,6 +158,7 @@ class ItemKind(str, Enum):
             ItemKind.MASTER_BALL: 500_000_000,
             ItemKind.MAP_FRAGMENT: 10_000_000,
             ItemKind.EXPEDITION_LICENSE: 200_000_000,
+            ItemKind.EVERSTONE: 500_000,
             ItemKind.WATER_STONE: 50_000_000,
             ItemKind.FIRE_STONE: 50_000_000,
             ItemKind.THUNDER_STONE: 50_000_000,
@@ -187,6 +189,7 @@ class ItemKind(str, Enum):
             ItemKind.MASTER_BALL: "Master Ball",
             ItemKind.MAP_FRAGMENT: "Map",
             ItemKind.EXPEDITION_LICENSE: "Expedition License",
+            ItemKind.EVERSTONE: "Everstone",
             ItemKind.WATER_STONE: "Water Stone",
             ItemKind.FIRE_STONE: "Fire Stone",
             ItemKind.THUNDER_STONE: "Thunder Stone",
@@ -212,6 +215,7 @@ class ItemKind(str, Enum):
             ItemKind.MASTER_BALL: "🌟",
             ItemKind.MAP_FRAGMENT: "📜",
             ItemKind.EXPEDITION_LICENSE: "📜",
+            ItemKind.EVERSTONE: "🪨",
         }[self]
 
 @dataclass
@@ -230,6 +234,7 @@ class MonState:
     is_mega: bool = False
     mega_form: Optional[str] = None
     happiness: int = 100
+    held_item: Optional[str] = None
 
     @property
     def current_id(self) -> int:

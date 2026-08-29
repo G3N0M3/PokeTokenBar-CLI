@@ -336,7 +336,7 @@ class PokeTokenBarTUI:
                         self.message = "Usage: size <number> (e.g. 'size 30')"
                 elif self.current_tab == 4 and cmd.startswith("buy"):
                     self.handle_shop_buy(cmd)
-                elif self.current_tab == 4 and cmd.startswith("use"):
+                elif self.current_tab == 4 and (cmd.startswith("use") or cmd.startswith("unequip")):
                     self.handle_bag_use(cmd)
                 elif self.current_tab == 4 and cmd.startswith("sell"):
                     self.handle_bag_sell(cmd)

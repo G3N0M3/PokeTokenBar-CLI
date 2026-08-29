@@ -70,6 +70,15 @@ def render(app, summary: dict):
             sprite_ansi = SpriteRenderer.render_png_to_ansi(sprite_path, max_cols=sprite_size, center_width=72)
             sys.stdout.write("\n" + sprite_ansi + "\n\n")
 
+        if active.held_item:
+            from poketokenbar.game.models import ItemKind
+            try:
+                kind = ItemKind(active.held_item)
+                item_str = f"{kind.emoji} {kind.name_en}"
+            except ValueError:
+                item_str = active.held_item
+            sys.stdout.write(f"  {BOLD}Equipped:{RESET} [{item_str}]\n")
+
         # Growth / Evolution progress
         target_xp = PokemonBalance.phase_threshold(active.rarity, active.total_forms, active.stage_index, app.engine.current_difficulty)
         

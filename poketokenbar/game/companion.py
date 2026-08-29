@@ -609,7 +609,7 @@ class CompanionEngine:
         # If this stage has ALREADY evolved into the next stage, cap XP at 100% max and do not re-trigger evolution
         if mon.stage_index < len(mon.path_ids) - 1:
             next_id = mon.path_ids[mon.stage_index + 1]
-            if next_id in discovered_sp_ids:
+            if next_id in discovered_sp_ids or mon.held_item == "everstone":
                 mon.used_at_stage = target_xp
                 self.set_active_mon(mon)
                 return events
@@ -697,7 +697,8 @@ class CompanionEngine:
                 ditto_disguise=mon.ditto_disguise,
                 ditto_revealed=mon.ditto_revealed,
                 is_mega=mon.is_mega if idx == mon.stage_index else False,
-                mega_form=mon.mega_form if idx == mon.stage_index else None
+                mega_form=mon.mega_form if idx == mon.stage_index else None,
+                held_item=mon.held_item if idx == mon.stage_index else None
             )
             sub_dict = StorageManager.mon_to_dict(sub_stage_mon)
 
@@ -1147,11 +1148,25 @@ class CompanionEngine:
 
             events = self._check_growth(active)
             self.save()
-
-            msg = f"Gave {qty} Rare Candy 🍬 to {self.api.get_species_name(active.current_id)}! (+{format_tokens(xp_grant)} XP)"
-            if events:
-                msg += "\n" + "\n".join(events)
-            return True, msg
+            active_name = self.api.get_species_name(active.current_id)
+            return True, f"Fed {qty}x Rare Candy to {active_name}! (+{format_tokens(xp_grant)} XP)"
+            
+        elif item_kind == ItemKind.EVERSTONE:
+            if active is None:
+                return False, "You need an active Pokémon to equip an Everstone!"
+            if qty > 1:
+                return False, "You can only equip one Everstone at a time."
+                
+            if active.held_item:
+                # Unequip whatever is held first
+                inv[active.held_item] = inv.get(active.held_item, 0) + 1
+                
+            active.held_item = "everstone"
+            inv[item_kind.value] -= 1
+            self.state["inventory"] = inv
+            self.set_active_mon(active)
+            self.save()
+            return True, f"Equipped Everstone 🪨 to {self.api.get_species_name(active.current_id)}! Its evolution is now halted."
 
         elif item_kind == ItemKind.MINT:
             if qty > 1:
@@ -1196,6 +1211,10 @@ class CompanionEngine:
             active = self.active_mon
             if not active:
                 return False, "You need an active companion to use an Evolution Stone!"
+            
+            # Check for Everstone
+            if active.held_item == "everstone":
+                return False, "Your companion is holding an Everstone! It cannot evolve."
             
             api_item_name = item_kind.value.replace("_", "-")
             target_evo_id = self._find_stone_evolution(active.current_id, api_item_name)
@@ -1331,7 +1350,36 @@ class CompanionEngine:
             self.save()
             return True, "📜 Used an Expedition License! You can now send 10 more Pokémon on expeditions simultaneously!"
 
-        return False, "Unknown item action."
+        return False, f"{item_kind.name_en} is not usable directly from the Bag."
+
+    def unequip_item(self) -> Tuple[bool, str]:
+        active = self.active_mon
+        if not active:
+            return False, "You don't have an active Pokémon!"
+        if not active.held_item:
+            return False, "Your active companion is not holding any item."
+        
+        held = active.held_item
+        active.held_item = None
+        self.set_active_mon(active)
+        
+        inv = self.state.get("inventory", {})
+        inv[held] = inv.get(held, 0) + 1
+        self.state["inventory"] = inv
+        
+        events = self._check_growth(active)
+        self.save()
+        
+        from poketokenbar.game.models import ItemKind
+        try:
+            kind_name = ItemKind(held).name_en
+        except ValueError:
+            kind_name = held
+            
+        msg = f"Unequipped {kind_name} from your companion!"
+        if events:
+            msg += "\n" + "\n".join(events)
+        return True, msg
 
     def toggle_mega_evolution(self, target_stone_key: Optional[str] = None, force_revert: bool = False) -> Tuple[bool, str]:
         active = self.active_mon
