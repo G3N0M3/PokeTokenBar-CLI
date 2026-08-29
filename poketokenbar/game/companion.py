@@ -343,12 +343,19 @@ class CompanionEngine:
                                 self.state["bank_loan"] = 0
                                 self.state["loan_days_active"] = 0
                                 
-                                # 5. Distressed Companion
+                                # 5. Distressed Companion(s)
+                                dex = self.state.get("dex", [])
+                                for d in dex:
+                                    if d.get("status") != "evolved":
+                                        m_state = d.get("mon_state", {})
+                                        if "happiness" in m_state:
+                                            m_state["happiness"] = max(0, m_state["happiness"] - 50)
+                                            
                                 if active:
                                     active.happiness = max(0, active.happiness - 50)
                                     self.set_active_mon(active)
                                     
-                                events.append("🚨 BANK REPOSSESSION! 8 days have passed! The bank seized tokens and liquidated items to cover your debt, reducing your companion's happiness by 50%!")
+                                events.append("🚨 BANK REPOSSESSION! 8 days have passed! The bank seized tokens and liquidated items to cover your debt, reducing ALL roster companions' happiness by 50%!")
 
                     if diff == 1:
                         if active:
