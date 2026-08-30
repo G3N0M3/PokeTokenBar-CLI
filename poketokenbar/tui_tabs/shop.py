@@ -33,10 +33,10 @@ def render_shop_tab(app):
     sys.stdout.write(f"  [6] 🍇 Golden Razz    - Cost: 5.0M   tokens  (Boosts next egg shiny odds to 1/24!)\n")
     sys.stdout.write(f"  [7] 📜 Exped. License - Cost: 200.0M tokens  (+10 expedition slots)\n")
     sys.stdout.write(f"  [8] 🪨 Everstone      - Cost: 500.0K tokens  (Prevents evolution when equipped)\n")
-    sys.stdout.write(f"  [11] 🍀 Lucky Egg     - Cost: 5.0M   tokens  (+20% XP gain when equipped)\n")
-    sys.stdout.write(f"  [12] 🪙 Amulet Coin   - Cost: 2.0M   tokens  (+50% token gain from battles/expeditions)\n")
-    sys.stdout.write(f"  [13] 🍎 Leftovers     - Cost: 2.0M   tokens  (Protects happiness from daily decay)\n")
-    sys.stdout.write(f"  [14] 🥊 Choice Scarf  - Cost: 2.0M   tokens  (+20% expedition speed, faster happiness drain)\n\n")
+    sys.stdout.write(f"  [9] 🍀 Lucky Egg      - Cost: 5.0M   tokens  (+20% XP gain when equipped)\n")
+    sys.stdout.write(f"  [10] 🪙 Amulet Coin   - Cost: 2.0M   tokens  (+50% token gain from battles/expeditions)\n")
+    sys.stdout.write(f"  [11] 🍎 Leftovers     - Cost: 2.0M   tokens  (Protects happiness from daily decay)\n")
+    sys.stdout.write(f"  [12] 🥊 Choice Scarf  - Cost: 2.0M   tokens  (+20% expedition speed, faster happiness drain)\n\n")
 
     sys.stdout.write(f"  {BOLD}Your Bag (Type 'use <id>', 'sell <id> [qty]', or 'unequip'):{RESET}\n")
     
@@ -110,13 +110,13 @@ def handle_shop_buy(app, cmd: str):
         ok, msg = app.engine.buy_item(ItemKind.EXPEDITION_LICENSE, qty)
     elif choice == "8":
         ok, msg = app.engine.buy_item(ItemKind.EVERSTONE, qty)
-    elif choice == "11":
+    elif choice == "9":
         ok, msg = app.engine.buy_item(ItemKind.LUCKY_EGG, qty)
-    elif choice == "12":
+    elif choice == "10":
         ok, msg = app.engine.buy_item(ItemKind.AMULET_COIN, qty)
-    elif choice == "13":
+    elif choice == "11":
         ok, msg = app.engine.buy_item(ItemKind.LEFTOVERS, qty)
-    elif choice == "14":
+    elif choice == "12":
         ok, msg = app.engine.buy_item(ItemKind.CHOICE_SCARF, qty)
     else:
         ok, msg = False, "Invalid shop selection."
