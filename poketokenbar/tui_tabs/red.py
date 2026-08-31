@@ -55,16 +55,18 @@ def render_red_tab(app):
         sys.stdout.write(f"  {p_line}        {r_line}\n")
         
     # HP Bars
-    sys.stdout.write(f"\n  {GREEN}{BOLD}{p_name:<25}{RESET}      {RED}{BOLD}Red's {r_mon['name']}{RESET}\n")
+    sys.stdout.write(f"  {GREEN}{BOLD}{p_name:<25}{RESET}      {RED}{BOLD}Red's {r_mon['name']}{RESET}\n")
     sys.stdout.write(f"  HP: [{'█' * (p_perc//5)}{'░' * (20 - p_perc//5)}]      HP: [{'█' * (r_perc//5)}{'░' * (20 - r_perc//5)}]\n")
-    sys.stdout.write(f"  {p_hp:,} / {p_max_hp:,}                 {r_hp:,} / {r_max_hp:,}\n\n")
+    sys.stdout.write(f"  {p_hp:,} / {p_max_hp:,}                 {r_hp:,} / {r_max_hp:,}\n")
     
     # Turn log
     sys.stdout.write(f"  {BOLD}Battle Log:{RESET}\n")
-    for log in st.get("turn_log", []):
+    # Show only last 3 logs to save vertical space
+    logs = st.get("turn_log", [])[-3:]
+    for log in logs:
         sys.stdout.write(f"  > {log}\n")
         
-    sys.stdout.write("\n" + "  " + "=" * 68 + "\n\n")
+    sys.stdout.write("  " + "=" * 68 + "\n")
     
     # Team display
     team_names = []
@@ -76,8 +78,7 @@ def render_red_tab(app):
             team_names.append(f"{BOLD}{GREEN}>{n}<{RESET}")
         else:
             team_names.append(n)
-    sys.stdout.write(f"  {BOLD}Your Team:{RESET} " + ", ".join(team_names) + "\n\n")
-
+    sys.stdout.write(f"  {BOLD}Your Team:{RESET} " + ", ".join(team_names) + "\n")
     
     # Battle Menu
     sys.stdout.write(f"  {BOLD}What will {p_name} do?{RESET} (Spendable: {app.engine.available_tokens:,})\n")
