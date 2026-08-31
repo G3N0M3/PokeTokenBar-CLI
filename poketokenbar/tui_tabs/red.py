@@ -20,7 +20,7 @@ def render_red_tab(app):
         sys.stdout.write(f"  Example: assemble 3 6 9 25 143 149\n")
         return
         
-    import itertools
+    
     
     p_idx = st["player_active_index"]
     r_idx = st["red_active_index"]
@@ -50,7 +50,14 @@ def render_red_tab(app):
         p_visual_width = len(p_sprite_lines[0].replace("\033[0m", "").replace("\033[", "").replace("38;2;", "").replace("m▀", "").replace("m", "").replace(";", ""))
         if p_visual_width > 50: p_visual_width = 30 # fallback if regex-ish replacement failed
         
-    for p_line, r_line in itertools.zip_longest(p_sprite_lines, r_sprite_lines, fillvalue=" " * p_visual_width):
+    # Bottom align sprites by padding the top of the shorter one
+    max_h = max(len(p_sprite_lines), len(r_sprite_lines))
+    while len(p_sprite_lines) < max_h:
+        p_sprite_lines.insert(0, " " * p_visual_width)
+    while len(r_sprite_lines) < max_h:
+        r_sprite_lines.insert(0, " " * 30)
+        
+    for p_line, r_line in zip(p_sprite_lines, r_sprite_lines):
         sys.stdout.write(f"  {p_line}        {r_line}\n")
         
     # HP Bars
