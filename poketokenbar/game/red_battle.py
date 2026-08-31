@@ -69,8 +69,8 @@ class RedBattleHandler:
         st = self._get_state()
         if not st:
             return 0
-        baseline = st.get("baseline_global_tokens", self.engine.state.get("total_tokens", 0))
-        current = self.engine.state.get("total_tokens", 0)
+        baseline = st.get("baseline_global_tokens", self.engine.state.get("used_since_install", 0))
+        current = self.engine.state.get("used_since_install", 0)
         earned = max(0, current - baseline)
         return 20_000_000 + earned - st.get("red_spent_tokens", 0)
 
@@ -127,7 +127,7 @@ class RedBattleHandler:
             "red_active_index": 0,
             
             "turn_log": ["Battle started! Red sent out Pikachu!"],
-            "baseline_global_tokens": self.engine.state.get("total_tokens", 0),
+            "baseline_global_tokens": self.engine.state.get("used_since_install", 0),
             "red_spent_tokens": 0
         }
         self._save_state(st)
