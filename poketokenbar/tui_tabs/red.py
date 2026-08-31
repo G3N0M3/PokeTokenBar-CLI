@@ -1,0 +1,126 @@
+import sys
+from poketokenbar.utils.colors import BOLD, RESET, RED, GREEN, YELLOW, CYAN
+from poketokenbar.game.red_battle import RedBattleHandler, RED_TEAM, generate_player_moves
+from poketokenbar.sprite_renderer import render_sprite_from_path
+
+def render_red_tab(app):
+    sys.stdout.write(f"\n  {BOLD}{RED}🏔️  Mt. Silver Summit - VS PKMN Trainer Red 🏔️{RESET}\n\n")
+    
+    handler = RedBattleHandler(app.engine)
+    st = handler._get_state()
+    
+    if not st.get("player_team"):
+        sys.stdout.write(f"  {BOLD}Red silently stares at you from the snowy peak...{RESET}\n")
+        sys.stdout.write(f"  {YELLOW}You must assemble a party of 6 Pokémon to challenge him!{RESET}\n\n")
+        sys.stdout.write(f"  Type '{BOLD}assemble <id1> <id2> <id3> <id4> <id5> <id6>{RESET}' to select your team.\n")
+        sys.stdout.write(f"  Example: assemble 3 6 9 25 143 149\n")
+        return
+        
+    p_idx = st["player_active_index"]
+    r_idx = st["red_active_index"]
+    p_id = st["player_team"][p_idx]
+    
+    # Red's Pokemon info
+    r_mon = st["red_team"][r_idx]
+    r_hp = st["red_hps"][r_idx]
+    r_max_hp = r_mon["max_hp"]
+    r_perc = max(0, int((r_hp / r_max_hp) * 100))
+    
+    sys.stdout.write(f"  {RED}{BOLD}Red's {r_mon['name']}{RESET}  Lv. 100\n")
+    sys.stdout.write(f"  HP: [{'█' * (r_perc//5)}{'░' * (20 - r_perc//5)}] {r_hp:,} / {r_max_hp:,} \n\n")
+    
+    # Render Red's sprite
+    sprite_path = app.engine.api.download_sprite(r_mon["id"])
+    if sprite_path:
+        sprite_lines = render_sprite_from_path(sprite_path, 30, fallback="?", use_half_blocks=True).split("\n")
+        for line in sprite_lines:
+            sys.stdout.write(f"            {line}\n")
+    else:
+        sys.stdout.write(f"            [ {r_mon['name']} ]\n")
+        
+    sys.stdout.write("\n" + "  " + "=" * 68 + "\n\n")
+    
+    # Player's Pokemon info
+    p_hp = st["player_hps"][p_idx]
+    p_max_hp = st["player_max_hps"][p_idx]
+    p_perc = max(0, int((p_hp / max(1, p_max_hp)) * 100))
+    p_name = app.engine.api.get_species_name(p_id)
+    
+    # Render Player's sprite
+    p_sprite_path = app.engine.api.download_sprite(p_id)
+    if p_sprite_path:
+        sprite_lines = render_sprite_from_path(p_sprite_path, 30, fallback="?", use_half_blocks=True).split("\n")
+        for line in sprite_lines:
+            sys.stdout.write(f"  {line}\n")
+    else:
+        sys.stdout.write(f"  [ {p_name} ]\n")
+        
+    sys.stdout.write(f"                                   {GREEN}{BOLD}Your {p_name}{RESET}  Lv. ???\n")
+    sys.stdout.write(f"                                   HP: [{'█' * (p_perc//5)}{'░' * (20 - p_perc//5)}] {p_hp:,} / {p_max_hp:,} \n\n")
+    
+    # Turn log
+    sys.stdout.write(f"  {BOLD}Battle Log:{RESET}\n")
+    for log in st.get("turn_log", []):
+        sys.stdout.write(f"  > {log}\n")
+        
+    sys.stdout.write("\n" + "  " + "=" * 68 + "\n\n")
+    
+    # Battle Menu
+    sys.stdout.write(f"  {BOLD}What will {p_name} do?{RESET} (Spendable: {app.engine.state.get('total_tokens', 0) - app.engine.state.get('spent_tokens', 0):,})\n")
+    
+    # Generate moves
+    sp = app.engine.api.get_pokemon_info(p_id)
+    if sp and "types" in sp:
+        p_type = sp["types"][0]["type"]["name"]
+    else:
+        p_type = "normal"
+    moves = generate_player_moves(p_type)
+    
+    for i, m in enumerate(moves):
+        sys.stdout.write(f"  [fight {i+1}] {m['name']:<15} - Cost: {m['cost']:>8,} tokens ({m['desc']})\n")
+        
+    sys.stdout.write(f"\n  [swap 1-6] Swap Pokémon (Currently Active: Slot {p_idx+1})\n")
+    sys.stdout.write(f"  [run]      Flee the battle (Resets Red's team)\n")
+    
+def handle_red_command(app, cmd: str):
+    handler = RedBattleHandler(app.engine)
+    parts = cmd.split()
+    
+    if cmd.startswith("assemble"):
+        if len(parts) != 7:
+            app.message = "Usage: assemble <id1> <id2> <id3> <id4> <id5> <id6>"
+            return
+        try:
+            ids = [int(x) for x in parts[1:]]
+        except ValueError:
+            app.message = "IDs must be numbers!"
+            return
+            
+        ok, msg = handler.assemble_team(ids)
+        app.message = msg
+        
+    elif cmd.startswith("fight"):
+        if len(parts) != 2:
+            app.message = "Usage: fight <1-4>"
+            return
+        try:
+            move_idx = int(parts[1]) - 1
+            ok, msg = handler.execute_turn(move_idx)
+            app.message = msg if not ok else "Turn ended."
+        except ValueError:
+            app.message = "Invalid move number."
+            
+    elif cmd.startswith("swap"):
+        if len(parts) != 2:
+            app.message = "Usage: swap <1-6>"
+            return
+        try:
+            idx = int(parts[1]) - 1
+            ok, msg = handler.swap_pokemon(idx)
+            app.message = msg
+        except ValueError:
+            app.message = "Invalid slot number."
+            
+    elif cmd == "run":
+        ok, msg = handler.run_away()
+        app.message = msg

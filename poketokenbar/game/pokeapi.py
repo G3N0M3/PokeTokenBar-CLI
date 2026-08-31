@@ -41,6 +41,11 @@ class PokeAPIClient:
         cache_file = CACHE_DIR / f"evo_chain_{chain_id}.json"
         url = f"https://pokeapi.co/api/v2/evolution-chain/{chain_id}/"
         return self._fetch_json(url, cache_file)
+        
+    def get_pokemon_info(self, species_id: int) -> Optional[Dict[str, Any]]:
+        cache_file = CACHE_DIR / f"pokemon_{species_id}.json"
+        url = f"https://pokeapi.co/api/v2/pokemon/{species_id}/"
+        return self._fetch_json(url, cache_file)
 
     def download_sprite(self, species_id: int, is_shiny: bool = False) -> Optional[Path]:
         prefix = "shiny_" if is_shiny else "normal_"

@@ -111,10 +111,13 @@ class PokeTokenBarTUI:
                 self.render_bank_tab()
             elif self.current_tab == 11:
                 self.render_settings_tab()
+            elif self.current_tab == 12:
+                from poketokenbar.tui_tabs.red import render_red_tab
+                render_red_tab(self)
 
             self.render_footer()
 
-            sys.stdout.write(f"\n{BOLD}Select tab (1-11), command, r=Refresh, q=Quit: {RESET}")
+            sys.stdout.write(f"\n{BOLD}Select tab (1-12), command, r=Refresh, q=Quit: {RESET}")
             sys.stdout.flush()
 
             try:
@@ -133,6 +136,11 @@ class PokeTokenBarTUI:
                     self.engine.state["spent_tokens"] = self.engine.state.get("spent_tokens", 0) - 50_000_000
                     self.engine.save()
                     self.message = "🎉 EASTER EGG UNLOCKED! Granted 50.0M Tokens! 🎉"
+                elif cmd == "314159":
+                    self.engine.state["dev_red_unlocked"] = not self.engine.state.get("dev_red_unlocked", False)
+                    self.engine.save()
+                    status = "UNLOCKED" if self.engine.state["dev_red_unlocked"] else "LOCKED"
+                    self.message = f"🔧 DEV MODE: Red Battle {status} 🔧"
                 elif cmd == "1":
                     self.current_tab = 1
                     self.message = ""
@@ -166,6 +174,17 @@ class PokeTokenBarTUI:
                 elif cmd == "11":
                     self.current_tab = 11
                     self.message = ""
+                elif cmd == "12":
+                    badges = self.engine.state.get("gym_badges", [])
+                    unlocked = self.engine.state.get("dev_red_unlocked", False) or "🏆 Champion Badge" in badges
+                    if unlocked:
+                        self.current_tab = 12
+                        self.message = ""
+                    else:
+                        self.message = "You must defeat the Champion to unlock this tab!"
+                elif cmd.startswith("difficulty "):
+                    # Placeholder for potential difficulty commands
+                    pass
                 elif cmd in ["r", "refresh"]:
                     summary = self.tracker.get_summary(force=True)
                     events = self.engine.process_usage(summary["total_tokens"])
@@ -334,6 +353,11 @@ class PokeTokenBarTUI:
                             self.message = "Sprite size must be between 10 and 72."
                     else:
                         self.message = "Usage: size <number> (e.g. 'size 30')"
+                elif self.current_tab == 10 and cmd.startswith("blackjack"):
+                    self.handle_bank_blackjack(cmd)
+                elif self.current_tab == 12 and (cmd.startswith("assemble") or cmd.startswith("fight") or cmd.startswith("swap") or cmd == "run"):
+                    from poketokenbar.tui_tabs.red import handle_red_command
+                    handle_red_command(self, cmd)
                 elif self.current_tab == 4 and cmd.startswith("buy"):
                     self.handle_shop_buy(cmd)
                 elif self.current_tab == 4 and (cmd.startswith("use") or cmd.startswith("unequip")):
@@ -394,11 +418,16 @@ class PokeTokenBarTUI:
         t9 = f"{BOLD}{CYAN}[9] Game Corner{RESET}" if self.current_tab == 9 else "[9] Game Corner"
         t10 = f"{BOLD}{CYAN}[10] Bank{RESET}" if self.current_tab == 10 else "[10] Bank"
         t11 = f"{BOLD}{CYAN}[11] Settings{RESET}" if self.current_tab == 11 else "[11] Settings"
+        
+        badges = self.engine.state.get("gym_badges", [])
+        unlocked = self.engine.state.get("dev_red_unlocked", False) or "🏆 Champion Badge" in badges
+        t12 = f"{BOLD}{RED}[12] Red{RESET}" if self.current_tab == 12 else "[12] Red"
+        t12_str = f"      {t12}" if unlocked else ""
 
         sys.stdout.write(f"  {t1}   {t2}     {t3}      {t4}\n")
         sys.stdout.write(f"  {t5} {t6}     {t7}      {t8}\n")
-        sys.stdout.write(f"  {t9} {t10}       {t11}\n")
-        sys.stdout.write("-" * 72 + "\n")
+        sys.stdout.write(f"  {t9} {t10}       {t11}{t12_str}\n")
+        sys.stdout.write("-" * 72 + "\n\n")
 
     def render_companion_tab(self, summary: dict):
         from poketokenbar.tui_tabs.companion import render
