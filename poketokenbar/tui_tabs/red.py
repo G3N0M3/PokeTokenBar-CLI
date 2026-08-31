@@ -108,7 +108,15 @@ def render_red_tab(app):
     sys.stdout.write(f"  {BOLD}Your Team:{RESET} " + ", ".join(team_names) + "\n")
     
     # Battle Menu
-    sys.stdout.write(f"  {BOLD}What will {p_name} do?{RESET} (Spendable: {app.engine.available_tokens:,})\n")
+    def format_short_tokens(val: int) -> str:
+        if val >= 1_000_000:
+            return f"{val/1_000_000:.1f}M".replace(".0M", "M")
+        if val >= 1_000:
+            return f"{val/1_000:.1f}K".replace(".0K", "K")
+        return str(val)
+
+    red_tokens = handler.get_red_tokens()
+    sys.stdout.write(f"  {BOLD}What will {p_name} do?{RESET} (Spendable: {format_short_tokens(red_tokens)})\n")
     
     # Generate moves
     sp = app.engine.api.get_pokemon_info(p_id)
@@ -119,7 +127,7 @@ def render_red_tab(app):
     moves = generate_player_moves(p_type)
     
     for i, m in enumerate(moves):
-        sys.stdout.write(f"  [fight {i+1}] {m['name']:<15} - Cost: {m['cost']:>8,} tokens ({m['desc']})\n")
+        sys.stdout.write(f"  [fight {i+1}] {m['name']:<15} - Cost: {format_short_tokens(m['cost']):>6} tokens ({m['desc']})\n")
         
     sys.stdout.write(f"\n  [swap 1-6] Swap Pokémon (Currently Active: Slot {p_idx+1})\n")
     sys.stdout.write(f"  [run]      Flee the battle (Resets Red's team)\n")

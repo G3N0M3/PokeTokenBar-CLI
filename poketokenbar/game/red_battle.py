@@ -59,13 +59,20 @@ class RedBattleHandler:
         self.engine = engine
 
     def _get_state(self):
-        if "red_battle_state" not in self.engine.state:
-            self.engine.state["red_battle_state"] = {}
-        return self.engine.state["red_battle_state"]
-
-    def _save_state(self, st):
+        return self.engine.state.get("red_battle_state", {})
+        
+    def _save_state(self, st: dict):
         self.engine.state["red_battle_state"] = st
         self.engine.save()
+
+    def get_red_tokens(self) -> int:
+        st = self._get_state()
+        if not st:
+            return 0
+        baseline = st.get("baseline_global_tokens", self.engine.state.get("total_tokens", 0))
+        current = self.engine.state.get("total_tokens", 0)
+        earned = max(0, current - baseline)
+        return 20_000_000 + earned - st.get("red_spent_tokens", 0)
 
     def assemble_team(self, team_ids: List[int]) -> Tuple[bool, str]:
         if len(team_ids) != 6:
@@ -109,13 +116,18 @@ class RedBattleHandler:
             
         st = {
             "player_team": team_ids,
-            "player_max_hps": hps.copy(),
             "player_hps": hps,
+            "player_max_hps": hps,
             "player_active_index": 0,
-            "red_team": [dict(r) for r in RED_TEAM], # Deep copy
+            
+            "red_team": [dict(r) for r in RED_TEAM],
             "red_hps": [r["max_hp"] for r in RED_TEAM],
+            "red_max_hps": [r["max_hp"] for r in RED_TEAM],
             "red_active_index": 0,
-            "turn_log": ["Battle started! Red sent out Pikachu!"]
+            
+            "turn_log": ["Battle started! Red sent out Pikachu!"],
+            "baseline_global_tokens": self.engine.state.get("total_tokens", 0),
+            "red_spent_tokens": 0
         }
         self._save_state(st)
         return True, "Team assembled! Let the battle on Mt. Silver begin!"
@@ -207,14 +219,13 @@ class RedBattleHandler:
         move = moves[move_index]
         cost = move["cost"]
         
-        spendable = self.engine.available_tokens
+        spendable = self.get_red_tokens()
         
         if spendable < cost:
             return False, f"Not enough tokens! You need {cost:,} but have {spendable:,}."
             
         # Deduct cost
-        spent = self.engine.state.get("spent_tokens", 0)
-        self.engine.state["spent_tokens"] = spent + cost
+        st["red_spent_tokens"] = st.get("red_spent_tokens", 0) + cost
         
         p_name = self.engine.api.get_species_name(p_id)
         r_mon = st["red_team"][r_idx]
