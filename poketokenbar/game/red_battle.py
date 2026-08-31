@@ -92,7 +92,7 @@ class RedBattleHandler:
             hps.append(hp)
             
             # Get species info from engine API
-            sp = self.engine.api.get_species_info(pid)
+            sp = self.engine.api.get_pokemon_species(pid)
             names.append(sp.get("name", "Unknown").capitalize() if sp else f"#{pid}")
             # Primary type
             t = "normal"

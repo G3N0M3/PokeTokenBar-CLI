@@ -73,10 +73,10 @@ def render(app):
         if total_pages > 1:
             sys.stdout.write(f"\n  ➔ Page {app.roster_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")
 
-    sys.stdout.write(f"\n  ➔ Type '{BOLD}sel <ROW INDEX>|#<POKEMON INDEX>{RESET}', or '{BOLD}sel egg{RESET}' to switch active companion!\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}send <ROW INDEX>|#<POKEMON INDEX> [area]{RESET}' on expedition!\n")
+    sys.stdout.write(f"\n  ➔ Type '{BOLD}sel <row>|#<dex>|egg{RESET}' to switch active companion!\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}send <row>|#<dex> [area]{RESET}' on expedition!\n")
     sys.stdout.write(f"     Areas:\n")
     sys.stdout.write(f"       • '{BOLD}viridian{RESET}' (5M, Mint)\n")
     sys.stdout.write(f"       • '{BOLD}cerulean{RESET}' (15M, Rare Candy)\n")
     sys.stdout.write(f"       • '{BOLD}silver{RESET}'   (30M, Golden Razz)\n")
-    sys.stdout.write(f"       • '{BOLD}spear{RESET}'    (100M, Legendary Egg - Req. 3x Map & 100% Hap)\n\n")
+    sys.stdout.write(f"       • '{BOLD}spear{RESET}'    (100M, Leg. Egg - Req 3x Map, 100% Hap)\n\n")

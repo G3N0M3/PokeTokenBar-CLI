@@ -14,7 +14,7 @@ def render_settings_tab(app):
     
     current_size = app.engine.state.get("sprite_size", 30)
     sys.stdout.write(f"  [1] Sprite Resolution:         {BOLD}{current_size} columns{RESET}\n")
-    sys.stdout.write(f"      ➔ Type '{BOLD}size <number>{RESET}' to adjust (e.g. 'size 24' or 'size 48')\n\n")
+    sys.stdout.write(f"      ➔ Type '{BOLD}size <number>{RESET}' to adjust\n\n")
 
     pokedex_size = app.engine.state.get("page_size_pokedex", 15)
     roster_size = app.engine.state.get("page_size_roster", 14)
@@ -38,4 +38,4 @@ def render_settings_tab(app):
     sys.stdout.write(f"      ➔ Type '{BOLD}pagesize mega <number>{RESET}' to adjust\n\n")
 
     sys.stdout.write(f"  [7] Reset Game Progress:       {BOLD}{RED}[DANGER]{RESET}\n")
-    sys.stdout.write(f"      ➔ Type '{BOLD}reset{RESET}' to clear all saved progress & restart fresh\n\n")
+    sys.stdout.write(f"      ➔ Type '{BOLD}reset{RESET}' to clear all progress & restart\n\n")

@@ -17,7 +17,7 @@ def render_red_tab(app):
     if not st.get("player_team"):
         sys.stdout.write(f"  {BOLD}Red silently stares at you from the snowy peak...{RESET}\n")
         sys.stdout.write(f"  {YELLOW}You must assemble a party of 6 Pokémon to challenge him!{RESET}\n\n")
-        sys.stdout.write(f"  Type '{BOLD}assemble <id1> <id2> <id3> <id4> <id5> <id6>{RESET}' to select your team.\n")
+        sys.stdout.write(f"  Type '{BOLD}assemble <dex_1> ... <dex_6>{RESET}' (use Pokédex IDs).\n")
         sys.stdout.write(f"  Example: assemble 3 6 9 25 143 149\n")
         return
         

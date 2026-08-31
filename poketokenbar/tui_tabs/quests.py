@@ -19,7 +19,7 @@ def render_quests_tab(app):
     sys.stdout.write(f"\n  {BOLD}{HEADER}🏆 Quests, Badges & Achievements{RESET}\n\n")
 
     # 1. Daily Quests
-    sys.stdout.write(f"  {BOLD}🎯 Daily Quests (Type 'claim <id>' to collect rewards):{RESET}\n")
+    sys.stdout.write(f"  {BOLD}🎯 Quests (Type 'claim <id>'):{RESET}\n")
     if not quests:
         sys.stdout.write("   No daily quests active today. Spend tokens to refresh!\n")
     else:
