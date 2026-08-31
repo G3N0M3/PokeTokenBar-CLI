@@ -202,20 +202,13 @@ class RedBattleHandler:
         move = moves[move_index]
         cost = move["cost"]
         
-        spendable = self.engine.state.get("spendable_tokens", 0)
-        # Recalculate spendable dynamically if needed, or rely on caller to pass it.
-        # It's better to just use engine.spendable_tokens if we can, but we must calculate it:
-        # total = engine.state.get("total_tokens", 0)
-        # spent = engine.state.get("spent_tokens", 0)
-        # It's safer to deduct from spent_tokens.
-        total_tokens = self.engine.tracker.get_summary(force=False)["total_tokens"]
-        spent = self.engine.state.get("spent_tokens", 0)
-        spendable = total_tokens - spent
+        spendable = self.engine.available_tokens
         
         if spendable < cost:
             return False, f"Not enough tokens! You need {cost:,} but have {spendable:,}."
             
         # Deduct cost
+        spent = self.engine.state.get("spent_tokens", 0)
         self.engine.state["spent_tokens"] = spent + cost
         
         p_name = self.engine.api.get_species_name(p_id)
