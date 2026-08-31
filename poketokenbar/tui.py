@@ -146,6 +146,9 @@ class PokeTokenBarTUI:
                     self.message = f"🔧 DEV MODE: Red Battle {status} 🔧"
                 elif cmd == "314159+":
                     self.engine.state["spent_tokens"] = self.engine.state.get("spent_tokens", 0) - 1_000_000
+                    st = self.engine.state.get("red_battle_state")
+                    if st:
+                        st["red_spent_tokens"] = st.get("red_spent_tokens", 0) - 1_000_000
                     self.engine.save()
                     self.message = "🔧 DEV MODE: Granted 1,000,000 Tokens! 🔧"
                 elif cmd == "1":
