@@ -75,9 +75,11 @@ class RedBattleHandler:
         # In PokeTokenBar, we verify by checking if the user owns these IDs in their dex.
         # But wait, the user must have them in their active roster/dex. 
         # Actually, let's just check if they are unlocked in dex.
-        dex = self.engine.state.get("dex", {})
+        dex_list = self.engine.state.get("dex", [])
+        dex_map = {d.get("species_id", d.get("final_id", d.get("base_id"))): d for d in dex_list}
+        
         for pid in team_ids:
-            if str(pid) not in dex:
+            if pid not in dex_map:
                 return False, f"You don't own Pokémon #{pid}!"
         
         # Calculate max HP for each member based on their XP (tokens)
@@ -85,10 +87,13 @@ class RedBattleHandler:
         names = []
         types = []
         for pid in team_ids:
-            data = dex[str(pid)]
-            xp = data.get("total_tokens_gained", 0)
-            # Level scaling: 10,000 HP base + 1 HP per 100 XP. Max out at ~1,000,000 HP.
-            hp = min(1_000_000, 10_000 + (xp // 100))
+            data = dex_map[pid]
+            mon_state = data.get("mon_state", {})
+            xp = mon_state.get("used_at_stage", 0) if isinstance(mon_state, dict) else 0
+            stage = mon_state.get("stage_index", 0) if isinstance(mon_state, dict) else 0
+            
+            # Level scaling: 50,000 base + 100,000 per stage + 1 HP per 100 XP. Max out at 1,000,000 HP.
+            hp = min(1_000_000, 50_000 + (stage * 100_000) + (xp // 100))
             hps.append(hp)
             
             # Get species info from engine API
