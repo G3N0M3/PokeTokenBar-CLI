@@ -140,7 +140,37 @@ class RedBattleHandler:
             
         st["player_active_index"] = index
         name = self.engine.api.get_species_name(st["player_team"][index])
-        st["turn_log"].append(f"You sent out {name}!")
+        
+        logs = [f"You sent out {name}!"]
+        
+        # Red Retaliates
+        p_idx = index
+        p_id = st["player_team"][p_idx]
+        sp = self.engine.api.get_pokemon_info(p_id)
+        p_type = sp["types"][0]["type"]["name"] if sp and "types" in sp else "normal"
+        
+        r_idx = st["red_active_index"]
+        r_mon = st["red_team"][r_idx]
+        
+        r_move = random.choice(r_mon["moves"])
+        eff = get_effectiveness(r_mon["type"], p_type)
+        dmg = int(30_000 * eff)
+        st["player_hps"][p_idx] = max(0, st["player_hps"][p_idx] - dmg)
+        
+        eff_str = " It's super effective!" if eff > 1.5 else (" It's not very effective..." if eff < 0.9 else "")
+        logs.append(f"Red's {r_mon['name']} used {r_move}!{eff_str} (-{dmg} HP)")
+        
+        if st["player_hps"][p_idx] <= 0:
+            logs.append(f"{name} fainted!")
+            if all(hp <= 0 for hp in st["player_hps"]):
+                logs.append("You blacked out! Red's team has healed. Try again...")
+                self._save_state({})
+                return True, "\n".join(logs)
+                
+        existing_logs = st.get("turn_log", [])
+        existing_logs.extend(logs)
+        st["turn_log"] = existing_logs[-5:]
+        
         self._save_state(st)
         return True, f"Swapped to {name}!"
 

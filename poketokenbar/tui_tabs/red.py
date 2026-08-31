@@ -55,9 +55,9 @@ def render_red_tab(app):
         sys.stdout.write(f"  {p_line}        {r_line}\n")
         
     # HP Bars
-    sys.stdout.write(f"  {GREEN}{BOLD}{p_name:<25}{RESET}      {RED}{BOLD}Red's {r_mon['name']}{RESET}\n")
-    sys.stdout.write(f"  HP: [{'█' * (p_perc//5)}{'░' * (20 - p_perc//5)}]      HP: [{'█' * (r_perc//5)}{'░' * (20 - r_perc//5)}]\n")
-    sys.stdout.write(f"  {p_hp:,} / {p_max_hp:,}                 {r_hp:,} / {r_max_hp:,}\n")
+    sys.stdout.write(f"  {GREEN}{BOLD}{p_name:<28}{RESET}          {RED}{BOLD}Red's {r_mon['name']}{RESET}\n")
+    sys.stdout.write(f"  HP: [{'█' * (p_perc//5)}{'░' * (20 - p_perc//5)}]          HP: [{'█' * (r_perc//5)}{'░' * (20 - r_perc//5)}]\n")
+    sys.stdout.write(f"  {p_hp:,} / {p_max_hp:,:<22}      {r_hp:,} / {r_max_hp:,}\n")
     
     # Turn log
     sys.stdout.write(f"  {BOLD}Battle Log:{RESET}\n")
