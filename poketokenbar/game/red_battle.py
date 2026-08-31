@@ -164,7 +164,11 @@ class RedBattleHandler:
             logs.append(f"{name} fainted!")
             if all(hp <= 0 for hp in st["player_hps"]):
                 logs.append("You blacked out! Red's team has healed. Try again...")
-                self._save_state({})
+                st["status"] = "loss"
+                existing_logs = st.get("turn_log", [])
+                existing_logs.extend(logs)
+                st["turn_log"] = existing_logs[-5:]
+                self._save_state(st)
                 return True, "\n".join(logs)
                 
         existing_logs = st.get("turn_log", [])
@@ -238,10 +242,18 @@ class RedBattleHandler:
                 logs.append(f"Red sent out {next_mon['name']}!")
             else:
                 logs.append("You defeated PKMN Trainer Red! You are a Pokémon Master!")
-                self._save_state({}) # Clear state
-                # Grant massive reward
+                st["status"] = "win"
+                wins = self.engine.state.get("red_wins", 0) + 1
+                self.engine.state["red_wins"] = wins
+                hof = self.engine.state.get("red_hof", [])
+                hof.append(st["player_team"])
+                self.engine.state["red_hof"] = hof
+                # Grant massive reward (can add more later)
                 self.engine.state["spent_tokens"] -= 500_000_000
                 self.engine.save()
+                
+                st["turn_log"] = logs[-5:]
+                self._save_state(st)
                 return True, "\n".join(logs)
         else:
             # Red Retaliates
@@ -259,7 +271,9 @@ class RedBattleHandler:
                 # Check black out
                 if all(hp <= 0 for hp in st["player_hps"]):
                     logs.append("You blacked out! Red's team has healed. Try again...")
-                    self._save_state({})
+                    st["status"] = "loss"
+                    st["turn_log"] = logs[-5:]
+                    self._save_state(st)
                     return True, "\n".join(logs)
                 
         # Trim logs

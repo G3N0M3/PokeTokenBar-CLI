@@ -13,6 +13,26 @@ def render_red_tab(app):
     handler = RedBattleHandler(app.engine)
     st = handler._get_state()
     
+    if st.get("status") == "win":
+        sys.stdout.write(f"  {BOLD}{YELLOW}🏆 HALL OF FAME 🏆{RESET}\n\n")
+        sys.stdout.write(f"  You defeated PKMN Trainer Red!\n")
+        sys.stdout.write(f"  Total Wins: {app.engine.state.get('red_wins', 0)}\n\n")
+        
+        hof = app.engine.state.get("red_hof", [])
+        if hof:
+            last_team = hof[-1]
+            names = [app.engine.api.get_species_name(pid) for pid in last_team]
+            sys.stdout.write(f"  {CYAN}Winning Team:{RESET} {', '.join(names)}\n\n")
+            
+        sys.stdout.write(f"  Type '{BOLD}restart{RESET}' to challenge him again!\n")
+        return
+
+    if st.get("status") == "loss":
+        sys.stdout.write(f"  {BOLD}{RED}You blacked out...{RESET}\n\n")
+        sys.stdout.write(f"  Red's team was too strong this time.\n\n")
+        sys.stdout.write(f"  Type '{BOLD}restart{RESET}' to assemble a new team and try again!\n")
+        return
+    
     if not st.get("player_team"):
         sys.stdout.write(f"  {BOLD}Red silently stares at you from the snowy peak...{RESET}\n")
         sys.stdout.write(f"  {YELLOW}You must assemble a party of 6 Pokémon to challenge him!{RESET}\n\n")
@@ -104,6 +124,16 @@ def render_red_tab(app):
     sys.stdout.write(f"  [run]      Flee the battle (Resets Red's team)\n")
     
 def handle_red_command(app, cmd: str):
+    if cmd == "restart":
+        st = app.engine.state.get("red_battle_state", {})
+        if st.get("status") in ["win", "loss"]:
+            app.engine.state.pop("red_battle_state", None)
+            app.engine.save()
+            app.message = "Red battle restarted. Assemble your team!"
+        else:
+            app.message = "You can only restart after the battle ends."
+        return
+
     handler = RedBattleHandler(app.engine)
     parts = cmd.split()
     

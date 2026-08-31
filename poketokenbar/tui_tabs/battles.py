@@ -34,7 +34,12 @@ def render_battles_tab(app):
         else:
             sys.stdout.write("   ➔ Attack the boss by spending tokens in Antigravity CLI!\n\n")
     else:
-        sys.stdout.write("   No active Boss Raid. Reach daily token milestones to summon Gym Bosses!\n\n")
+        badges = app.engine.state.get("gym_badges", [])
+        if "🏆 Champion Badge" in badges:
+            sys.stdout.write(f"   {BOLD}{RED}A chilling wind blows from the peak of Mt. Silver...{RESET}\n")
+            sys.stdout.write(f"   {BOLD}{RED}Someone is waiting for you in Tab [12].{RESET}\n\n")
+        else:
+            sys.stdout.write("   No active Boss Raid. Reach daily token milestones to summon Gym Bosses!\n\n")
 
     # 2. Mini-Trainer Auto-Battle Record
     sys.stdout.write(f"  {BOLD}⚔️ Mini-Trainer Auto-Battle Record:{RESET}\n")

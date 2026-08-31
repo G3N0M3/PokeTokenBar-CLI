@@ -362,7 +362,7 @@ class PokeTokenBarTUI:
                         self.message = "Usage: size <number> (e.g. 'size 30')"
                 elif self.current_tab == 10 and cmd.startswith("blackjack"):
                     self.handle_bank_blackjack(cmd)
-                elif self.current_tab == 12 and (cmd.startswith("assemble") or cmd.startswith("fight") or cmd.startswith("swap") or cmd == "run"):
+                elif self.current_tab == 12 and (cmd.startswith("assemble") or cmd.startswith("fight") or cmd.startswith("swap") or cmd == "run" or cmd == "restart"):
                     from poketokenbar.tui_tabs.red import handle_red_command
                     handle_red_command(self, cmd)
                 elif self.current_tab == 4 and cmd.startswith("buy"):
