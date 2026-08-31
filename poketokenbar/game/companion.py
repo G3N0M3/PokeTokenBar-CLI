@@ -913,8 +913,14 @@ class CompanionEngine:
         self.state.pop("incubating_eggs", None)
         self.state.pop("current_egg_tier", None)
         
-        # Select base species
-        base_id, rarity, chain_ids, is_legendary = self._pick_species(used_tier)
+        if used_tier == "mysterious fetal form":
+            base_id = 151
+            rarity = Rarity.LEGENDARY
+            chain_ids = [151]
+            is_legendary = True
+        else:
+            # Select base species
+            base_id, rarity, chain_ids, is_legendary = self._pick_species(used_tier)
 
         # Roll Shiny odds (1/64 base, or 1/24 with Golden Razz Berry)
         denom = 64

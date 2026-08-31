@@ -157,8 +157,9 @@ class RedBattleHandler:
         dmg = int(30_000 * eff)
         st["player_hps"][p_idx] = max(0, st["player_hps"][p_idx] - dmg)
         
+        enemy_prefix = "Red's" if not st.get("arceus_phase") else "Godly"
         eff_str = " It's super effective!" if eff > 1.5 else (" It's not very effective..." if eff < 0.9 else "")
-        logs.append(f"Red's {r_mon['name']} used {r_move}!{eff_str} (-{dmg} HP)")
+        logs.append(f"{enemy_prefix} {r_mon['name']} used {r_move}!{eff_str} (-{dmg} HP)")
         
         if st["player_hps"][p_idx] <= 0:
             logs.append(f"{name} fainted!")
@@ -241,20 +242,73 @@ class RedBattleHandler:
                 next_mon = st["red_team"][st["red_active_index"]]
                 logs.append(f"Red sent out {next_mon['name']}!")
             else:
-                logs.append("You defeated PKMN Trainer Red! You are a Pokémon Master!")
-                st["status"] = "win"
-                wins = self.engine.state.get("red_wins", 0) + 1
-                self.engine.state["red_wins"] = wins
-                hof = self.engine.state.get("red_hof", [])
-                hof.append(st["player_team"])
-                self.engine.state["red_hof"] = hof
-                # Grant massive reward (can add more later)
-                self.engine.state["spent_tokens"] -= 500_000_000
-                self.engine.save()
-                
-                st["turn_log"] = logs[-5:]
-                self._save_state(st)
-                return True, "\n".join(logs)
+                red_team_ids = [25, 196, 143, 3, 6, 9]
+                if st["player_team"] == red_team_ids and not st.get("arceus_phase"):
+                    logs.append("You defeated PKMN Trainer Red!")
+                    logs.append("Suddenly, the sky darkens... ARCEUS is pleased by your competence!")
+                    logs.append("ARCEUS challenges you to a battle!")
+                    
+                    st["arceus_phase"] = True
+                    # Initialize Arceus as the enemy
+                    arceus = {
+                        "id": 493,
+                        "name": "Arceus",
+                        "hp": 5_000_000,
+                        "max_hp": 5_000_000,
+                        "type": "normal",
+                        "moves": ["Judgment", "Hyper Beam", "Earthquake", "Recover"]
+                    }
+                    st["red_team"] = [arceus]
+                    st["red_active_index"] = 0
+                    st["red_hps"] = [5_000_000]
+                    st["red_max_hps"] = [5_000_000]
+                    st["player_hps"] = list(st["player_max_hps"])
+                    logs.append("Arceus fully restored your team's health!")
+                    
+                    st["turn_log"] = logs[-5:]
+                    self._save_state(st)
+                    return True, "\n".join(logs)
+                else:
+                    if st.get("arceus_phase"):
+                        logs.append("You defeated Arceus! You are a Pokémon God!")
+                        # Grant Arceus
+                        from poketokenbar.game.models import MonState
+                        arceus_mon = MonState(
+                            base_id=493,
+                            current_id=493,
+                            rarity="legendary",
+                            path_ids=[493],
+                            stage_index=0,
+                            is_shiny=False,
+                            nickname="Arceus",
+                            generation=1
+                        )
+                        self.engine._register_to_dex(arceus_mon, status="graduated")
+                        logs.append("Arceus has acknowledged your strength and joined your roster!")
+                    else:
+                        logs.append("You defeated PKMN Trainer Red! You are a Pokémon Master!")
+                        self.engine.state["egg_tier"] = "mysterious fetal form"
+                        self.engine.state["egg_usage"] = 0
+                        logs.append("You found a Mysterious Fetal Form of Mew!")
+                        
+                    st["status"] = "win"
+                    wins = self.engine.state.get("red_wins", 0) + 1
+                    self.engine.state["red_wins"] = wins
+                    hof = self.engine.state.get("red_hof", [])
+                    hof.append(st["player_team"])
+                    self.engine.state["red_hof"] = hof
+                    
+                    # Grant badges & massive reward
+                    badges = self.engine.state.get("gym_badges", [])
+                    if "👑 Master of Masters" not in badges:
+                        badges.append("👑 Master of Masters")
+                    self.engine.state["gym_badges"] = badges
+                    self.engine.state["spent_tokens"] -= 500_000_000
+                    self.engine.save()
+                    
+                    st["turn_log"] = logs[-5:]
+                    self._save_state(st)
+                    return True, "\n".join(logs)
         else:
             # Red Retaliates
             r_move = random.choice(r_mon["moves"])
@@ -263,8 +317,9 @@ class RedBattleHandler:
             dmg = int(30_000 * eff)
             st["player_hps"][p_idx] = max(0, st["player_hps"][p_idx] - dmg)
             
+            enemy_prefix = "Red's" if not st.get("arceus_phase") else "Godly"
             eff_str = " It's super effective!" if eff > 1.5 else (" It's not very effective..." if eff < 0.9 else "")
-            logs.append(f"Red's {r_mon['name']} used {r_move}!{eff_str} (-{dmg} HP)")
+            logs.append(f"{enemy_prefix} {r_mon['name']} used {r_move}!{eff_str} (-{dmg} HP)")
             
             if st["player_hps"][p_idx] <= 0:
                 logs.append(f"{p_name} fainted!")
