@@ -47,15 +47,17 @@ class PokeAPIClient:
         url = f"https://pokeapi.co/api/v2/pokemon/{species_id}/"
         return self._fetch_json(url, cache_file)
 
-    def download_sprite(self, species_id: int, is_shiny: bool = False) -> Optional[Path]:
+    def download_sprite(self, species_id: int, is_shiny: bool = False, is_back: bool = False) -> Optional[Path]:
         prefix = "shiny_" if is_shiny else "normal_"
+        prefix += "back_" if is_back else "front_"
         target_path = SPRITE_DIR / f"{prefix}{species_id}.png"
         if target_path.exists():
             return target_path
 
         # URL for PokeAPI sprites
-        subfolder = "shiny" if is_shiny else ""
-        url = f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{'shiny/' if is_shiny else ''}{species_id}.png"
+        subfolder = "shiny/" if is_shiny else ""
+        backfolder = "back/" if is_back else ""
+        url = f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{backfolder}{subfolder}{species_id}.png"
 
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "PokeTokenBar/1.0"})

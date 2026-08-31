@@ -21,6 +21,8 @@ def render_red_tab(app):
         sys.stdout.write(f"  Example: assemble 3 6 9 25 143 149\n")
         return
         
+    import itertools
+    
     p_idx = st["player_active_index"]
     r_idx = st["red_active_index"]
     p_id = st["player_team"][p_idx]
@@ -31,37 +33,31 @@ def render_red_tab(app):
     r_max_hp = r_mon["max_hp"]
     r_perc = max(0, int((r_hp / r_max_hp) * 100))
     
-    sys.stdout.write(f"  {RED}{BOLD}Red's {r_mon['name']}{RESET}  Lv. 100\n")
-    sys.stdout.write(f"  HP: [{'█' * (r_perc//5)}{'░' * (20 - r_perc//5)}] {r_hp:,} / {r_max_hp:,} \n\n")
-    
-    # Render Red's sprite
-    sprite_path = app.engine.api.download_sprite(r_mon["id"])
-    if sprite_path:
-        sprite_lines = SpriteRenderer.render_png_to_ansi(sprite_path, 30).split("\n")
-        for line in sprite_lines:
-            sys.stdout.write(f"            {line}\n")
-    else:
-        sys.stdout.write(f"            [ {r_mon['name']} ]\n")
-        
-    sys.stdout.write("\n" + "  " + "=" * 68 + "\n\n")
-    
     # Player's Pokemon info
     p_hp = st["player_hps"][p_idx]
     p_max_hp = st["player_max_hps"][p_idx]
     p_perc = max(0, int((p_hp / max(1, p_max_hp)) * 100))
     p_name = app.engine.api.get_species_name(p_id)
     
-    # Render Player's sprite
-    p_sprite_path = app.engine.api.download_sprite(p_id)
-    if p_sprite_path:
-        sprite_lines = SpriteRenderer.render_png_to_ansi(p_sprite_path, 30).split("\n")
-        for line in sprite_lines:
-            sys.stdout.write(f"  {line}\n")
-    else:
-        sys.stdout.write(f"  [ {p_name} ]\n")
+    p_sprite_path = app.engine.api.download_sprite(p_id, is_back=True)
+    r_sprite_path = app.engine.api.download_sprite(r_mon["id"])
+    
+    p_sprite_lines = SpriteRenderer.render_png_to_ansi(p_sprite_path, 30).split("\n") if p_sprite_path else [f"[ {p_name} ]"]
+    r_sprite_lines = SpriteRenderer.render_png_to_ansi(r_sprite_path, 30).split("\n") if r_sprite_path else [f"[ {r_mon['name']} ]"]
+    
+    # Find visual width of p_sprite_lines for alignment
+    p_visual_width = 30
+    if p_sprite_lines and p_sprite_path:
+        p_visual_width = len(p_sprite_lines[0].replace("\033[0m", "").replace("\033[", "").replace("38;2;", "").replace("m▀", "").replace("m", "").replace(";", ""))
+        if p_visual_width > 50: p_visual_width = 30 # fallback if regex-ish replacement failed
         
-    sys.stdout.write(f"                                   {GREEN}{BOLD}Your {p_name}{RESET}  Lv. ???\n")
-    sys.stdout.write(f"                                   HP: [{'█' * (p_perc//5)}{'░' * (20 - p_perc//5)}] {p_hp:,} / {p_max_hp:,} \n\n")
+    for p_line, r_line in itertools.zip_longest(p_sprite_lines, r_sprite_lines, fillvalue=" " * p_visual_width):
+        sys.stdout.write(f"  {p_line}        {r_line}\n")
+        
+    # HP Bars
+    sys.stdout.write(f"\n  {GREEN}{BOLD}{p_name:<25}{RESET}      {RED}{BOLD}Red's {r_mon['name']}{RESET}\n")
+    sys.stdout.write(f"  HP: [{'█' * (p_perc//5)}{'░' * (20 - p_perc//5)}]      HP: [{'█' * (r_perc//5)}{'░' * (20 - r_perc//5)}]\n")
+    sys.stdout.write(f"  {p_hp:,} / {p_max_hp:,}                 {r_hp:,} / {r_max_hp:,}\n\n")
     
     # Turn log
     sys.stdout.write(f"  {BOLD}Battle Log:{RESET}\n")
@@ -70,8 +66,21 @@ def render_red_tab(app):
         
     sys.stdout.write("\n" + "  " + "=" * 68 + "\n\n")
     
+    # Team display
+    team_names = []
+    for i, pid in enumerate(st["player_team"]):
+        n = app.engine.api.get_species_name(pid)
+        if st["player_hps"][i] <= 0:
+            team_names.append(f"{RED}~~{n}~~{RESET}")
+        elif i == p_idx:
+            team_names.append(f"{BOLD}{GREEN}>{n}<{RESET}")
+        else:
+            team_names.append(n)
+    sys.stdout.write(f"  {BOLD}Your Team:{RESET} " + ", ".join(team_names) + "\n\n")
+
+    
     # Battle Menu
-    sys.stdout.write(f"  {BOLD}What will {p_name} do?{RESET} (Spendable: {app.engine.state.get('total_tokens', 0) - app.engine.state.get('spent_tokens', 0):,})\n")
+    sys.stdout.write(f"  {BOLD}What will {p_name} do?{RESET} (Spendable: {app.engine.available_tokens:,})\n")
     
     # Generate moves
     sp = app.engine.api.get_pokemon_info(p_id)
