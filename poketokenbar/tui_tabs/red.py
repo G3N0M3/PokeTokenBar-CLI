@@ -5,8 +5,8 @@ RED = "\033[91m"
 GREEN = "\033[92m"
 YELLOW = "\033[93m"
 CYAN = "\033[96m"
+from poketokenbar.sprite_renderer import SpriteRenderer
 from poketokenbar.game.red_battle import RedBattleHandler, RED_TEAM, generate_player_moves
-from poketokenbar.sprite_renderer import render_sprite_from_path
 
 def render_red_tab(app):
     sys.stdout.write(f"\n  {BOLD}{RED}🏔️  Mt. Silver Summit - VS PKMN Trainer Red 🏔️{RESET}\n\n")
@@ -37,7 +37,7 @@ def render_red_tab(app):
     # Render Red's sprite
     sprite_path = app.engine.api.download_sprite(r_mon["id"])
     if sprite_path:
-        sprite_lines = render_sprite_from_path(sprite_path, 30, fallback="?", use_half_blocks=True).split("\n")
+        sprite_lines = SpriteRenderer.render_png_to_ansi(sprite_path, 30).split("\n")
         for line in sprite_lines:
             sys.stdout.write(f"            {line}\n")
     else:
@@ -54,7 +54,7 @@ def render_red_tab(app):
     # Render Player's sprite
     p_sprite_path = app.engine.api.download_sprite(p_id)
     if p_sprite_path:
-        sprite_lines = render_sprite_from_path(p_sprite_path, 30, fallback="?", use_half_blocks=True).split("\n")
+        sprite_lines = SpriteRenderer.render_png_to_ansi(p_sprite_path, 30).split("\n")
         for line in sprite_lines:
             sys.stdout.write(f"  {line}\n")
     else:
