@@ -137,9 +137,12 @@ class PokeTokenBarTUI:
                     self.engine.save()
                     self.message = "🎉 EASTER EGG UNLOCKED! Granted 50.0M Tokens! 🎉"
                 elif cmd == "314159":
-                    self.engine.state["dev_red_unlocked"] = not self.engine.state.get("dev_red_unlocked", False)
+                    is_unlocked = not self.engine.state.get("dev_red_unlocked", False)
+                    self.engine.state["dev_red_unlocked"] = is_unlocked
+                    if not is_unlocked:
+                        self.engine.state.pop("red_battle_state", None)
                     self.engine.save()
-                    status = "UNLOCKED" if self.engine.state["dev_red_unlocked"] else "LOCKED"
+                    status = "UNLOCKED" if is_unlocked else "LOCKED (and reset)"
                     self.message = f"🔧 DEV MODE: Red Battle {status} 🔧"
                 elif cmd == "1":
                     self.current_tab = 1
