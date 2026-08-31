@@ -144,6 +144,10 @@ class PokeTokenBarTUI:
                     self.engine.save()
                     status = "UNLOCKED" if is_unlocked else "LOCKED (and reset)"
                     self.message = f"🔧 DEV MODE: Red Battle {status} 🔧"
+                elif cmd == "314159+":
+                    self.engine.state["spent_tokens"] = self.engine.state.get("spent_tokens", 0) - 1_000_000
+                    self.engine.save()
+                    self.message = "🔧 DEV MODE: Granted 1,000,000 Tokens! 🔧"
                 elif cmd == "1":
                     self.current_tab = 1
                     self.message = ""
@@ -430,7 +434,7 @@ class PokeTokenBarTUI:
         sys.stdout.write(f"  {t1}   {t2}     {t3}      {t4}\n")
         sys.stdout.write(f"  {t5} {t6}     {t7}      {t8}\n")
         sys.stdout.write(f"  {t9} {t10}       {t11}{t12_str}\n")
-        sys.stdout.write("-" * 72 + "\n\n")
+        sys.stdout.write("-" * 72 + "\n")
 
     def render_companion_tab(self, summary: dict):
         from poketokenbar.tui_tabs.companion import render
