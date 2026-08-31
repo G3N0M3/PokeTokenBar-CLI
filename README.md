@@ -31,6 +31,10 @@ Designed specifically for **Linux CLI** environments, **Antigravity CLI** (`~/.g
   - Prevents accidental data wipes with a two-step prompt requiring `RESET ALL` confirmation.
 - ⚔️ **Mini-Trainer Auto-Battles & Gym Boss Raids (Tab [6])**:
   - Encounter AI Trainers (*Youngster Joey*, *Team Rocket Grunt*, *Rival Blue*) every 2.0M tokens burned to earn bonus spendable tokens and fight Gym Bosses (*Brock*, *Misty*, *Cynthia*)!
+- 🏔️ **Mt. Silver Summit - PKMN Trainer Red (Tab [12])**:
+  - Unlocked after defeating the Champion. Assemble a team of 6 companions to challenge Red in a full RPG-style turn-based battle!
+  - Features its own independent token economy—attacks cost Red tokens, which build up organically alongside your global token earnings during the battle.
+  - Earning a victory grants the **Master of Masters** badge, a **Mysterious Fetal Form (Mew)**, and cements your team in the Hall of Fame.
 - 🗺️ **Pokédex Expeditions (Tab [5])**:
   - Dispatch companions on background expeditions (*Viridian Forest*, *Cerulean Cave*, *Mt. Silver*) to collect Rare Candies, Mints, and Berries.
 - ✨ **Mega Evolution & Form Changes**:
@@ -47,12 +51,12 @@ Designed specifically for **Linux CLI** environments, **Antigravity CLI** (`~/.g
 
 ---
 
-## 🖥️ 11-Tab Interactive TUI Layout
+## 🖥️ 12-Tab Interactive TUI Layout
 
 ```text
   [1] Companion   [2] Pokédex   [3] Roster      [4] Shop & Bag
   [5] Expeditions [6] Battles   [7] Quests      [8] Mega-Evo
-  [9] Game Corner [10] Bank     [11] Settings
+  [9] Game Corner [10] Bank     [11] Settings   [12] Red
 ```
 
 ---
@@ -103,6 +107,8 @@ ptb
 - `sell <number>`: Sell items from Bag for tokens.
 - `use <number>`: Feed berries or use items from Bag.
 - `claim <id>`: Claim daily quest rewards.
+- `assemble <id1>..<id6>`: Assemble your 6-Pokémon team for the Mt. Silver Red Battle (Tab [12]).
+- `fight <1-4>` / `swap <1-6>` / `run` / `restart`: Red Battle RPG commands.
 - `card`: View ASCII Trainer Profile Card.
 - `n` / `p` / `page <num>`: Navigate Pokédex pages (in Pokédex tab).
 - `reset`: Initiate two-step game progress reset prompt (in Settings).

@@ -55,3 +55,17 @@ PokeTokenBar turns your AI coding token usage into a Pokémon companion game ins
   - **Cerulean Cave**: 15.0M tokens ➔ 🍬 Rare Candy
   - **Mt. Silver**: 30.0M tokens ➔ 🍇 Golden Razz Berry
 - **Command**: `send <number/species_id> [viridian/cerulean/silver]`.
+
+### 7. 🏔️ Mt. Silver Summit (Tab [12])
+- **Unlock Condition**: Automatically unlocks and teased after defeating the Champion in Tab [6].
+- **Independent Token Economy**: Unlike regular gameplay, the Red Battle uses an isolated token system. The player starts with 20,000,000 tokens, and any global tokens earned *during* the battle are added 1:1. Attacks cost Red tokens (e.g., 500K, 1.5M, etc.), protecting the player's global bank balance.
+- **Battle Mechanics**:
+  - Full 6v6 RPG-style turn-based battle against PKMN Trainer Red.
+  - Assemble team using `assemble <id1> <id2> ... <id6>`.
+  - Perform actions using `fight 1-4`, `swap 1-6`, or `run`. Red will automatically retaliate upon attacking or swapping.
+- **Rewards & Hall of Fame**:
+  - Defeating Red securely logs the victory and winning team into the **Hall of Fame**.
+  - Awards the **Master of Masters** badge and a **Mysterious Fetal Form (Mew)**.
+- **Arceus Easter Egg**:
+  - If the player challenges Red using his exact iconic team (`25`, `196`, `143`, `3`, `6`, `9` in any order) and wins, they trigger a secret battle against **Arceus** (5,000,000 HP).
+  - Winning this secret battle grants Arceus directly into the roster. Losing forces the player to start the Red gauntlet over.
