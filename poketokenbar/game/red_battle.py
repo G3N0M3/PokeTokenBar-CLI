@@ -77,17 +77,18 @@ class RedBattleHandler:
     def assemble_team(self, team_ids: List[int]) -> Tuple[bool, str]:
         if len(team_ids) != 6:
             return False, "You must provide exactly 6 Pokédex IDs."
-        
-        # Verify ownership and evolution
-        # In PokeTokenBar, we verify by checking if the user owns these IDs in their dex.
-        # But wait, the user must have them in their active roster/dex. 
-        # Actually, let's just check if they are unlocked in dex.
         dex_list = self.engine.state.get("dex", [])
         dex_map = {d.get("species_id", d.get("final_id", d.get("base_id"))): d for d in dex_list}
+        
+        expeditions = self.engine.state.get("expeditions", [])
+        exp_ids = {e["sp_id"] for e in expeditions}
         
         for pid in team_ids:
             if pid not in dex_map:
                 return False, f"You don't own Pokémon #{pid}!"
+            if pid in exp_ids:
+                name = self.engine.api.get_species_name(pid)
+                return False, f"Cannot assemble {name}! They are currently away on an expedition."
         
         # Calculate max HP for each member based on their XP (tokens)
         hps = []
