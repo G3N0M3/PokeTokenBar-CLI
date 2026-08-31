@@ -242,8 +242,8 @@ class RedBattleHandler:
                 next_mon = st["red_team"][st["red_active_index"]]
                 logs.append(f"Red sent out {next_mon['name']}!")
             else:
-                red_team_ids = [25, 196, 143, 3, 6, 9]
-                if st["player_team"] == red_team_ids and not st.get("arceus_phase"):
+                red_team_ids = {25, 196, 143, 3, 6, 9}
+                if set(st["player_team"]) == red_team_ids and not st.get("arceus_phase"):
                     logs.append("You defeated PKMN Trainer Red!")
                     logs.append("Suddenly, the sky darkens... ARCEUS is pleased by your competence!")
                     logs.append("ARCEUS challenges you to a battle!")
