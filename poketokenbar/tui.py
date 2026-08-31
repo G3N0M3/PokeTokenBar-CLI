@@ -422,7 +422,7 @@ class PokeTokenBarTUI:
         badges = self.engine.state.get("gym_badges", [])
         unlocked = self.engine.state.get("dev_red_unlocked", False) or "🏆 Champion Badge" in badges
         t12 = f"{BOLD}{RED}[12] Red{RESET}" if self.current_tab == 12 else "[12] Red"
-        t12_str = f"      {t12}" if unlocked else ""
+        t12_str = f"   {t12}" if unlocked else ""
 
         sys.stdout.write(f"  {t1}   {t2}     {t3}      {t4}\n")
         sys.stdout.write(f"  {t5} {t6}     {t7}      {t8}\n")

@@ -1,5 +1,10 @@
 import sys
-from poketokenbar.utils.colors import BOLD, RESET, RED, GREEN, YELLOW, CYAN
+BOLD = "\033[1m"
+RESET = "\033[0m"
+RED = "\033[91m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+CYAN = "\033[96m"
 from poketokenbar.game.red_battle import RedBattleHandler, RED_TEAM, generate_player_moves
 from poketokenbar.sprite_renderer import render_sprite_from_path
 
