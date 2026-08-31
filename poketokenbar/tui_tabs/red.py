@@ -9,7 +9,7 @@ from poketokenbar.sprite_renderer import SpriteRenderer
 from poketokenbar.game.red_battle import RedBattleHandler, RED_TEAM, generate_player_moves
 
 def render_red_tab(app):
-    sys.stdout.write(f"\n  {BOLD}{RED}🏔️  Mt. Silver Summit - VS PKMN Trainer Red 🏔️{RESET}\n\n")
+    sys.stdout.write(f"  {BOLD}{RED}🏔️  Mt. Silver Summit - VS PKMN Trainer Red 🏔️{RESET}\n\n")
     
     handler = RedBattleHandler(app.engine)
     st = handler._get_state()
