@@ -17,6 +17,7 @@ def render_expeditions_tab(app):
     sys.stdout.write(f"  {BOLD}Available Expedition Destinations:{RESET}\n")
     sys.stdout.write(f"   (💡 {YELLOW}Hint: Higher rarity and MEGA companions complete expeditions much faster!{RESET})\n")
     sys.stdout.write(f"   • Viridian Forest - Target: 5.0M tokens  - Reward: 🌿 Mint + XP + 🪙\n")
+    sys.stdout.write(f"   • Evolution Mine  - Target: 10.0M tokens - Reward: 💎 Random Evo Stone\n")
     sys.stdout.write(f"   • Cerulean Cave   - Target: 15.0M tokens - Reward: 🍬 Rare Candy + XP + 🪙\n")
     sys.stdout.write(f"                       (+5% chance of finding a Map)\n")
     sys.stdout.write(f"   • Mt. Silver      - Target: 30.0M tokens - Reward: 🍇 Golden Razz + XP + 🪙\n")

@@ -1556,6 +1556,16 @@ class CompanionEngine:
                         pending.append("legendary")
                         self.state["pending_eggs"] = pending
                     reward_str = "a LEGENDARY EGG 🌟!"
+                elif reward == "evo_stone":
+                    stone_types = [
+                        "water_stone", "fire_stone", "thunder_stone", 
+                        "leaf_stone", "moon_stone", "sun_stone", 
+                        "ice_stone", "shiny_stone", "dusk_stone", "dawn_stone"
+                    ]
+                    st_key = random.choice(stone_types)
+                    inv[st_key] = inv.get(st_key, 0) + 1
+                    st_name = st_key.replace("_", " ").title()
+                    reward_str = f"+1 {st_name} 💎"
                 else:
                     inv["berry_golden"] = inv.get("berry_golden", 0) + 1
                     reward_str = "+1 Golden Razz Berry 🍇"
@@ -1718,7 +1728,8 @@ class CompanionEngine:
             "viridian": ("Viridian Forest", PokemonBalance.EXPEDITION_VIRIDIAN, "mint"),
             "cerulean": ("Cerulean Cave", PokemonBalance.EXPEDITION_CERULEAN, "rare_candy"),
             "silver": ("Mt. Silver", PokemonBalance.EXPEDITION_SILVER, "berry_golden"),
-            "spear": ("Spear Pillar (Deep)", PokemonBalance.EXPEDITION_SPEAR_PILLAR, "legendary_egg")
+            "spear": ("Spear Pillar (Deep)", PokemonBalance.EXPEDITION_SPEAR_PILLAR, "legendary_egg"),
+            "mine": ("Evolution Mine", 10_000_000, "evo_stone")
         }
 
         key = area_name.lower().split()[0]

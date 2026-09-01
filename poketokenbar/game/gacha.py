@@ -15,6 +15,7 @@ GACHA_LOOT_TABLE = [
     ("UNCOMMON", "💰 +3.0M Spendable Tokens", 10, "tokens", 3_000_000),
     ("RARE", "🥚 1x Standard Egg Tier", 5, "egg", "normal"),
     ("RARE", "🥚 1x Uncommon Egg Tier", 4, "egg", "uncommon"),
+    ("RARE", "💎 1x Evolution Stone", 4, "evo_stone", "evo_stone"),
     ("RARE", "🔮 1x Mega Stone", 4, "item", "mega_stone"),
     ("RARE", "🪈 1x Poké Flute (Summons Boss!)", 3, "item", "poke_flute"),
     ("EPIC", "🍇 1x Golden Razz Berry", 2, "item", "berry_golden"),
@@ -29,7 +30,19 @@ class GachaEngine:
         weights = [item[2] for item in GACHA_LOOT_TABLE]
         choice = list(random.choices(GACHA_LOOT_TABLE, weights=weights, k=1)[0])
         
-        if choice[4] == "mega_stone":
+        if choice[3] == "evo_stone":
+            stone_types = [
+                "water_stone", "fire_stone", "thunder_stone", 
+                "leaf_stone", "moon_stone", "sun_stone", 
+                "ice_stone", "shiny_stone", "dusk_stone", "dawn_stone"
+            ]
+            st_key = random.choice(stone_types)
+            st_name = st_key.replace("_", " ").title()
+            choice[1] = f"💎 1x {st_name}"
+            choice[3] = "item"
+            choice[4] = st_key
+
+        elif choice[4] == "mega_stone":
             from poketokenbar.game.models import MEGA_STONES
             available_stones = list(MEGA_STONES.keys())
             if inv:
