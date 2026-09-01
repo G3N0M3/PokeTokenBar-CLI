@@ -299,9 +299,12 @@ class RedBattleHandler:
                         logs.append("Arceus has acknowledged your strength and joined your roster!")
                     else:
                         logs.append("You defeated PKMN Trainer Red! You are a Pokémon Master!")
-                        self.engine.state["egg_tier"] = "mysterious fetal form"
-                        self.engine.state["egg_usage"] = 0
-                        logs.append("You found a Mysterious Fetal Form of Mew!")
+                        if self.engine.state.get("red_wins", 0) == 0:
+                            self.engine.state["egg_tier"] = "mysterious fetal form"
+                            self.engine.state["egg_usage"] = 0
+                            logs.append("You found a Mysterious Fetal Form of Mew!")
+                        else:
+                            logs.append("Red nods in silent respect of your continued mastery.")
                         
                     st["status"] = "win"
                     wins = self.engine.state.get("red_wins", 0) + 1
