@@ -451,39 +451,36 @@ class CompanionEngine:
     def claim_quest_reward(self, q_id: str) -> Tuple[bool, str]:
         qdata = self.state.get("daily_quests", {})
         quests = qdata.get("quests", [])
-        target_q = None
-        for q in quests:
-            if q["id"] == q_id or q_id == "all":
-                if q["progress"] >= q["target"] and not q["claimed"]:
-                    target_q = q
-                    break
+        claimed_any = False
+        msgs = []
+        inv = self.state.get("inventory", {})
 
-        if not target_q:
+        for q in quests:
+            if (q["id"] == q_id or q_id == "all") and q["progress"] >= q["target"] and not q.get("claimed", False):
+                q["claimed"] = True
+                claimed_any = True
+                reward_type = q["reward"]
+                
+                if reward_type == "rare_candy":
+                    inv["rare_candy"] = inv.get("rare_candy", 0) + 1
+                    msgs.append(f"+1 Rare Candy 🍬 for [{q['text']}]")
+                elif reward_type == "mint":
+                    inv["mint"] = inv.get("mint", 0) + 1
+                    msgs.append(f"+1 Mint 🌿 for [{q['text']}]")
+                elif reward_type == "tokens_10m":
+                    self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - 10_000_000
+                    msgs.append(f"+10.0M Tokens 💰 for [{q['text']}]")
+                elif reward_type == "tokens_20m":
+                    self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - 20_000_000
+                    msgs.append(f"+20.0M Tokens 💰 for [{q['text']}]")
+
+        if not claimed_any:
             return False, "No completed unclaimed quest found!"
 
-        reward_type = target_q["reward"]
-        target_q["claimed"] = True
         self.state["daily_quests"] = qdata
-
-        inv = self.state.get("inventory", {})
-        if reward_type == "rare_candy":
-            inv["rare_candy"] = inv.get("rare_candy", 0) + 1
-            self.state["inventory"] = inv
-            self.save()
-            return True, f"Claimed Reward: +1 Rare Candy 🍬 for completing [{target_q['text']}]!"
-        elif reward_type == "mint":
-            inv["mint"] = inv.get("mint", 0) + 1
-            self.state["inventory"] = inv
-            self.save()
-            return True, f"Claimed Reward: +1 Mint 🌿 for completing [{target_q['text']}]!"
-        elif reward_type == "tokens_10m":
-            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - 10_000_000
-            self.save()
-            return True, f"Claimed Reward: +10.0M Spendable Tokens for completing [{target_q['text']}]!"
-        elif reward_type == "tokens_20m":
-            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - 20_000_000
-            self.save()
-            return True, f"Claimed Reward: +20.0M Spendable Tokens for completing [{target_q['text']}]!"
+        self.state["inventory"] = inv
+        self.save()
+        return True, "Claimed Rewards:\n  " + "\n  ".join(msgs)
 
         return False, "Unknown reward type."
 
