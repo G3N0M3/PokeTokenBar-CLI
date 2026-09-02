@@ -299,7 +299,7 @@ class CompanionEngine:
                             loan_days = self.state.get("loan_days_active", 0) + days_to_apply
                             self.state["loan_days_active"] = loan_days
                             
-                            if loan_days >= 8:
+                            if loan_days >= 7:
                                 remaining_loan = new_loan
                                 
                                 # 1. Confiscate from Bank Balance
@@ -516,6 +516,10 @@ class CompanionEngine:
             if base_name not in seen_badge_names:
                 seen_badge_names.add(base_name)
                 cleaned_badges.append(b)
+        
+        # Sort badges by official order
+        official_order = [b["badge"] for b in bosses]
+        cleaned_badges.sort(key=lambda x: official_order.index(x) if x in official_order else 999)
         self.state["gym_badges"] = cleaned_badges
         gym_badges = set(cleaned_badges)
         used_today = self.state.get("used_since_install", 0)
@@ -545,8 +549,10 @@ class CompanionEngine:
                 active_boss["current_hp"] = 0
                 badge = active_boss["badge"]
                 b_name = active_boss["name"]
-                gym_badges.add(badge)
-                self.state["gym_badges"] = list(gym_badges)
+                if badge not in cleaned_badges:
+                    cleaned_badges.append(badge)
+                    cleaned_badges.sort(key=lambda x: official_order.index(x) if x in official_order else 999)
+                self.state["gym_badges"] = cleaned_badges
 
                 # Grant reward
                 r_type = active_boss["reward"]
@@ -1607,7 +1613,7 @@ class CompanionEngine:
 
                 now_str = datetime.datetime.now().strftime("%H:%M:%S")
                 logs = self.state.get("expedition_logs", [])
-                logs.append(f"[{now_str}] 🗺️ {sp_name}: {reward_str} | +{format_tokens(tokens_gain)} 🪙 | +{format_tokens(xp_gain)} XP")
+                logs.append(f"[{now_str}] {sp_name}: {reward_str} | +{format_tokens(tokens_gain)} 🪙 | +{format_tokens(xp_gain)} XP")
                 self.state["expedition_logs"] = logs[-5:]
                 events.append(f"🗺️ {sp_name} finished {area}: {reward_str} | +{format_tokens(tokens_gain)} 🪙 | +{format_tokens(xp_gain)} XP")
             else:

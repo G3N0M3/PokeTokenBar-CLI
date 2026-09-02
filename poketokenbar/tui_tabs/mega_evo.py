@@ -61,7 +61,7 @@ def render_mega_evo_tab(app):
     
     sys.stdout.write(f"\n  {BOLD}Your Mega Stones:{RESET}\n")
     
-    page_size = app.engine.state.get("page_size_mega", 14)
+    page_size = app.engine.state.get("page_size_mega", 21)
     total_pages = max(1, (len(stones) - 1) // page_size + 1)
     if not hasattr(app, 'mega_page'): app.mega_page = 1
     app.mega_page = max(1, min(app.mega_page, total_pages))
@@ -73,13 +73,11 @@ def render_mega_evo_tab(app):
         end_idx = start_idx + page_size
         visible_stones = stones[start_idx:end_idx]
 
-        for i in range(0, len(visible_stones), 2):
+        for i in range(0, len(visible_stones), 3):
             col1 = f"[{visible_stones[i][0]}] {visible_stones[i][1]}"
-            if i + 1 < len(visible_stones):
-                col2 = f"[{visible_stones[i+1][0]}] {visible_stones[i+1][1]}"
-                sys.stdout.write(f"   {col1:<35} {col2}\n")
-            else:
-                sys.stdout.write(f"   {col1}\n")
+            col2 = f"[{visible_stones[i+1][0]}] {visible_stones[i+1][1]}" if i + 1 < len(visible_stones) else ""
+            col3 = f"[{visible_stones[i+2][0]}] {visible_stones[i+2][1]}" if i + 2 < len(visible_stones) else ""
+            sys.stdout.write(f"   {col1:<32} {col2:<32} {col3}\n".rstrip() + "\n")
                 
         if total_pages > 1:
             sys.stdout.write(f"\n  ➔ Page {app.mega_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")

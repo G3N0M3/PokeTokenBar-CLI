@@ -27,7 +27,7 @@ def render_game_corner_menu(app):
     sys.stdout.write(f"\n  {BOLD}{HEADER}🎰 Welcome to the Token Game Corner!{RESET}\n\n")
     sys.stdout.write(f"  {BOLD}Available Games:{RESET}\n")
     sys.stdout.write(f"   {CYAN}1. Hold'em Poker{RESET} - High stakes Texas Hold'em against the dealer.\n")
-    sys.stdout.write(f"   {CYAN}2. Gacha Capsules{RESET} - Try your luck to win rare Pokémon, Eggs, and Mega Stones!\n")
+    sys.stdout.write(f"   {CYAN}2. Gacha Capsules{RESET} - Pull for rare items & companions!\n")
     sys.stdout.write(f"   {CYAN}3. Token Slots{RESET}    - A fast-paced slot machine.\n")
     sys.stdout.write(f"   {CYAN}4. Blackjack{RESET}      - Classic 21 against the dealer.\n\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}play <idx>{RESET}' to start a game (e.g., 'play 1' for Poker).\n\n")
@@ -146,10 +146,7 @@ def render_gacha_tab(app):
     sys.stdout.write(f"\n  {BOLD}{HEADER}🔮 Pokémon Gacha Capsule Machine{RESET}\n\n")
     sys.stdout.write(f"  Available Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n\n")
 
-    sys.stdout.write(f"  {BOLD}🎰 Pull Options:{RESET}\n")
-    sys.stdout.write(f"   • Single Capsule Pull (1x):  {BOLD}{YELLOW}5.0M Tokens{RESET}  (Type '{BOLD}pull 1{RESET}')\n")
-    sys.stdout.write(f"   • Multi Capsule Pull (10x):  {BOLD}{YELLOW}45.0M Tokens{RESET} (Type '{BOLD}pull 10{RESET}' - 1 Free!)\n")
-    sys.stdout.write(f"   • Custom Quantity Pull:      {BOLD}{YELLOW}Auto-Calculated{RESET} (Type '{BOLD}pull <qty>{RESET}' e.g. 'pull 45')\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}pull <qty>{RESET}' to pull (5.0M tokens each, 1 free every 10 pulls!).\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}leave{RESET}' to return to the Game Corner Menu.\n\n")
 
     sys.stdout.write(f"  {BOLD}🎁 Drop Rates & Rewards:{RESET}\n")

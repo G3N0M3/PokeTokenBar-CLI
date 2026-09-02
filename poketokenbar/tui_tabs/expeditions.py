@@ -15,7 +15,7 @@ def render_expeditions_tab(app):
     slot_limit = app.engine.state.get("expedition_slots", 10)
     sys.stdout.write(f"\n  {BOLD}{HEADER}🗺️ Pokédex Expeditions ({len(expeditions)}/{slot_limit} Active){RESET}\n\n")
     sys.stdout.write(f"  {BOLD}Available Expedition Destinations:{RESET}\n")
-    sys.stdout.write(f"   (💡 {YELLOW}Hint: Higher rarity and MEGA companions complete expeditions much faster!{RESET})\n")
+    sys.stdout.write(f"   (💡 {YELLOW}Hint: High Rarity/MEGA = Faster Expeditions!{RESET})\n")
     sys.stdout.write(f"   • Viridian Forest - Target: 5.0M tokens  - Reward: 🌿 Mint + XP + 🪙\n")
     sys.stdout.write(f"   • Evolution Mine  - Target: 10.0M tokens - Reward: 💎 Random Evo Stone\n")
     sys.stdout.write(f"   • Cerulean Cave   - Target: 15.0M tokens - Reward: 🍬 Rare Candy + XP + 🪙\n")

@@ -77,6 +77,7 @@ def render(app):
     sys.stdout.write(f"  ➔ Type '{BOLD}send <row>|#<dex> [area]{RESET}' on expedition!\n")
     sys.stdout.write(f"     Areas:\n")
     sys.stdout.write(f"       • '{BOLD}viridian{RESET}' (5M, Mint)\n")
+    sys.stdout.write(f"       • '{BOLD}mine{RESET}'     (10M, Evo Stone)\n")
     sys.stdout.write(f"       • '{BOLD}cerulean{RESET}' (15M, Rare Candy)\n")
     sys.stdout.write(f"       • '{BOLD}silver{RESET}'   (30M, Golden Razz)\n")
     sys.stdout.write(f"       • '{BOLD}spear{RESET}'    (100M, Leg. Egg - Req 3x Map, 100% Hap)\n\n")
