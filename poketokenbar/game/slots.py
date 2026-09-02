@@ -8,13 +8,13 @@ class SlotMachineEngine:
     WEIGHTS = [40, 30, 20, 15, 10, 5, 2]
     
     PAYOUTS = {
-        "🍒": 3,
-        "🍋": 5,
-        "🍇": 8,
-        "🍉": 10,
-        "🔔": 15,
-        "💎": 25,
-        "⭐": 100,
+        "🍒": 5,
+        "🍋": 10,
+        "🍇": 15,
+        "🍉": 25,
+        "🔔": 50,
+        "💎": 100,
+        "⭐": 250,
     }
     
     def __init__(self):
@@ -44,7 +44,7 @@ class SlotMachineEngine:
             if line[0] == line[1] == line[2]:
                 total_mult += self.PAYOUTS[line[0]]
             elif line.count("🍒") == 2:
-                total_mult += 1.5
+                total_mult += 2.0
             elif line.count("🍒") == 1:
                 total_mult += 0.5
             
