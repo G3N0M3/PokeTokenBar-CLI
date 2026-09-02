@@ -25,7 +25,10 @@ def render_bank_tab(app):
             sys.stdout.write(f"  {BOLD}{RED}🚨 WARNING: FINAL DAY BEFORE REPOSSESSION! PAY OFF LOAN NOW!{RESET}\n")
         else:
             sys.stdout.write(f"  {BOLD}{RED}🚨 Loan Deadline:{RESET} {loan_days}/7 days until repossession!\n")
-        sys.stdout.write(f"     {RED}(Repossession Process: Confiscates bank deposits, then spendable tokens, then liquidates inventory!){RESET}\n")
+        sys.stdout.write(f"  {BOLD}{RED}Repossession Protocol:{RESET}\n")
+        sys.stdout.write(f"   {RED}1. Confiscation of all Bank Deposits{RESET}\n")
+        sys.stdout.write(f"   {RED}2. Confiscation of Spendable Tokens{RESET}\n")
+        sys.stdout.write(f"   {RED}3. Liquidation of Inventory Items{RESET}\n")
         
     sys.stdout.write(f"\n  {BOLD}Interest Rates (Daily Compounding):{RESET}\n")
     sys.stdout.write(f"  • {GREEN}Deposits:{RESET} +5% interest\n")
