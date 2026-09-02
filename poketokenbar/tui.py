@@ -66,17 +66,32 @@ class PokeTokenBarTUI:
                 sys.stdout.flush()
                 cmd = sys.stdin.readline().strip().lower()
                 
+                egg_payouts = {
+                    "common": 500_000,
+                    "uncommon": 1_000_000,
+                    "rare": 2_500_000,
+                    "epic": 5_000_000,
+                    "legendary": 10_000_000,
+                    "mysterious fetal form": 50_000_000,
+                    "normal": 500_000
+                }
+                
                 if cmd in ["y", "yes"]:
+                    payout = egg_payouts.get(curr_egg.lower(), 500_000)
+                    self.engine.available_tokens += payout
                     self.engine.state["egg_tier"] = new_egg
                     self.engine.state["egg_usage"] = 0
                     self.engine.state["pending_eggs"] = pending_eggs[1:]
                     self.engine.save()
                     sys.stdout.write(f"\n  {GREEN}Swapped! You are now holding a {new_egg.capitalize()} Egg!{RESET}\n")
+                    sys.stdout.write(f"  {YELLOW}The discarded {curr_egg.capitalize()} Egg was sold for {format_tokens(payout)} tokens!{RESET}\n")
                     time.sleep(2)
                 elif cmd in ["n", "no"]:
+                    payout = egg_payouts.get(new_egg.lower(), 500_000)
+                    self.engine.available_tokens += payout
                     self.engine.state["pending_eggs"] = pending_eggs[1:]
                     self.engine.save()
-                    sys.stdout.write(f"\n  {YELLOW}Discarded the {new_egg.capitalize()} Egg.{RESET}\n")
+                    sys.stdout.write(f"\n  {YELLOW}Discarded the {new_egg.capitalize()} Egg and sold it for {format_tokens(payout)} tokens!{RESET}\n")
                     time.sleep(2)
                 else:
                     sys.stdout.write(f"\n  {RED}Invalid choice. Please type 'y' or 'n'.{RESET}\n")
