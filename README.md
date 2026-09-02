@@ -47,6 +47,7 @@ Designed specifically for **Linux CLI** environments, **Antigravity CLI** (`~/.g
 ## 🗺️ Roadmap / Future Plans
 
 - **Split-Evolution Mechanics**: Introduce elemental stones (Water Stone, Thunder Stone, Fire Stone, etc.) to the Shop or Gacha to allow players to manually choose branch evolutions for species like Eevee, Poliwhirl, or Gloom, rather than defaulting to the first Pokédex entry!
+- **Consolidate TUI tabs**: Condense the 12 UI tabs down to 8 cleaner menus by merging related systems (e.g., merging Game Corner, Shop, and Bank into a unified Economy tab).
 
 
 ---
