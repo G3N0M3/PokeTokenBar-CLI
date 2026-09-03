@@ -644,6 +644,7 @@ class CompanionEngine:
         while mon.used_at_stage >= target_xp:
             if mon.stage_index < len(mon.path_ids) - 1:
                 # Evolve to next stage!
+                prev_name = self.api.get_species_name(mon.current_id)
                 mon.used_at_stage -= target_xp
                 mon.stage_index += 1
                 new_id = mon.current_id
@@ -662,7 +663,7 @@ class CompanionEngine:
                     events.append(f"✨ Surprised! Your Pokémon was actually Ditto disguised as #{mon.base_id}!")
 
                 shiny_str = "✨ Shiny " if mon.is_shiny else ""
-                events.append(f"🎉 Evolution! Your companion evolved into {shiny_str}{mon_name} (#{new_id})!")
+                events.append(f"🎉 Evolution! {shiny_str}{prev_name} evolved into {shiny_str}{mon_name} (#{new_id})!")
                 events.extend(self._progress_quest_by_type("progression"))
                 self._register_to_dex(mon, status="active")
                 target_xp = PokemonBalance.phase_threshold(mon.rarity, mon.total_forms, mon.stage_index, diff)
