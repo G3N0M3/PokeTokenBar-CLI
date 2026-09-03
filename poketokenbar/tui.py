@@ -76,7 +76,7 @@ class PokeTokenBarTUI:
                 
                 if cmd in ["y", "yes"]:
                     payout = egg_payouts.get(curr_egg.lower(), 500_000)
-                    self.engine.available_tokens += payout
+                    self.engine.state["spent_tokens"] = self.engine.state.get("spent_tokens", 0) - payout
                     self.engine.state["egg_tier"] = new_egg
                     self.engine.state["egg_usage"] = 0
                     self.engine.state["pending_eggs"] = pending_eggs[1:]
@@ -86,7 +86,7 @@ class PokeTokenBarTUI:
                     time.sleep(2)
                 elif cmd in ["n", "no"]:
                     payout = egg_payouts.get(new_egg.lower(), 500_000)
-                    self.engine.available_tokens += payout
+                    self.engine.state["spent_tokens"] = self.engine.state.get("spent_tokens", 0) - payout
                     self.engine.state["pending_eggs"] = pending_eggs[1:]
                     self.engine.save()
                     sys.stdout.write(f"\n  {YELLOW}Discarded the {new_egg.capitalize()} Egg and sold it for {format_tokens(payout)} tokens!{RESET}\n")
