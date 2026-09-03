@@ -504,7 +504,7 @@ class CompanionEngine:
             {"id": "boss_5", "name": "Koga & Weezing", "sp_id": 110, "badge": "🟣 Soul Badge", "threshold": 75_000_000, "hp": 25_000_000, "reward": "mint"},
             {"id": "boss_6", "name": "Sabrina & Alakazam", "sp_id": 65, "badge": "🔮 Marsh Badge", "threshold": 105_000_000, "hp": 35_000_000, "reward": "tokens_15m"},
             {"id": "boss_7", "name": "Blaine & Arcanine", "sp_id": 59, "badge": "🔥 Volcano Badge", "threshold": 140_000_000, "hp": 45_000_000, "reward": "rare_candy"},
-            {"id": "boss_8", "name": "Giovanni & Mewtwo", "sp_id": 150, "badge": "👑 Earth Badge", "threshold": 180_000_000, "hp": 60_000_000, "reward": "master_ball"},
+            {"id": "boss_8", "name": "Giovanni & Mewtwo", "sp_id": 150, "badge": "🌍 Earth Badge", "threshold": 180_000_000, "hp": 60_000_000, "reward": "master_ball"},
             {"id": "boss_9", "name": "Lance & Dragonite", "sp_id": 149, "badge": "🐉 Dragon Badge", "threshold": 230_000_000, "hp": 80_000_000, "reward": "tokens_20m"},
             {"id": "boss_10", "name": "Cynthia & Garchomp", "sp_id": 445, "badge": "🏆 Champion Badge", "threshold": 300_000_000, "hp": 100_000_000, "reward": "tokens_50m"}
         ]
@@ -1324,7 +1324,7 @@ class CompanionEngine:
                 {"id": "boss_5", "name": "Koga & Weezing", "sp_id": 110, "badge": "🟣 Soul Badge", "hp": 25_000_000, "reward": "mint"},
                 {"id": "boss_6", "name": "Sabrina & Alakazam", "sp_id": 65, "badge": "🔮 Marsh Badge", "hp": 35_000_000, "reward": "tokens_15m"},
                 {"id": "boss_7", "name": "Blaine & Arcanine", "sp_id": 59, "badge": "🔥 Volcano Badge", "hp": 45_000_000, "reward": "rare_candy"},
-                {"id": "boss_8", "name": "Giovanni & Mewtwo", "sp_id": 150, "badge": "👑 Earth Badge", "hp": 60_000_000, "reward": "master_ball"},
+                {"id": "boss_8", "name": "Giovanni & Mewtwo", "sp_id": 150, "badge": "🌍 Earth Badge", "hp": 60_000_000, "reward": "master_ball"},
                 {"id": "boss_9", "name": "Lance & Dragonite", "sp_id": 149, "badge": "🐉 Dragon Badge", "hp": 80_000_000, "reward": "tokens_20m"},
                 {"id": "boss_10", "name": "Cynthia & Garchomp", "sp_id": 445, "badge": "🏆 Champion Badge", "hp": 100_000_000, "reward": "tokens_50m"}
             ]

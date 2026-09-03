@@ -184,3 +184,8 @@ def handle_red_command(app, cmd: str):
     elif cmd == "run":
         ok, msg = handler.run_away()
         app.message = msg
+        
+    elif cmd == "restart":
+        app.engine.state["red_battle"] = {}
+        app.engine.save()
+        app.message = "Left the Mt. Silver summit. The battle has been reset."
