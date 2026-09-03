@@ -40,9 +40,7 @@ class PokeTokenBarTUI:
         """Main interactive event loop."""
         # Initial refresh
         summary = self.tracker.get_summary()
-        events = self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
-        if events:
-            self.message = "\n".join(events)
+        self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
 
         while True:
             pending_eggs = self.engine.state.get("pending_eggs", [])
@@ -209,11 +207,8 @@ class PokeTokenBarTUI:
                     pass
                 elif cmd in ["r", "refresh"]:
                     summary = self.tracker.get_summary(force=True)
-                    events = self.engine.process_usage(summary["total_tokens"])
-                    if events:
-                        self.message = "Refreshed logs!\n" + "\n".join(events)
-                    else:
-                        self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
+                    self.engine.process_usage(summary["total_tokens"])
+                    self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
                 elif cmd in ["n", "next"] and self.current_tab in [2, 3, 4, 5, 8]:
                     if self.current_tab == 2: self.pokedex_page += 1
                     elif self.current_tab == 4:
@@ -526,6 +521,16 @@ class PokeTokenBarTUI:
         render_settings_tab(self)
 
     def render_footer(self):
+        alerts = self.engine.state.get("unread_alerts", [])
+        if alerts:
+            alert_str = "\n".join(alerts)
+            if self.message:
+                self.message += "\n" + alert_str
+            else:
+                self.message = alert_str
+            self.engine.state["unread_alerts"] = []
+            self.engine.save()
+
         sys.stdout.write("-" * 72 + "\n")
         if self.message and not getattr(self, 'slot_animating', False):
             for line in self.message.split("\n"):
@@ -535,6 +540,7 @@ class PokeTokenBarTUI:
                     sys.stdout.write(f"  {GREEN}{line}{RESET}\n")
                 else:
                     sys.stdout.write(f"  {GREEN}➔ {line}{RESET}\n")
+            self.message = ""
 
     def animate_slot_spin(self, final_reels):
         import io

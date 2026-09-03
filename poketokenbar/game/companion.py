@@ -248,6 +248,14 @@ class CompanionEngine:
         ach_events = self._check_achievements()
         events.extend(ach_events)
 
+        if events:
+            alerts = self.state.get("unread_alerts", [])
+            for e in events:
+                if e not in alerts:  # basic deduplication for safety
+                    alerts.append(e)
+            self.state["unread_alerts"] = alerts
+            self.save()
+
         return events
 
     def _update_streak_and_quests(self, delta: int, events: List[str], active_days: Optional[List[str]] = None):
