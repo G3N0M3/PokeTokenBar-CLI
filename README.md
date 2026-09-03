@@ -29,11 +29,9 @@ Designed specifically for **Linux CLI** environments, **Antigravity CLI** (`~/.g
   - Restored via **Oran Berries 🫐** (+25%) and daily activity (+10%). Decays on missed coding days (-25%/day) and battle losses (-10%).
 - 🛡️ **Safe Reset Confirmation Prompt**:
   - Prevents accidental data wipes with a two-step prompt requiring `RESET ALL` confirmation.
-- ⚔️ **Mini-Trainer Auto-Battles & Gym Boss Raids (Tab [6])**:
+- ⚔️ **Mini-Trainer Auto-Battles, Gym Boss Raids & Mt. Silver Summit (Tab [6])**:
   - Encounter AI Trainers (*Youngster Joey*, *Team Rocket Grunt*, *Rival Blue*) every 2.0M tokens burned to earn bonus spendable tokens and fight Gym Bosses (*Brock*, *Misty*, *Cynthia*)!
-- 🏔️ **Mt. Silver Summit - PKMN Trainer Red (Tab [12])**:
-  - Unlocked after defeating the Champion. Assemble a team of 6 companions to challenge Red in a full RPG-style turn-based battle!
-  - Features its own independent token economy—attacks cost Red tokens, which build up organically alongside your global token earnings during the battle.
+  - 🏔️ **Mt. Silver Summit - PKMN Trainer Red**: Integrated directly into Tab [6] Battles upon defeating the Champion! Assemble a team of 6 companions to challenge Red in a full RPG-style turn-based battle with its own independent battle token economy.
   - Earning a victory grants the **Master of Masters** badge, a **Mysterious Fetal Form (Mew)**, and cements your team in the Hall of Fame.
 - 🗺️ **Pokédex Expeditions (Tab [5])**:
   - Dispatch companions on background expeditions (*Viridian Forest*, *Cerulean Cave*, *Mt. Silver*) to collect Rare Candies, Mints, and Berries.
@@ -47,18 +45,23 @@ Designed specifically for **Linux CLI** environments, **Antigravity CLI** (`~/.g
 ## 🗺️ Roadmap / Future Plans
 
 - **Split-Evolution Mechanics**: Introduce elemental stones (Water Stone, Thunder Stone, Fire Stone, etc.) to the Shop or Gacha to allow players to manually choose branch evolutions for species like Eevee, Poliwhirl, or Gloom, rather than defaulting to the first Pokédex entry!
-- **Consolidate TUI tabs**: Condense the 12 UI tabs down to 8 cleaner menus by merging related systems (e.g., merging Game Corner, Shop, and Bank into a unified Economy tab).
-
+- **Consolidate TUI tabs**: Condense the UI tabs further down to 8 cleaner menus by merging related systems (e.g., merging Game Corner, Shop, and Bank into a unified Economy tab; Red Battles have already been integrated into Tab [6] Battles).
+- **Quest Scaling**: Make daily quests more diverse and scale their difficulty dynamically based on the user's progress.
+- **More Achievements**: Add a wider variety of unlockable achievements for long-term progression.
+- **Asynchronous "Ghost" PvP**: Allow users to export their Hall of Fame team as a hash string that other users can import to challenge their ghost team in the Battle Arena.
+- **Shiny Chaining (Poké Radar)**: Introduce a chaining mechanic where maintaining a daily coding streak increases Shiny hatch rates.
+- **Daycare System**: Allow users to deposit companions to passively generate eggs over time with boosted inheritance stats.
 
 ---
 
-## 🖥️ 12-Tab Interactive TUI Layout
+## 🖥️ 11-Tab Interactive TUI Layout
 
 ```text
-  [1] Companion   [2] Pokédex   [3] Roster      [4] Shop & Bag
-  [5] Expeditions [6] Battles   [7] Quests      [8] Mega-Evo
-  [9] Game Corner [10] Bank     [11] Settings   [12] Red
+  [1] Companion   [2] Pokédex     [3] Roster      [4] Shop & Bag
+  [5] Expeditions [6] Battles     [7] Quests      [8] Mega-Evo
+  [9] Game Corner [10] Bank       [11] Settings
 ```
+*(Mt. Silver Summit & Red Battles are seamlessly integrated into Tab [6] Battles)*
 
 ---
 
@@ -94,7 +97,7 @@ ptb
 ## 💻 Usage & Commands
 
 ### Interactive TUI Commands:
-- `1`..`12`: Switch directly between all 12 dedicated tabs.
+- `1`..`11`: Switch directly between all 11 dedicated tabs.
 - `select <roster_idx>` / `select #<species_id>` / `select egg`: Switch active partner companion or egg.
 - `send <roster_idx> [viridian/cerulean/silver]`: Dispatch companion on expedition.
 - `deposit <amount>`: Deposit tokens into your Token Bank (e.g. `deposit 1m`, `deposit 1.5b`, or `deposit all`).
@@ -108,8 +111,8 @@ ptb
 - `sell <number>`: Sell items from Bag for tokens.
 - `use <number>`: Feed berries or use items from Bag.
 - `claim <id>`: Claim daily quest rewards.
-- `assemble <id1>..<id6>`: Assemble your 6-Pokémon team for the Mt. Silver Red Battle (Tab [12]).
-- `fight <1-4>` / `swap <1-6>` / `run` / `restart`: Red Battle RPG commands.
+- `assemble <id1>..<id6>`: Assemble your 6-Pokémon team for the Mt. Silver Red Battle (in Tab [6] Battles).
+- `fight <1-4>` / `swap <1-6>` / `run` / `restart`: Red Battle RPG commands (in Tab [6] Battles).
 - `card`: View ASCII Trainer Profile Card.
 - `n` / `p` / `page <num>`: Navigate Pokédex pages (in Pokédex tab).
 - `reset`: Initiate two-step game progress reset prompt (in Settings).

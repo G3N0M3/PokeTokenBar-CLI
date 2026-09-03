@@ -13,7 +13,16 @@ BOLD = "\033[1m"
 def render_battles_tab(app):
     boss = app.engine.state.get("active_boss")
     battles = app.engine.state.get("trainer_battles", {"wins": 0, "losses": 0})
+    badges = app.engine.state.get("gym_badges", [])
     logs = app.engine.state.get("battle_logs", [])
+    red_unlocked = "🏆 Champion Badge" in badges or app.engine.state.get("dev_red_unlocked")
+    red_state = app.engine.state.get("red_battle", {})
+    red_active = red_state.get("status") in ["active", "win", "loss"]
+
+    if red_active:
+        from poketokenbar.tui_tabs.red import render_red_tab
+        render_red_tab(app)
+        return
 
     sys.stdout.write(f"\n  {BOLD}{HEADER}⚔️ Gym Boss Raids & Trainer Auto-Battles{RESET}\n\n")
 
@@ -34,8 +43,7 @@ def render_battles_tab(app):
         else:
             sys.stdout.write("   ➔ Attack the boss by spending tokens in Antigravity CLI!\n\n")
     else:
-        badges = app.engine.state.get("gym_badges", [])
-        if "🏆 Champion Badge" in badges or app.engine.state.get("dev_red_unlocked"):
+        if red_unlocked:
             sys.stdout.write(f"   {BOLD}{RED}A chilling wind blows from the peak of Mt. Silver...{RESET}\n")
             sys.stdout.write(f"   {BOLD}{RED}The final battle awaits below!{RESET}\n\n")
         else:
@@ -54,6 +62,6 @@ def render_battles_tab(app):
             sys.stdout.write(f"   {log}\n")
         sys.stdout.write("\n")
 
-    if "🏆 Champion Badge" in app.engine.state.get("gym_badges", []) or app.engine.state.get("dev_red_unlocked"):
+    if red_unlocked:
         from poketokenbar.tui_tabs.red import render_red_tab
         render_red_tab(app)

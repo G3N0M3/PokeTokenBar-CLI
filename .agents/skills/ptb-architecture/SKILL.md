@@ -16,7 +16,7 @@ PokeTokenBar is built with Python 3.8+ using standard libraries and zero heavy d
 Directory / File                      | Description
 :----------------------------------- | :---------------------------------------------------------------------
 `poketokenbar/cli.py`                 | CLI entry point (`ptb`, `ptb status`, `ptb watch`, `ptb card`)
-`poketokenbar/tui.py`                 | Interactive 12-tab Linux CLI TUI interface (72-character fixed width)
+`poketokenbar/tui.py`                 | Interactive 11-tab Linux CLI TUI interface (72-character fixed width)
 `poketokenbar/sprite_renderer.py`     | PNG to 24-bit TrueColor ANSI terminal sprite renderer
 `poketokenbar/game/companion.py`      | Game engine (`CompanionEngine`), hatch, evolution, raids, expeditions
 `poketokenbar/game/models.py`         | Data models (`MonState`, `Rarity`, `ItemKind`, `PokemonBalance`)

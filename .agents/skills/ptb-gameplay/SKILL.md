@@ -56,8 +56,8 @@ PokeTokenBar turns your AI coding token usage into a Pokémon companion game ins
   - **Mt. Silver**: 30.0M tokens ➔ 🍇 Golden Razz Berry
 - **Command**: `send <number/species_id> [viridian/cerulean/silver]`.
 
-### 7. 🏔️ Mt. Silver Summit (Tab [12])
-- **Unlock Condition**: Automatically unlocks and teased after defeating the Champion in Tab [6].
+### 7. 🏔️ Mt. Silver Summit (Tab [6] Battles)
+- **Unlock Condition**: Automatically unlocks and integrates directly into Tab [6] Battles after defeating the Champion.
 - **Independent Token Economy**: Unlike regular gameplay, the Red Battle uses an isolated token system. The player starts with 20,000,000 tokens, and any global tokens earned *during* the battle are added 1:1. Attacks cost Red tokens (e.g., 500K, 1.5M, etc.), protecting the player's global bank balance.
 - **Battle Mechanics**:
   - Full 6v6 RPG-style turn-based battle against PKMN Trainer Red.
