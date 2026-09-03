@@ -14,6 +14,20 @@ def cmd_status(tracker: UsageManager, engine: CompanionEngine):
     summary = tracker.get_summary()
     events = engine.process_usage(summary["total_tokens"], summary.get("active_days"))
 
+    # Print any evolution, hatch, or graduation milestone events
+    alerts = engine.state.get("unread_alerts", [])
+    all_events = list(events)
+    for a in alerts:
+        if a not in all_events:
+            all_events.append(a)
+
+    for ev in all_events:
+        if "Evolution!" in ev or "Egg Hatched!" in ev or "Graduation!" in ev:
+            print(f"{ev}")
+            if ev in engine.state.get("unread_alerts", []):
+                engine.state["unread_alerts"].remove(ev)
+                engine.save()
+
     active = engine.active_mon
     today_tok = format_tokens(summary["today_tokens"])
 
@@ -32,10 +46,15 @@ def cmd_status(tracker: UsageManager, engine: CompanionEngine):
 def cmd_watch(tracker: UsageManager, engine: CompanionEngine, interval: float = 3.0):
     """Continuous live token monitoring mode."""
     print("📡 PokeTokenBar Live Monitor active. Press Ctrl+C to stop.")
+    persistent_events = []
     try:
         while True:
             summary = tracker.get_summary()
             events = engine.process_usage(summary["total_tokens"], summary.get("active_days"))
+            for ev in events:
+                if ev not in persistent_events:
+                    persistent_events.append(ev)
+            persistent_events = persistent_events[-5:]
             
             sys.stdout.write("\033[H\033[2J")
             sys.stdout.flush()
@@ -64,9 +83,9 @@ def cmd_watch(tracker: UsageManager, engine: CompanionEngine, interval: float = 
             print(f" Total Tokens:     {format_tokens(summary['total_tokens'])}")
             print(f" Active Burn Rate: {format_tokens(summary['burn_rate_tpm'])} tokens/min")
 
-            if events:
+            if persistent_events:
                 print("\n Recent Events:")
-                for ev in events:
+                for ev in persistent_events:
                     print(f"  ➔ {ev}")
 
             time.sleep(interval)

@@ -44,6 +44,10 @@ def render(app, summary: dict):
         streak = app.engine.state.get("streak_days", 1)
         hap_boost = f" {GREEN}(+20% Bonus XP!){RESET}" if happiness >= 100 else ""
         sys.stdout.write(f"  Happiness: {RED}💖 {happiness}%{RESET}{hap_boost}  |  Coding Streak: {YELLOW}🔥 {streak} Days{RESET}\n")
+        
+        last_evo = app.engine.state.get("last_evolution")
+        if last_evo:
+            sys.stdout.write(f"  {BOLD}{CYAN}Milestone:{RESET} 🎉 {last_evo}\n")
 
         # Try rendering sprite
         render_id = sp_id
@@ -81,22 +85,15 @@ def render(app, summary: dict):
 
         # Growth / Evolution progress
         target_xp = PokemonBalance.phase_threshold(active.rarity, active.total_forms, active.stage_index, app.engine.current_difficulty)
-        
-        # Check if this stage has already evolved into next stage
-        dex = app.engine.state.get("dex", [])
-        discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
-        is_already_evolved = (active.stage_index < len(active.path_ids) - 1) and (active.path_ids[active.stage_index + 1] in discovered_sp_ids)
 
-        if is_already_evolved:
-            bar = format_progress_bar(target_xp, target_xp, width=12)
-            next_id = active.path_ids[active.stage_index + 1]
-            next_name = app.engine.api.get_species_name(next_id)
-            sys.stdout.write(f"  Evo -> {next_name}: {bar} ({format_tokens(target_xp)}/{format_tokens(target_xp)}) {GREEN}[EVOLVED]{RESET}\n")
-        elif active.stage_index < len(active.path_ids) - 1:
+        if active.stage_index < len(active.path_ids) - 1:
             bar = format_progress_bar(active.used_at_stage, target_xp, width=12)
             next_id = active.path_ids[active.stage_index + 1]
             next_name = app.engine.api.get_species_name(next_id)
-            sys.stdout.write(f"  Evo -> {next_name}: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)})\n")
+            if active.held_item == "everstone":
+                sys.stdout.write(f"  Evo -> {next_name}: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)}) {YELLOW}[EVERSTONE - HALTED]{RESET}\n")
+            else:
+                sys.stdout.write(f"  Evo -> {next_name}: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)})\n")
         else:
             bar = format_progress_bar(active.used_at_stage, target_xp, width=12)
             sys.stdout.write(f"  Graduation: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)})\n")

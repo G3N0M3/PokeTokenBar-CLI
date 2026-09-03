@@ -43,6 +43,48 @@ class PokeTokenBarTUI:
         self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
 
         while True:
+            # Refresh usage and process growth on each frame
+            summary = self.tracker.get_summary()
+            self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
+
+            # Check for evolution or graduation alerts to show celebration screen
+            alerts = self.engine.state.get("unread_alerts", [])
+            milestone_alerts = [a for a in alerts if "Evolution!" in a or "Graduation!" in a]
+            if milestone_alerts:
+                m_alert = milestone_alerts[0]
+                alerts.remove(m_alert)
+                self.engine.state["unread_alerts"] = alerts
+                self.engine.save()
+
+                self.clear_screen()
+                is_grad = "Graduation!" in m_alert
+                banner_title = "🎓 CONGRATULATIONS! YOUR COMPANION GRADUATED! 🎓" if is_grad else "✨ WHAT? YOUR COMPANION IS EVOLVING! ✨"
+
+                sys.stdout.write(f"\n{HEADER}{'='*72}{RESET}\n")
+                sys.stdout.write(f"  {BOLD}{YELLOW}{banner_title}{RESET}\n")
+                sys.stdout.write(f"{HEADER}{'='*72}{RESET}\n\n")
+
+                active = self.engine.active_mon
+                if active:
+                    sp_id = active.current_id
+                    sprite_path = self.engine.api.download_sprite(sp_id, is_shiny=active.is_shiny)
+                    if sprite_path:
+                        sprite_size = self.engine.state.get("sprite_size", 30)
+                        ansi = SpriteRenderer.render_png_to_ansi(sprite_path, max_cols=sprite_size, center_width=72)
+                        sys.stdout.write(ansi + "\n\n")
+
+                sys.stdout.write(f"  {BOLD}{GREEN}{m_alert}{RESET}\n\n")
+                if active:
+                    stage_str = f"Form {active.stage_index+1}/{active.total_forms}"
+                    rarity_str = active.rarity.value.upper()
+                    nature_str = active.nature.display_name if active.nature else "Unknown"
+                    sys.stdout.write(f"  Stage: {stage_str}  |  Rarity: {YELLOW}{rarity_str}{RESET}  |  Nature: {CYAN}{nature_str}{RESET}\n\n")
+
+                sys.stdout.write(f"  {BOLD}{CYAN}Press [Enter] to continue...{RESET} ")
+                sys.stdout.flush()
+                sys.stdin.readline()
+                continue
+
             pending_eggs = self.engine.state.get("pending_eggs", [])
             if pending_eggs:
                 new_egg = pending_eggs[0]
@@ -197,17 +239,17 @@ class PokeTokenBarTUI:
                 elif cmd == "12":
                     badges = self.engine.state.get("gym_badges", [])
                     unlocked = self.engine.state.get("dev_red_unlocked", False) or "🏆 Champion Badge" in badges
+                    self.current_tab = 6
                     if unlocked:
-                        self.current_tab = 12
-                        self.message = ""
+                        self.message = "Mt. Silver Summit (Red Battle) is integrated into Tab [6] Battles!"
                     else:
-                        self.message = "You must defeat the Champion to unlock this tab!"
+                        self.message = "Red Battle is located in Tab [6] Battles (Defeat the Champion to unlock!)."
                 elif cmd.startswith("difficulty "):
                     # Placeholder for potential difficulty commands
                     pass
                 elif cmd in ["r", "refresh"]:
                     summary = self.tracker.get_summary(force=True)
-                    self.engine.process_usage(summary["total_tokens"])
+                    self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
                     self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
                 elif cmd in ["n", "next"] and self.current_tab in [2, 3, 4, 5, 8]:
                     if self.current_tab == 2: self.pokedex_page += 1

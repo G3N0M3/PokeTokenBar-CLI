@@ -229,17 +229,13 @@ class CompanionEngine:
             if egg_usage >= threshold:
                 mon, hatch_events = self.hatch_egg(initial_xp=egg_usage - threshold)
                 events.extend(hatch_events)
+                evo_events = self._check_growth(mon)
+                events.extend(evo_events)
             self.save()
         else:
             active.used_at_stage += effective_xp
 
             # Check evolution / graduation threshold
-            target_xp = PokemonBalance.phase_threshold(active.rarity, active.total_forms, active.stage_index, self.current_difficulty)
-            
-            # Check if this stage has already evolved into next stage
-            dex = self.state.get("dex", [])
-            discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
-            is_already_evolved = (active.stage_index < len(active.path_ids) - 1) and (active.path_ids[active.stage_index + 1] in discovered_sp_ids)
             self.set_active_mon(active)
             evo_events = self._check_growth(active)
             events.extend(evo_events)
@@ -641,13 +637,11 @@ class CompanionEngine:
 
         target_xp = PokemonBalance.phase_threshold(mon.rarity, mon.total_forms, mon.stage_index, diff)
 
-        # If this stage has ALREADY evolved into the next stage, cap XP at 100% max and do not re-trigger evolution
-        if mon.stage_index < len(mon.path_ids) - 1:
-            next_id = mon.path_ids[mon.stage_index + 1]
-            if next_id in discovered_sp_ids or mon.held_item == "everstone":
-                mon.used_at_stage = target_xp
-                self.set_active_mon(mon)
-                return events
+        # If holding Everstone, cap XP at threshold and halt evolution
+        if mon.stage_index < len(mon.path_ids) - 1 and mon.held_item == "everstone":
+            mon.used_at_stage = min(mon.used_at_stage, target_xp)
+            self.set_active_mon(mon)
+            return events
 
         while mon.used_at_stage >= target_xp:
             if mon.stage_index < len(mon.path_ids) - 1:
@@ -671,7 +665,9 @@ class CompanionEngine:
                     events.append(f"✨ Surprised! Your Pokémon was actually Ditto disguised as #{mon.base_id}!")
 
                 shiny_str = "✨ Shiny " if mon.is_shiny else ""
-                events.append(f"🎉 Evolution! {shiny_str}{prev_name} evolved into {shiny_str}{mon_name} (#{new_id})!")
+                evo_str = f"🎉 Evolution! {shiny_str}{prev_name} evolved into {shiny_str}{mon_name} (#{new_id})!"
+                events.append(evo_str)
+                self.state["last_evolution"] = f"{shiny_str}{prev_name} evolved into {shiny_str}{mon_name} (#{new_id})!"
                 events.extend(self._progress_quest_by_type("progression"))
                 self._register_to_dex(mon, status="active")
                 target_xp = PokemonBalance.phase_threshold(mon.rarity, mon.total_forms, mon.stage_index, diff)
@@ -679,7 +675,9 @@ class CompanionEngine:
                 # Final form + reached graduation threshold!
                 mon_name = self.api.get_species_name(mon.current_id)
                 shiny_str = "✨ Shiny " if mon.is_shiny else ""
-                events.append(f"🎓 Graduation! {shiny_str}{mon_name} has graduated to your Pokédex!")
+                grad_str = f"🎓 Graduation! {shiny_str}{mon_name} has graduated to your Pokédex!"
+                events.append(grad_str)
+                self.state["last_evolution"] = f"{shiny_str}{mon_name} graduated to Pokédex!"
 
                 # Add to Pokédex as graduated
                 self._register_to_dex(mon, status="graduated")
@@ -1189,9 +1187,18 @@ class CompanionEngine:
             self.set_active_mon(active)
 
             events = self._check_growth(active)
+            if events:
+                alerts = self.state.get("unread_alerts", [])
+                for e in events:
+                    if e not in alerts:
+                        alerts.append(e)
+                self.state["unread_alerts"] = alerts
             self.save()
             active_name = self.api.get_species_name(active.current_id)
-            return True, f"Fed {qty}x Rare Candy to {active_name}! (+{format_tokens(xp_grant)} XP)"
+            msg = f"Fed {qty}x Rare Candy to {active_name}! (+{format_tokens(xp_grant)} XP)"
+            if events:
+                msg += "\n" + "\n".join(events)
+            return True, msg
             
         elif item_kind in [ItemKind.EVERSTONE, ItemKind.LUCKY_EGG, ItemKind.AMULET_COIN, ItemKind.LEFTOVERS, ItemKind.CHOICE_SCARF]:
             if active is None:
