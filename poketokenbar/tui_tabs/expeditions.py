@@ -60,6 +60,6 @@ def render_expeditions_tab(app):
         sys.stdout.write("   No completed expeditions recorded yet. Dispatch companions to start!\n\n")
     else:
         for log in exp_logs:
-            fixed_log = log.replace("]   ", "] ")
+            fixed_log = log.replace("] 🗺️ ", "] ").replace("]   ", "] ")
             sys.stdout.write(f" {fixed_log}\n")
         sys.stdout.write("\n")

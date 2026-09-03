@@ -45,6 +45,13 @@ class CompanionEngine:
     def __init__(self):
         self.api = PokeAPIClient()
         self.state = StorageManager.load_state()
+        
+        # Migrate Earth Badge from crown to globe
+        if "gym_badges" in self.state:
+            self.state["gym_badges"] = [b.replace("👑 Earth Badge", "🌍 Earth Badge") for b in self.state["gym_badges"]]
+        if "active_boss" in self.state and self.state["active_boss"] and "badge" in self.state["active_boss"]:
+            self.state["active_boss"]["badge"] = self.state["active_boss"]["badge"].replace("👑 Earth Badge", "🌍 Earth Badge")
+            
         self.poker = TexasHoldemEngine()
         self.blackjack = BlackjackEngine()
         self.slots = SlotMachineEngine()
