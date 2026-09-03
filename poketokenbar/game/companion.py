@@ -305,19 +305,25 @@ class CompanionEngine:
                                 # 1. Confiscate from Bank Balance
                                 bank_bal = self.state.get("bank_balance", 0)
                                 take_from_bank = min(bank_bal, remaining_loan)
-                                self.state["bank_balance"] -= take_from_bank
-                                remaining_loan -= take_from_bank
+                                if take_from_bank > 0:
+                                    self.state["bank_balance"] -= take_from_bank
+                                    remaining_loan -= take_from_bank
+                                    events.append(f"🚨 REPOSSESSION: Confiscated {format_tokens(take_from_bank)} tokens from your Bank deposits.")
                                 
                                 # 2. Confiscate from Available Tokens
-                                avail_tokens = self.state.get("used_since_install", 0) - self.state.get("spent_tokens", 0)
-                                take_from_avail = min(avail_tokens, remaining_loan)
-                                self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + take_from_avail
-                                remaining_loan -= take_from_avail
+                                if remaining_loan > 0:
+                                    avail_tokens = self.state.get("used_since_install", 0) - self.state.get("spent_tokens", 0)
+                                    take_from_avail = min(avail_tokens, remaining_loan)
+                                    if take_from_avail > 0:
+                                        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + take_from_avail
+                                        remaining_loan -= take_from_avail
+                                        events.append(f"🚨 REPOSSESSION: Confiscated {format_tokens(take_from_avail)} spendable tokens.")
                                 
                                 # 3. Liquidate Bag
                                 if remaining_loan > 0:
                                     inv = self.state.get("inventory", {})
                                     items_to_sell = list(inv.keys())
+                                    liquidated_value = 0
                                     for item_key in items_to_sell:
                                         if remaining_loan <= 0:
                                             break
@@ -340,6 +346,10 @@ class CompanionEngine:
                                             del inv[item_key]
                                             
                                         remaining_loan -= (sell_qty * sell_val)
+                                        liquidated_value += (sell_qty * sell_val)
+                                        
+                                    if liquidated_value > 0:
+                                        events.append(f"🚨 REPOSSESSION: Liquidated inventory items for {format_tokens(liquidated_value)} tokens.")
                                     self.state["inventory"] = inv
                                 
                                 # 4. Forgive remaining debt
@@ -358,7 +368,7 @@ class CompanionEngine:
                                     active.happiness = max(0, active.happiness - 50)
                                     self.set_active_mon(active)
                                     
-                                events.append("🚨 BANK REPOSSESSION! 8 days have passed! The bank seized tokens and liquidated items to cover your debt, reducing ALL roster companions' happiness by 50%!")
+                                events.append("💔 REPOSSESSION: All companions suffered a 50 happiness penalty due to bank seizure stress.")
 
                     if diff == 1:
                         if active:
