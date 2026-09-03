@@ -126,13 +126,10 @@ class PokeTokenBarTUI:
                 self.render_bank_tab()
             elif self.current_tab == 11:
                 self.render_settings_tab()
-            elif self.current_tab == 12:
-                from poketokenbar.tui_tabs.red import render_red_tab
-                render_red_tab(self)
 
             self.render_footer()
 
-            sys.stdout.write(f"\n{BOLD}Select tab (1-12), command, r=Refresh, q=Quit: {RESET}")
+            sys.stdout.write(f"\n{BOLD}Select tab (1-11), command, r=Refresh, q=Quit: {RESET}")
             sys.stdout.flush()
 
             try:
@@ -380,9 +377,12 @@ class PokeTokenBarTUI:
                         self.message = "Usage: size <number> (e.g. 'size 30')"
                 elif self.current_tab == 10 and cmd.startswith("blackjack"):
                     self.handle_bank_blackjack(cmd)
-                elif self.current_tab == 12 and (cmd.startswith("assemble") or cmd.startswith("fight") or cmd.startswith("swap") or cmd == "run" or cmd == "restart"):
-                    from poketokenbar.tui_tabs.red import handle_red_command
-                    handle_red_command(self, cmd)
+                elif self.current_tab == 6:
+                    if cmd.startswith("assemble ") or cmd in ["fight 1", "fight 2", "fight 3", "fight 4", "run", "restart"] or cmd.startswith("swap "):
+                        from poketokenbar.tui_tabs.red import handle_red_command
+                        handle_red_command(self, cmd)
+                    else:
+                        sys.stdout.write(f"\n  {RED}Invalid command.{RESET}\n")
                 elif self.current_tab == 4 and cmd.startswith("buy"):
                     self.handle_shop_buy(cmd)
                 elif self.current_tab == 4 and (cmd.startswith("use") or cmd.startswith("unequip")):
@@ -444,14 +444,9 @@ class PokeTokenBarTUI:
         t10 = f"{BOLD}{CYAN}[10] Bank{RESET}" if self.current_tab == 10 else "[10] Bank"
         t11 = f"{BOLD}{CYAN}[11] Settings{RESET}" if self.current_tab == 11 else "[11] Settings"
         
-        badges = self.engine.state.get("gym_badges", [])
-        unlocked = self.engine.state.get("dev_red_unlocked", False) or "🏆 Champion Badge" in badges
-        t12 = f"{BOLD}{RED}[12] Red{RESET}" if self.current_tab == 12 else "[12] Red"
-        t12_str = f"   {t12}" if unlocked else ""
-
         sys.stdout.write(f"  {t1}   {t2}     {t3}      {t4}\n")
         sys.stdout.write(f"  {t5} {t6}     {t7}      {t8}\n")
-        sys.stdout.write(f"  {t9} {t10}       {t11}{t12_str}\n")
+        sys.stdout.write(f"  {t9} {t10}       {t11}\n")
         sys.stdout.write("-" * 72 + "\n")
 
     def render_companion_tab(self, summary: dict):

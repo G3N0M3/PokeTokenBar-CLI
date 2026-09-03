@@ -38,12 +38,12 @@ def render_quests_tab(app):
             sys.stdout.write(f"   [{q_id}] {txt:<38} {status}\n")
 
     # 2. Gym Badges Collected
-    sys.stdout.write(f"\n  {BOLD}🏅 Gym Badges Collected ({len(badges)}/10):{RESET}\n")
+    sys.stdout.write(f"\n  {BOLD}🏅 Gym Badges Collected ({len(badges)}):{RESET}\n")
     if not badges:
         sys.stdout.write("   No badges earned yet. Defeat Gym Bosses to earn badges!\n")
     else:
-        for i in range(0, len(badges), 4):
-            chunk = badges[i:i+4]
+        for i in range(0, len(badges), 3):
+            chunk = badges[i:i+3]
             sys.stdout.write("   " + "   ".join([f"{BOLD}{YELLOW}{b}{RESET}" for b in chunk]) + "\n")
 
     # 3. Achievements Unlocked

@@ -35,9 +35,9 @@ def render_battles_tab(app):
             sys.stdout.write("   ➔ Attack the boss by spending tokens in Antigravity CLI!\n\n")
     else:
         badges = app.engine.state.get("gym_badges", [])
-        if "🏆 Champion Badge" in badges:
+        if "🏆 Champion Badge" in badges or app.engine.state.get("dev_red_unlocked"):
             sys.stdout.write(f"   {BOLD}{RED}A chilling wind blows from the peak of Mt. Silver...{RESET}\n")
-            sys.stdout.write(f"   {BOLD}{RED}Someone is waiting for you in Tab [12].{RESET}\n\n")
+            sys.stdout.write(f"   {BOLD}{RED}The final battle awaits below!{RESET}\n\n")
         else:
             sys.stdout.write("   No active Boss Raid. Reach daily token milestones to summon Gym Bosses!\n\n")
 
@@ -53,3 +53,7 @@ def render_battles_tab(app):
         for log in logs:
             sys.stdout.write(f"   {log}\n")
         sys.stdout.write("\n")
+
+    if "🏆 Champion Badge" in app.engine.state.get("gym_badges", []) or app.engine.state.get("dev_red_unlocked"):
+        from poketokenbar.tui_tabs.red import render_red_tab
+        render_red_tab(app)

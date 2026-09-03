@@ -77,7 +77,7 @@ def render_mega_evo_tab(app):
             col1 = f"[{visible_stones[i][0]}] {visible_stones[i][1]}"
             col2 = f"[{visible_stones[i+1][0]}] {visible_stones[i+1][1]}" if i + 1 < len(visible_stones) else ""
             col3 = f"[{visible_stones[i+2][0]}] {visible_stones[i+2][1]}" if i + 2 < len(visible_stones) else ""
-            sys.stdout.write(f"   {col1:<32} {col2:<32} {col3}\n".rstrip() + "\n")
+            sys.stdout.write(f"   {col1:<26} {col2:<26} {col3}\n".rstrip() + "\n")
                 
         if total_pages > 1:
             sys.stdout.write(f"\n  ➔ Page {app.mega_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")
