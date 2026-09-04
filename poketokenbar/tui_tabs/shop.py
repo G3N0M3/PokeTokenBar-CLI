@@ -213,18 +213,15 @@ def handle_bag_sell(app, cmd: str):
     sell_value = int(cost * 0.8) * qty
 
     item_name = item_kind.name_en
-    if item_kind == item_kind.MEGA_STONE:
-        found_key = "mega_stone"
-        item_name = "Universal Mega Stone"
-        if inv.get("mega_stone", 0) < qty:
-            found_key = None
-            from poketokenbar.game.models import MEGA_STONES
-            for sp_id, s_name in MEGA_STONES.items():
-                k = f"mega_stone_{sp_id}"
-                if inv.get(k, 0) >= qty:
-                    found_key = k
-                    item_name = s_name
-                    break
+    if item_kind == ItemKind.MEGA_STONE:
+        found_key = None
+        from poketokenbar.game.models import MEGA_STONES
+        for sp_id, s_name in MEGA_STONES.items():
+            k = f"mega_stone_{sp_id}"
+            if inv.get(k, 0) >= qty:
+                found_key = k
+                item_name = s_name
+                break
         if not found_key:
             app.message = f"You don't have {qty}x of any specific Mega Stone in your Bag to sell!"
             return

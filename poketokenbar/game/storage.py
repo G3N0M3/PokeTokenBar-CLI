@@ -1,12 +1,19 @@
 import json
 import uuid
 import datetime
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
 from poketokenbar.game.models import MonState, DexEntry, Rarity, PokemonNature
 
-STATE_FILE = Path.home() / ".poketokenbar" / "state.json"
+def get_state_file() -> Path:
+    override = os.environ.get("PTB_STATE_FILE")
+    if override:
+        return Path(override)
+    return Path.home() / ".poketokenbar" / "state.json"
+
+STATE_FILE = get_state_file()
 
 class StorageManager:
     """Handles saving and loading of the PokeTokenBar game state."""
@@ -14,11 +21,11 @@ class StorageManager:
     @staticmethod
     def load_state() -> Dict[str, Any]:
         state = StorageManager.default_state()
-        if STATE_FILE.exists():
+        state_file = get_state_file()
+        if state_file.exists():
             try:
-                with open(STATE_FILE, "r", encoding="utf-8") as f:
+                with open(state_file, "r", encoding="utf-8") as f:
                     saved = json.load(f)
-                    state.update(saved)
                     state.update(saved)
             except Exception:
                 pass
@@ -26,12 +33,13 @@ class StorageManager:
 
     @staticmethod
     def save_state(state_data: Dict[str, Any]) -> bool:
-        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        tmp_file = STATE_FILE.with_suffix(f".{uuid.uuid4().hex}.json.tmp")
+        state_file = get_state_file()
+        state_file.parent.mkdir(parents=True, exist_ok=True)
+        tmp_file = state_file.with_suffix(f".{uuid.uuid4().hex}.json.tmp")
         try:
             with open(tmp_file, "w", encoding="utf-8") as f:
                 json.dump(state_data, f, indent=2, ensure_ascii=False)
-            tmp_file.replace(STATE_FILE)
+            tmp_file.replace(state_file)
             return True
         except Exception:
             if tmp_file.exists():
@@ -57,8 +65,7 @@ class StorageManager:
                 "rare_candy": 0,
                 "mint": 0,
                 "berry_oran": 0,
-                "berry_golden": 0,
-                "mega_stone": 0
+                "berry_golden": 0
             },
             "streak_days": 1,
             "last_active_date": datetime.datetime.now().strftime("%Y-%m-%d"),

@@ -1128,17 +1128,15 @@ class CompanionEngine:
         inv = self.state.get("inventory", {})
         
         if item_kind == ItemKind.MEGA_STONE:
-            target_key = "mega_stone"
-            target_name = "Universal Mega Stone"
-            if inv.get("mega_stone", 0) < qty:
-                target_key = None
-                from poketokenbar.game.models import MEGA_STONES
-                for sp_id, s_name in MEGA_STONES.items():
-                    k = f"mega_stone_{sp_id}"
-                    if inv.get(k, 0) >= qty:
-                        target_key = k
-                        target_name = s_name
-                        break
+            target_key = None
+            target_name = None
+            from poketokenbar.game.models import MEGA_STONES
+            for sp_id, s_name in MEGA_STONES.items():
+                k = f"mega_stone_{sp_id}"
+                if inv.get(k, 0) >= qty:
+                    target_key = k
+                    target_name = s_name
+                    break
             if not target_key:
                 return False, f"You don't have {qty}x of any specific Mega Stone in your Bag to sell!"
             
@@ -1460,19 +1458,18 @@ class CompanionEngine:
             return False, f"Species #{sp_id} ({self.api.get_species_name(active.current_id)}) is not eligible for Mega Evolution!"
             
         owned_forms = []
-        has_universal = inv.get("mega_stone", 0) > 0
         
-        if f"{sp_id}_X" in MEGA_STONES and (inv.get(f"mega_stone_{sp_id}_X", 0) > 0 or has_universal):
+        if f"{sp_id}_X" in MEGA_STONES and inv.get(f"mega_stone_{sp_id}_X", 0) > 0:
             owned_forms.append("X")
-        if f"{sp_id}_Y" in MEGA_STONES and (inv.get(f"mega_stone_{sp_id}_Y", 0) > 0 or has_universal):
+        if f"{sp_id}_Y" in MEGA_STONES and inv.get(f"mega_stone_{sp_id}_Y", 0) > 0:
             owned_forms.append("Y")
-        if sp_id in MEGA_STONES and (inv.get(f"mega_stone_{sp_id}", 0) > 0 or has_universal):
+        if sp_id in MEGA_STONES and inv.get(f"mega_stone_{sp_id}", 0) > 0:
             owned_forms.append("Normal")
             
         if not owned_forms:
             return False, f"You need a corresponding Mega Stone 🔮 to Mega Evolve {self.api.get_species_name(active.current_id)}!"
             
-        if target_stone_key and target_stone_key != "mega_stone":
+        if target_stone_key:
             if not (target_stone_key == f"mega_stone_{sp_id}" or target_stone_key.startswith(f"mega_stone_{sp_id}_")):
                 stone_name = "Mega Stone"
                 for k, v in MEGA_STONES.items():

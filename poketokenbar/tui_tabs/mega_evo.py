@@ -26,11 +26,6 @@ def render_mega_evo_tab(app):
             app.mega_stone_map[str(idx)] = k
             idx += 1
             
-    if inv.get("mega_stone", 0) > 0: 
-        stones.append((idx, f"Universal Stone x{inv['mega_stone']}"))
-        app.mega_stone_map[str(idx)] = "mega_stone"
-        idx += 1
-        
     active = app.engine.active_mon
     if active:
         sp_name = app.engine.api.get_species_name(active.current_id)
@@ -46,14 +41,14 @@ def render_mega_evo_tab(app):
             else:
                 usable_idxs = []
                 for s_idx, k in app.mega_stone_map.items():
-                    if k == "mega_stone" or k == f"mega_stone_{sp_id}" or k.startswith(f"mega_stone_{sp_id}_"):
+                    if k == f"mega_stone_{sp_id}" or k.startswith(f"mega_stone_{sp_id}_"):
                         usable_idxs.append(f"[{s_idx}]")
                         
                 sys.stdout.write(f"  {BOLD}Status:{RESET} Standard Form (Available for Mega-Evo!)\n")
                 if usable_idxs:
                     sys.stdout.write(f"  {BOLD}Usable Items:{RESET} {YELLOW}Type 'use <idx>' with {', '.join(usable_idxs)}{RESET}\n")
                 else:
-                    sys.stdout.write(f"  {BOLD}Usable Items:{RESET} {RED}None owned! (You need the specific Mega Stone or a Universal Stone){RESET}\n")
+                    sys.stdout.write(f"  {BOLD}Usable Items:{RESET} {RED}None owned! (You need the specific Mega Stone){RESET}\n")
         else:
             sys.stdout.write(f"  {BOLD}Status:{RESET} {RED}Not Eligible for Mega Evolution{RESET}\n")
     else:
