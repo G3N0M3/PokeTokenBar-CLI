@@ -28,6 +28,9 @@ def render(app):
         end_idx = start_idx + page_size
         page_dex = dex[start_idx:end_idx]
 
+        expeditions = app.engine.state.get("expeditions", [])
+        exp_map = {e["sp_id"]: e for e in expeditions}
+
         for idx, entry in enumerate(page_dex, start_idx + 1):
             sp_id = entry.get("species_id", entry.get("final_id", entry.get("base_id")))
             name = app.engine.api.get_species_name(sp_id)
@@ -35,13 +38,10 @@ def render(app):
             rarity = entry.get("rarity", "common").upper()
             status = entry.get("status", "discovered")
 
-            expeditions = app.engine.state.get("expeditions", [])
-            exp_map = {e["sp_id"]: e for e in expeditions}
-
             if sp_id in exp_map:
                 exp_info = exp_map[sp_id]
-                pct = (exp_info["progress"] / exp_info["target"]) * 100
-                status_badge = f"{BOLD}{CYAN}[ON EXPEDITION: {exp_info['area']} ({pct:.0f}%)] {RESET}"
+                pct = min(100.0, (exp_info["progress"] / exp_info["target"]) * 100 if exp_info.get("target", 0) > 0 else 100.0)
+                status_badge = f"{BOLD}{CYAN}[EXP: {exp_info['area'].capitalize()} {pct:.0f}%]{RESET}"
             elif active and active.current_id == sp_id:
                 status_badge = f"{BOLD}{GREEN}[ACTIVE]{RESET}"
             elif status == "graduated":

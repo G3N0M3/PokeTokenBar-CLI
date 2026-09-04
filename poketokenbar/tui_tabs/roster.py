@@ -59,8 +59,8 @@ def render(app):
 
             if sp_id in exp_map:
                 exp_info = exp_map[sp_id]
-                pct = (exp_info["progress"] / exp_info["target"]) * 100
-                status_badge = f"{BOLD}{CYAN}[ON EXPEDITION: {exp_info['area']} ({pct:.0f}%)] {RESET}"
+                pct = min(100.0, (exp_info["progress"] / exp_info["target"]) * 100 if exp_info.get("target", 0) > 0 else 100.0)
+                status_badge = f"{BOLD}{CYAN}[EXP: {exp_info['area'].capitalize()} {pct:.0f}%]{RESET}"
             elif status == "active" and active is not None:
                 status_badge = f"{BOLD}{GREEN}[ACTIVE]{RESET}"
             elif status == "inactive":
