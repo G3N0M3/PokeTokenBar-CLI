@@ -133,5 +133,17 @@ class TestCompanionEngine(unittest.TestCase):
             # XP should have increased
             self.assertGreater(active.used_at_stage, initial_xp)
 
+    def test_expedition_missing_keys_defensive(self):
+        # Expeditions with missing reward/target/progress should not raise KeyError
+        self.engine.state["expeditions"] = [
+            {"sp_id": 3, "area": "cerulean"}
+        ]
+        events = []
+        self.engine._update_expeditions(500_000, events)
+        exp = self.engine.state["expeditions"][0]
+        self.assertEqual(exp.get("reward"), "rare_candy")
+        self.assertGreater(exp.get("progress", 0), 0)
+        self.assertEqual(exp.get("target"), 5_000_000)
+
 if __name__ == "__main__":
     unittest.main()

@@ -18,7 +18,7 @@ class Rarity(str, Enum):
 
     def graduation_total_for(self, difficulty: 'DifficultyMode' = None) -> int:
         if difficulty is None:
-            difficulty = DifficultyMode.EASY
+            difficulty = DifficultyMode.MEDIUM
         return difficulty.graduation_totals[self]
 
     @classmethod

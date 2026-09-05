@@ -827,7 +827,7 @@ class CompanionEngine:
 
         dex = self.state.get("dex", [])
         expeditions = self.state.get("expeditions", [])
-        exp_map = {e["sp_id"]: e for e in expeditions}
+        exp_map = {e.get("sp_id"): e for e in expeditions if "sp_id" in e}
         roster = [d for d in dex if d.get("status") != "evolved"]
         target_entry = None
         s_input = selection_input.strip()
@@ -865,7 +865,7 @@ class CompanionEngine:
 
         # Prevent selecting a companion currently on an expedition
         expeditions = self.state.get("expeditions", [])
-        if any(e["sp_id"] == sp_id for e in expeditions):
+        if any(e.get("sp_id") == sp_id for e in expeditions):
             return False, f"Cannot select {sp_name}! They are currently on an expedition."
 
         # Prevent selecting a companion that has already evolved into a higher form
@@ -1323,7 +1323,7 @@ class CompanionEngine:
             inv[item_kind.value] -= 1
             # Complete the first expedition instantly
             exp = expeditions[0]
-            remaining_xp = exp["target"] - exp["progress"]
+            remaining_xp = max(0, exp.get("target", 0) - exp.get("progress", 0))
             events = []
             self._update_expeditions(remaining_xp, events)
             self.state["inventory"] = inv
@@ -1526,10 +1526,30 @@ class CompanionEngine:
         
         remaining = []
         for exp in expeditions:
-            sp_id = exp["sp_id"]
+            sp_id = exp.get("sp_id")
+            if not sp_id:
+                continue
             sp_name = self.api.get_species_name(sp_id)
-            area = exp["area"]
-            reward = exp["reward"]
+            area = exp.get("area", "Viridian Forest")
+            reward = exp.get("reward")
+            if not reward:
+                area_l = str(area).lower()
+                if "cerulean" in area_l:
+                    reward = "rare_candy"
+                elif "silver" in area_l:
+                    reward = "berry_golden"
+                elif "spear" in area_l:
+                    reward = "legendary_egg"
+                elif "mine" in area_l:
+                    reward = "evo_stone"
+                else:
+                    reward = "mint"
+                exp["reward"] = reward
+
+            if "progress" not in exp:
+                exp["progress"] = 0
+            if "target" not in exp:
+                exp["target"] = 5_000_000
 
             # Fetch rarity from dex to apply multiplier
             dex = self.state.get("dex", [])
@@ -1667,7 +1687,7 @@ class CompanionEngine:
             return False, "You don't have any Expedition Passes (🎫)!"
             
         exp = expeditions[idx]
-        exp["progress"] = exp["target"]
+        exp["progress"] = exp.get("target", 0)
         inv["expedition_pass"] -= 1
         if inv["expedition_pass"] <= 0:
             del inv["expedition_pass"]
@@ -1688,7 +1708,7 @@ class CompanionEngine:
             return False, "Your Pokédex is empty! Register companions before dispatching expeditions."
 
         expeditions = self.state.get("expeditions", [])
-        exp_map = {e["sp_id"]: e for e in expeditions}
+        exp_map = {e.get("sp_id"): e for e in expeditions if "sp_id" in e}
         all_discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
         roster = []
         for d in dex:
@@ -1746,7 +1766,7 @@ class CompanionEngine:
             self.set_active_mon(None)
 
         # Check if already on expedition
-        if any(e["sp_id"] == sp_id for e in expeditions):
+        if any(e.get("sp_id") == sp_id for e in expeditions):
             return False, f"{sp_name} is already on an expedition!"
 
         mon_state_dict = target_entry.get("mon_state", {})

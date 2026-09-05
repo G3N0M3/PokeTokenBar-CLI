@@ -43,11 +43,13 @@ def render_expeditions_tab(app):
         page_exps = expeditions[start_idx : start_idx + page_size]
         
         for i, exp in enumerate(page_exps, start_idx + 1):
-            sp_id = exp["sp_id"]
-            sp_name = app.engine.api.get_species_name(sp_id)
-            area = exp["area"]
-            pct = (exp["progress"] / exp["target"]) * 100 if exp["target"] > 0 else 0
-            sys.stdout.write(f"   [{i}] • {BOLD}{CYAN}{sp_name} (#{sp_id}){RESET} @ {area}: {format_tokens(exp['progress'])} / {format_tokens(exp['target'])} ({pct:.0f}%)\n")
+            sp_id = exp.get("sp_id")
+            sp_name = app.engine.api.get_species_name(sp_id) if sp_id else "Unknown"
+            area = exp.get("area", "Unknown Area")
+            progress = exp.get("progress", 0)
+            target = exp.get("target", 1)
+            pct = (progress / target) * 100 if target > 0 else 0
+            sys.stdout.write(f"   [{i}] • {BOLD}{CYAN}{sp_name} (#{sp_id}){RESET} @ {area}: {format_tokens(progress)} / {format_tokens(target)} ({pct:.0f}%)\n")
             
         if total_pages > 1:
             sys.stdout.write(f"\n  ➔ Page {app.expedition_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")
