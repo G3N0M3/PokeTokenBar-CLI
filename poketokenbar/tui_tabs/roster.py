@@ -33,7 +33,7 @@ def render(app):
         sys.stdout.write(f"   0. 🥚 {BOLD}Incubating {tier_name} Egg{RESET} ({pct:.1f}%) {egg_badge}\n")
 
     expeditions = app.engine.state.get("expeditions", [])
-    exp_map = {e["sp_id"]: e for e in expeditions}
+    exp_map = {e.get("sp_id"): e for e in expeditions if "sp_id" in e}
     # Filter dex to active roster (excluding pre-evolutions marked as 'evolved')
     roster = [d for d in dex if d.get("status") != "evolved"]
 
@@ -59,8 +59,11 @@ def render(app):
 
             if sp_id in exp_map:
                 exp_info = exp_map[sp_id]
-                pct = min(100.0, (exp_info["progress"] / exp_info["target"]) * 100 if exp_info.get("target", 0) > 0 else 100.0)
-                status_badge = f"{BOLD}{CYAN}[EXP: {exp_info['area'].capitalize()} {pct:.0f}%]{RESET}"
+                prog = exp_info.get("progress", 0)
+                target = exp_info.get("target", 1)
+                pct = min(100.0, (prog / target) * 100 if target > 0 else 100.0)
+                area_str = str(exp_info.get("area", "Unknown")).capitalize()
+                status_badge = f"{BOLD}{CYAN}[EXP: {area_str} {pct:.0f}%]{RESET}"
             elif status == "active" and active is not None:
                 status_badge = f"{BOLD}{GREEN}[ACTIVE]{RESET}"
             elif status == "inactive":

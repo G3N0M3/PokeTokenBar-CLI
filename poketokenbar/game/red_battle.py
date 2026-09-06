@@ -81,7 +81,7 @@ class RedBattleHandler:
         dex_map = {d.get("species_id", d.get("final_id", d.get("base_id"))): d for d in dex_list}
         
         expeditions = self.engine.state.get("expeditions", [])
-        exp_ids = {e["sp_id"] for e in expeditions}
+        exp_ids = {e.get("sp_id") for e in expeditions if "sp_id" in e}
         
         for pid in team_ids:
             if pid not in dex_map:

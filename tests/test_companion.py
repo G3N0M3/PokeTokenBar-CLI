@@ -159,5 +159,39 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertTrue(ok_valid)
         self.assertIn("Evolution Mine", msg_valid)
 
+    def test_roster_and_pokedex_rendering_defensive(self):
+        from unittest.mock import MagicMock
+        from poketokenbar.tui_tabs.roster import render as render_roster
+        from poketokenbar.tui_tabs.pokedex import render as render_pokedex
+        
+        # Add a mon to dex
+        self.engine.hatch_egg(0)
+        # Set a malformed expedition entry missing keys
+        self.engine.state["expeditions"] = [{"sp_id": 16}]
+        
+        app = MagicMock()
+        app.engine = self.engine
+        app.roster_page = 1
+        app.pokedex_page = 1
+        
+        # Rendering shouldn't raise any KeyError
+        try:
+            render_roster(app)
+            render_pokedex(app)
+        except Exception as e:
+            self.fail(f"Rendering raised unexpected exception: {e}")
+
+    def test_red_battle_assembly_with_expeditions(self):
+        from poketokenbar.game.red_battle import RedBattleHandler
+        self.engine.state["dex"] = [
+            {"species_id": pid, "base_id": pid, "status": "graduated"}
+            for pid in [3, 6, 9, 25, 143, 149]
+        ]
+        self.engine.state["expeditions"] = [{"sp_id": 149}]
+        handler = RedBattleHandler(self.engine)
+        ok, msg = handler.assemble_team([3, 6, 9, 25, 143, 149])
+        self.assertFalse(ok)
+        self.assertIn("expedition", msg)
+
 if __name__ == "__main__":
     unittest.main()

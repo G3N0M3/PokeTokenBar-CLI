@@ -413,13 +413,15 @@ class PokeTokenBarTUI:
                     else:
                         self.message = "Usage: size <number> (e.g. 'size 30')"
                 elif self.current_tab == 10 and cmd.startswith("blackjack"):
-                    self.handle_bank_blackjack(cmd)
+                    self.current_tab = 9
+                    self.minigame_state = "blackjack"
+                    self.message = "Switched to Casino Blackjack in Tab [9] Game Corner!"
                 elif self.current_tab == 6:
                     if cmd.startswith("assemble ") or cmd in ["fight 1", "fight 2", "fight 3", "fight 4", "run", "restart"] or cmd.startswith("swap "):
                         from poketokenbar.tui_tabs.red import handle_red_command
                         handle_red_command(self, cmd)
                     else:
-                        sys.stdout.write(f"\n  {RED}Invalid command.{RESET}\n")
+                        self.message = "Invalid command. Type a tab number (1-11), or battle command (assemble, fight, swap, run, restart)."
                 elif self.current_tab == 4 and cmd.startswith("buy"):
                     self.handle_shop_buy(cmd)
                 elif self.current_tab == 4 and (cmd.startswith("use") or cmd.startswith("unequip")):

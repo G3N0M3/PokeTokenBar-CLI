@@ -24,11 +24,11 @@ def render_quests_tab(app):
         sys.stdout.write("   No daily quests active today. Spend tokens to refresh!\n")
     else:
         for q in quests:
-            q_id = q["id"]
-            txt = q["text"]
-            prog = q["progress"]
-            target = q["target"]
-            claimed = q["claimed"]
+            q_id = q.get("id", "1")
+            txt = q.get("text", "")
+            prog = q.get("progress", 0)
+            target = q.get("target", 1)
+            claimed = q.get("claimed", False)
             if claimed:
                 status = f"{BOLD}{GREEN}[CLAIMED]{RESET}"
             elif prog >= target:

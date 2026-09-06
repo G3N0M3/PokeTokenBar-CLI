@@ -150,6 +150,8 @@ def handle_bag_use(app, cmd: str):
         ok, msg = app.engine.use_item(ItemKind.POKE_FLUTE, qty)
     elif choice == "7":
         ok, msg = app.engine.use_item(ItemKind.MASTER_BALL, qty)
+    elif choice == "8":
+        ok, msg = False, "Maps are used automatically when dispatching expeditions to Spear Pillar (3x required)!"
     elif choice == "9":
         ok, msg = app.engine.use_item(ItemKind.EXPEDITION_LICENSE, qty)
     elif choice == "10":

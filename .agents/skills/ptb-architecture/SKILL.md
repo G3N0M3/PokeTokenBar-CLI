@@ -21,7 +21,7 @@ Directory / File                      | Description
 `poketokenbar/game/companion.py`      | Game engine (`CompanionEngine`), hatch, evolution, raids, expeditions
 `poketokenbar/game/models.py`         | Data models (`MonState`, `Rarity`, `ItemKind`, `PokemonBalance`)
 `poketokenbar/game/storage.py`        | Persistent JSON state manager (`~/.poketokenbar/state.json`)
-`poketokenbar/game/pokemon_api.py`   | PokéAPI local caching & sprite fetcher (`~/.poketokenbar/cache/`)
+`poketokenbar/game/pokeapi.py`       | PokéAPI local caching & sprite fetcher (`~/.poketokenbar/cache/`)
 `poketokenbar/tracker/manager.py`     | Multi-source log tracker aggregator
 `poketokenbar/tracker/antigravity.py` | Antigravity CLI SQLite DB parser (`~/.gemini/antigravity-cli/conversations/*.db`)
 `poketokenbar/tracker/gemini.py`      | Gemini CLI JSON log parser (`~/.gemini/tmp/**/chats/*.json*`)

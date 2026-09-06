@@ -16,8 +16,8 @@ def render_battles_tab(app):
     badges = app.engine.state.get("gym_badges", [])
     logs = app.engine.state.get("battle_logs", [])
     red_unlocked = "🏆 Champion Badge" in badges or app.engine.state.get("dev_red_unlocked")
-    red_state = app.engine.state.get("red_battle", {})
-    red_active = red_state.get("status") in ["active", "win", "loss"]
+    red_state = app.engine.state.get("red_battle_state", {})
+    red_active = bool(red_state.get("player_team")) or red_state.get("status") in ["win", "loss"]
 
     if red_active:
         from poketokenbar.tui_tabs.red import render_red_tab
