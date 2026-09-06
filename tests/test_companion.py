@@ -106,6 +106,38 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertTrue(ok2)
         self.assertIn("Dispatched", msg2)
 
+    def test_expedition_dispatch_unevolved_companion_with_higher_form_discovered(self):
+        # User has Quilava (#156) and Typhlosion (#157) in dex
+        self.engine.state["dex"] = [
+            {"id": "sp_155", "species_id": 155, "base_id": 155, "chain_order": [155, 156, 157], "status": "evolved"},
+            {"id": "sp_156", "species_id": 156, "base_id": 155, "chain_order": [155, 156, 157], "status": "inactive"},
+            {"id": "sp_157", "species_id": 157, "base_id": 155, "chain_order": [155, 156, 157], "status": "inactive"}
+        ]
+        # In roster: row 1 is Quilava (156), row 2 is Typhlosion (157)
+        # 1. Dispatch row 1 -> must dispatch Quilava (#156)
+        ok1, msg1 = self.engine.dispatch_expedition("1", "viridian")
+        self.assertTrue(ok1)
+        self.assertIn("Quilava", msg1)
+        self.assertEqual(self.engine.state["expeditions"][0]["sp_id"], 156)
+
+        # Clear expeditions
+        self.engine.state["expeditions"] = []
+
+        # 2. Dispatch by name "quilava" -> must dispatch Quilava (#156)
+        ok2, msg2 = self.engine.dispatch_expedition("quilava", "viridian")
+        self.assertTrue(ok2)
+        self.assertIn("Quilava", msg2)
+        self.assertEqual(self.engine.state["expeditions"][0]["sp_id"], 156)
+
+        # Clear expeditions
+        self.engine.state["expeditions"] = []
+
+        # 3. Dispatch by species ID "156" -> must dispatch Quilava (#156)
+        ok3, msg3 = self.engine.dispatch_expedition("156", "viridian")
+        self.assertTrue(ok3)
+        self.assertIn("Quilava", msg3)
+        self.assertEqual(self.engine.state["expeditions"][0]["sp_id"], 156)
+
     def test_expedition_progress_advancement(self):
         self.engine.state["dex"] = [
             {"id": "sp_149", "species_id": 149, "base_id": 147, "chain_order": [147, 148, 149], "status": "inactive"}

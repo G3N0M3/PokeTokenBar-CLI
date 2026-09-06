@@ -940,8 +940,16 @@ class CompanionEngine:
                         target_entry = d
                         break
 
+            # 3. Fallback: match by species name across all entries (case-insensitive)
+            if target_entry is None:
+                for d in dex:
+                    sp_id = d.get("species_id", d.get("base_id"))
+                    if s_input.lower() == self.api.get_species_name(sp_id).lower():
+                        target_entry = d
+                        break
+
         if target_entry is None:
-            return False, f"Pokémon '{selection_input}' not found in Roster or Pokédex! Use roster index (1..{len(roster)}) or species ID (e.g. #570)."
+            return False, f"Pokémon '{selection_input}' not found in Roster or Pokédex! Use roster index (1..{len(roster)}), species ID (e.g. #570), or name."
 
         sp_id = target_entry.get("species_id", target_entry.get("base_id"))
         sp_name = self.api.get_species_name(sp_id)
@@ -1809,20 +1817,7 @@ class CompanionEngine:
             return False, "Your Pokédex is empty! Register companions before dispatching expeditions."
 
         expeditions = self.state.get("expeditions", [])
-        exp_map = {e.get("sp_id"): e for e in expeditions if "sp_id" in e}
-        all_discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
-        roster = []
-        for d in dex:
-            if d.get("status") == "evolved":
-                continue
-            sp_id = d.get("species_id", d.get("final_id", d.get("base_id")))
-            chain = d.get("chain_order", [])
-            if chain and sp_id in chain:
-                idx_in_chain = chain.index(sp_id)
-                higher_forms = [h for h in chain[idx_in_chain + 1:] if h in all_discovered_sp_ids]
-                if higher_forms:
-                    continue
-            roster.append(d)
+        roster = [d for d in dex if d.get("status") != "evolved"]
 
         s_input = selection_input.strip()
         target_entry = None
@@ -1836,7 +1831,7 @@ class CompanionEngine:
                     target_entry = d
                     break
         else:
-            # 2. Try matching by 1-based index in ROSTER (matching Tab 3)
+            # 2. Try matching by 1-based index in ROSTER (matching Tab 3 Roster exactly)
             try:
                 idx = int(s_input)
                 if 1 <= idx <= len(roster):
@@ -1852,8 +1847,16 @@ class CompanionEngine:
                         target_entry = d
                         break
 
+            # 4. Fallback to species name match within ROSTER (case-insensitive)
+            if target_entry is None:
+                for d in roster:
+                    sp_id = d.get("species_id", d.get("base_id"))
+                    if s_input.lower() == self.api.get_species_name(sp_id).lower():
+                        target_entry = d
+                        break
+
         if target_entry is None:
-            return False, f"Companion '{selection_input}' not found in Roster! Only active companions in your Roster can be dispatched on expeditions (use roster index 1..{len(roster)} or species ID)."
+            return False, f"Companion '{selection_input}' not found in Roster! Only active companions in your Roster can be dispatched on expeditions (use roster index 1..{len(roster)}, species ID, or name)."
 
         sp_id = target_entry.get("species_id", target_entry.get("base_id"))
         sp_name = self.api.get_species_name(sp_id)
