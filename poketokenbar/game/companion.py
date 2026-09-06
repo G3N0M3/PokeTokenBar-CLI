@@ -778,6 +778,14 @@ class CompanionEngine:
             self.set_active_mon(mon)
             return events
 
+        # If next evolution stage already exists in Pokédex, automatically halt evolution
+        if mon.stage_index < len(mon.path_ids) - 1:
+            next_sp_id = mon.path_ids[mon.stage_index + 1]
+            if next_sp_id in discovered_sp_ids:
+                mon.used_at_stage = min(mon.used_at_stage, target_xp)
+                self.set_active_mon(mon)
+                return events
+
         while mon.used_at_stage >= target_xp:
             if mon.stage_index < len(mon.path_ids) - 1:
                 # Evolve to next stage!
@@ -1481,6 +1489,13 @@ class CompanionEngine:
             
             if not target_evo_id:
                 return False, f"The {item_kind.name_en} has no effect on {self.api.get_species_name(active.current_id)}!"
+
+            # Block stone evolution if target evolved form already exists in Pokédex
+            dex = self.state.get("dex", [])
+            discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
+            if target_evo_id in discovered_sp_ids:
+                next_name = self.api.get_species_name(target_evo_id)
+                return False, f"Cannot evolve into {next_name}! {next_name} (#{target_evo_id}) already exists in your Pokédex."
                 
             inv[item_kind.value] -= 1
             if inv[item_kind.value] <= 0:

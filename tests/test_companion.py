@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from poketokenbar.game.companion import CompanionEngine
-from poketokenbar.game.models import ItemKind, Rarity
+from poketokenbar.game.models import ItemKind, Rarity, MonState, PokemonBalance
 from poketokenbar.game.storage import StorageManager
 
 class TestCompanionEngine(unittest.TestCase):
@@ -229,6 +229,60 @@ class TestCompanionEngine(unittest.TestCase):
         if active:
             # XP should have increased
             self.assertGreater(active.used_at_stage, initial_xp)
+
+    def test_auto_halt_evolution_when_next_stage_owned(self):
+        # Register Typhlosion (#157) in dex
+        self.engine.state["dex"] = [
+            {"id": "sp_157", "species_id": 157, "base_id": 155, "chain_order": [155, 156, 157], "status": "inactive"}
+        ]
+        # Active companion is Quilava (#156, stage 1)
+        mon = MonState(
+            base_id=155,
+            path_ids=[155, 156, 157],
+            planned_path_ids=[155, 156, 157],
+            stage_index=1,
+            used_at_stage=0,
+            rarity=Rarity.RARE,
+            total_forms=3
+        )
+        self.engine.set_active_mon(mon)
+
+        target_xp = PokemonBalance.phase_threshold(mon.rarity, mon.total_forms, mon.stage_index, self.engine.current_difficulty)
+
+        # Burn enough XP to normally trigger evolution
+        mon.used_at_stage = target_xp + 5_000_000
+        events = self.engine._check_growth(mon)
+
+        # Evolution should be halted: stage_index is still 1 (Quilava), XP capped at target_xp
+        self.assertEqual(self.engine.active_mon.stage_index, 1)
+        self.assertEqual(self.engine.active_mon.current_id, 156)
+        self.assertEqual(self.engine.active_mon.used_at_stage, target_xp)
+        self.assertEqual(len(events), 0)
+
+    def test_prevent_stone_evolution_if_owned(self):
+        from poketokenbar.game.models import ItemKind
+        # Register Vaporeon (#134) in dex
+        self.engine.state["dex"] = [
+            {"id": "sp_134", "species_id": 134, "base_id": 133, "status": "inactive"}
+        ]
+        # Active companion is Eevee (#133)
+        mon = MonState(
+            base_id=133,
+            path_ids=[133],
+            planned_path_ids=[133],
+            stage_index=0,
+            used_at_stage=0,
+            rarity=Rarity.UNCOMMON,
+            total_forms=2
+        )
+        self.engine.set_active_mon(mon)
+        self.engine.state["inventory"] = {"water_stone": 1}
+
+        # Attempt to use Water Stone
+        ok, msg = self.engine.use_item(ItemKind.WATER_STONE)
+        self.assertFalse(ok)
+        self.assertIn("already exists in your Pokédex", msg)
+        self.assertEqual(self.engine.state["inventory"].get("water_stone"), 1)
 
     def test_expedition_missing_keys_defensive(self):
         # Expeditions with missing reward/target/progress should not raise KeyError

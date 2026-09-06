@@ -91,8 +91,12 @@ def render(app, summary: dict):
             bar = format_progress_bar(active.used_at_stage, target_xp, width=12)
             next_id = active.path_ids[active.stage_index + 1]
             next_name = app.engine.api.get_species_name(next_id)
+            dex = app.engine.state.get("dex", [])
+            discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
             if active.held_item == "everstone":
                 sys.stdout.write(f"  Evo -> {next_name}: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)}) {YELLOW}[EVERSTONE]{RESET}\n")
+            elif next_id in discovered_sp_ids:
+                sys.stdout.write(f"  Evo -> {next_name}: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)}) {YELLOW}[OWNED]{RESET}\n")
             else:
                 sys.stdout.write(f"  Evo -> {next_name}: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)})\n")
         else:
