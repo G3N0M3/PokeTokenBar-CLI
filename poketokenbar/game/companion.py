@@ -1757,14 +1757,6 @@ class CompanionEngine:
         sp_id = target_entry.get("species_id", target_entry.get("base_id"))
         sp_name = self.api.get_species_name(sp_id)
 
-        # Check if active companion (comparing base_id)
-        active = self.active_mon
-        is_mega_dispatch = False
-        if active and active.base_id == target_entry.get("base_id"):
-            is_mega_dispatch = active.is_mega
-            self._register_to_dex(active, status="inactive")
-            self.set_active_mon(None)
-
         # Check if already on expedition
         if any(e.get("sp_id") == sp_id for e in expeditions):
             return False, f"{sp_name} is already on an expedition!"
@@ -1788,7 +1780,41 @@ class CompanionEngine:
             "mine": ("Evolution Mine", 10_000_000, "evo_stone")
         }
 
-        key = area_name.lower().split()[0]
+        clean_area = area_name.strip().lower()
+        key = None
+        if clean_area in ("viridian", "viridian forest"):
+            key = "viridian"
+        elif clean_area in ("cerulean", "cerulean cave"):
+            key = "cerulean"
+        elif clean_area in ("silver", "mt silver", "mt. silver", "mount silver", "mt"):
+            key = "silver"
+        elif clean_area in ("spear", "spear pillar", "spear pillar (deep)", "deep"):
+            key = "spear"
+        elif clean_area in ("mine", "evolution mine", "evolution"):
+            key = "mine"
+        else:
+            words = clean_area.split()
+            for w in words:
+                w_clean = w.strip(".,")
+                if w_clean == "viridian":
+                    key = "viridian"
+                    break
+                elif w_clean == "cerulean":
+                    key = "cerulean"
+                    break
+                elif w_clean in ("silver", "mount"):
+                    key = "silver"
+                    break
+                elif w_clean in ("spear", "pillar"):
+                    key = "spear"
+                    break
+                elif w_clean in ("mine", "evolution"):
+                    key = "mine"
+                    break
+
+        if not key or key not in areas:
+            return False, f"Expedition destination '{area_name}' is not one of the available options! Available destinations: viridian, mine, cerulean, silver, spear."
+
         if key == "spear":
             inv = self.state.get("inventory", {})
             if inv.get("map_fragment", 0) < 3:
@@ -1801,8 +1827,15 @@ class CompanionEngine:
             inv["map_fragment"] -= 3
             self.state["inventory"] = inv
 
-        area_tuple = areas.get(key, ("Viridian Forest", 5_000_000, "mint"))
-        area_title, target_xp, reward_type = area_tuple
+        # Check if active companion (comparing base_id)
+        active = self.active_mon
+        is_mega_dispatch = False
+        if active and active.base_id == target_entry.get("base_id"):
+            is_mega_dispatch = active.is_mega
+            self._register_to_dex(active, status="inactive")
+            self.set_active_mon(None)
+
+        area_title, target_xp, reward_type = areas[key]
 
         target_entry["happiness"] = max(0, target_entry.get("happiness", 100) - 10)
 

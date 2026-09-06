@@ -145,5 +145,19 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertGreater(exp.get("progress", 0), 0)
         self.assertEqual(exp.get("target"), 5_000_000)
 
+    def test_dispatch_expedition_invalid_destination(self):
+        mon, events = self.engine.hatch_egg(0)
+        # Dispatch with mistyped destination 'ine'
+        ok, msg = self.engine.dispatch_expedition("1", "ine")
+        self.assertFalse(ok)
+        self.assertIn("not one of the available options", msg)
+        self.assertIn("ine", msg)
+        # Active companion should NOT be cleared on failed dispatch
+        self.assertIsNotNone(self.engine.active_mon)
+        # Valid destination 'mine' should succeed
+        ok_valid, msg_valid = self.engine.dispatch_expedition("1", "mine")
+        self.assertTrue(ok_valid)
+        self.assertIn("Evolution Mine", msg_valid)
+
 if __name__ == "__main__":
     unittest.main()

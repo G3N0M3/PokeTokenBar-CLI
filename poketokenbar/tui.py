@@ -328,7 +328,7 @@ class PokeTokenBarTUI:
                 elif cmd.startswith("send") or cmd.startswith("expedition"):
                     parts = cmd.split()
                     if len(parts) >= 2:
-                        area = parts[2] if len(parts) >= 3 else "viridian"
+                        area = " ".join(parts[2:]) if len(parts) >= 3 else "viridian"
                         ok, msg = self.engine.dispatch_expedition(parts[1], area)
                         self.message = msg
                     else:
