@@ -100,7 +100,7 @@ def render(app, summary: dict):
             next_id = active.path_ids[active.stage_index + 1]
             next_name = app.engine.api.get_species_name(next_id)
             if active.held_item == "everstone":
-                sys.stdout.write(f"  Evo -> {next_name}: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)}) {YELLOW}[EVERSTONE - HALTED]{RESET}\n")
+                sys.stdout.write(f"  Evo -> {next_name}: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)}) {YELLOW}[EVERSTONE]{RESET}\n")
             else:
                 sys.stdout.write(f"  Evo -> {next_name}: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)})\n")
         else:

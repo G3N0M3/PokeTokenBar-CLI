@@ -236,7 +236,7 @@ class TestCompanionEngine(unittest.TestCase):
             render_companion(app, summary)
         output = stdout_trap.getvalue()
         self.assertIn("Everstone", output)
-        self.assertIn("EVERSTONE - HALTED", output)
+        self.assertIn("EVERSTONE", output)
 
         # Test unequip
         ok_unequip, msg_unequip = self.engine.unequip_item()
