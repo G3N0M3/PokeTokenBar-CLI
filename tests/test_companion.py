@@ -765,6 +765,91 @@ class TestCompanionEngine(unittest.TestCase):
             self.assertEqual(tui.engine.state["investments"]["silph"], 0)
             self.assertIsNone(tui.stock_terminal)
 
+    def test_expedition_multi_selection_and_interactive_picker(self):
+        """Verify interactive multi-select picker and staged expedition dispatching."""
+        from poketokenbar.tui import PokeTokenBarTUI
+        from poketokenbar.tui_tabs.expeditions import render_expedition_picker
+        import io
+        from unittest.mock import patch, MagicMock
+
+        # Setup 4 companions in dex
+        for sp in [4, 7, 1, 25]:
+            mon = MonState(
+                base_id=sp,
+                path_ids=[sp],
+                planned_path_ids=[sp],
+                stage_index=0,
+                used_at_stage=1000,
+                rarity=Rarity.COMMON,
+                total_forms=1,
+                happiness=100
+            )
+            self.engine._register_to_dex(mon, status="inactive")
+
+        with patch("poketokenbar.tui.UsageManager") as mock_mgr:
+            instance = MagicMock()
+            instance.get_summary.return_value = {
+                "total_tokens": 100_000_000,
+                "today_tokens": 0, "week_tokens": 0, "month_tokens": 0,
+                "antigravity_today": 0, "gemini_today": 0, "claude_today": 0,
+                "burn_rate_tpm": 0, "active_days": []
+            }
+            mock_mgr.return_value = instance
+
+            tui = PokeTokenBarTUI()
+            tui.engine = self.engine
+
+            # 1. Test _parse_indices_string
+            self.assertEqual(tui._parse_indices_string("1,2,3"), [1, 2, 3])
+            self.assertEqual(tui._parse_indices_string("1 2 4"), [1, 2, 4])
+            self.assertEqual(tui._parse_indices_string("1-3"), [1, 2, 3])
+            self.assertEqual(tui._parse_indices_string("#25"), [4])
+            self.assertEqual(tui._parse_indices_string("all"), [1, 2, 3, 4])
+
+            # 2. Test _toggle_selection_indices
+            tui._toggle_selection_indices([1, 2])
+            self.assertEqual(tui.selected_expedition_targets, {1, 2})
+            # Toggling 1 removes it
+            tui._toggle_selection_indices([1])
+            self.assertEqual(tui.selected_expedition_targets, {2})
+            # Toggling 1 re-adds it
+            tui._toggle_selection_indices([1])
+            self.assertEqual(tui.selected_expedition_targets, {1, 2})
+
+            # 3. Test render_expedition_picker
+            out = io.StringIO()
+            with patch("sys.stdout", out):
+                render_expedition_picker(tui)
+            rendered = out.getvalue()
+            self.assertIn("Expedition Dispatcher", rendered)
+            self.assertIn("Charmander", rendered)
+
+            # 4. Test staged expedition dispatch via TUI loop ('send mine')
+            # 2 companions are selected: #1 Charmander, #2 Squirtle
+            commands = "\n".join(["send mine", "q"]) + "\n"
+            with patch("sys.stdin", io.StringIO(commands)), patch("sys.stdout"):
+                tui.run()
+
+            exps = self.engine.state.get("expeditions", [])
+            self.assertEqual(len(exps), 2)
+            self.assertEqual(exps[0]["area"], "Evolution Mine")
+            self.assertEqual(exps[1]["area"], "Evolution Mine")
+            # Selection should be cleared after dispatch
+            self.assertEqual(len(tui.selected_expedition_targets), 0)
+
+            # 5. Test Interactive Picker Mode via 'dispatch'
+            # Dispatch Bulbasaur (#3 in roster) and Pikachu (#4 in roster) to Viridian via picker
+            tui2 = PokeTokenBarTUI()
+            tui2.engine = self.engine
+            commands2 = "\n".join(["5", "dispatch", "3 4", "viridian", "q"]) + "\n"
+            with patch("sys.stdin", io.StringIO(commands2)), patch("sys.stdout"):
+                tui2.run()
+
+            exps = self.engine.state.get("expeditions", [])
+            self.assertEqual(len(exps), 4)
+            self.assertEqual(exps[2]["area"], "Viridian Forest")
+            self.assertEqual(exps[3]["area"], "Viridian Forest")
+
 if __name__ == "__main__":
     unittest.main()
 

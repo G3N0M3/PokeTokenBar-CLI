@@ -3,7 +3,8 @@ import sys
 import time
 import random
 import datetime
-from typing import Optional, Tuple
+import math
+from typing import Optional, Tuple, Set, List
 
 from poketokenbar.tracker.manager import UsageManager
 from poketokenbar.game.companion import CompanionEngine
@@ -33,6 +34,9 @@ class PokeTokenBarTUI:
         self.roster_page = 1
         self.stock_page = 1
         self.stock_terminal = None
+        self.selected_expedition_targets: Set[int] = set()
+        self.expedition_picker_mode: bool = False
+        self.picker_page: int = 1
 
     def clear_screen(self):
         sys.stdout.write("\033[H\033[2J")
@@ -212,37 +216,101 @@ class PokeTokenBarTUI:
                     if 0 <= idx < len(c_keys):
                         self.stock_terminal = c_keys[idx]
                         self.message = f"Opened {CORPORATIONS[self.stock_terminal].ticker} Trade Terminal."
+                elif getattr(self, "expedition_picker_mode", False):
+                    # In Interactive Expedition Picker mode
+                    if cmd in ["back", "exit", "q", "done", "close", "cancel"]:
+                        self.expedition_picker_mode = False
+                        self.message = "Exited Expedition Dispatcher."
+                    elif cmd in ["next", "n"]:
+                        dex = self.engine.state.get("dex", [])
+                        roster = [d for d in dex if d.get("status") != "evolved"]
+                        total_pages = max(1, math.ceil(len(roster) / 10))
+                        if getattr(self, "picker_page", 1) < total_pages:
+                            self.picker_page = getattr(self, "picker_page", 1) + 1
+                        else:
+                            self.message = f"Already on the last page ({total_pages})."
+                    elif cmd in ["prev", "p", "previous"]:
+                        if getattr(self, "picker_page", 1) > 1:
+                            self.picker_page = getattr(self, "picker_page", 1) - 1
+                        else:
+                            self.message = "Already on page 1."
+                    elif cmd.startswith("page "):
+                        try:
+                            target_p = int(cmd.split()[1])
+                            dex = self.engine.state.get("dex", [])
+                            roster = [d for d in dex if d.get("status") != "evolved"]
+                            total_pages = max(1, math.ceil(len(roster) / 10))
+                            if 1 <= target_p <= total_pages:
+                                self.picker_page = target_p
+                            else:
+                                self.message = f"Invalid page. Must be between 1 and {total_pages}."
+                        except ValueError:
+                            self.message = "Usage: page <number>"
+                    elif cmd in ["clear", "none", "deselect", "reset"]:
+                        self.selected_expedition_targets.clear()
+                        self.message = "Cleared all selected companions."
+                    elif cmd == "all":
+                        indices = self._parse_indices_string("all")
+                        self._toggle_selection_indices(indices)
+                    elif self._is_expedition_destination_cmd(cmd):
+                        area = self._resolve_expedition_destination(cmd)
+                        if not self.selected_expedition_targets:
+                            self.message = f"No companions selected! Enter row numbers (e.g. '1 2 3') first before choosing destination '{area}'."
+                        else:
+                            target_list = [str(i) for i in sorted(self.selected_expedition_targets)]
+                            ok, msg = self.engine.dispatch_expedition(target_list, area)
+                            if ok:
+                                self.selected_expedition_targets.clear()
+                                self.expedition_picker_mode = False
+                            self.message = msg
+                    else:
+                        clean_cmd = cmd.replace("toggle", "").replace("pick", "").replace("select", "").strip()
+                        indices = self._parse_indices_string(clean_cmd)
+                        if indices:
+                            self._toggle_selection_indices(indices)
+                        else:
+                            self.message = "Enter row numbers to toggle, destination ('viridian', 'mine', etc.) to launch, or 'back' to exit."
                 elif cmd == "1":
+                    self.expedition_picker_mode = False
                     self.current_tab = 1
                     self.message = ""
                 elif cmd == "2":
+                    self.expedition_picker_mode = False
                     self.current_tab = 2
                     self.message = ""
                 elif cmd == "3":
+                    self.expedition_picker_mode = False
                     self.current_tab = 3
                     self.message = ""
                 elif cmd == "4":
+                    self.expedition_picker_mode = False
                     self.current_tab = 4
                     self.message = ""
                 elif cmd == "5":
                     self.current_tab = 5
                     self.message = ""
                 elif cmd == "6":
+                    self.expedition_picker_mode = False
                     self.current_tab = 6
                     self.message = ""
                 elif cmd == "7":
+                    self.expedition_picker_mode = False
                     self.current_tab = 7
                     self.message = ""
                 elif cmd == "8":
+                    self.expedition_picker_mode = False
                     self.current_tab = 8
                     self.message = ""
                 elif cmd == "9":
+                    self.expedition_picker_mode = False
                     self.current_tab = 9
                     self.message = ""
                 elif cmd == "10":
+                    self.expedition_picker_mode = False
                     self.current_tab = 10
                     self.message = ""
                 elif cmd == "11":
+                    self.expedition_picker_mode = False
                     self.current_tab = 11
                     self.message = ""
                 elif cmd == "12":
@@ -330,13 +398,44 @@ class PokeTokenBarTUI:
                             self.engine.save()
                         except ValueError:
                             self.message = "Invalid size. Usage: pagesize <dex|roster|exp|bag|mega> <number>"
-                elif cmd.startswith("select") or cmd.startswith("sel ") or cmd == "sel":
-                    parts = cmd.split()
-                    if len(parts) >= 2:
-                        ok, msg = self.engine.select_active_from_dex(parts[1])
-                        self.message = msg
+                elif cmd in ["dispatch", "picker"] or (cmd == "pick" and self.current_tab in [3, 5]):
+                    self.expedition_picker_mode = True
+                    self.current_tab = 5
+                    self.message = "Opened Expedition Dispatcher."
+                elif cmd in ["clear", "deselect", "unselect"] and self.selected_expedition_targets:
+                    self.selected_expedition_targets.clear()
+                    self.message = "Cleared all selected companions."
+                elif cmd.startswith("select") or cmd.startswith("sel ") or cmd == "sel" or cmd.startswith("pick "):
+                    if self.current_tab == 5 and cmd in ["select", "sel", "pick"]:
+                        self.expedition_picker_mode = True
+                        self.message = "Opened Expedition Dispatcher."
                     else:
-                        self.message = "Usage: sel <ROW INDEX>|#<POKEMON INDEX>, or sel egg"
+                        arg = cmd.split(maxsplit=1)[1].strip() if " " in cmd else ""
+                        if not arg:
+                            if self.current_tab == 5:
+                                self.expedition_picker_mode = True
+                                self.message = "Opened Expedition Dispatcher."
+                            else:
+                                self.message = "Usage: sel <row>|#<dex>|egg to switch active, or select <1 2 3> [area] for expedition"
+                        elif arg.lower() == "egg":
+                            ok, msg = self.engine.select_active_from_dex("egg")
+                            self.message = msg
+                        else:
+                            has_area = any(ka in arg.lower() for ka in ["viridian", "mine", "cerulean", "silver", "spear"])
+                            has_multi = ("," in arg) or (len(arg.split()) > 1 and not has_area) or ("-" in arg and not arg.startswith("#")) or (arg.lower() == "all")
+                            if has_area:
+                                targets, area = self._parse_send_args(arg)
+                                ok, msg = self.engine.dispatch_expedition(targets, area)
+                                self.message = msg
+                            elif has_multi or cmd.startswith("pick ") or self.current_tab == 5:
+                                indices = self._parse_indices_string(arg)
+                                if indices:
+                                    self._toggle_selection_indices(indices)
+                                else:
+                                    self.message = "Invalid companion numbers. E.g. 'select 1 2 3' or 'select 1-5'"
+                            else:
+                                ok, msg = self.engine.select_active_from_dex(arg)
+                                self.message = msg
                 elif cmd.startswith("claim"):
                     parts = cmd.split()
                     if self.current_tab == 10 and getattr(self, "bank_subtab", "") == "cd":
@@ -348,11 +447,25 @@ class PokeTokenBarTUI:
                 elif cmd.startswith("send") or cmd.startswith("expedition"):
                     cmd_body = cmd.split(maxsplit=1)[1] if " " in cmd else ""
                     if not cmd_body:
-                        self.message = "Usage: send <row(s)|#dex|all> [area]  (e.g. 'send 1,2,3 viridian', 'send 1-5 mine', 'send all silver')"
+                        if self.selected_expedition_targets:
+                            self.message = f"{len(self.selected_expedition_targets)} companion(s) selected! Type: 'send viridian', 'send mine', etc."
+                        else:
+                            self.expedition_picker_mode = True
+                            self.current_tab = 5
+                            self.message = "Opened Expedition Dispatcher."
                     else:
-                        targets, area = self._parse_send_args(cmd_body)
-                        ok, msg = self.engine.dispatch_expedition(targets, area)
-                        self.message = msg
+                        clean_body = cmd_body.strip().lower()
+                        if self.selected_expedition_targets and self._is_expedition_destination_cmd(clean_body):
+                            area = self._resolve_expedition_destination(clean_body)
+                            target_list = [str(i) for i in sorted(self.selected_expedition_targets)]
+                            ok, msg = self.engine.dispatch_expedition(target_list, area)
+                            if ok:
+                                self.selected_expedition_targets.clear()
+                            self.message = msg
+                        else:
+                            targets, area = self._parse_send_args(cmd_body)
+                            ok, msg = self.engine.dispatch_expedition(targets, area)
+                            self.message = msg
                 elif cmd.startswith("pass") and self.current_tab == 5:
                     parts = cmd.split()
                     if len(parts) >= 2:
@@ -643,6 +756,124 @@ class PokeTokenBarTUI:
         # Otherwise, treat the tail token as destination area (e.g. typos like 'ine')
         return " ".join(tokens[:-1]), tokens[-1]
 
+    @staticmethod
+    def _is_expedition_destination_cmd(cmd: str) -> bool:
+        cmd = cmd.strip().lower()
+        if cmd.startswith("to ") or cmd.startswith("go ") or cmd.startswith("send "):
+            return True
+        known_areas = {
+            "viridian", "viridian forest", "mine", "evolution mine", "evolution",
+            "cerulean", "cerulean cave", "silver", "mt silver", "mt. silver", "mount silver",
+            "spear", "spear pillar", "deep"
+        }
+        return cmd in known_areas
+
+    @staticmethod
+    def _resolve_expedition_destination(cmd: str) -> str:
+        cmd = cmd.strip().lower()
+        if cmd.startswith("to "):
+            cmd = cmd[3:].strip()
+        elif cmd.startswith("go "):
+            cmd = cmd[3:].strip()
+        elif cmd.startswith("send "):
+            cmd = cmd[5:].strip()
+
+        dest_map = {
+            "1": "viridian", "2": "mine", "3": "cerulean", "4": "silver", "5": "spear",
+            "viridian": "viridian", "viridian forest": "viridian",
+            "mine": "mine", "evolution mine": "mine", "evolution": "mine",
+            "cerulean": "cerulean", "cerulean cave": "cerulean",
+            "silver": "silver", "mt silver": "silver", "mt. silver": "silver", "mount silver": "silver",
+            "spear": "spear", "spear pillar": "spear", "deep": "spear"
+        }
+        return dest_map.get(cmd, cmd)
+
+    def _parse_indices_string(self, raw_str: str) -> List[int]:
+        """Parses a string of indices, ranges, species IDs, or 'all' into 1-based roster indices."""
+        raw_str = raw_str.strip()
+        if not raw_str:
+            return []
+        
+        roster = [d for d in self.engine.state.get("dex", []) if d.get("status") != "evolved"]
+        if raw_str.lower() == "all":
+            return list(range(1, len(roster) + 1))
+
+        norm = raw_str.replace(",", " ")
+        tokens: List[int] = []
+        for part in norm.split():
+            part = part.strip()
+            if not part:
+                continue
+            if part.startswith("#"):
+                sp_id_str = part[1:]
+                for idx, d in enumerate(roster, 1):
+                    if str(d.get("species_id", d.get("base_id"))) == sp_id_str:
+                        tokens.append(idx)
+                        break
+                continue
+            if "-" in part:
+                sub = part.split("-")
+                if len(sub) == 2 and sub[0].isdigit() and sub[1].isdigit():
+                    tokens.extend(list(range(int(sub[0]), int(sub[1]) + 1)))
+                    continue
+            if ".." in part:
+                sub = part.split("..")
+                if len(sub) == 2 and sub[0].isdigit() and sub[1].isdigit():
+                    tokens.extend(list(range(int(sub[0]), int(sub[1]) + 1)))
+                    continue
+            if part.isdigit():
+                tokens.append(int(part))
+        return tokens
+
+    def _toggle_selection_indices(self, indices: List[int]):
+        roster = [d for d in self.engine.state.get("dex", []) if d.get("status") != "evolved"]
+        expeditions = self.engine.state.get("expeditions", [])
+        slot_limit = self.engine.state.get("expedition_slots", 10)
+        avail_slots = max(0, slot_limit - len(expeditions))
+        deployed_ids = {e.get("sp_id") for e in expeditions if "sp_id" in e}
+
+        toggled_on = []
+        toggled_off = []
+        skipped_reasons = []
+
+        for idx in indices:
+            if not (1 <= idx <= len(roster)):
+                skipped_reasons.append(f"#{idx} out of range")
+                continue
+            entry = roster[idx - 1]
+            sp_id = entry.get("species_id", entry.get("base_id"))
+            sp_name = self.engine.api.get_species_name(sp_id)
+
+            if idx in self.selected_expedition_targets:
+                self.selected_expedition_targets.remove(idx)
+                toggled_off.append(sp_name)
+            else:
+                if sp_id in deployed_ids:
+                    skipped_reasons.append(f"{sp_name} (deployed)")
+                    continue
+                mon_data = entry.get("mon_state", {})
+                hap = mon_data.get("happiness", 100) if isinstance(mon_data, dict) else 100
+                if hap <= 0:
+                    skipped_reasons.append(f"{sp_name} (exhausted)")
+                    continue
+                if len(self.selected_expedition_targets) >= avail_slots:
+                    skipped_reasons.append(f"slots full (max {avail_slots})")
+                    break
+                self.selected_expedition_targets.add(idx)
+                toggled_on.append(sp_name)
+
+        parts = []
+        if toggled_on:
+            parts.append(f"Selected: {', '.join(toggled_on)}")
+        if toggled_off:
+            parts.append(f"Deselected: {', '.join(toggled_off)}")
+        if skipped_reasons:
+            parts.append(f"Skipped: {', '.join(skipped_reasons)}")
+        
+        tot = len(self.selected_expedition_targets)
+        status_tail = f" [{tot}/{avail_slots} selected. Type 'send <area>' or destination to launch!]" if tot > 0 else " [0 selected]"
+        self.message = " | ".join(parts) + status_tail if parts else f"No changes made.{status_tail}"
+
     def render_header(self, summary: dict):
         sys.stdout.write(f"{HEADER}{'='*72}{RESET}\n")
         sys.stdout.write(f"{HEADER} ⚡ POKETOKENBAR — AI Token Pokémon Companion (Linux CLI Edition) 🐾 {RESET}\n")
@@ -699,8 +930,11 @@ class PokeTokenBarTUI:
         render_quests_tab(self)
 
     def render_expeditions_tab(self):
-        from poketokenbar.tui_tabs.expeditions import render_expeditions_tab
-        render_expeditions_tab(self)
+        from poketokenbar.tui_tabs.expeditions import render_expeditions_tab, render_expedition_picker
+        if getattr(self, "expedition_picker_mode", False):
+            render_expedition_picker(self)
+        else:
+            render_expeditions_tab(self)
 
     def render_battles_tab(self):
         from poketokenbar.tui_tabs.battles import render_battles_tab
