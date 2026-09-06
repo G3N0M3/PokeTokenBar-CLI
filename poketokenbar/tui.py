@@ -323,7 +323,11 @@ class PokeTokenBarTUI:
                         self.message = "Usage: sel <ROW INDEX>|#<POKEMON INDEX>, or sel egg"
                 elif cmd.startswith("claim"):
                     parts = cmd.split()
-                    ok, msg = self.engine.claim_quest_reward(parts[-1] if len(parts) >= 2 else "all")
+                    if self.current_tab == 10 and getattr(self, "bank_subtab", "") == "cd":
+                        target = parts[1] if len(parts) >= 2 else "all"
+                        ok, msg = self.engine.claim_cd(target)
+                    else:
+                        ok, msg = self.engine.claim_quest_reward(parts[-1] if len(parts) >= 2 else "all")
                     self.message = msg
                 elif cmd.startswith("send") or cmd.startswith("expedition"):
                     parts = cmd.split()
@@ -412,10 +416,80 @@ class PokeTokenBarTUI:
                             self.message = "Sprite size must be between 10 and 72."
                     else:
                         self.message = "Usage: size <number> (e.g. 'size 30')"
+                elif self.current_tab == 10 and cmd in ["b", "checking"]:
+                    self.bank_subtab = "checking"
+                    self.message = ""
+                elif self.current_tab == 10 and cmd in ["c", "cd"]:
+                    self.bank_subtab = "cd"
+                    self.message = ""
+                elif self.current_tab == 10 and cmd in ["s", "stocks", "stock"]:
+                    self.bank_subtab = "stocks"
+                    self.message = ""
                 elif self.current_tab == 10 and cmd.startswith("blackjack"):
                     self.current_tab = 9
                     self.minigame_state = "blackjack"
                     self.message = "Switched to Casino Blackjack in Tab [9] Game Corner!"
+                elif cmd.startswith("cd "):
+                    parts = cmd.split()
+                    action = parts[1] if len(parts) > 1 else ""
+                    if action == "open" and len(parts) >= 4:
+                        try:
+                            days = int(parts[3])
+                            ok, msg = self.engine.open_cd(parts[2], days)
+                        except ValueError:
+                            ok, msg = False, "Term days must be 3, 7, or 14. E.g. 'cd open 10m 7'"
+                    elif action == "claim":
+                        target = parts[2] if len(parts) >= 3 else "all"
+                        ok, msg = self.engine.claim_cd(target)
+                    elif action == "break" and len(parts) >= 3:
+                        ok, msg = self.engine.break_cd(parts[2])
+                    else:
+                        ok, msg = False, "CD Usage: 'cd open <amt> <3|7|14>', 'cd claim <id|all>', or 'cd break <id>'"
+                    self.message = msg
+                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "cd" and cmd.startswith("open "):
+                    parts = cmd.split()
+                    if len(parts) >= 3:
+                        try:
+                            days = int(parts[2])
+                            ok, msg = self.engine.open_cd(parts[1], days)
+                        except ValueError:
+                            ok, msg = False, "Term days must be 3, 7, or 14. E.g. 'open 10m 7'"
+                    else:
+                        ok, msg = False, "Usage: cd open <amt> <3|7|14>"
+                    self.message = msg
+                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "cd" and cmd.startswith("break "):
+                    parts = cmd.split()
+                    if len(parts) >= 2:
+                        ok, msg = self.engine.break_cd(parts[1])
+                    else:
+                        ok, msg = False, "Usage: cd break <id>"
+                    self.message = msg
+                elif cmd.startswith("invest "):
+                    parts = cmd.split()
+                    if len(parts) >= 2:
+                        shares = parts[2] if len(parts) >= 3 else "1"
+                        ok, msg = self.engine.invest_corporate(parts[1], shares)
+                    else:
+                        ok, msg = False, "Usage: invest <corp> <shares|all> (e.g. 'invest silph 2')"
+                    self.message = msg
+                elif cmd.startswith("divest "):
+                    parts = cmd.split()
+                    if len(parts) >= 2:
+                        shares = parts[2] if len(parts) >= 3 else "1"
+                        ok, msg = self.engine.divest_corporate(parts[1], shares)
+                    else:
+                        ok, msg = False, "Usage: divest <corp> <shares|all> (e.g. 'divest silph 1')"
+                    self.message = msg
+                elif cmd in ["market", "bm"]:
+                    self.current_tab = 4
+                    self.shop_view = "black_market"
+                    self.message = ""
+                elif self.current_tab == 4 and cmd in ["shop", "back", "normal"]:
+                    self.shop_view = "normal"
+                    self.message = ""
+                elif cmd.startswith("deal"):
+                    from poketokenbar.tui_tabs.shop import handle_deal_buy
+                    handle_deal_buy(self, cmd)
                 elif self.current_tab == 6:
                     if cmd.startswith("assemble ") or cmd in ["fight 1", "fight 2", "fight 3", "fight 4", "run", "restart"] or cmd.startswith("swap "):
                         from poketokenbar.tui_tabs.red import handle_red_command

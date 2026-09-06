@@ -244,6 +244,186 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertIsNone(self.engine.active_mon.held_item)
         self.assertEqual(self.engine.state["inventory"]["everstone"], 1)
 
+    def test_term_deposits_system(self):
+        self.engine.state["used_since_install"] = 100_000_000
+        initial_tokens = self.engine.available_tokens
+
+        # Open 3-day CD with 10M
+        ok, msg = self.engine.open_cd("10m", 3)
+        self.assertTrue(ok)
+        self.assertEqual(self.engine.available_tokens, initial_tokens - 10_000_000)
+        cds = self.engine.state.get("term_deposits", [])
+        self.assertEqual(len(cds), 1)
+        self.assertEqual(cds[0]["principal"], 10_000_000)
+        self.assertEqual(cds[0]["term_days"], 3)
+        self.assertFalse(cds[0]["matured"])
+
+        # Premature claim should fail
+        ok_claim, msg_claim = self.engine.claim_cd("1")
+        self.assertFalse(ok_claim)
+        self.assertIn("not matured", msg_claim)
+
+        # Early break forfeits interest and incurs 10% penalty
+        ok_break, msg_break = self.engine.break_cd("1")
+        self.assertTrue(ok_break)
+        self.assertEqual(len(self.engine.state.get("term_deposits", [])), 0)
+        self.assertEqual(self.engine.available_tokens, initial_tokens - 1_000_000)
+
+        # Open a 7-day CD and let it mature through day rollovers
+        ok, msg = self.engine.open_cd("10m", 7)
+        self.assertTrue(ok)
+        self.engine.state["last_active_date"] = "2026-08-01"
+        self.engine.state["install_baseline_set"] = True
+        
+        # Advance 7 days
+        self.engine.process_usage(100_000_000, ["2026-08-01", "2026-08-08"])
+        cds = self.engine.state.get("term_deposits", [])
+        self.assertEqual(len(cds), 1)
+        self.assertTrue(cds[0]["matured"])
+        self.assertGreater(cds[0]["current_value"], 10_000_000)
+
+        # Claim matured CD
+        cur_val = cds[0]["current_value"]
+        before_claim = self.engine.available_tokens
+        ok_claim, msg_claim = self.engine.claim_cd("all")
+        self.assertTrue(ok_claim)
+        self.assertEqual(len(self.engine.state.get("term_deposits", [])), 0)
+        self.assertEqual(self.engine.available_tokens, before_claim + cur_val)
+
+    def test_corporate_investments_and_perks(self):
+        self.engine.state["used_since_install"] = 200_000_000
+
+        self.assertFalse(self.engine.has_perk("silph"))
+        self.assertFalse(self.engine.has_perk("devon"))
+
+        # Buy 2 shares of Silph and 1 share of Devon
+        ok_silph, msg_silph = self.engine.invest_corporate("silph", "2")
+        self.assertTrue(ok_silph)
+        ok_devon, msg_devon = self.engine.invest_corporate("devon", "1")
+        self.assertTrue(ok_devon)
+
+        self.assertTrue(self.engine.has_perk("silph"))
+        self.assertTrue(self.engine.has_perk("devon"))
+        self.assertFalse(self.engine.has_perk("macro"))
+
+        # Test Devon perk: 10% discount on Shop Rare Candy
+        rc_base = ItemKind.RARE_CANDY.price_for(self.engine.current_difficulty)
+        expected_cost = int(rc_base * 0.90)
+        tokens_before_rc = self.engine.available_tokens
+        ok_buy, msg_buy = self.engine.buy_item(ItemKind.RARE_CANDY, 1)
+        self.assertTrue(ok_buy)
+        self.assertEqual(tokens_before_rc - self.engine.available_tokens, expected_cost)
+
+        # Test Day rollover dividend payout with streak bonus
+        self.engine.state["streak_days"] = 5
+        self.engine.state["last_active_date"] = "2026-08-01"
+        self.engine.state["install_baseline_set"] = True
+        avail_before_div = self.engine.available_tokens
+        self.engine.process_usage(200_000_000, ["2026-08-01", "2026-08-02"])
+        self.assertGreater(self.engine.available_tokens, avail_before_div)
+
+        # Divest 1 share of Silph (10M gross -> 9M net with 10% liquidation spread)
+        avail_before_divest = self.engine.available_tokens
+        ok_divest, msg_divest = self.engine.divest_corporate("silph", "1")
+        self.assertTrue(ok_divest)
+        self.assertEqual(self.engine.available_tokens, avail_before_divest + 9_000_000)
+        self.assertEqual(self.engine.state["investments"]["silph"], 1)
+
+    def test_black_market_and_held_items(self):
+        self.engine.state["used_since_install"] = 500_000_000
+        bm = self.engine.get_or_init_black_market(force_open=True)
+        self.assertTrue(bm["is_open"])
+        self.assertEqual(len(bm["deals"]), 4)
+
+        # Test purchasing first deal
+        deal = bm["deals"][0]
+        initial_stock = deal["stock"]
+        ok, msg = self.engine.buy_black_market_deal(str(deal["id"]), 1)
+        self.assertTrue(ok)
+        self.assertEqual(deal["stock"], initial_stock - 1)
+
+        # Test equipping new held items
+        mon, _ = self.engine.hatch_egg(0)
+        self.engine.state["inventory"]["choice_band"] = 1
+        ok_band, msg_band = self.engine.use_item(ItemKind.CHOICE_BAND)
+        self.assertTrue(ok_band)
+        self.assertEqual(self.engine.active_mon.held_item, "choice_band")
+
+        # Test Choice Band damage boost in boss battle
+        self.engine.state["active_boss"] = {
+            "id": "boss_1",
+            "name": "Brock & Geodude",
+            "sp_id": 74,
+            "badge": "🪨 Boulder Badge",
+            "current_hp": 100_000,
+            "hp": 100_000,
+            "reward": "rare_candy"
+        }
+        self.engine._update_boss_battle(10_000)
+        # Normal base damage = 10,000; with Choice Band (+50%) = 15,000 -> 85,000 HP remaining
+        self.assertEqual(self.engine.state["active_boss"]["current_hp"], 85_000)
+
+    def test_72_column_layout_compliance(self):
+        import io
+        import re
+        from unittest.mock import MagicMock
+        from poketokenbar.tui_tabs.bank import render_bank_tab
+        from poketokenbar.tui_tabs.shop import render_shop_tab
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+
+        app = MagicMock()
+        app.engine = self.engine
+        app.engine.state["used_since_install"] = 200_000_000
+        app.engine.open_cd("10m", 3)
+        app.engine.invest_corporate("silph", "2")
+        app.engine.invest_corporate("mauville", "1")
+
+        # Test Bank Checking
+        app.bank_subtab = "checking"
+        trap = io.StringIO()
+        with unittest.mock.patch("sys.stdout", trap):
+            render_bank_tab(app)
+        for line in trap.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Bank Checking line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+        # Test Bank CD
+        app.bank_subtab = "cd"
+        trap = io.StringIO()
+        with unittest.mock.patch("sys.stdout", trap):
+            render_bank_tab(app)
+        for line in trap.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Bank CD line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+        # Test Bank Stocks
+        app.bank_subtab = "stocks"
+        trap = io.StringIO()
+        with unittest.mock.patch("sys.stdout", trap):
+            render_bank_tab(app)
+        for line in trap.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Bank Stocks line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+        # Test Shop Normal
+        app.shop_view = "normal"
+        trap = io.StringIO()
+        with unittest.mock.patch("sys.stdout", trap):
+            render_shop_tab(app)
+        for line in trap.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Shop Normal line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+        # Test Shop Black Market
+        app.shop_view = "black_market"
+        trap = io.StringIO()
+        with unittest.mock.patch("sys.stdout", trap):
+            render_shop_tab(app)
+        for line in trap.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Shop Black Market line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
 if __name__ == "__main__":
     unittest.main()
 

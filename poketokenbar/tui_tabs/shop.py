@@ -12,31 +12,45 @@ RESET = "\033[0m"
 BOLD = "\033[1m"
 
 def render_shop_tab(app):
+    if getattr(app, "shop_view", "normal") == "black_market":
+        _render_black_market_view(app)
+        return
+
     avail = app.engine.available_tokens
     inv = app.engine.state.get("inventory", {})
     diff = app.engine.current_difficulty
     prices = diff.shop_prices
+    has_devon = app.engine.has_perk("devon")
+    disc = 0.90 if has_devon else 1.0
 
-    p_rc = format_tokens(prices["rare_candy"])
+    p_rc = format_tokens(int(prices["rare_candy"] * disc))
     p_rc_xp = format_tokens(int(prices["rare_candy"] * 0.6))
-    p_mint = format_tokens(prices["mint"])
-    p_egg1 = format_tokens(prices["egg_normal"])
-    p_egg2 = format_tokens(prices["egg_uncommon"])
+    p_mint = format_tokens(int(prices["mint"] * disc))
+    p_egg1 = format_tokens(int(prices["egg_normal"] * disc))
+    p_egg2 = format_tokens(int(prices["egg_uncommon"] * disc))
 
-    sys.stdout.write(f"\n  {BOLD}{YELLOW}🛒 Token Shop & Bag{RESET}  (Available Spendable Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET})\n\n")
+    sys.stdout.write(f"\n  {BOLD}{YELLOW}🛒 Token Shop & Bag{RESET}  (Available Spendable Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET})\n")
+    if has_devon:
+        sys.stdout.write(f"  {BOLD}{GREEN}💼 Devon Corp Active: -10% discount applied to all shop items!{RESET}\n")
+
+    bm = app.engine.get_or_init_black_market()
+    if bm.get("is_open"):
+        sys.stdout.write(f"  {BOLD}{YELLOW}🕵️ [WANDERING MERCHANT IS IN TOWN! Type '{BOLD}{CYAN}market{RESET}{BOLD}{YELLOW}' for Black Market]{RESET}\n")
+    sys.stdout.write("\n")
+
     sys.stdout.write(f"  {BOLD}Shop Items (Type 'buy <number> [qty]' to purchase):{RESET}\n")
     sys.stdout.write(f"  [1] 🍬 Rare Candy     - Cost: {p_rc:<6} tokens  (Grants +{p_rc_xp} XP)\n")
     sys.stdout.write(f"  [2] 🌿 Mint           - Cost: {p_mint:<6} tokens  (Rerolls nature)\n")
     sys.stdout.write(f"  [3] 🥚 Pokémon Egg    - Cost: {p_egg1:<6} tokens  (Incubate new egg)\n")
     sys.stdout.write(f"  [4] 🥚 Uncommon Egg   - Cost: {p_egg2:<6} tokens  (Guarantees Uncommon+ egg)\n")
-    sys.stdout.write(f"  [5] 🫐 Oran Berry     - Cost: 1.0M   tokens  (+25% Happiness)\n")
-    sys.stdout.write(f"  [6] 🍇 Golden Razz    - Cost: 5.0M   tokens  (Shiny egg odds 1/24)\n")
-    sys.stdout.write(f"  [7] 📜 Exped. License - Cost: 200.0M tokens  (+10 expedition slots)\n")
-    sys.stdout.write(f"  [8] 🪨 Everstone      - Cost: 500.0K tokens  (Prevents evolution)\n")
-    sys.stdout.write(f"  [9] 🍀 Lucky Egg      - Cost: 5.0M   tokens  (+20% XP gain)\n")
-    sys.stdout.write(f"  [10] 🪙 Amulet Coin   - Cost: 2.0M   tokens  (+50% token rewards)\n")
-    sys.stdout.write(f"  [11] 🍎 Leftovers     - Cost: 2.0M   tokens  (Protects happiness)\n")
-    sys.stdout.write(f"  [12] 🥊 Choice Scarf  - Cost: 2.0M   tokens  (+20% exp spd, hap-)\n\n")
+    sys.stdout.write(f"  [5] 🫐 Oran Berry     - Cost: {format_tokens(int(1_000_000 * disc)):<6} tokens  (+25% Happiness)\n")
+    sys.stdout.write(f"  [6] 🍇 Golden Razz    - Cost: {format_tokens(int(5_000_000 * disc)):<6} tokens  (Shiny egg odds 1/24)\n")
+    sys.stdout.write(f"  [7] 📜 Exped. License - Cost: {format_tokens(int(200_000_000 * disc)):<6} tokens  (+10 expedition slots)\n")
+    sys.stdout.write(f"  [8] 🪨 Everstone      - Cost: {format_tokens(int(500_000 * disc)):<6} tokens  (Prevents evolution)\n")
+    sys.stdout.write(f"  [9] 🍀 Lucky Egg      - Cost: {format_tokens(int(5_000_000 * disc)):<6} tokens  (+20% XP gain)\n")
+    sys.stdout.write(f"  [10] 🪙 Amulet Coin   - Cost: {format_tokens(int(2_000_000 * disc)):<6} tokens  (+50% token rewards)\n")
+    sys.stdout.write(f"  [11] 🍎 Leftovers     - Cost: {format_tokens(int(2_000_000 * disc)):<6} tokens  (Protects happiness)\n")
+    sys.stdout.write(f"  [12] 🥊 Choice Scarf  - Cost: {format_tokens(int(2_000_000 * disc)):<6} tokens  (+20% exp spd, hap-)\n\n")
 
     sys.stdout.write(f"  {BOLD}Your Bag (Type 'use <id>', 'sell <id> [qty]', or 'unequip'):{RESET}\n")
     
@@ -54,6 +68,11 @@ def render_shop_tab(app):
     if inv.get('amulet_coin', 0) > 0: bag_items.append(("🪙 Amulet Coin (+50% tokens)", "12", inv['amulet_coin']))
     if inv.get('leftovers', 0) > 0: bag_items.append(("🍎 Leftovers (No hap. decay)", "13", inv['leftovers']))
     if inv.get('choice_scarf', 0) > 0: bag_items.append(("🥊 Choice Scarf (+20% spd)", "14", inv['choice_scarf']))
+    if inv.get('exp_share', 0) > 0: bag_items.append(("🎒 Exp. Share (XP Sharing)", "15", inv['exp_share']))
+    if inv.get('soothe_bell', 0) > 0: bag_items.append(("🔔 Soothe Bell (Hap. Boost)", "16", inv['soothe_bell']))
+    if inv.get('scope_lens', 0) > 0: bag_items.append(("🔍 Scope Lens (2x Shiny)", "17", inv['scope_lens']))
+    if inv.get('life_orb', 0) > 0: bag_items.append(("🔮 Life Orb (+10% Tokens)", "18", inv['life_orb']))
+    if inv.get('choice_band', 0) > 0: bag_items.append(("🥊 Choice Band (+50% Dmg)", "19", inv['choice_band']))
     
     stone_keys = ["water_stone", "fire_stone", "thunder_stone", "leaf_stone", "moon_stone", "sun_stone", "ice_stone", "shiny_stone", "dusk_stone", "dawn_stone"]
     for k in stone_keys:
@@ -62,7 +81,7 @@ def render_shop_tab(app):
             
     page_size = app.engine.state.get("page_size_bag", 10)
     total_pages = max(1, (len(bag_items) - 1) // page_size + 1)
-    if not hasattr(app, 'shop_page'): app.shop_page = 1
+    if not hasattr(app, 'shop_page') or not isinstance(app.shop_page, int): app.shop_page = 1
     app.shop_page = max(1, min(app.shop_page, total_pages))
     
     if not bag_items:
@@ -77,7 +96,69 @@ def render_shop_tab(app):
             sys.stdout.write(f"\n  ➔ Page {app.shop_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to navigate bag!\n")
         sys.stdout.write("\n")
 
+def _render_black_market_view(app):
+    avail = app.engine.available_tokens
+    has_devon = app.engine.has_perk("devon")
+    disc = 0.90 if has_devon else 1.0
+
+    sys.stdout.write(f"\n  {BOLD}{YELLOW}🕵️ Wandering Merchant — Rotating Black Market{RESET}\n")
+    sys.stdout.write(f"  Available Spendable Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n")
+    if has_devon:
+        sys.stdout.write(f"  {BOLD}{GREEN}💼 Devon Corp Active: -10% discount applied to deals!{RESET}\n")
+
+    bm = app.engine.get_or_init_black_market()
+    if not bm.get("is_open"):
+        days = bm.get("days_until_next", 2)
+        sys.stdout.write(f"\n  {YELLOW}The Wandering Merchant is currently traveling between regions.{RESET}\n")
+        sys.stdout.write(f"  Expected return in: {BOLD}{days} day(s){RESET}.\n\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}shop{RESET}' or '{BOLD}back{RESET}' to return to regular Token Shop.\n\n")
+        return
+
+    sys.stdout.write(f"\n  {BOLD}Today's Smuggled Contraband & Limited Offers:{RESET}\n")
+    deals = bm.get("deals", [])
+    for d in deals:
+        did = d.get("id", 1)
+        name = d.get("name", "Unknown Deal")
+        cost = int(d.get("price", 0) * disc)
+        cost_str = format_tokens(cost)
+        stock = d.get("stock", 0)
+        max_s = d.get("max_stock", 1)
+        badge = d.get("badge", "")
+        if stock > 0:
+            stock_str = f"Stock: {stock}/{max_s}"
+        else:
+            stock_str = f"{RED}SOLD OUT{RESET}"
+        badge_str = f" {YELLOW}[{badge}]{RESET}" if badge else ""
+        sys.stdout.write(f"  [{did}] {name} - {BOLD}{CYAN}{cost_str}{RESET} ({stock_str}){badge_str}\n")
+
+    sys.stdout.write(f"\n  {BOLD}Commands:{RESET}\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}deal <id> [qty]{RESET}' to purchase (e.g. 'deal 1')\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}shop{RESET}' or '{BOLD}back{RESET}' to return to regular Token Shop\n\n")
+
+def handle_deal_buy(app, cmd: str):
+    parts = cmd.split()
+    if len(parts) < 2:
+        app.message = "Usage: deal <id> [qty] (e.g. 'deal 1')"
+        return
+    deal_id = parts[1]
+    qty = 1
+    if len(parts) >= 3:
+        try:
+            qty = int(parts[2])
+            if qty <= 0:
+                app.message = "Quantity must be greater than 0."
+                return
+        except ValueError:
+            app.message = "Invalid quantity."
+            return
+    ok, msg = app.engine.buy_black_market_deal(deal_id, qty)
+    app.message = msg
+
 def handle_shop_buy(app, cmd: str):
+    if getattr(app, "shop_view", "normal") == "black_market":
+        handle_deal_buy(app, cmd)
+        return
+
     parts = cmd.split()
     choice = parts[1] if len(parts) > 1 else ""
     qty = 1
@@ -164,7 +245,19 @@ def handle_bag_use(app, cmd: str):
         ok, msg = app.engine.use_item(ItemKind.LEFTOVERS, qty)
     elif choice == "14":
         ok, msg = app.engine.use_item(ItemKind.CHOICE_SCARF, qty)
+    elif choice == "15":
+        ok, msg = app.engine.use_item(ItemKind.EXP_SHARE, qty)
+    elif choice == "16":
+        ok, msg = app.engine.use_item(ItemKind.SOOTHE_BELL, qty)
+    elif choice == "17":
+        ok, msg = app.engine.use_item(ItemKind.SCOPE_LENS, qty)
+    elif choice == "18":
+        ok, msg = app.engine.use_item(ItemKind.LIFE_ORB, qty)
+    elif choice == "19":
+        ok, msg = app.engine.use_item(ItemKind.CHOICE_BAND, qty)
     elif choice in [s.value for s in ItemKind if s.value.endswith("_stone") and s != ItemKind.MEGA_STONE]:
+        ok, msg = app.engine.use_item(ItemKind(choice), qty)
+    elif choice in [s.value for s in ItemKind]:
         ok, msg = app.engine.use_item(ItemKind(choice), qty)
     else:
         ok, msg = False, "Invalid bag selection."
@@ -195,10 +288,15 @@ def handle_bag_sell(app, cmd: str):
         "12": ItemKind.AMULET_COIN,
         "13": ItemKind.LEFTOVERS,
         "14": ItemKind.CHOICE_SCARF,
+        "15": ItemKind.EXP_SHARE,
+        "16": ItemKind.SOOTHE_BELL,
+        "17": ItemKind.SCOPE_LENS,
+        "18": ItemKind.LIFE_ORB,
+        "19": ItemKind.CHOICE_BAND,
     }
     
     for s in ItemKind:
-        if s.value.endswith("_stone") and s != ItemKind.MEGA_STONE:
+        if s != ItemKind.MEGA_STONE:
             mapping[s.value] = s
 
     item_kind = mapping.get(choice)

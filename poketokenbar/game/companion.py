@@ -3,7 +3,8 @@ import datetime
 from typing import Dict, List, Optional, Tuple, Any
 
 from poketokenbar.game.models import (
-    MonState, DexEntry, Rarity, PokemonNature, PokemonBalance, ItemKind, DifficultyMode
+    MonState, DexEntry, Rarity, PokemonNature, PokemonBalance, ItemKind, DifficultyMode,
+    CORPORATIONS, CorporateInfo
 )
 from poketokenbar.game.pokeapi import PokeAPIClient
 from poketokenbar.game.storage import StorageManager
@@ -102,6 +103,9 @@ class CompanionEngine:
         except Exception:
             return DifficultyMode.MEDIUM
 
+    def has_perk(self, corp_key: str) -> bool:
+        return self.state.get("investments", {}).get(corp_key.lower(), 0) > 0
+
     def _calculate_streak_from_active_days(self, active_days: List[str], today_str: str) -> int:
         if not active_days:
             return 1
@@ -176,7 +180,11 @@ class CompanionEngine:
         if active:
             used_total = self.state.get("used_since_install", 0)
             last_decay = self.state.get("last_happiness_decay_token", used_total)
-            decay_rate = 800_000 if active.held_item == "choice_scarf" else 1_000_000
+            if active.held_item in ["leftovers", "soothe_bell"]:
+                decay_rate = 999_999_999_999
+            else:
+                base_decay = 800_000 if active.held_item == "choice_scarf" else 1_000_000
+                decay_rate = base_decay * 2 if self.has_perk("aether") else base_decay
             decay_amount = (used_total - last_decay) // decay_rate
             
             if decay_amount > 0:
@@ -202,6 +210,8 @@ class CompanionEngine:
                 xp_multiplier += 0.50  # Mega Evolution grants +50% XP boost!
             if active and active.held_item == "lucky_egg":
                 xp_multiplier += 0.20  # Lucky Egg grants +20% XP boost!
+            if active and active.held_item == "life_orb":
+                xp_multiplier += 0.10  # Life Orb grants +10% XP boost!
             effective_xp = int(delta * xp_multiplier)
 
         if happiness > 0:
@@ -239,6 +249,21 @@ class CompanionEngine:
             self.set_active_mon(active)
             evo_events = self._check_growth(active)
             events.extend(evo_events)
+
+            # Check Exp. Share held item
+            if active.held_item == "exp_share" and effective_xp > 0:
+                shared_xp = int(effective_xp * 0.25)
+                dex = self.state.get("dex", [])
+                for d in dex:
+                    if d.get("status") not in ["graduated", "evolved"]:
+                        m_data = d.get("mon_state")
+                        if m_data:
+                            sub_mon = StorageManager.dict_to_mon(m_data)
+                            if sub_mon and sub_mon.base_id != active.base_id and sub_mon.stage_index < len(sub_mon.path_ids) - 1:
+                                sub_mon.used_at_stage += shared_xp
+                                sub_evos = self._check_growth(sub_mon)
+                                events.extend(sub_evos)
+                                d["mon_state"] = StorageManager.mon_to_dict(sub_mon)
 
         # Check achievements
         ach_events = self._check_achievements()
@@ -299,6 +324,53 @@ class CompanionEngine:
                                 new_balance = int(new_balance * 1.05)
                             events.append(f"🏦 Your Token Bank earned {format_tokens(new_balance - bank_balance)} tokens in interest!")
                             self.state["bank_balance"] = new_balance
+
+                        # Process Term Deposits (CDs)
+                        cds = self.state.get("term_deposits", [])
+                        for cd in cds:
+                            if not cd.get("matured"):
+                                rate = cd.get("daily_rate", 0.08)
+                                days_left = cd["term_days"] - cd.get("days_elapsed", 0)
+                                days_to_advance = min(days_to_apply, days_left)
+                                for _ in range(days_to_advance):
+                                    cd["current_value"] = int(cd["current_value"] * (1 + rate))
+                                cd["days_elapsed"] = cd.get("days_elapsed", 0) + days_to_advance
+                                if cd["days_elapsed"] >= cd["term_days"]:
+                                    cd["matured"] = True
+                                    events.append(f"🏦 Certificate of Deposit #{cd['id']} ({cd['term_days']}d) has MATURED! Total Value: {format_tokens(cd['current_value'])} tokens (Type 'cd claim {cd['id']}')")
+
+                        # Process Corporate Stock Dividends (scaling with streak)
+                        investments = self.state.get("investments", {})
+                        streak_bonus = min(0.05, current_streak * 0.002)
+                        total_dividends = 0
+                        for c_key, shares in investments.items():
+                            if shares > 0 and c_key in CORPORATIONS:
+                                corp = CORPORATIONS[c_key]
+                                eff_rate = corp.base_dividend + streak_bonus
+                                div_per_day = int(shares * corp.share_price * eff_rate)
+                                total_dividends += div_per_day * days_to_apply
+                        if total_dividends > 0:
+                            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - total_dividends
+                            events.append(f"📈 Corporate Dividends: Earned {format_tokens(total_dividends)} tokens from your stock portfolio! (🔥 {current_streak}d streak bonus applied)")
+
+                        # Process Black Market rotation
+                        bm = self.state.get("black_market")
+                        if bm:
+                            if bm.get("is_open"):
+                                dur = bm.get("duration_days", 1) - days_to_apply
+                                if dur <= 0:
+                                    bm["is_open"] = False
+                                    bm["days_until_next"] = 3
+                                    events.append("🕵️ The Wandering Merchant packed up and left town.")
+                                else:
+                                    bm["duration_days"] = dur
+                            else:
+                                until = bm.get("days_until_next", 3) - days_to_apply
+                                if until <= 0:
+                                    self.get_or_init_black_market(force_open=True)
+                                    events.append("🕵️ A Wandering Merchant has arrived in town with Black Market contraband! (Type 'market' in Shop)")
+                                else:
+                                    bm["days_until_next"] = until
 
                         if bank_loan > 0:
                             new_loan = bank_loan
@@ -384,13 +456,20 @@ class CompanionEngine:
                     if diff == 1:
                         if active:
                             bonus = 15 if active.held_item == "leftovers" else 10
+                            if active.held_item == "soothe_bell":
+                                bonus = 25
+                            if self.has_perk("aether"):
+                                bonus += 5
                             active.happiness = min(100, active.happiness + bonus)
                             self.set_active_mon(active)
                     elif diff > 1:
-                        if active and active.held_item == "leftovers":
-                            events.append(f"🍎 Your companion missed {diff-1} day(s), but was snacking on Leftovers! Happiness preserved!")
+                        if active and active.held_item in ["leftovers", "soothe_bell"]:
+                            protect_item = ItemKind(active.held_item).name_en
+                            events.append(f"🍎 Your companion missed {diff-1} day(s), but was protected by {protect_item}! Happiness preserved!")
                         else:
                             decay = (diff - 1) * 25
+                            if self.has_perk("aether"):
+                                decay = max(1, decay // 2)
                             if active:
                                 active.happiness = max(0, active.happiness - decay)
                                 self.set_active_mon(active)
@@ -565,6 +644,8 @@ class CompanionEngine:
         if active_boss is not None:
             active = self.active_mon
             damage = int(delta * 2.0) if (active and active.is_mega) else delta
+            if active and active.held_item == "choice_band":
+                damage = int(damage * 1.5)
             active_boss["current_hp"] -= damage
             if active_boss["current_hp"] <= 0:
                 active_boss["current_hp"] = 0
@@ -580,6 +661,8 @@ class CompanionEngine:
                 inv = self.state.get("inventory", {})
                 is_mega = active and active.is_mega
                 multiplier = 1.5 if is_mega else 1.0
+                if self.has_perk("macro"):
+                    multiplier *= 1.20
                 
                 if r_type == "rare_candy":
                     inv["rare_candy"] = inv.get("rare_candy", 0) + 1
@@ -953,6 +1036,8 @@ class CompanionEngine:
         denom = 64
         if self.state.get("golden_razz_active", False):
             denom = 24
+        if self.active_mon and self.active_mon.held_item == "scope_lens":
+            denom = max(2, denom // 2)
             
         is_shiny = force_shiny or (random.randint(1, denom) == 1)
         self.state["golden_razz_active"] = False
@@ -1095,6 +1180,8 @@ class CompanionEngine:
             
         diff = self.current_difficulty
         unit_cost = item_kind.price_for(diff)
+        if self.has_perk("devon"):
+            unit_cost = int(unit_cost * 0.90)
         cost = unit_cost * qty
         
         if self.available_tokens < cost:
@@ -1198,7 +1285,12 @@ class CompanionEngine:
                 msg += "\n" + "\n".join(events)
             return True, msg
             
-        elif item_kind in [ItemKind.EVERSTONE, ItemKind.LUCKY_EGG, ItemKind.AMULET_COIN, ItemKind.LEFTOVERS, ItemKind.CHOICE_SCARF]:
+        elif item_kind in [
+            ItemKind.EVERSTONE, ItemKind.LUCKY_EGG, ItemKind.AMULET_COIN,
+            ItemKind.LEFTOVERS, ItemKind.CHOICE_SCARF, ItemKind.EXP_SHARE,
+            ItemKind.SOOTHE_BELL, ItemKind.SCOPE_LENS, ItemKind.LIFE_ORB,
+            ItemKind.CHOICE_BAND
+        ]:
             if active is None:
                 return False, f"You need an active Pokémon to equip a {item_kind.name_en}!"
             if qty > 1:
@@ -1219,7 +1311,12 @@ class CompanionEngine:
                 ItemKind.LUCKY_EGG: "It will now gain +20% more XP!",
                 ItemKind.AMULET_COIN: "It will now find +50% more tokens in battles and expeditions!",
                 ItemKind.LEFTOVERS: "It will now be protected from daily happiness decay!",
-                ItemKind.CHOICE_SCARF: "It will now complete expeditions 20% faster, but drain happiness faster!"
+                ItemKind.CHOICE_SCARF: "It will now complete expeditions 20% faster, but drain happiness faster!",
+                ItemKind.EXP_SHARE: "It will now share 25% of earned XP with inactive companions in your roster!",
+                ItemKind.SOOTHE_BELL: "It will now double happiness gains and halt daily happiness decay!",
+                ItemKind.SCOPE_LENS: "It will now double shiny hatching and encounter chances!",
+                ItemKind.LIFE_ORB: "It will now channel +10% bonus token power from your coding!",
+                ItemKind.CHOICE_BAND: "It will now deal +50% more damage in Boss and Trainer battles!"
             }.get(item_kind, "")
             
             return True, f"Equipped {item_kind.name_en} {item_kind.emoji} to {self.api.get_species_name(active.current_id)}! {effect_text}"
@@ -1586,6 +1683,8 @@ class CompanionEngine:
             active = self.active_mon
             if active and active.held_item == "choice_scarf":
                 mult *= 1.20
+            if self.has_perk("silph"):
+                mult *= 1.15
 
             exp["progress"] += int(effective_xp * mult)
             
@@ -1638,6 +1737,8 @@ class CompanionEngine:
                 # Check for held item Amulet Coin
                 if active and active.held_item == "amulet_coin":
                     tokens_gain = int(tokens_gain * 1.5)
+                if self.has_perk("silph"):
+                    tokens_gain = int(tokens_gain * 1.15)
 
                 # Grant tokens by refunding spent_tokens
                 self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - tokens_gain
@@ -1893,6 +1994,10 @@ class CompanionEngine:
                     token_reward = int(token_reward * 1.5)
                     reward_str = f"{token_reward / 1_000_000:.1f}M"
                     bonus_msg += " (🪙 Amulet Coin Bonus!)"
+                if self.has_perk("macro"):
+                    token_reward = int(token_reward * 1.20)
+                    reward_str = f"{token_reward / 1_000_000:.1f}M"
+                    bonus_msg += " (⚡ Macro Cosmos Perk!)"
                     
                 self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - token_reward
                 msg = f"⚔️ TRAINER BATTLE! You defeated {opp_name} in an auto-battle! Earned +{reward_str} Spendable Tokens!{bonus_msg}"
@@ -1956,6 +2061,8 @@ class CompanionEngine:
         costs = diff.shop_prices
         tier_key = tier.value if tier else "normal"
         cost = costs.get("egg_rare" if tier == Rarity.RARE else ("egg_uncommon" if tier == Rarity.UNCOMMON else "egg_normal"), 30_000_000)
+        if self.has_perk("devon"):
+            cost = int(cost * 0.90)
 
         current_tier = self.state.get("egg_tier")
         if current_tier is not None:
@@ -2044,6 +2151,282 @@ class CompanionEngine:
         else:
             return False, "Invalid bank action."
 
+    def open_cd(self, amount_str: str, term_days: int) -> Tuple[bool, str]:
+        if term_days not in [3, 7, 14]:
+            return False, "Invalid term! Available CD terms: 3 days (8%/day), 7 days (12%/day), or 14 days (20%/day)."
+        
+        rates = {3: 0.08, 7: 0.12, 14: 0.20}
+        rate = rates[term_days]
+
+        clean_str = amount_str.lower().strip()
+        if clean_str == "all":
+            amount = self.available_tokens
+        else:
+            amount = parse_tokens(amount_str)
+            if amount < 0:
+                return False, "Invalid amount! Example: 'cd open 5m 7', 'cd open 10m 14', 'cd open all 3'."
+
+        if amount <= 0:
+            return False, "Deposit amount must be greater than 0!"
+        if amount > self.available_tokens:
+            return False, f"Not enough tokens! You only have {format_tokens(self.available_tokens)} available."
+
+        cds = self.state.setdefault("term_deposits", [])
+        next_id = max([c.get("id", 0) for c in cds], default=0) + 1
+        today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+
+        cd_entry = {
+            "id": next_id,
+            "principal": amount,
+            "term_days": term_days,
+            "days_elapsed": 0,
+            "daily_rate": rate,
+            "current_value": amount,
+            "matured": False,
+            "start_date": today_str
+        }
+        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + amount
+        cds.append(cd_entry)
+        self.state["term_deposits"] = cds
+        self.save()
+        return True, f"🏦 Opened {term_days}-Day CD #{next_id} for {format_tokens(amount)} tokens at {int(rate*100)}%/day interest! (Early break: 10% penalty, forfeits interest)"
+
+    def claim_cd(self, cd_id_str: str) -> Tuple[bool, str]:
+        cds = self.state.get("term_deposits", [])
+        clean_str = cd_id_str.lower().strip()
+        if clean_str == "all":
+            matured_cds = [c for c in cds if c.get("matured")]
+            if not matured_cds:
+                return False, "No matured CDs available to claim!"
+            total_principal = sum(c["principal"] for c in matured_cds)
+            total_value = sum(c["current_value"] for c in matured_cds)
+            total_interest = total_value - total_principal
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - total_value
+            self.state["term_deposits"] = [c for c in cds if not c.get("matured")]
+            self.save()
+            return True, f"🏦 Claimed {len(matured_cds)} matured CD(s)! Principal: {format_tokens(total_principal)} + Interest: {format_tokens(total_interest)} = {format_tokens(total_value)} tokens credited!"
+        
+        try:
+            target_id = int(clean_str)
+        except ValueError:
+            return False, "Invalid CD ID. Example: 'cd claim 1' or 'cd claim all'."
+
+        found = None
+        for c in cds:
+            if c.get("id") == target_id:
+                found = c
+                break
+
+        if not found:
+            return False, f"Certificate of Deposit #{target_id} not found."
+
+        if not found.get("matured"):
+            days_left = max(0, found["term_days"] - found.get("days_elapsed", 0))
+            return False, f"CD #{target_id} has not matured yet ({days_left} day(s) remaining)! Type 'cd break {target_id}' for early withdrawal (forfeits interest + 10% penalty)."
+
+        principal = found["principal"]
+        val = found["current_value"]
+        interest = val - principal
+        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - val
+        cds.remove(found)
+        self.state["term_deposits"] = cds
+        self.save()
+        return True, f"🏦 Claimed CD #{target_id}! Principal: {format_tokens(principal)} + Interest: {format_tokens(interest)} = {format_tokens(val)} tokens credited to your spendable balance!"
+
+    def break_cd(self, cd_id_str: str) -> Tuple[bool, str]:
+        cds = self.state.get("term_deposits", [])
+        try:
+            target_id = int(cd_id_str.strip())
+        except ValueError:
+            return False, "Invalid CD ID. Example: 'cd break 1'."
+
+        found = None
+        for c in cds:
+            if c.get("id") == target_id:
+                found = c
+                break
+
+        if not found:
+            return False, f"Certificate of Deposit #{target_id} not found."
+
+        principal = found["principal"]
+        refund = int(principal * 0.90)
+        penalty = principal - refund
+        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - refund
+        cds.remove(found)
+        self.state["term_deposits"] = cds
+        self.save()
+        return True, f"⚠️ Early withdrawal of CD #{target_id}: Forfeited all interest and paid 10% penalty ({format_tokens(penalty)}). Refunded {format_tokens(refund)} tokens to your spendable balance."
+
+    def invest_corporate(self, corp_key: str, shares_str: str) -> Tuple[bool, str]:
+        key = corp_key.lower().strip()
+        if key not in CORPORATIONS:
+            names = ", ".join(f"'{k}' ({v.name})" for k, v in CORPORATIONS.items())
+            return False, f"Unknown corporation '{corp_key}'! Available: {names}."
+
+        corp = CORPORATIONS[key]
+        clean_str = shares_str.lower().strip()
+        if clean_str == "all":
+            shares = self.available_tokens // corp.share_price
+            if shares <= 0:
+                return False, f"Not enough tokens to buy 1 share of {corp.name} ({format_tokens(corp.share_price)} tokens)!"
+        else:
+            try:
+                shares = int(clean_str)
+            except ValueError:
+                return False, "Invalid number of shares. Example: 'invest silph 2' or 'invest devon all'."
+
+        if shares <= 0:
+            return False, "Shares must be at least 1."
+
+        cost = shares * corp.share_price
+        if cost > self.available_tokens:
+            return False, f"Not enough tokens! Buying {shares} share(s) of {corp.name} costs {format_tokens(cost)} (You have {format_tokens(self.available_tokens)})."
+
+        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + cost
+        invs = self.state.setdefault("investments", {"silph": 0, "devon": 0, "aether": 0, "mauville": 0, "macro": 0})
+        invs[key] = invs.get(key, 0) + shares
+        self.state["investments"] = invs
+        self.save()
+        return True, f"📈 Invested in {shares} share(s) of {corp.name} for {format_tokens(cost)} tokens! ({corp.perk_name}: {corp.perk_desc} is now ACTIVE!)"
+
+    def divest_corporate(self, corp_key: str, shares_str: str) -> Tuple[bool, str]:
+        key = corp_key.lower().strip()
+        if key not in CORPORATIONS:
+            names = ", ".join(f"'{k}'" for k in CORPORATIONS.keys())
+            return False, f"Unknown corporation '{corp_key}'! Available: {names}."
+
+        corp = CORPORATIONS[key]
+        invs = self.state.setdefault("investments", {"silph": 0, "devon": 0, "aether": 0, "mauville": 0, "macro": 0})
+        owned = invs.get(key, 0)
+        if owned <= 0:
+            return False, f"You don't own any shares of {corp.name}!"
+
+        clean_str = shares_str.lower().strip()
+        if clean_str == "all":
+            shares = owned
+        else:
+            try:
+                shares = int(clean_str)
+            except ValueError:
+                return False, "Invalid number of shares. Example: 'divest silph 1' or 'divest devon all'."
+
+        if shares <= 0 or shares > owned:
+            return False, f"Invalid quantity! You own {owned} share(s) of {corp.name}."
+
+        # 10% liquidation fee / market spread
+        gross_value = shares * corp.share_price
+        payout = int(gross_value * 0.90)
+        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - payout
+        invs[key] = owned - shares
+        self.state["investments"] = invs
+        self.save()
+        return True, f"📉 Sold {shares} share(s) of {corp.name} for {format_tokens(payout)} tokens (10% liquidation spread applied)."
+
+    def get_or_init_black_market(self, force_open: bool = False) -> dict:
+        bm = self.state.get("black_market")
+        if force_open or not bm or not bm.get("deals"):
+            pool = [
+                {"name": "🍬 Bulk Rare Candies (5x)", "type": "item", "item_key": "rare_candy", "qty": 5, "price": 10_000_000, "stock": 2, "max_stock": 2, "badge": "33% OFF"},
+                {"name": "🍬 Bulk Rare Candies (10x)", "type": "item", "item_key": "rare_candy", "qty": 10, "price": 18_000_000, "stock": 1, "max_stock": 1, "badge": "40% OFF"},
+                {"name": "🌿 Bulk Mints (5x)", "type": "item", "item_key": "mint", "qty": 5, "price": 3_500_000, "stock": 2, "max_stock": 2, "badge": "30% OFF"},
+                {"name": "🫐 Bulk Oran Berries (10x)", "type": "item", "item_key": "berry_oran", "qty": 10, "price": 6_000_000, "stock": 3, "max_stock": 3, "badge": "40% OFF"},
+                {"name": "🍇 Bulk Golden Razz (3x)", "type": "item", "item_key": "berry_golden", "qty": 3, "price": 10_000_000, "stock": 2, "max_stock": 2, "badge": "33% OFF"},
+                {"name": "🎒 Exp. Share (Held Item)", "type": "item", "item_key": "exp_share", "qty": 1, "price": 25_000_000, "stock": 1, "max_stock": 1, "badge": "EXCLUSIVE"},
+                {"name": "🔔 Soothe Bell (Held Item)", "type": "item", "item_key": "soothe_bell", "qty": 1, "price": 20_000_000, "stock": 1, "max_stock": 1, "badge": "EXCLUSIVE"},
+                {"name": "🔍 Scope Lens (Held Item)", "type": "item", "item_key": "scope_lens", "qty": 1, "price": 30_000_000, "stock": 1, "max_stock": 1, "badge": "EXCLUSIVE"},
+                {"name": "🔮 Life Orb (Held Item)", "type": "item", "item_key": "life_orb", "qty": 1, "price": 25_000_000, "stock": 1, "max_stock": 1, "badge": "EXCLUSIVE"},
+                {"name": "🥊 Choice Band (Held Item)", "type": "item", "item_key": "choice_band", "qty": 1, "price": 20_000_000, "stock": 1, "max_stock": 1, "badge": "EXCLUSIVE"},
+                {"name": "🥚 Epic Egg Voucher", "type": "egg", "egg_tier": "epic", "price": 12_000_000, "stock": 1, "max_stock": 1, "badge": "HOT DEAL"},
+                {"name": "🌟 Legendary Egg Voucher", "type": "egg", "egg_tier": "legendary", "price": 40_000_000, "stock": 1, "max_stock": 1, "badge": "LEGENDARY"},
+                {"name": "🌟 Master Ball", "type": "item", "item_key": "master_ball", "qty": 1, "price": 60_000_000, "stock": 1, "max_stock": 1, "badge": "RARE"},
+                {"name": "📜 Ancient Map Trove (3x)", "type": "map_pack", "price": 15_000_000, "stock": 1, "max_stock": 1, "badge": "EXPEDITION"},
+                {"name": "💎 Evolution Stone Trove (3x)", "type": "stone_pack", "price": 30_000_000, "stock": 2, "max_stock": 2, "badge": "EVOLUTION"},
+            ]
+            import copy
+            selected = random.sample(pool, 4)
+            deals = []
+            for idx, d in enumerate(selected, 1):
+                item = copy.deepcopy(d)
+                item["id"] = idx
+                deals.append(item)
+            bm = {
+                "is_open": True,
+                "days_until_next": 0,
+                "duration_days": 1,
+                "deals": deals
+            }
+            self.state["black_market"] = bm
+            self.save()
+        return bm
+
+    def buy_black_market_deal(self, deal_id_str: str, qty: int = 1) -> Tuple[bool, str]:
+        bm = self.get_or_init_black_market()
+        if not bm.get("is_open"):
+            days = bm.get("days_until_next", 2)
+            return False, f"The Wandering Merchant is currently traveling! Expected return in {days} day(s)."
+
+        try:
+            deal_id = int(str(deal_id_str).strip())
+        except ValueError:
+            return False, "Invalid deal ID! Example: 'deal 1' or 'deal 2 1'."
+
+        deals = bm.get("deals", [])
+        deal = next((d for d in deals if d.get("id") == deal_id), None)
+        if not deal:
+            return False, f"Black Market Deal #{deal_id} not found."
+
+        if deal.get("stock", 0) < qty:
+            return False, f"Not enough stock! Deal #{deal_id} only has {deal.get('stock', 0)} in stock."
+
+        price = deal["price"]
+        if self.has_perk("devon"):
+            price = int(price * 0.90)
+
+        total_cost = price * qty
+        if total_cost > self.available_tokens:
+            return False, f"Not enough tokens! Requires {format_tokens(total_cost)} (You have {format_tokens(self.available_tokens)})."
+
+        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + total_cost
+        deal["stock"] -= qty
+        inv = self.state.setdefault("inventory", {})
+
+        deal_type = deal.get("type", "item")
+        if deal_type == "item":
+            k = deal["item_key"]
+            item_qty = deal.get("qty", 1) * qty
+            inv[k] = inv.get(k, 0) + item_qty
+            msg = f"Purchased {qty}x {deal['name']} for {format_tokens(total_cost)} tokens! Added to your Bag."
+        elif deal_type == "egg":
+            tier = deal["egg_tier"]
+            if not self.state.get("egg_tier"):
+                self.state["egg_tier"] = tier
+                self.state["egg_usage"] = 0
+                msg = f"Purchased {deal['name']} for {format_tokens(total_cost)} tokens! Now incubating your fresh {tier.capitalize()} Egg."
+            else:
+                pending = self.state.setdefault("pending_eggs", [])
+                pending.append(tier)
+                msg = f"Purchased {deal['name']} for {format_tokens(total_cost)} tokens! Added to your Egg Reserves."
+        elif deal_type == "map_pack":
+            inv["map_fragment"] = inv.get("map_fragment", 0) + (3 * qty)
+            msg = f"Purchased {deal['name']} for {format_tokens(total_cost)} tokens! Added {3*qty} Map Fragments to your Bag."
+        elif deal_type == "stone_pack":
+            stone_types = [
+                "water_stone", "fire_stone", "thunder_stone", 
+                "leaf_stone", "moon_stone", "sun_stone", 
+                "ice_stone", "shiny_stone", "dusk_stone", "dawn_stone"
+            ]
+            chosen = [random.choice(stone_types) for _ in range(3 * qty)]
+            for s in chosen:
+                inv[s] = inv.get(s, 0) + 1
+            names = ", ".join(s.replace("_", " ").title() for s in chosen)
+            msg = f"Purchased {deal['name']} for {format_tokens(total_cost)} tokens! Unpacked: {names}!"
+        else:
+            msg = f"Purchased {deal['name']}!"
+
+        self.save()
+        return True, msg
+
     def play_poker_bet(self, amount_str: str) -> Tuple[bool, str]:
         clean_str = amount_str.lower().strip()
         if clean_str in ["all", "all-in"]:
@@ -2124,6 +2507,9 @@ class CompanionEngine:
     def _format_poker_showdown(self) -> Tuple[bool, str]:
         outcome, p_rank, d_rank, mult, winnings = self.poker.play_showdown()
         
+        if winnings > 0 and outcome == "WIN" and self.has_perk("mauville"):
+            winnings = int(winnings * 1.10)
+
         # Grant winnings by decreasing spent_tokens
         if winnings > 0:
             self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - winnings
@@ -2245,6 +2631,8 @@ class CompanionEngine:
         
         grid_str = "\n".join([f"🎰 {' | '.join(row)} 🎰" for row in reels])
         if win_amount > 0:
+            if self.has_perk("mauville"):
+                win_amount = int(win_amount * 1.10)
             self.state["spent_tokens"] = self.state["spent_tokens"] - win_amount
             msg = f"{grid_str}\n\nWINNER! ({mult:.1f}x Total Multiplier)\nYou won {format_tokens(win_amount)} tokens!"
         else:
@@ -2269,7 +2657,10 @@ class CompanionEngine:
         if ok:
             self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + bet
             if self.blackjack.game_state == "finished" and self.blackjack.last_winnings > 0:
-                self.state["spent_tokens"] = self.state["spent_tokens"] - self.blackjack.last_winnings
+                winnings = self.blackjack.last_winnings
+                if self.has_perk("mauville"):
+                    winnings = int(winnings * 1.10)
+                self.state["spent_tokens"] = self.state["spent_tokens"] - winnings
             self.save()
         return ok, msg
 
@@ -2290,7 +2681,10 @@ class CompanionEngine:
             
         if ok and self.blackjack.game_state == "finished":
             if self.blackjack.last_winnings > 0:
-                self.state["spent_tokens"] = self.state["spent_tokens"] - self.blackjack.last_winnings
+                winnings = self.blackjack.last_winnings
+                if self.has_perk("mauville"):
+                    winnings = int(winnings * 1.10)
+                self.state["spent_tokens"] = self.state["spent_tokens"] - winnings
             self.save()
             
         return ok, msg

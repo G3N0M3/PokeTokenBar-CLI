@@ -139,6 +139,11 @@ class ItemKind(str, Enum):
     AMULET_COIN = "amulet_coin"
     LEFTOVERS = "leftovers"
     CHOICE_SCARF = "choice_scarf"
+    EXP_SHARE = "exp_share"
+    SOOTHE_BELL = "soothe_bell"
+    SCOPE_LENS = "scope_lens"
+    LIFE_ORB = "life_orb"
+    CHOICE_BAND = "choice_band"
     WATER_STONE = "water_stone"
     FIRE_STONE = "fire_stone"
     THUNDER_STONE = "thunder_stone"
@@ -167,6 +172,11 @@ class ItemKind(str, Enum):
             ItemKind.AMULET_COIN: 2_000_000,
             ItemKind.LEFTOVERS: 2_000_000,
             ItemKind.CHOICE_SCARF: 2_000_000,
+            ItemKind.EXP_SHARE: 25_000_000,
+            ItemKind.SOOTHE_BELL: 20_000_000,
+            ItemKind.SCOPE_LENS: 30_000_000,
+            ItemKind.LIFE_ORB: 25_000_000,
+            ItemKind.CHOICE_BAND: 20_000_000,
             ItemKind.WATER_STONE: 50_000_000,
             ItemKind.FIRE_STONE: 50_000_000,
             ItemKind.THUNDER_STONE: 50_000_000,
@@ -202,6 +212,11 @@ class ItemKind(str, Enum):
             ItemKind.AMULET_COIN: "Amulet Coin",
             ItemKind.LEFTOVERS: "Leftovers",
             ItemKind.CHOICE_SCARF: "Choice Scarf",
+            ItemKind.EXP_SHARE: "Exp. Share",
+            ItemKind.SOOTHE_BELL: "Soothe Bell",
+            ItemKind.SCOPE_LENS: "Scope Lens",
+            ItemKind.LIFE_ORB: "Life Orb",
+            ItemKind.CHOICE_BAND: "Choice Band",
             ItemKind.WATER_STONE: "Water Stone",
             ItemKind.FIRE_STONE: "Fire Stone",
             ItemKind.THUNDER_STONE: "Thunder Stone",
@@ -232,7 +247,80 @@ class ItemKind(str, Enum):
             ItemKind.AMULET_COIN: "🪙",
             ItemKind.LEFTOVERS: "🍎",
             ItemKind.CHOICE_SCARF: "🥊",
-        }[self]
+            ItemKind.EXP_SHARE: "🎒",
+            ItemKind.SOOTHE_BELL: "🔔",
+            ItemKind.SCOPE_LENS: "🔍",
+            ItemKind.LIFE_ORB: "🔮",
+            ItemKind.CHOICE_BAND: "🥊",
+            ItemKind.WATER_STONE: "💎",
+            ItemKind.FIRE_STONE: "💎",
+            ItemKind.THUNDER_STONE: "💎",
+            ItemKind.LEAF_STONE: "💎",
+            ItemKind.MOON_STONE: "💎",
+            ItemKind.SUN_STONE: "💎",
+            ItemKind.ICE_STONE: "💎",
+            ItemKind.SHINY_STONE: "💎",
+            ItemKind.DUSK_STONE: "💎",
+            ItemKind.DAWN_STONE: "💎",
+        }.get(self, "📦")
+
+@dataclass
+class CorporateInfo:
+    id: str
+    name: str
+    ticker: str
+    share_price: int
+    base_dividend: float
+    perk_name: str
+    perk_desc: str
+
+CORPORATIONS: Dict[str, CorporateInfo] = {
+    "silph": CorporateInfo(
+        id="silph",
+        name="Silph Co.",
+        ticker="SILPH",
+        share_price=10_000_000,
+        base_dividend=0.025,
+        perk_name="Silph Tech",
+        perk_desc="+15% Expedition tokens & speed"
+    ),
+    "devon": CorporateInfo(
+        id="devon",
+        name="Devon Corporation",
+        ticker="DEVON",
+        share_price=10_000_000,
+        base_dividend=0.025,
+        perk_name="Devon Commerce",
+        perk_desc="-10% Discount on Shop items & eggs"
+    ),
+    "aether": CorporateInfo(
+        id="aether",
+        name="Aether Foundation",
+        ticker="AETHR",
+        share_price=5_000_000,
+        base_dividend=0.020,
+        perk_name="Aether Sanctuary",
+        perk_desc="Halves happiness decay; +5 daily hap."
+    ),
+    "mauville": CorporateInfo(
+        id="mauville",
+        name="Greater Mauville Holdings",
+        ticker="MAUV",
+        share_price=5_000_000,
+        base_dividend=0.020,
+        perk_name="Casino Royalty",
+        perk_desc="+10% Payout bonus on all minigames"
+    ),
+    "macro": CorporateInfo(
+        id="macro",
+        name="Macro Cosmos",
+        ticker="MACRO",
+        share_price=20_000_000,
+        base_dividend=0.030,
+        perk_name="Dynamax Energy",
+        perk_desc="+20% Tokens from Boss raids & Red battle"
+    )
+}
 
 @dataclass
 class MonState:

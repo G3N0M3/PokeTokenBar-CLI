@@ -79,7 +79,16 @@ class StorageManager:
             "trainer_battles": {"wins": 0, "losses": 0},
             "battle_logs": [],
             "golden_razz_active": False,
-            "last_date": datetime.datetime.now().strftime("%Y-%m-%d")
+            "last_date": datetime.datetime.now().strftime("%Y-%m-%d"),
+            "term_deposits": [],
+            "investments": {
+                "silph": 0,
+                "devon": 0,
+                "aether": 0,
+                "mauville": 0,
+                "macro": 0
+            },
+            "black_market": None
         }
 
     @staticmethod
