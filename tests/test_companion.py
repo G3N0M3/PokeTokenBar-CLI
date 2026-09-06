@@ -54,6 +54,25 @@ class TestCompanionEngine(unittest.TestCase):
         ok3, msg3 = self.engine.buy_egg(Rarity.UNCOMMON)
         self.assertTrue(ok3)
 
+    def test_strict_no_duplicate_pokemon_hatching(self):
+        # Register the 8 original legendaries in the dex (including Ho-Oh #250)
+        original_8_legs = [144, 150, 249, 250, 384, 483, 484, 643]
+        self.engine.state["dex"] = [
+            {"id": f"sp_{sp}", "species_id": sp, "base_id": sp, "status": "inactive"}
+            for sp in original_8_legs
+        ]
+        self.engine.set_active_mon(None)
+
+        # Hatch 10 legendary eggs in a row - NONE should ever be any of the original 8!
+        hatched_ids = set()
+        for _ in range(10):
+            mon, events = self.engine.hatch_egg(0, force_tier="legendary")
+            self.assertNotIn(mon.base_id, original_8_legs)
+            self.assertNotIn(mon.base_id, hatched_ids)
+            hatched_ids.add(mon.base_id)
+            self.assertEqual(mon.rarity, Rarity.LEGENDARY)
+            self.engine.set_active_mon(None)
+
     def test_new_game_features(self):
         mon, events = self.engine.hatch_egg(0)
         

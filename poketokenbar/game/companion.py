@@ -15,29 +15,87 @@ from poketokenbar.game.slots import SlotMachineEngine
 from poketokenbar.game.blackjack import BlackjackEngine
 from poketokenbar.game.gacha import GachaEngine, GACHA_COST_SINGLE, GACHA_COST_MULTI
 
-# Gen 1-5 starters/base species sampling fallback table if offline
+# Expanded pool of starters, base species, and all legendary/mythical Pokémon (Gens 1-7)
 BASE_SPECIES_STARTERS = [
+    # === LEGENDARY & MYTHICAL POKÉMON (Generations 1 - 7) ===
     # Gen 1
-    (1, "Bulbasaur", 45, False), (4, "Charmander", 45, False), (7, "Squirtle", 45, False),
-    (10, "Caterpie", 255, False), (13, "Weedle", 255, False), (16, "Pidgey", 255, False),
-    (19, "Rattata", 255, False), (25, "Pikachu", 190, False), (37, "Vulpix", 190, False),
-    (43, "Oddish", 255, False), (54, "Psyduck", 190, False), (58, "Growlithe", 190, False),
-    (60, "Poliwag", 255, False), (63, "Abra", 200, False), (66, "Machop", 180, False),
-    (92, "Gastly", 190, False), (129, "Magikarp", 255, False), (133, "Eevee", 45, False),
-    (147, "Dratini", 45, False), (144, "Articuno", 3, True), (150, "Mewtwo", 3, True),
+    (144, "Articuno", 3, True), (145, "Zapdos", 3, True), (146, "Moltres", 3, True),
+    (150, "Mewtwo", 3, True), (151, "Mew", 45, True),
     # Gen 2
-    (152, "Chikorita", 45, False), (155, "Cyndaquil", 45, False), (158, "Totodile", 45, False),
-    (172, "Pichu", 190, False), (179, "Mareep", 235, False), (246, "Larvitar", 45, False),
-    (249, "Lugia", 3, True), (250, "Ho-Oh", 3, True),
+    (243, "Raikou", 3, True), (244, "Entei", 3, True), (245, "Suicune", 3, True),
+    (249, "Lugia", 3, True), (250, "Ho-Oh", 3, True), (251, "Celebi", 45, True),
     # Gen 3
-    (252, "Treecko", 45, False), (255, "Torchic", 45, False), (258, "Mudkip", 45, False),
-    (280, "Ralts", 235, False), (371, "Bagon", 45, False), (384, "Rayquaza", 3, True),
+    (377, "Regirock", 3, True), (378, "Regice", 3, True), (379, "Registeel", 3, True),
+    (380, "Latias", 3, True), (381, "Latios", 3, True), (382, "Kyogre", 3, True),
+    (383, "Groudon", 3, True), (384, "Rayquaza", 3, True), (385, "Jirachi", 3, True),
+    (386, "Deoxys", 3, True),
     # Gen 4
-    (387, "Turtwig", 45, False), (390, "Chimchar", 45, False), (393, "Piplup", 45, False),
-    (443, "Gible", 45, False), (483, "Dialga", 3, True), (484, "Palkia", 3, True),
+    (480, "Uxie", 3, True), (481, "Mesprit", 3, True), (482, "Azelf", 3, True),
+    (483, "Dialga", 3, True), (484, "Palkia", 3, True), (485, "Heatran", 3, True),
+    (486, "Regigigas", 3, True), (487, "Giratina", 3, True), (488, "Cresselia", 3, True),
+    (489, "Phione", 30, True), (490, "Manaphy", 3, True), (491, "Darkrai", 3, True),
+    (492, "Shaymin", 45, True), (493, "Arceus", 3, True),
     # Gen 5
+    (494, "Victini", 3, True), (638, "Cobalion", 3, True), (639, "Terrakion", 3, True),
+    (640, "Virizion", 3, True), (641, "Tornadus", 3, True), (642, "Thundurus", 3, True),
+    (643, "Reshiram", 3, True), (644, "Zekrom", 3, True), (645, "Landorus", 3, True),
+    (646, "Kyurem", 3, True), (647, "Keldeo", 3, True), (648, "Meloetta", 3, True),
+    (649, "Genesect", 3, True),
+    # Gen 6
+    (716, "Xerneas", 45, True), (717, "Yveltal", 45, True), (718, "Zygarde", 3, True),
+    (719, "Diancie", 3, True), (720, "Hoopa", 3, True), (721, "Volcanion", 3, True),
+    # Gen 7
+    (785, "Tapu Koko", 3, True), (786, "Tapu Lele", 3, True),
+    (787, "Tapu Bulu", 3, True), (788, "Tapu Fini", 3, True),
+    (789, "Cosmog", 45, True), (793, "Nihilego", 45, True),
+    (794, "Buzzwole", 45, True), (795, "Pheromosa", 45, True),
+    (796, "Xurkitree", 45, True), (797, "Celesteela", 45, True),
+    (798, "Kartana", 255, True), (799, "Guzzlord", 45, True),
+    (800, "Necrozma", 3, True), (801, "Magearna", 3, True),
+    (802, "Marshadow", 3, True), (804, "Poipole", 45, True),
+    (805, "Stakataka", 30, True), (806, "Blacephalon", 30, True),
+    (807, "Zeraora", 3, True),
+
+    # === STARTERS (Gens 1 - 7) ===
+    (1, "Bulbasaur", 45, False), (4, "Charmander", 45, False), (7, "Squirtle", 45, False),
+    (152, "Chikorita", 45, False), (155, "Cyndaquil", 45, False), (158, "Totodile", 45, False),
+    (252, "Treecko", 45, False), (255, "Torchic", 45, False), (258, "Mudkip", 45, False),
+    (387, "Turtwig", 45, False), (390, "Chimchar", 45, False), (393, "Piplup", 45, False),
     (495, "Snivy", 45, False), (498, "Tepig", 45, False), (501, "Oshawott", 45, False),
-    (570, "Zorua", 75, False), (633, "Deino", 45, False), (643, "Reshiram", 3, True)
+    (650, "Chespin", 45, False), (653, "Fennekin", 45, False), (656, "Froakie", 45, False),
+    (722, "Rowlet", 45, False), (725, "Litten", 45, False), (728, "Popplio", 45, False),
+
+    # === PSEUDO-LEGENDARIES & RARE / FOSSIL BASE SPECIES ===
+    (147, "Dratini", 45, False), (246, "Larvitar", 45, False), (371, "Bagon", 45, False),
+    (374, "Beldum", 3, False), (443, "Gible", 45, False), (633, "Deino", 45, False),
+    (704, "Goomy", 45, False), (782, "Jangmo-o", 45, False),
+    (131, "Lapras", 45, False), (143, "Snorlax", 25, False), (142, "Aerodactyl", 45, False),
+    (138, "Omanyte", 45, False), (140, "Kabuto", 45, False), (175, "Togepi", 190, False),
+    (447, "Riolu", 75, False), (570, "Zorua", 75, False), (636, "Larvesta", 45, False),
+    (610, "Axew", 75, False), (679, "Honedge", 120, False), (778, "Mimikyu", 45, False),
+    (359, "Absol", 30, False), (479, "Rotom", 45, False), (442, "Spiritomb", 100, False),
+    (227, "Skarmory", 25, False), (214, "Heracross", 45, False), (123, "Scyther", 45, False),
+    (127, "Pinsir", 45, False), (133, "Eevee", 45, False), (137, "Porygon", 45, False),
+
+    # === UNCOMMON & COMMON BASE SPECIES ===
+    (10, "Caterpie", 255, False), (13, "Weedle", 255, False), (16, "Pidgey", 255, False),
+    (19, "Rattata", 255, False), (25, "Pikachu", 190, False), (27, "Sandshrew", 255, False),
+    (37, "Vulpix", 190, False), (41, "Zubat", 255, False), (43, "Oddish", 255, False),
+    (54, "Psyduck", 190, False), (58, "Growlithe", 190, False), (60, "Poliwag", 255, False),
+    (63, "Abra", 200, False), (66, "Machop", 180, False), (69, "Bellsprout", 255, False),
+    (74, "Geodude", 255, False), (77, "Ponyta", 190, False), (79, "Slowpoke", 190, False),
+    (81, "Magnemite", 190, False), (92, "Gastly", 190, False), (95, "Onix", 45, False),
+    (129, "Magikarp", 255, False), (172, "Pichu", 190, False), (179, "Mareep", 235, False),
+    (183, "Marill", 190, False), (194, "Wooper", 255, False), (228, "Houndour", 120, False),
+    (231, "Phanpy", 120, False), (280, "Ralts", 235, False), (285, "Shroomish", 255, False),
+    (287, "Slakoth", 255, False), (304, "Aron", 180, False), (307, "Meditite", 180, False),
+    (309, "Electrike", 120, False), (328, "Trapinch", 255, False), (333, "Swablu", 255, False),
+    (349, "Feebas", 255, False), (403, "Shinx", 235, False), (427, "Buneary", 190, False),
+    (453, "Croagunk", 140, False), (459, "Snover", 120, False), (540, "Sewaddle", 255, False),
+    (543, "Venipede", 255, False), (551, "Sandile", 180, False), (559, "Scraggy", 180, False),
+    (607, "Litwick", 190, False), (624, "Pawniard", 120, False), (661, "Fletchling", 255, False),
+    (674, "Pancham", 190, False), (686, "Inkay", 190, False), (736, "Grubbin", 255, False),
+    (744, "Rockruff", 190, False), (747, "Mareanie", 190, False), (759, "Stufful", 140, False)
 ]
 
 class CompanionEngine:
@@ -1080,6 +1138,44 @@ class CompanionEngine:
         return mon, events
 
     def _pick_species(self, tier_guarantee: Optional[str] = None) -> Tuple[int, Rarity, List[int], bool]:
+        # 1. Collect all owned species IDs, base IDs, and chain IDs across Pokédex and Active Companion
+        owned_ids = set()
+        dex = self.state.get("dex", [])
+        for d in dex:
+            sp_id = d.get("species_id") or d.get("base_id")
+            if sp_id:
+                try: owned_ids.add(int(sp_id))
+                except (ValueError, TypeError): pass
+            base_id = d.get("base_id")
+            if base_id:
+                try: owned_ids.add(int(base_id))
+                except (ValueError, TypeError): pass
+            final_id = d.get("final_id")
+            if final_id:
+                try: owned_ids.add(int(final_id))
+                except (ValueError, TypeError): pass
+            for ch_id in d.get("chain_order", []):
+                try: owned_ids.add(int(ch_id))
+                except (ValueError, TypeError): pass
+            mon_st = d.get("mon_state")
+            if isinstance(mon_st, dict):
+                m_base = mon_st.get("base_id")
+                if m_base:
+                    try: owned_ids.add(int(m_base))
+                    except (ValueError, TypeError): pass
+                for p_id in mon_st.get("path_ids", []):
+                    try: owned_ids.add(int(p_id))
+                    except (ValueError, TypeError): pass
+
+        active = self.active_mon
+        if active:
+            try: owned_ids.add(int(active.base_id))
+            except (ValueError, TypeError): pass
+            for p_id in active.path_ids:
+                try: owned_ids.add(int(p_id))
+                except (ValueError, TypeError): pass
+
+        # 2. Select candidate pool based on tier guarantee
         if tier_guarantee == "legendary":
             candidates = [c for c in BASE_SPECIES_STARTERS if c[3]]
         else:
@@ -1090,12 +1186,19 @@ class CompanionEngine:
                 if not candidates:
                     candidates = [c for c in BASE_SPECIES_STARTERS if not c[3]]
 
-        # Block spawning of Pokemon already in the roster (active or inactive)
-        dex = self.state.get("dex", [])
-        roster_base_ids = {d.get("base_id") for d in dex if d.get("status") in ["active", "inactive"]}
-        filtered_candidates = [c for c in candidates if c[0] not in roster_base_ids]
-        
-        # Fallback if somehow they have all possible Pokemon in the roster
+        # 3. Strict No-Duplicate Filter: exclude any species that is already owned in any form
+        filtered_candidates = [c for c in candidates if c[0] not in owned_ids]
+
+        # 4. Fallback if requested tier is exhausted: search unowned species from broader pool
+        if not filtered_candidates:
+            if tier_guarantee == "legendary":
+                # If all legendaries are owned, find any unowned rare/pseudo-legendary species
+                filtered_candidates = [c for c in BASE_SPECIES_STARTERS if c[0] not in owned_ids]
+            else:
+                # If tier pool is exhausted, search any unowned non-legendary species
+                filtered_candidates = [c for c in BASE_SPECIES_STARTERS if not c[3] and c[0] not in owned_ids]
+
+        # 5. True 100% full-game completion fallback (only occurs if player literally owns all 150+ species)
         if not filtered_candidates:
             filtered_candidates = candidates
 
