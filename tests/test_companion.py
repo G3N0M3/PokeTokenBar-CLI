@@ -296,11 +296,14 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertFalse(self.engine.has_perk("silph"))
         self.assertFalse(self.engine.has_perk("devon"))
 
-        # Buy 2 shares of Silph and 1 share of Devon
-        ok_silph, msg_silph = self.engine.invest_corporate("silph", "2")
+        # Buy 2 shares of Silph and 1 share of Devon using stock codes (case-insensitive)
+        ok_silph, msg_silph = self.engine.invest_corporate("SILPH", "2")
         self.assertTrue(ok_silph)
-        ok_devon, msg_devon = self.engine.invest_corporate("devon", "1")
+        ok_devon, msg_devon = self.engine.invest_corporate("DEVON", "1")
         self.assertTrue(ok_devon)
+        # Also verify ticker alias DEVN works
+        ok_devn_alias, _ = self.engine.invest_corporate("DEVN", "1")
+        self.assertTrue(ok_devn_alias)
 
         self.assertTrue(self.engine.has_perk("silph"))
         self.assertTrue(self.engine.has_perk("devon"))
@@ -322,9 +325,9 @@ class TestCompanionEngine(unittest.TestCase):
         self.engine.process_usage(200_000_000, ["2026-08-01", "2026-08-02"])
         self.assertGreater(self.engine.available_tokens, avail_before_div)
 
-        # Divest 1 share of Silph (10M gross -> 9M net with 10% liquidation spread)
+        # Divest 1 share of Silph using stock code (10M gross -> 9M net with 10% liquidation spread)
         avail_before_divest = self.engine.available_tokens
-        ok_divest, msg_divest = self.engine.divest_corporate("silph", "1")
+        ok_divest, msg_divest = self.engine.divest_corporate("SILPH", "1")
         self.assertTrue(ok_divest)
         self.assertEqual(self.engine.available_tokens, avail_before_divest + 9_000_000)
         self.assertEqual(self.engine.state["investments"]["silph"], 1)
@@ -376,15 +379,17 @@ class TestCompanionEngine(unittest.TestCase):
         app.engine = self.engine
         app.engine.state["used_since_install"] = 200_000_000
         app.engine.open_cd("10m", 3)
-        app.engine.invest_corporate("silph", "2")
-        app.engine.invest_corporate("mauville", "1")
+        app.engine.invest_corporate("SILPH", "2")
+        app.engine.invest_corporate("MAUV", "1")
 
         # Test Bank Checking
         app.bank_subtab = "checking"
         trap = io.StringIO()
         with unittest.mock.patch("sys.stdout", trap):
             render_bank_tab(app)
-        for line in trap.getvalue().split("\n"):
+        checking_output = trap.getvalue()
+        self.assertNotIn("c' for Term Deposits", checking_output)
+        for line in checking_output.split("\n"):
             clean = ansi_regex.sub("", line)
             self.assertLessEqual(len(clean), 72, f"Bank Checking line exceeds 72 cols: '{clean}' (len={len(clean)})")
 
@@ -393,21 +398,39 @@ class TestCompanionEngine(unittest.TestCase):
         trap = io.StringIO()
         with unittest.mock.patch("sys.stdout", trap):
             render_bank_tab(app)
-        for line in trap.getvalue().split("\n"):
+        cd_output = trap.getvalue()
+        self.assertNotIn("b' for Checking", cd_output)
+        for line in cd_output.split("\n"):
             clean = ansi_regex.sub("", line)
             self.assertLessEqual(len(clean), 72, f"Bank CD line exceeds 72 cols: '{clean}' (len={len(clean)})")
 
-        # Test Bank Stocks
+        # Test Bank Stocks (Page 1)
         app.bank_subtab = "stocks"
+        app.stock_page = 1
         trap = io.StringIO()
         with unittest.mock.patch("sys.stdout", trap):
             render_bank_tab(app)
-        for line in trap.getvalue().split("\n"):
+        stocks_p1_output = trap.getvalue()
+        self.assertNotIn("b' for Checking", stocks_p1_output)
+        self.assertIn("Page 1/2", stocks_p1_output)
+        for line in stocks_p1_output.split("\n"):
             clean = ansi_regex.sub("", line)
-            self.assertLessEqual(len(clean), 72, f"Bank Stocks line exceeds 72 cols: '{clean}' (len={len(clean)})")
+            self.assertLessEqual(len(clean), 72, f"Bank Stocks P1 line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+        # Test Bank Stocks (Page 2)
+        app.stock_page = 2
+        trap = io.StringIO()
+        with unittest.mock.patch("sys.stdout", trap):
+            render_bank_tab(app)
+        stocks_p2_output = trap.getvalue()
+        self.assertIn("Page 2/2", stocks_p2_output)
+        for line in stocks_p2_output.split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Bank Stocks P2 line exceeds 72 cols: '{clean}' (len={len(clean)})")
 
         # Test Shop Normal
         app.shop_view = "normal"
+        app.shop_page = 1
         trap = io.StringIO()
         with unittest.mock.patch("sys.stdout", trap):
             render_shop_tab(app)

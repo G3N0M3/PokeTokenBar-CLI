@@ -251,7 +251,7 @@ class PokeTokenBarTUI:
                     summary = self.tracker.get_summary(force=True)
                     self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
                     self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
-                elif cmd in ["n", "next"] and self.current_tab in [2, 3, 4, 5, 8]:
+                elif cmd in ["n", "next"] and (self.current_tab in [2, 3, 4, 5, 8] or (self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks")):
                     if self.current_tab == 2: self.pokedex_page += 1
                     elif self.current_tab == 4:
                         if not hasattr(self, 'shop_page'): self.shop_page = 1
@@ -262,9 +262,12 @@ class PokeTokenBarTUI:
                     elif self.current_tab == 8:
                         if not hasattr(self, 'mega_page'): self.mega_page = 1
                         self.mega_page += 1
+                    elif self.current_tab == 10:
+                        if not hasattr(self, 'stock_page'): self.stock_page = 1
+                        self.stock_page += 1
                     else: self.roster_page += 1
                     self.message = ""
-                elif cmd in ["p", "prev", "previous"] and self.current_tab in [2, 3, 4, 5, 8]:
+                elif cmd in ["p", "prev", "previous"] and (self.current_tab in [2, 3, 4, 5, 8] or (self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks")):
                     if self.current_tab == 2: self.pokedex_page = max(1, self.pokedex_page - 1)
                     elif self.current_tab == 4:
                         if not hasattr(self, 'shop_page'): self.shop_page = 1
@@ -275,15 +278,19 @@ class PokeTokenBarTUI:
                     elif self.current_tab == 8:
                         if not hasattr(self, 'mega_page'): self.mega_page = 1
                         self.mega_page = max(1, self.mega_page - 1)
+                    elif self.current_tab == 10:
+                        if not hasattr(self, 'stock_page'): self.stock_page = 1
+                        self.stock_page = max(1, self.stock_page - 1)
                     else: self.roster_page = max(1, self.roster_page - 1)
                     self.message = ""
-                elif cmd.startswith("page ") and self.current_tab in [2, 3, 4, 5, 8]:
+                elif cmd.startswith("page ") and (self.current_tab in [2, 3, 4, 5, 8] or (self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks")):
                     try:
                         page = max(1, int(cmd.split()[1]))
                         if self.current_tab == 2: self.pokedex_page = page
                         elif self.current_tab == 4: self.shop_page = page
                         elif self.current_tab == 5: self.expedition_page = page
                         elif self.current_tab == 8: self.mega_page = page
+                        elif self.current_tab == 10: self.stock_page = page
                         else: self.roster_page = page
                         self.message = ""
                     except ValueError:
@@ -470,7 +477,7 @@ class PokeTokenBarTUI:
                         shares = parts[2] if len(parts) >= 3 else "1"
                         ok, msg = self.engine.invest_corporate(parts[1], shares)
                     else:
-                        ok, msg = False, "Usage: invest <corp> <shares|all> (e.g. 'invest silph 2')"
+                        ok, msg = False, "Usage: invest <code> <shares|all> (e.g. 'invest SILPH 2')"
                     self.message = msg
                 elif cmd.startswith("divest "):
                     parts = cmd.split()
@@ -478,7 +485,7 @@ class PokeTokenBarTUI:
                         shares = parts[2] if len(parts) >= 3 else "1"
                         ok, msg = self.engine.divest_corporate(parts[1], shares)
                     else:
-                        ok, msg = False, "Usage: divest <corp> <shares|all> (e.g. 'divest silph 1')"
+                        ok, msg = False, "Usage: divest <code> <shares|all> (e.g. 'divest SILPH 1')"
                     self.message = msg
                 elif cmd in ["market", "bm"]:
                     self.current_tab = 4

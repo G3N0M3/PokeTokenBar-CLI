@@ -2258,49 +2258,60 @@ class CompanionEngine:
         self.save()
         return True, f"⚠️ Early withdrawal of CD #{target_id}: Forfeited all interest and paid 10% penalty ({format_tokens(penalty)}). Refunded {format_tokens(refund)} tokens to your spendable balance."
 
-    def invest_corporate(self, corp_key: str, shares_str: str) -> Tuple[bool, str]:
-        key = corp_key.lower().strip()
-        if key not in CORPORATIONS:
-            names = ", ".join(f"'{k}' ({v.name})" for k, v in CORPORATIONS.items())
-            return False, f"Unknown corporation '{corp_key}'! Available: {names}."
+    @staticmethod
+    def _resolve_corp_key(code_or_name: str) -> Optional[str]:
+        raw = code_or_name.lower().strip()
+        for k, v in CORPORATIONS.items():
+            if v.ticker.lower() == raw:
+                return k
+        if raw in CORPORATIONS:
+            return raw
+        aliases = {"devn": "devon", "athr": "aether", "slph": "silph"}
+        return aliases.get(raw)
+
+    def invest_corporate(self, corp_code: str, shares_str: str) -> Tuple[bool, str]:
+        key = self._resolve_corp_key(corp_code)
+        if not key:
+            tickers = ", ".join(f"'{v.ticker}' ({v.name})" for v in CORPORATIONS.values())
+            return False, f"Unknown stock code '{corp_code}'! Available codes: {tickers}."
 
         corp = CORPORATIONS[key]
         clean_str = shares_str.lower().strip()
         if clean_str == "all":
             shares = self.available_tokens // corp.share_price
             if shares <= 0:
-                return False, f"Not enough tokens to buy 1 share of {corp.name} ({format_tokens(corp.share_price)} tokens)!"
+                return False, f"Not enough tokens to buy 1 share of {corp.ticker} ({corp.name}) ({format_tokens(corp.share_price)} tokens)!"
         else:
             try:
                 shares = int(clean_str)
             except ValueError:
-                return False, "Invalid number of shares. Example: 'invest silph 2' or 'invest devon all'."
+                return False, f"Invalid number of shares. Example: 'invest {corp.ticker} 2' or 'invest {corp.ticker} all'."
 
         if shares <= 0:
             return False, "Shares must be at least 1."
 
         cost = shares * corp.share_price
         if cost > self.available_tokens:
-            return False, f"Not enough tokens! Buying {shares} share(s) of {corp.name} costs {format_tokens(cost)} (You have {format_tokens(self.available_tokens)})."
+            return False, f"Not enough tokens! Buying {shares} share(s) of {corp.ticker} costs {format_tokens(cost)} (You have {format_tokens(self.available_tokens)})."
 
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + cost
         invs = self.state.setdefault("investments", {"silph": 0, "devon": 0, "aether": 0, "mauville": 0, "macro": 0})
         invs[key] = invs.get(key, 0) + shares
         self.state["investments"] = invs
         self.save()
-        return True, f"📈 Invested in {shares} share(s) of {corp.name} for {format_tokens(cost)} tokens! ({corp.perk_name}: {corp.perk_desc} is now ACTIVE!)"
+        return True, f"📈 Invested in {shares} share(s) of {corp.ticker} ({corp.name}) for {format_tokens(cost)} tokens! ({corp.perk_name}: {corp.perk_desc} is now ACTIVE!)"
 
-    def divest_corporate(self, corp_key: str, shares_str: str) -> Tuple[bool, str]:
-        key = corp_key.lower().strip()
-        if key not in CORPORATIONS:
-            names = ", ".join(f"'{k}'" for k in CORPORATIONS.keys())
-            return False, f"Unknown corporation '{corp_key}'! Available: {names}."
+    def divest_corporate(self, corp_code: str, shares_str: str) -> Tuple[bool, str]:
+        key = self._resolve_corp_key(corp_code)
+        if not key:
+            tickers = ", ".join(f"'{v.ticker}'" for v in CORPORATIONS.values())
+            return False, f"Unknown stock code '{corp_code}'! Available codes: {tickers}."
 
         corp = CORPORATIONS[key]
         invs = self.state.setdefault("investments", {"silph": 0, "devon": 0, "aether": 0, "mauville": 0, "macro": 0})
         owned = invs.get(key, 0)
         if owned <= 0:
-            return False, f"You don't own any shares of {corp.name}!"
+            return False, f"You don't own any shares of {corp.ticker} ({corp.name})!"
 
         clean_str = shares_str.lower().strip()
         if clean_str == "all":
@@ -2309,10 +2320,10 @@ class CompanionEngine:
             try:
                 shares = int(clean_str)
             except ValueError:
-                return False, "Invalid number of shares. Example: 'divest silph 1' or 'divest devon all'."
+                return False, f"Invalid number of shares. Example: 'divest {corp.ticker} 1' or 'divest {corp.ticker} all'."
 
         if shares <= 0 or shares > owned:
-            return False, f"Invalid quantity! You own {owned} share(s) of {corp.name}."
+            return False, f"Invalid quantity! You own {owned} share(s) of {corp.ticker}."
 
         # 10% liquidation fee / market spread
         gross_value = shares * corp.share_price
@@ -2321,7 +2332,7 @@ class CompanionEngine:
         invs[key] = owned - shares
         self.state["investments"] = invs
         self.save()
-        return True, f"📉 Sold {shares} share(s) of {corp.name} for {format_tokens(payout)} tokens (10% liquidation spread applied)."
+        return True, f"📉 Sold {shares} share(s) of {corp.ticker} ({corp.name}) for {format_tokens(payout)} tokens (10% liquidation spread applied)."
 
     def get_or_init_black_market(self, force_open: bool = False) -> dict:
         bm = self.state.get("black_market")
@@ -2337,7 +2348,7 @@ class CompanionEngine:
                 {"name": "🔍 Scope Lens (Held Item)", "type": "item", "item_key": "scope_lens", "qty": 1, "price": 30_000_000, "stock": 1, "max_stock": 1, "badge": "EXCLUSIVE"},
                 {"name": "🔮 Life Orb (Held Item)", "type": "item", "item_key": "life_orb", "qty": 1, "price": 25_000_000, "stock": 1, "max_stock": 1, "badge": "EXCLUSIVE"},
                 {"name": "🥊 Choice Band (Held Item)", "type": "item", "item_key": "choice_band", "qty": 1, "price": 20_000_000, "stock": 1, "max_stock": 1, "badge": "EXCLUSIVE"},
-                {"name": "🥚 Epic Egg Voucher", "type": "egg", "egg_tier": "epic", "price": 12_000_000, "stock": 1, "max_stock": 1, "badge": "HOT DEAL"},
+                {"name": "🥚 Rare Egg Voucher", "type": "egg", "egg_tier": "rare", "price": 12_000_000, "stock": 1, "max_stock": 1, "badge": "HOT DEAL"},
                 {"name": "🌟 Legendary Egg Voucher", "type": "egg", "egg_tier": "legendary", "price": 40_000_000, "stock": 1, "max_stock": 1, "badge": "LEGENDARY"},
                 {"name": "🌟 Master Ball", "type": "item", "item_key": "master_ball", "qty": 1, "price": 60_000_000, "stock": 1, "max_stock": 1, "badge": "RARE"},
                 {"name": "📜 Ancient Map Trove (3x)", "type": "map_pack", "price": 15_000_000, "stock": 1, "max_stock": 1, "badge": "EXPEDITION"},

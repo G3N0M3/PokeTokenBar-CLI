@@ -60,8 +60,7 @@ def _render_checking_view(app, avail: int):
     sys.stdout.write(f"  • {RED}Loans:{RESET}    -10% interest daily (Max Loan: {format_tokens(max_loan)})\n\n")
     sys.stdout.write(f"  {BOLD}Commands:{RESET}\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}deposit <amount>{RESET}' / '{BOLD}withdraw <amount>{RESET}' (e.g. 'deposit 1m')\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}loan <amount>{RESET}' / '{BOLD}payoff <amount>{RESET}' (e.g. 'payoff all')\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}c{RESET}' for Term Deposits or '{BOLD}s{RESET}' for Corporate Stocks\n\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}loan <amount>{RESET}' / '{BOLD}payoff <amount>{RESET}' (e.g. 'payoff all')\n\n")
 
 def _render_cd_view(app, avail: int):
     cds = app.engine.state.get("term_deposits", [])
@@ -93,8 +92,7 @@ def _render_cd_view(app, avail: int):
     sys.stdout.write(f"  {BOLD}Commands:{RESET}\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}cd open <amount> <3|7|14>{RESET}' (e.g. 'cd open 10m 7')\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}cd claim <id|all>{RESET}' to claim matured deposits\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}cd break <id>{RESET}' for early withdrawal (10% penalty)\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}b{RESET}' for Checking or '{BOLD}s{RESET}' for Corporate Stocks\n\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}cd break <id>{RESET}' for early withdrawal (10% penalty)\n\n")
 
 def _render_stocks_view(app, avail: int):
     investments = app.engine.state.get("investments", {})
@@ -105,28 +103,39 @@ def _render_stocks_view(app, avail: int):
     sys.stdout.write(f"  {BOLD}{BLUE}📈 Pokémon Corporate Stock Exchange{RESET}  (Spendable: {BOLD}{CYAN}{format_tokens(avail)}{RESET})\n")
     sys.stdout.write(f"  🔥 Streak: {BOLD}{YELLOW}{streak}d{RESET} (Grants +{streak_bonus_pct:.1f}% bonus to all dividend yields!)\n\n")
 
-    total_invested = 0
-    total_daily_div = 0
+    corp_items = list(CORPORATIONS.items())
+    page_size = 3
+    total_pages = max(1, (len(corp_items) - 1) // page_size + 1)
+    if not hasattr(app, "stock_page") or not isinstance(app.stock_page, int):
+        app.stock_page = 1
+    app.stock_page = max(1, min(app.stock_page, total_pages))
 
-    idx = 1
-    for key, corp in CORPORATIONS.items():
+    start_idx = (app.stock_page - 1) * page_size
+    end_idx = start_idx + page_size
+    visible_corps = corp_items[start_idx:end_idx]
+
+    total_invested = sum(investments.get(k, 0) * c.share_price for k, c in CORPORATIONS.items())
+    total_daily_div = sum(int(investments.get(k, 0) * c.share_price * (c.base_dividend + streak_bonus)) for k, c in CORPORATIONS.items())
+
+    idx = start_idx + 1
+    for key, corp in visible_corps:
         shares = investments.get(key, 0)
         eff_rate = corp.base_dividend + streak_bonus
         div_day = int(shares * corp.share_price * eff_rate)
-        total_invested += shares * corp.share_price
-        total_daily_div += div_day
 
         perk_status = f"{BOLD}{GREEN}[ACTIVE]{RESET}" if shares > 0 else f"{RED}[INACTIVE]{RESET}"
         owned_str = f"{BOLD}{GREEN}{shares} shares{RESET}" if shares > 0 else "0 shares"
 
-        sys.stdout.write(f"  [{idx}] {BOLD}{corp.name}{RESET} ({CYAN}{corp.ticker}{RESET}) — {format_tokens(corp.share_price)}/sh | Own: {owned_str}\n")
+        sys.stdout.write(f"  [{idx}] [{BOLD}{CYAN}{corp.ticker}{RESET}] {BOLD}{corp.name}{RESET} — {format_tokens(corp.share_price)}/sh | Own: {owned_str}\n")
         sys.stdout.write(f"      Div: {corp.base_dividend*100:.1f}% (+{streak_bonus_pct:.1f}% = {eff_rate*100:.1f}%/d) ➔ Yield: +{format_tokens(div_day)}/day\n")
         sys.stdout.write(f"      Perk: {BOLD}{corp.perk_name}{RESET} {perk_status}\n")
         sys.stdout.write(f"      Effect: {corp.perk_desc}\n\n")
         idx += 1
 
+    if total_pages > 1:
+        sys.stdout.write(f"  ➔ Page {app.stock_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to browse stocks\n\n")
+
     sys.stdout.write(f"  {BOLD}Portfolio Summary:{RESET} Total: {BOLD}{CYAN}{format_tokens(total_invested)}{RESET} | Daily Div: {BOLD}{GREEN}+{format_tokens(total_daily_div)}{RESET}/day\n\n")
     sys.stdout.write(f"  {BOLD}Commands:{RESET}\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}invest <corp> <shares|all>{RESET}' (e.g. 'invest silph 2')\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}divest <corp> <shares|all>{RESET}' to sell (10% liquidation spread)\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}b{RESET}' for Checking or '{BOLD}c{RESET}' for Term Deposits (CD)\n\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}invest <code> <shares|all>{RESET}' (e.g. 'invest SILPH 2')\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}divest <code> <shares|all>{RESET}' to sell (10% spread)\n\n")
