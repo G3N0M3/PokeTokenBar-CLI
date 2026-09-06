@@ -2,6 +2,9 @@ import json
 import uuid
 import datetime
 import os
+import sys
+import shutil
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
@@ -11,6 +14,15 @@ def get_state_file() -> Path:
     override = os.environ.get("PTB_STATE_FILE")
     if override:
         return Path(override)
+    # Safety guard: If running inside a test framework and PTB_STATE_FILE was not set,
+    # route to a temporary sandbox to protect the user's live save data.
+    is_testing = (
+        "pytest" in sys.modules
+        or "PYTEST_CURRENT_TEST" in os.environ
+        or any("unittest" in arg or "pytest" in arg for arg in sys.argv)
+    )
+    if is_testing:
+        return Path(tempfile.gettempdir()) / "ptb_test_auto_state.json"
     return Path.home() / ".poketokenbar" / "state.json"
 
 STATE_FILE = get_state_file()
@@ -39,6 +51,11 @@ class StorageManager:
         try:
             with open(tmp_file, "w", encoding="utf-8") as f:
                 json.dump(state_data, f, indent=2, ensure_ascii=False)
+            if state_file.exists():
+                try:
+                    shutil.copy2(state_file, state_file.with_suffix(".json.bak"))
+                except Exception:
+                    pass
             tmp_file.replace(state_file)
             return True
         except Exception:
