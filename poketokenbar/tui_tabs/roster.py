@@ -77,7 +77,7 @@ def render(app):
             sys.stdout.write(f"\n  ➔ Page {app.roster_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")
 
     sys.stdout.write(f"\n  ➔ Type '{BOLD}sel <row>|#<dex>|egg{RESET}' to switch active companion!\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}send <row>|#<dex> [area]{RESET}' on expedition!\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}send <row(s)|#dex|all> [area]{RESET}' on expedition! (e.g. 'send 1,2,3 viridian', 'send 1-5 mine', 'send all silver')\n")
     sys.stdout.write(f"     Areas:\n")
     sys.stdout.write(f"       • '{BOLD}viridian{RESET}' (5M, Mint)\n")
     sys.stdout.write(f"       • '{BOLD}mine{RESET}'     (10M, Evo Stone)\n")

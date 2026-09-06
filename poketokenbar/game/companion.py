@@ -1,6 +1,6 @@
 import random
 import datetime
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Union
 
 from poketokenbar.game.models import (
     MonState, DexEntry, Rarity, PokemonNature, PokemonBalance, ItemKind, DifficultyMode,
@@ -1808,16 +1808,10 @@ class CompanionEngine:
         event_str = " ".join(events) if events else f"Expedition {idx + 1} instantly completed!"
         return True, f"Used 🎫 Expedition Pass! {event_str}"
 
-    def dispatch_expedition(self, selection_input: str, area_name: str = "Viridian Forest") -> Tuple[bool, str]:
-        dex = self.state.get("dex", [])
-        if not dex:
-            return False, "Your Pokédex is empty! Register companions before dispatching expeditions."
-
-        expeditions = self.state.get("expeditions", [])
-        roster = [d for d in dex if d.get("status") != "evolved"]
-
-        s_input = selection_input.strip()
-        target_entry = None
+    def _find_roster_entry(self, s_input: str, roster: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        s_input = s_input.strip()
+        if not s_input:
+            return None
 
         # 1. If starts with '#', match strictly by species_id within ROSTER
         if s_input.startswith("#"):
@@ -1825,52 +1819,36 @@ class CompanionEngine:
             for d in roster:
                 sp_id = str(d.get("species_id", d.get("base_id")))
                 if target_sp == sp_id:
-                    target_entry = d
-                    break
-        else:
-            # 2. Try matching by 1-based index in ROSTER (matching Tab 3 Roster exactly)
-            try:
-                idx = int(s_input)
-                if 1 <= idx <= len(roster):
-                    target_entry = roster[idx - 1]
-            except ValueError:
-                pass
+                    return d
+            return None
 
-            # 3. Fallback to species_id match within ROSTER
-            if target_entry is None:
-                for d in roster:
-                    sp_id = str(d.get("species_id", d.get("base_id")))
-                    if s_input == sp_id:
-                        target_entry = d
-                        break
+        # 2. Try matching by 1-based index in ROSTER (matching Tab 3 Roster exactly)
+        try:
+            idx = int(s_input)
+            if 1 <= idx <= len(roster):
+                return roster[idx - 1]
+        except ValueError:
+            pass
 
-            # 4. Fallback to species name match within ROSTER (case-insensitive)
-            if target_entry is None:
-                for d in roster:
-                    sp_id = d.get("species_id", d.get("base_id"))
-                    if s_input.lower() == self.api.get_species_name(sp_id).lower():
-                        target_entry = d
-                        break
+        # 3. Fallback to species_id match within ROSTER
+        for d in roster:
+            sp_id = str(d.get("species_id", d.get("base_id")))
+            if s_input == sp_id:
+                return d
 
-        if target_entry is None:
-            return False, f"Companion '{selection_input}' not found in Roster! Only active companions in your Roster can be dispatched on expeditions (use roster index 1..{len(roster)}, species ID, or name)."
+        # 4. Fallback to species name match within ROSTER (case-insensitive)
+        s_lower = s_input.lower()
+        for d in roster:
+            sp_id = d.get("species_id", d.get("base_id"))
+            if s_lower == self.api.get_species_name(sp_id).lower():
+                return d
 
-        sp_id = target_entry.get("species_id", target_entry.get("base_id"))
-        sp_name = self.api.get_species_name(sp_id)
+        return None
 
-        # Check if already on expedition
-        if any(e.get("sp_id") == sp_id for e in expeditions):
-            return False, f"{sp_name} is already on an expedition!"
-
-        mon_state_dict = target_entry.get("mon_state", {})
-        current_hap = mon_state_dict.get("happiness", target_entry.get("happiness", 100)) if isinstance(mon_state_dict, dict) else target_entry.get("happiness", 100)
-        
-        if current_hap <= 0:
-            return False, f"{sp_name} is completely exhausted (0% Happiness) and refuses to go on an expedition! Please feed it Oran Berries 🫐 first."
-            
-        slot_limit = self.state.get("expedition_slots", 10)
-        if len(expeditions) >= slot_limit:
-            return False, f"You have reached the maximum limit of {slot_limit} active expeditions! You must wait for them to finish or use an Expedition License (📜) to expand your slots."
+    def dispatch_expedition(self, selection_input: Union[str, List[str]], area_name: str = "Viridian Forest") -> Tuple[bool, str]:
+        dex = self.state.get("dex", [])
+        if not dex:
+            return False, "Your Pokédex is empty! Register companions before dispatching expeditions."
 
         from poketokenbar.game.models import PokemonBalance
         areas = {
@@ -1916,41 +1894,201 @@ class CompanionEngine:
         if not key or key not in areas:
             return False, f"Expedition destination '{area_name}' is not one of the available options! Available destinations: viridian, mine, cerulean, silver, spear."
 
-        if key == "spear":
-            inv = self.state.get("inventory", {})
-            if inv.get("map_fragment", 0) < 3:
-                return False, "You need 3x Maps to dispatch a Deep Expedition to Spear Pillar!"
-            
+        expeditions = self.state.get("expeditions", [])
+        slot_limit = self.state.get("expedition_slots", 10)
+        if len(expeditions) >= slot_limit:
+            return False, f"You have reached the maximum limit of {slot_limit} active expeditions! You must wait for them to finish or use an Expedition License (📜) to expand your slots."
+
+        roster = [d for d in dex if d.get("status") != "evolved"]
+
+        is_all = False
+        target_tokens: List[str] = []
+        if isinstance(selection_input, list):
+            target_tokens = [str(x).strip() for x in selection_input if str(x).strip()]
+        else:
+            s_raw = str(selection_input).strip()
+            if s_raw.lower() == "all":
+                is_all = True
+            elif "," in s_raw:
+                raw_pieces = [p.strip() for p in s_raw.split(",") if p.strip()]
+                for piece in raw_pieces:
+                    if "-" in piece and not piece.startswith("#"):
+                        sub = piece.split("-")
+                        if len(sub) == 2 and sub[0].isdigit() and sub[1].isdigit():
+                            target_tokens.extend([str(i) for i in range(int(sub[0]), int(sub[1]) + 1)])
+                            continue
+                    elif ".." in piece and not piece.startswith("#"):
+                        sub = piece.split("..")
+                        if len(sub) == 2 and sub[0].isdigit() and sub[1].isdigit():
+                            target_tokens.extend([str(i) for i in range(int(sub[0]), int(sub[1]) + 1)])
+                            continue
+                    target_tokens.append(piece)
+            else:
+                raw_pieces = s_raw.split()
+                for piece in raw_pieces:
+                    if "-" in piece and not piece.startswith("#"):
+                        sub = piece.split("-")
+                        if len(sub) == 2 and sub[0].isdigit() and sub[1].isdigit():
+                            target_tokens.extend([str(i) for i in range(int(sub[0]), int(sub[1]) + 1)])
+                            continue
+                    elif ".." in piece and not piece.startswith("#"):
+                        sub = piece.split("..")
+                        if len(sub) == 2 and sub[0].isdigit() and sub[1].isdigit():
+                            target_tokens.extend([str(i) for i in range(int(sub[0]), int(sub[1]) + 1)])
+                            continue
+                    target_tokens.append(piece)
+
+        # Single companion dispatch path (100% backwards compatible)
+        if not is_all and len(target_tokens) == 1:
+            s_input = target_tokens[0]
+            target_entry = self._find_roster_entry(s_input, roster)
+
+            if target_entry is None:
+                return False, f"Companion '{selection_input}' not found in Roster! Only active companions in your Roster can be dispatched on expeditions (use roster index 1..{len(roster)}, species ID, or name)."
+
+            sp_id = target_entry.get("species_id", target_entry.get("base_id"))
+            sp_name = self.api.get_species_name(sp_id)
+
+            if any(e.get("sp_id") == sp_id for e in expeditions):
+                return False, f"{sp_name} is already on an expedition!"
+
             mon_state_dict = target_entry.get("mon_state", {})
-            hap = mon_state_dict.get("happiness", target_entry.get("happiness", 100)) if isinstance(mon_state_dict, dict) else target_entry.get("happiness", 100)
-            if hap < 100:
-                return False, "Only a companion with 100% Happiness can brave a Deep Expedition to Spear Pillar!"
-            inv["map_fragment"] -= 3
-            self.state["inventory"] = inv
+            current_hap = mon_state_dict.get("happiness", target_entry.get("happiness", 100)) if isinstance(mon_state_dict, dict) else target_entry.get("happiness", 100)
 
-        # Check if active companion (comparing base_id)
-        active = self.active_mon
-        is_mega_dispatch = False
-        if active and active.base_id == target_entry.get("base_id"):
-            is_mega_dispatch = active.is_mega
-            self._register_to_dex(active, status="inactive")
-            self.set_active_mon(None)
+            if current_hap <= 0:
+                return False, f"{sp_name} is completely exhausted (0% Happiness) and refuses to go on an expedition! Please feed it Oran Berries 🫐 first."
 
+            if key == "spear":
+                inv = self.state.get("inventory", {})
+                if inv.get("map_fragment", 0) < 3:
+                    return False, "You need 3x Maps to dispatch a Deep Expedition to Spear Pillar!"
+                if current_hap < 100:
+                    return False, "Only a companion with 100% Happiness can brave a Deep Expedition to Spear Pillar!"
+                inv["map_fragment"] -= 3
+                self.state["inventory"] = inv
+
+            active = self.active_mon
+            is_mega_dispatch = False
+            active_current_id = active.path_ids[active.stage_index] if active and active.stage_index < len(active.path_ids) else (active.base_id if active else None)
+            if active and (target_entry.get("status") == "active" or active_current_id == sp_id):
+                is_mega_dispatch = active.is_mega
+                self._register_to_dex(active, status="inactive")
+                self.set_active_mon(None)
+
+            area_title, target_xp, reward_type = areas[key]
+            target_entry["happiness"] = max(0, target_entry.get("happiness", 100) - 10)
+            if isinstance(mon_state_dict, dict):
+                mon_state_dict["happiness"] = target_entry["happiness"]
+
+            expeditions.append({
+                "sp_id": sp_id,
+                "area": area_title,
+                "progress": 0,
+                "target": target_xp,
+                "reward": reward_type,
+                "is_mega": is_mega_dispatch
+            })
+            self.state["expeditions"] = expeditions
+            self.save()
+            return True, f"🗺️ Dispatched {sp_name} on an expedition to {area_title}! ({format_tokens(target_xp)} tokens required)"
+
+        # Multi-companion batch dispatch path
         area_title, target_xp, reward_type = areas[key]
+        candidate_entries: List[Dict[str, Any]] = []
+        not_found: List[str] = []
+        seen_entry_ids = set()
 
-        target_entry["happiness"] = max(0, target_entry.get("happiness", 100) - 10)
+        if is_all:
+            candidate_entries = list(roster)
+        else:
+            for tok in target_tokens:
+                entry = self._find_roster_entry(tok, roster)
+                if entry is None:
+                    not_found.append(tok)
+                else:
+                    eid = entry.get("id") or str(entry.get("species_id", entry.get("base_id")))
+                    if eid not in seen_entry_ids:
+                        seen_entry_ids.add(eid)
+                        candidate_entries.append(entry)
 
-        expeditions.append({
-            "sp_id": sp_id,
-            "area": area_title,
-            "progress": 0,
-            "target": target_xp,
-            "reward": reward_type,
-            "is_mega": is_mega_dispatch
-        })
+        if not candidate_entries:
+            if not_found:
+                return False, f"None of the specified companions ({', '.join(not_found)}) were found in your Roster!"
+            return False, "No eligible companions available to dispatch!"
+
+        inv = self.state.get("inventory", {})
+        dispatched_names: List[str] = []
+        skipped_notes: List[str] = []
+
+        for entry in candidate_entries:
+            if len(expeditions) >= slot_limit:
+                skipped_notes.append("slots full")
+                break
+
+            sp_id = entry.get("species_id", entry.get("base_id"))
+            sp_name = self.api.get_species_name(sp_id)
+
+            if any(e.get("sp_id") == sp_id for e in expeditions):
+                skipped_notes.append(f"{sp_name} (already deployed)")
+                continue
+
+            mon_state_dict = entry.get("mon_state", {})
+            hap = mon_state_dict.get("happiness", entry.get("happiness", 100)) if isinstance(mon_state_dict, dict) else entry.get("happiness", 100)
+
+            if hap <= 0:
+                skipped_notes.append(f"{sp_name} (exhausted)")
+                continue
+
+            if key == "spear":
+                if hap < 100:
+                    skipped_notes.append(f"{sp_name} (<100% hap)")
+                    continue
+                if inv.get("map_fragment", 0) < 3:
+                    skipped_notes.append("need 3x Maps each")
+                    break
+                inv["map_fragment"] -= 3
+
+            active = self.active_mon
+            is_mega_dispatch = False
+            active_current_id = active.path_ids[active.stage_index] if active and active.stage_index < len(active.path_ids) else (active.base_id if active else None)
+            if active and (entry.get("status") == "active" or active_current_id == sp_id):
+                is_mega_dispatch = active.is_mega
+                self._register_to_dex(active, status="inactive")
+                self.set_active_mon(None)
+
+            entry["happiness"] = max(0, entry.get("happiness", 100) - 10)
+            if isinstance(mon_state_dict, dict):
+                mon_state_dict["happiness"] = entry["happiness"]
+
+            expeditions.append({
+                "sp_id": sp_id,
+                "area": area_title,
+                "progress": 0,
+                "target": target_xp,
+                "reward": reward_type,
+                "is_mega": is_mega_dispatch
+            })
+            dispatched_names.append(sp_name)
+
+        if not dispatched_names:
+            reason_str = ", ".join(skipped_notes) if skipped_notes else "conditions not met"
+            return False, f"Could not dispatch companions to {area_title} ({reason_str})."
+
+        if key == "spear":
+            self.state["inventory"] = inv
         self.state["expeditions"] = expeditions
         self.save()
-        return True, f"🗺️ Dispatched {sp_name} on an expedition to {area_title}! ({format_tokens(target_xp)} tokens required)"
+
+        count = len(dispatched_names)
+        if count <= 4:
+            names_summary = ", ".join(dispatched_names)
+        else:
+            names_summary = f"{', '.join(dispatched_names[:3])}, +{count - 3} more"
+
+        msg = f"🗺️ Dispatched {count} Pokémon ({names_summary}) on expedition to {area_title}! ({format_tokens(target_xp)} tokens required each)"
+        if skipped_notes:
+            msg += f" (Note: {len(skipped_notes)} skipped: {', '.join(skipped_notes[:2])})"
+        return True, msg
 
     def _check_trainer_battle(self, delta: int, events: List[str]):
         # Trigger mini trainer encounter every 2.0M tokens

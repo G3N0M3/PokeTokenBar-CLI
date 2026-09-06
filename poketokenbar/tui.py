@@ -3,7 +3,7 @@ import sys
 import time
 import random
 import datetime
-from typing import Optional
+from typing import Optional, Tuple
 
 from poketokenbar.tracker.manager import UsageManager
 from poketokenbar.game.companion import CompanionEngine
@@ -346,13 +346,13 @@ class PokeTokenBarTUI:
                         ok, msg = self.engine.claim_quest_reward(parts[-1] if len(parts) >= 2 else "all")
                     self.message = msg
                 elif cmd.startswith("send") or cmd.startswith("expedition"):
-                    parts = cmd.split()
-                    if len(parts) >= 2:
-                        area = " ".join(parts[2:]) if len(parts) >= 3 else "viridian"
-                        ok, msg = self.engine.dispatch_expedition(parts[1], area)
-                        self.message = msg
+                    cmd_body = cmd.split(maxsplit=1)[1] if " " in cmd else ""
+                    if not cmd_body:
+                        self.message = "Usage: send <row(s)|#dex|all> [area]  (e.g. 'send 1,2,3 viridian', 'send 1-5 mine', 'send all silver')"
                     else:
-                        self.message = "Usage: send <ROW INDEX>|#<POKEMON INDEX> [area]"
+                        targets, area = self._parse_send_args(cmd_body)
+                        ok, msg = self.engine.dispatch_expedition(targets, area)
+                        self.message = msg
                 elif cmd.startswith("pass") and self.current_tab == 5:
                     parts = cmd.split()
                     if len(parts) >= 2:
@@ -596,6 +596,52 @@ class PokeTokenBarTUI:
             except KeyboardInterrupt:
                 print("\nExiting PokeTokenBar. Keep coding! 🐾")
                 break
+
+    @staticmethod
+    def _parse_send_args(arg_str: str) -> Tuple[str, str]:
+        """Parses user input for the send command into (targets, area)."""
+        arg_str = arg_str.strip()
+        if not arg_str:
+            return "", "viridian"
+
+        tokens = arg_str.split()
+        if len(tokens) == 1:
+            return tokens[0], "viridian"
+
+        known_areas = {
+            "viridian forest", "cerulean cave", "mt silver", "mt. silver", "mount silver",
+            "spear pillar", "spear pillar (deep)", "evolution mine",
+            "viridian", "cerulean", "silver", "spear", "mine", "deep", "evolution"
+        }
+
+        # Check for 2-word area at tail (e.g. "viridian forest", "mt silver", "cerulean cave")
+        if len(tokens) >= 3:
+            tail_2 = f"{tokens[-2]} {tokens[-1]}".lower().strip(".,")
+            if tail_2 in known_areas:
+                return " ".join(tokens[:-2]), tail_2
+
+        # Check for 1-word area at tail (e.g. "viridian", "mine", "silver")
+        tail_1 = tokens[-1].lower().strip(".,")
+        if tail_1 in known_areas:
+            return " ".join(tokens[:-1]), tail_1
+
+        # If commas exist, comma-separated targets were provided without trailing area
+        if "," in arg_str:
+            return arg_str, "viridian"
+
+        # Check if tail token looks like a target (digit, #id, range, or 'all'):
+        is_target_token = (
+            tokens[-1].isdigit()
+            or tokens[-1].startswith("#")
+            or ("-" in tokens[-1] and all(p.isdigit() for p in tokens[-1].split("-") if p))
+            or (".." in tokens[-1] and all(p.isdigit() for p in tokens[-1].split("..") if p))
+            or tokens[-1].lower() == "all"
+        )
+        if is_target_token:
+            return arg_str, "viridian"
+
+        # Otherwise, treat the tail token as destination area (e.g. typos like 'ine')
+        return " ".join(tokens[:-1]), tokens[-1]
 
     def render_header(self, summary: dict):
         sys.stdout.write(f"{HEADER}{'='*72}{RESET}\n")

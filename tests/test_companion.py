@@ -138,6 +138,52 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertIn("Quilava", msg3)
         self.assertEqual(self.engine.state["expeditions"][0]["sp_id"], 156)
 
+    def test_multi_target_expedition_dispatch(self):
+        # Setup 4 companions in dex / roster
+        self.engine.state["dex"] = [
+            {"id": "sp_1", "species_id": 1, "base_id": 1, "chain_order": [1, 2, 3], "status": "inactive", "happiness": 100},
+            {"id": "sp_4", "species_id": 4, "base_id": 4, "chain_order": [4, 5, 6], "status": "inactive", "happiness": 100},
+            {"id": "sp_7", "species_id": 7, "base_id": 7, "chain_order": [7, 8, 9], "status": "inactive", "happiness": 100},
+            {"id": "sp_25", "species_id": 25, "base_id": 25, "chain_order": [25, 26], "status": "inactive", "happiness": 0}  # Exhausted
+        ]
+        self.engine.state["expeditions"] = []
+
+        # 1. Comma-separated dispatch (1 and 2 to Viridian)
+        ok, msg = self.engine.dispatch_expedition("1, 2", "viridian")
+        self.assertTrue(ok)
+        self.assertIn("Dispatched 2 Pokémon", msg)
+        self.assertEqual(len(self.engine.state["expeditions"]), 2)
+        exp_sps = {e["sp_id"] for e in self.engine.state["expeditions"]}
+        self.assertIn(1, exp_sps)
+        self.assertIn(4, exp_sps)
+
+        # 2. Reset and test range dispatch ("1-3" to Evolution Mine)
+        self.engine.state["expeditions"] = []
+        ok, msg = self.engine.dispatch_expedition("1-3", "mine")
+        self.assertTrue(ok)
+        self.assertIn("Dispatched 3 Pokémon", msg)
+        self.assertEqual(len(self.engine.state["expeditions"]), 3)
+
+        # 3. Test 'all' dispatch: should dispatch eligible (sp_1, sp_4, sp_7) and skip exhausted (sp_25)
+        self.engine.state["expeditions"] = []
+        ok, msg = self.engine.dispatch_expedition("all", "silver")
+        self.assertTrue(ok)
+        self.assertIn("Dispatched 3 Pokémon", msg)
+        self.assertIn("skipped", msg.lower())
+        self.assertEqual(len(self.engine.state["expeditions"]), 3)
+
+        # 4. Test TUI _parse_send_args helper
+        from poketokenbar.tui import PokeTokenBarTUI
+        self.assertEqual(PokeTokenBarTUI._parse_send_args("1 viridian"), ("1", "viridian"))
+        self.assertEqual(PokeTokenBarTUI._parse_send_args("1,2,3 viridian"), ("1,2,3", "viridian"))
+        self.assertEqual(PokeTokenBarTUI._parse_send_args("1 2 3 viridian"), ("1 2 3", "viridian"))
+        self.assertEqual(PokeTokenBarTUI._parse_send_args("1-5 mine"), ("1-5", "mine"))
+        self.assertEqual(PokeTokenBarTUI._parse_send_args("all mt silver"), ("all", "mt silver"))
+        self.assertEqual(PokeTokenBarTUI._parse_send_args("1 2 3"), ("1 2 3", "viridian"))
+        self.assertEqual(PokeTokenBarTUI._parse_send_args("1-5"), ("1-5", "viridian"))
+        self.assertEqual(PokeTokenBarTUI._parse_send_args("1, 2, 3"), ("1, 2, 3", "viridian"))
+        self.assertEqual(PokeTokenBarTUI._parse_send_args("1 ine"), ("1", "ine"))
+
     def test_expedition_progress_advancement(self):
         self.engine.state["dex"] = [
             {"id": "sp_149", "species_id": 149, "base_id": 147, "chain_order": [147, 148, 149], "status": "inactive"}

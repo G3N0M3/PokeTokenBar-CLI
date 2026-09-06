@@ -24,7 +24,7 @@ def render_expeditions_tab(app):
     sys.stdout.write(f"                       (+15% chance of finding a Map)\n")
     sys.stdout.write(f"   • Spear Pillar    - Target: 100.0M tokens (Requires 3x Maps)\n")
     sys.stdout.write(f"                       Reward: 🌟 LEGENDARY EGG + XP + 🪙\n\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}send <ROW INDEX>|#<POKEMON INDEX> [area]{RESET}' to dispatch!\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}send <row(s)|#dex|all> [area]{RESET}' to dispatch! (e.g. 'send 1,2,3 viridian', 'send 1-5 mine', 'send all silver')\n")
     
     passes_count = app.engine.state.get("inventory", {}).get("expedition_pass", 0)
     sys.stdout.write(f"  ➔ Type '{BOLD}pass <idx>{RESET}' to instantly finish! (🎫 Passes: {BOLD}{YELLOW}{passes_count}{RESET})\n\n")
