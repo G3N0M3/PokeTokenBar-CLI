@@ -1921,7 +1921,14 @@ class CompanionEngine:
         badges = self.state.get("gym_badges", [])
         streak = self.state.get("streak_days", 1)
         active = self.active_mon
-        mon_str = f"{self.api.get_species_name(active.current_id)} (#{active.current_id})" if active else "Incubating Egg"
+        held_str = ""
+        if active and active.held_item:
+            try:
+                kind = ItemKind(active.held_item)
+                held_str = f" [{kind.emoji} {kind.name_en}]"
+            except ValueError:
+                held_str = f" [{active.held_item}]"
+        mon_str = f"{self.api.get_species_name(active.current_id)} (#{active.current_id}){held_str}" if active else "Incubating Egg"
 
         rank = "Junior Coder"
         if used_total >= 100_000_000:

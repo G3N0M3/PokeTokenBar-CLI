@@ -39,9 +39,17 @@ def cmd_status(tracker: UsageManager, engine: CompanionEngine):
         name = engine.api.get_species_name(active.current_id)
         shiny = "✨" if active.is_shiny else ""
         stage = f"Form {active.stage_index+1}/{active.total_forms}"
-        hap = engine.state.get("happiness", 100)
+        hap = active.happiness if active else engine.state.get("happiness", 100)
         streak = engine.state.get("streak_days", 1)
-        print(f"🐾 {shiny}{name} (#{active.current_id}) [{stage}] | 💖 {hap}% | 🔥 {streak}d | Today: {today_tok} tokens | Burn: {format_tokens(summary['burn_rate_tpm'])} tpm")
+        held = ""
+        if active.held_item:
+            from poketokenbar.game.models import ItemKind
+            try:
+                kind = ItemKind(active.held_item)
+                held = f" | {kind.emoji} {kind.name_en}"
+            except ValueError:
+                held = f" | {active.held_item}"
+        print(f"🐾 {shiny}{name} (#{active.current_id}) [{stage}] | 💖 {hap}% | 🔥 {streak}d{held} | Today: {today_tok} tokens | Burn: {format_tokens(summary['burn_rate_tpm'])} tpm")
 
 def cmd_watch(tracker: UsageManager, engine: CompanionEngine, interval: float = 3.0):
     """Continuous live token monitoring mode."""

@@ -40,10 +40,19 @@ def render(app, summary: dict):
         sys.stdout.write(f"\n  {BOLD}{GREEN}Active Companion: {shiny_str}{name} (#{sp_id}){mega_badge}{RESET}\n")
         sys.stdout.write(f"  Rarity: {YELLOW}{active.rarity.value.upper()}{RESET}  |  Nature: {CYAN}{nature_name}{RESET}  |  Form: {active.stage_index+1}/{active.total_forms}\n")
 
+        held_str = "None"
+        if active.held_item:
+            from poketokenbar.game.models import ItemKind
+            try:
+                kind = ItemKind(active.held_item)
+                held_str = f"{kind.emoji} {kind.name_en}"
+            except ValueError:
+                held_str = str(active.held_item)
+
         happiness = active.happiness if active else app.engine.state.get("happiness", 100)
         streak = app.engine.state.get("streak_days", 1)
-        hap_boost = f" {GREEN}(+20% Bonus XP!){RESET}" if happiness >= 100 else ""
-        sys.stdout.write(f"  Happiness: {RED}💖 {happiness}%{RESET}{hap_boost}  |  Coding Streak: {YELLOW}🔥 {streak} Days{RESET}\n")
+        hap_boost = f" {GREEN}(+20% XP){RESET}" if happiness >= 100 else ""
+        sys.stdout.write(f"  Happiness: {RED}💖 {happiness}%{RESET}{hap_boost}  |  Streak: {YELLOW}🔥 {streak}d{RESET}  |  Held: {BOLD}{CYAN}{held_str}{RESET}\n")
         
         last_evo = app.engine.state.get("last_evolution")
         if last_evo:
@@ -81,7 +90,7 @@ def render(app, summary: dict):
                 item_str = f"{kind.emoji} {kind.name_en}"
             except ValueError:
                 item_str = active.held_item
-            sys.stdout.write(f"  {BOLD}Equipped:{RESET} [{item_str}]\n")
+            sys.stdout.write(f"  {BOLD}Equipped Item:{RESET} [{CYAN}{item_str}{RESET}] (Type '{BOLD}unequip{RESET}' in Shop/Bag to remove)\n")
 
         # Growth / Evolution progress
         target_xp = PokemonBalance.phase_threshold(active.rarity, active.total_forms, active.stage_index, app.engine.current_difficulty)

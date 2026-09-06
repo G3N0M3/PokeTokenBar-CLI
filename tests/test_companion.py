@@ -193,5 +193,57 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("expedition", msg)
 
+    def test_held_item_persistence_and_display(self):
+        import io
+        from unittest.mock import MagicMock
+        from poketokenbar.tui_tabs.companion import render as render_companion
+
+        mon, _ = self.engine.hatch_egg(0)
+        self.engine.state["inventory"]["everstone"] = 1
+        ok, msg = self.engine.use_item(ItemKind.EVERSTONE)
+        self.assertTrue(ok)
+        self.assertEqual(self.engine.active_mon.held_item, "everstone")
+
+        # Verify StorageManager serialization preserves held_item
+        mon_dict = StorageManager.mon_to_dict(self.engine.active_mon)
+        self.assertEqual(mon_dict.get("held_item"), "everstone")
+        loaded_mon = StorageManager.dict_to_mon(mon_dict)
+        self.assertEqual(loaded_mon.held_item, "everstone")
+
+        # Verify Trainer Card displays held item
+        card = self.engine.generate_trainer_card()
+        self.assertIn("Everstone", card)
+
+        # Verify Companion TUI tab displays held item
+        app = MagicMock()
+        app.engine = self.engine
+        app.active_mon = self.engine.active_mon
+        app.current_difficulty = self.engine.current_difficulty
+        app.tracker = MagicMock()
+        app.tracker.get_daily_burn_profile.return_value = {}
+        
+        summary = {
+            "today_tokens": 100_000,
+            "antigravity_today": 100_000,
+            "week_tokens": 500_000,
+            "month_tokens": 1_000_000,
+            "total_tokens": 5_000_000,
+            "burn_rate_tpm": 10_000,
+            "active_days": []
+        }
+        stdout_trap = io.StringIO()
+        with unittest.mock.patch("sys.stdout", stdout_trap):
+            render_companion(app, summary)
+        output = stdout_trap.getvalue()
+        self.assertIn("Everstone", output)
+        self.assertIn("EVERSTONE - HALTED", output)
+
+        # Test unequip
+        ok_unequip, msg_unequip = self.engine.unequip_item()
+        self.assertTrue(ok_unequip)
+        self.assertIsNone(self.engine.active_mon.held_item)
+        self.assertEqual(self.engine.state["inventory"]["everstone"], 1)
+
 if __name__ == "__main__":
     unittest.main()
+

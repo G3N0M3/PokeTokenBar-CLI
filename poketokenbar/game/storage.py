@@ -98,7 +98,8 @@ class StorageManager:
             "ditto_revealed": mon.ditto_revealed,
             "is_mega": mon.is_mega,
             "mega_form": mon.mega_form,
-            "happiness": mon.happiness
+            "happiness": mon.happiness,
+            "held_item": mon.held_item
         }
 
     @staticmethod
@@ -120,7 +121,8 @@ class StorageManager:
                 ditto_revealed=data.get("ditto_revealed", False),
                 is_mega=data.get("is_mega", False),
                 mega_form=data.get("mega_form"),
-                happiness=data.get("happiness", 100)
+                happiness=data.get("happiness", 100),
+                held_item=data.get("held_item")
             )
         except Exception:
             return None
