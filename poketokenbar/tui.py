@@ -31,6 +31,8 @@ class PokeTokenBarTUI:
         self.pending_reset = False
         self.pokedex_page = 1
         self.roster_page = 1
+        self.stock_page = 1
+        self.stock_terminal = None
 
     def clear_screen(self):
         sys.stdout.write("\033[H\033[2J")
@@ -203,6 +205,13 @@ class PokeTokenBarTUI:
                         st["red_spent_tokens"] = st.get("red_spent_tokens", 0) - 1_000_000
                     self.engine.save()
                     self.message = "🔧 DEV MODE: Granted 1,000,000 Tokens! 🔧"
+                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and not getattr(self, "stock_terminal", None) and cmd in ["1", "2", "3", "4", "5"]:
+                    from poketokenbar.game.models import CORPORATIONS
+                    c_keys = list(CORPORATIONS.keys())
+                    idx = int(cmd) - 1
+                    if 0 <= idx < len(c_keys):
+                        self.stock_terminal = c_keys[idx]
+                        self.message = f"Opened {CORPORATIONS[self.stock_terminal].ticker} Trade Terminal."
                 elif cmd == "1":
                     self.current_tab = 1
                     self.message = ""
@@ -425,13 +434,55 @@ class PokeTokenBarTUI:
                         self.message = "Usage: size <number> (e.g. 'size 30')"
                 elif self.current_tab == 10 and cmd in ["b", "checking"]:
                     self.bank_subtab = "checking"
+                    self.stock_terminal = None
                     self.message = ""
                 elif self.current_tab == 10 and cmd in ["c", "cd"]:
                     self.bank_subtab = "cd"
+                    self.stock_terminal = None
                     self.message = ""
-                elif self.current_tab == 10 and cmd in ["s", "stocks", "stock"]:
+                elif self.current_tab == 10 and cmd in ["s", "stocks", "stock"] and not getattr(self, "stock_terminal", None):
                     self.bank_subtab = "stocks"
+                    self.stock_terminal = None
                     self.message = ""
+                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and getattr(self, "stock_terminal", None) and cmd in ["back", "board", "stocks", "leave", "exit", "stock"]:
+                    self.stock_terminal = None
+                    self.message = "Returned to Exchange Board."
+                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and getattr(self, "stock_terminal", None) and (cmd.startswith("buy ") or cmd == "buy"):
+                    parts = cmd.split()
+                    shares = parts[1] if len(parts) >= 2 else "1"
+                    ok, msg = self.engine.invest_corporate(self.stock_terminal, shares)
+                    self.message = msg
+                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and getattr(self, "stock_terminal", None) and (cmd.startswith("sell ") or cmd == "sell"):
+                    parts = cmd.split()
+                    shares = parts[1] if len(parts) >= 2 else "1"
+                    ok, msg = self.engine.divest_corporate(self.stock_terminal, shares)
+                    self.message = msg
+                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and (cmd.startswith("stock ") or cmd.startswith("view ")):
+                    from poketokenbar.game.models import CORPORATIONS
+                    parts = cmd.split()
+                    if len(parts) >= 2:
+                        target = parts[1]
+                        if target.isdigit():
+                            c_keys = list(CORPORATIONS.keys())
+                            idx = int(target) - 1
+                            key = c_keys[idx] if 0 <= idx < len(c_keys) else None
+                        else:
+                            key = self.engine._resolve_corp_key(target)
+                        if key:
+                            self.stock_terminal = key
+                            self.message = f"Opened {CORPORATIONS[key].ticker} Trade Terminal."
+                        else:
+                            self.message = f"Unknown stock code '{target}'!"
+                    else:
+                        self.stock_terminal = None
+                        self.message = ""
+                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and not getattr(self, "stock_terminal", None) and cmd in ["1", "2", "3", "4", "5"]:
+                    from poketokenbar.game.models import CORPORATIONS
+                    c_keys = list(CORPORATIONS.keys())
+                    idx = int(cmd) - 1
+                    if 0 <= idx < len(c_keys):
+                        self.stock_terminal = c_keys[idx]
+                        self.message = f"Opened {CORPORATIONS[self.stock_terminal].ticker} Trade Terminal."
                 elif self.current_tab == 10 and cmd.startswith("blackjack"):
                     self.current_tab = 9
                     self.minigame_state = "blackjack"

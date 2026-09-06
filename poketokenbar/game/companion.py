@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Tuple, Any
 
 from poketokenbar.game.models import (
     MonState, DexEntry, Rarity, PokemonNature, PokemonBalance, ItemKind, DifficultyMode,
-    CORPORATIONS, CorporateInfo
+    CORPORATIONS, CorporateInfo, CORPORATE_LORE_EVENTS, MARKET_HEADLINES
 )
 from poketokenbar.game.pokeapi import PokeAPIClient
 from poketokenbar.game.storage import StorageManager
@@ -339,19 +339,8 @@ class CompanionEngine:
                                     cd["matured"] = True
                                     events.append(f"🏦 Certificate of Deposit #{cd['id']} ({cd['term_days']}d) has MATURED! Total Value: {format_tokens(cd['current_value'])} tokens (Type 'cd claim {cd['id']}')")
 
-                        # Process Corporate Stock Dividends (scaling with streak)
-                        investments = self.state.get("investments", {})
-                        streak_bonus = min(0.05, current_streak * 0.002)
-                        total_dividends = 0
-                        for c_key, shares in investments.items():
-                            if shares > 0 and c_key in CORPORATIONS:
-                                corp = CORPORATIONS[c_key]
-                                eff_rate = corp.base_dividend + streak_bonus
-                                div_per_day = int(shares * corp.share_price * eff_rate)
-                                total_dividends += div_per_day * days_to_apply
-                        if total_dividends > 0:
-                            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - total_dividends
-                            events.append(f"📈 Corporate Dividends: Earned {format_tokens(total_dividends)} tokens from your stock portfolio! (🔥 {current_streak}d streak bonus applied)")
+                        # Process Corporate Stock Market Rollover & Dynamic Dividends
+                        self._rollover_stock_market(days_to_apply, diff, current_streak, events)
 
                         # Process Black Market rotation
                         bm = self.state.get("black_market")
@@ -480,7 +469,11 @@ class CompanionEngine:
                 except Exception:
                     pass
             self.state["last_active_date"] = today_str
+            self.state["tokens_burned_today"] = 0
             self.save()
+
+        if delta > 0:
+            self.state["tokens_burned_today"] = self.state.get("tokens_burned_today", 0) + delta
 
         # Generate / check daily quests dynamically
         qdata = self.state.get("daily_quests", {})
@@ -682,6 +675,7 @@ class CompanionEngine:
                 events.append(f"🏆 BOSS DEFEATED! You defeated Boss {b_name} and earned the {badge}!")
                 if is_mega and r_type.startswith("tokens_"):
                     events.append("✨ MEGA BONUS! Gym Boss token reward increased by 1.5x!")
+                self._record_catalyst("bosses_defeated", 1)
                 self.state["active_boss"] = None
 
         self.save()
@@ -1207,12 +1201,14 @@ class CompanionEngine:
             self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + cost
             inv[stone_key] = inv.get(stone_key, 0) + qty
             self.state["inventory"] = inv
+            self._record_catalyst("shop_tokens_spent", cost)
             self.save()
             return True, f"Successfully purchased {qty}x Mystery Mega Stone! You unboxed: 🔮 {stone_name}!"
 
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + cost
         inv[item_kind.value] = inv.get(item_kind.value, 0) + qty
         self.state["inventory"] = inv
+        self._record_catalyst("shop_tokens_spent", cost)
         self.save()
         return True, f"Successfully purchased {qty}x {item_kind.name_en} ({item_kind.emoji})!"
 
@@ -1774,6 +1770,7 @@ class CompanionEngine:
                 logs = self.state.get("expedition_logs", [])
                 logs.append(f"[{now_str}] {sp_name}: {reward_str} | +{format_tokens(tokens_gain)} 🪙 | +{format_tokens(xp_gain)} XP")
                 self.state["expedition_logs"] = logs[-5:]
+                self._record_catalyst("expeditions_completed", 1)
                 events.append(f"🗺️ {sp_name} finished {area}: {reward_str} | +{format_tokens(tokens_gain)} 🪙 | +{format_tokens(xp_gain)} XP")
             else:
                 remaining.append(exp)
@@ -2088,6 +2085,7 @@ class CompanionEngine:
         self.state.pop("incubating_eggs", None)
         self.state.pop("current_egg_tier", None)
         
+        self._record_catalyst("shop_tokens_spent", cost)
         self.save()
         tier_str = f"{tier.value.upper()}+" if tier else "Standard"
         return True, f"Obtained a fresh {tier_str} Pokémon Egg! Previous companion saved to Pokédex."
@@ -2272,6 +2270,218 @@ class CompanionEngine:
         aliases = {"devn": "devon", "athr": "aether", "slph": "silph"}
         return aliases.get(raw)
 
+    def get_or_init_stock_market(self) -> dict:
+        sm = self.state.setdefault("stock_market", {})
+        default_prices = {
+            "silph": 10_000_000,
+            "devon": 10_000_000,
+            "aether": 5_000_000,
+            "mauville": 5_000_000,
+            "macro": 20_000_000
+        }
+        sm.setdefault("prices", default_prices.copy())
+        sm.setdefault("price_history", {k: [v] for k, v in sm["prices"].items()})
+        sm.setdefault("cost_basis", {k: 0 for k in default_prices})
+        sm.setdefault("latest_news", {
+            "silph": "Silph Co. operations running steadily across Kanto.",
+            "devon": "Devon Corp reports steady retail demand in Hoenn.",
+            "aether": "Aether Foundation maintaining peaceful sanctuary conditions.",
+            "mauville": "Greater Mauville Game Corner seeing standard foot traffic.",
+            "macro": "Macro Cosmos power grid operating at nominal capacity."
+        })
+        sm.setdefault("daily_catalysts", {
+            "expeditions_completed": 0,
+            "shop_tokens_spent": 0,
+            "casino_net_pnl": 0,
+            "bosses_defeated": 0
+        })
+        sm.setdefault("market_headline", "📈 POKÉMON EXCHANGE: Indices opening with steady volume.")
+
+        for k, v in default_prices.items():
+            if k not in sm["prices"]:
+                sm["prices"][k] = v
+            if k not in sm["price_history"] or not sm["price_history"][k]:
+                sm["price_history"][k] = [sm["prices"][k]]
+            if k not in sm["cost_basis"]:
+                sm["cost_basis"][k] = 0
+            if k not in sm["latest_news"]:
+                sm["latest_news"][k] = f"{CORPORATIONS[k].name} operating steadily."
+
+        invs = self.state.get("investments", {})
+        for k, shares in invs.items():
+            if shares > 0 and sm["cost_basis"].get(k, 0) == 0:
+                sm["cost_basis"][k] = shares * sm["prices"].get(k, default_prices.get(k, 10_000_000))
+
+        return sm
+
+    def _record_catalyst(self, key: str, amount: int):
+        sm = self.get_or_init_stock_market()
+        cats = sm.setdefault("daily_catalysts", {
+            "expeditions_completed": 0,
+            "shop_tokens_spent": 0,
+            "casino_net_pnl": 0,
+            "bosses_defeated": 0
+        })
+        cats[key] = cats.get(key, 0) + amount
+
+    def _rollover_stock_market(self, days_to_apply: int, diff: int, current_streak: int, events: List[str]):
+        sm = self.get_or_init_stock_market()
+        previous_burn = self.state.get("tokens_burned_today", 0)
+
+        # 1. Developer Token Burn Velocity
+        if previous_burn >= 500_000:
+            burn_momentum = random.uniform(0.03, 0.06)
+        elif previous_burn >= 100_000:
+            burn_momentum = random.uniform(0.00, 0.02)
+        else:
+            burn_momentum = random.uniform(-0.03, -0.01)
+
+        # 2. Coding Streak Sentiment
+        if current_streak >= 5:
+            streak_sentiment = 0.01
+        elif diff > 1:
+            streak_sentiment = -0.03
+        else:
+            streak_sentiment = 0.0
+
+        # 3. Player In-Game Action Catalysts
+        cats = sm.get("daily_catalysts", {})
+        exp_count = cats.get("expeditions_completed", 0)
+        shop_spent = cats.get("shop_tokens_spent", 0)
+        casino_pnl = cats.get("casino_net_pnl", 0)
+        boss_count = cats.get("bosses_defeated", 0)
+
+        silph_boost = min(0.12, exp_count * 0.04)
+        devon_boost = min(0.12, (shop_spent // 5_000_000) * 0.03)
+        mauv_boost = 0.05 if casino_pnl < 0 else (-0.04 if casino_pnl > 0 else 0.0)
+        macro_boost = min(0.18, boss_count * 0.06)
+
+        dex = self.state.get("dex", [])
+        active = self.active_mon
+        all_haps = []
+        if active:
+            all_haps.append(active.happiness)
+        for d in dex:
+            m_st = d.get("mon_state", {})
+            if "happiness" in m_st:
+                all_haps.append(m_st["happiness"])
+        avg_hap = (sum(all_haps) / len(all_haps)) if all_haps else 100.0
+        has_shiny = any(d.get("is_shiny") for d in dex) or (active and active.is_shiny)
+        aether_boost = 0.0
+        if avg_hap >= 90.0:
+            aether_boost += 0.04
+        if has_shiny:
+            aether_boost += 0.04
+
+        corp_boosts = {
+            "silph": silph_boost,
+            "devon": devon_boost,
+            "aether": aether_boost,
+            "mauville": mauv_boost,
+            "macro": macro_boost
+        }
+
+        # 4. Lore Events & Price Updates
+        price_changes = {}
+        for c_key, corp in CORPORATIONS.items():
+            curr_price = sm["prices"].get(c_key, corp.share_price)
+            lore_choice = random.choice(CORPORATE_LORE_EVENTS.get(c_key, [("Standard corporate operations reported.", 0.0)]))
+            headline, shock_pct = lore_choice
+
+            c_boost = corp_boosts.get(c_key, 0.0)
+            net_pct = burn_momentum + streak_sentiment + c_boost + shock_pct
+            clamped_pct = max(-0.20, min(0.30, net_pct))
+
+            new_price = int(curr_price * (1.0 + clamped_pct))
+            new_price = max(1_000_000, new_price)
+
+            sm["prices"][c_key] = new_price
+            hist = sm["price_history"].setdefault(c_key, [curr_price])
+            hist.append(new_price)
+            sm["price_history"][c_key] = hist[-7:]
+            sm["latest_news"][c_key] = headline
+            price_changes[c_key] = clamped_pct
+
+        # 5. Top Market Headline
+        avg_change = sum(price_changes.values()) / len(price_changes) if price_changes else 0.0
+        if avg_change > 0.03:
+            sentiment = "bullish"
+        elif avg_change < -0.01:
+            sentiment = "bearish"
+        else:
+            sentiment = "steady"
+        sm["market_headline"] = random.choice(MARKET_HEADLINES.get(sentiment, ["📊 MARKET BALANCED: Indices hold steady across sectors."]))
+
+        # 6. Reset Catalysts for the new day
+        sm["daily_catalysts"] = {
+            "expeditions_completed": 0,
+            "shop_tokens_spent": 0,
+            "casino_net_pnl": 0,
+            "bosses_defeated": 0
+        }
+
+        # 7. Process Dynamic Corporate Stock Dividends
+        investments = self.state.get("investments", {})
+        streak_bonus = min(0.05, current_streak * 0.002)
+        total_dividends = 0
+        for c_key, shares in investments.items():
+            if shares > 0 and c_key in CORPORATIONS:
+                corp = CORPORATIONS[c_key]
+                dyn_price = sm["prices"].get(c_key, corp.share_price)
+                eff_rate = corp.base_dividend + streak_bonus
+                div_per_day = int(shares * dyn_price * eff_rate)
+                total_dividends += div_per_day * days_to_apply
+
+        if total_dividends > 0:
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - total_dividends
+            events.append(f"📈 Corporate Dividends: Earned {format_tokens(total_dividends)} tokens from your stock portfolio! (🔥 {current_streak}d streak bonus applied)")
+
+        events.append(f"📰 Market Tick: Pokémon Stock Exchange updated! {sm['market_headline']}")
+
+    def get_stock_details(self, corp_code: str) -> Optional[dict]:
+        key = self._resolve_corp_key(corp_code)
+        if not key or key not in CORPORATIONS:
+            return None
+        corp = CORPORATIONS[key]
+        sm = self.get_or_init_stock_market()
+        current_price = sm["prices"].get(key, corp.share_price)
+        history = sm["price_history"].get(key, [current_price])
+        prev_price = history[-2] if len(history) >= 2 else current_price
+        change_pct = ((current_price - prev_price) / prev_price * 100.0) if prev_price > 0 else 0.0
+
+        owned = self.state.get("investments", {}).get(key, 0)
+        cost_basis = sm["cost_basis"].get(key, 0)
+        avg_cost = (cost_basis // owned) if owned > 0 else 0
+        market_val = owned * current_price
+        liq_val = int(market_val * 0.90)
+        unrealized_pnl = (liq_val - cost_basis) if owned > 0 else 0
+        unrealized_pnl_pct = ((liq_val - cost_basis) / cost_basis * 100.0) if cost_basis > 0 else 0.0
+
+        latest_news = sm["latest_news"].get(key, "")
+        streak = self.state.get("streak_days", 1)
+        streak_bonus = min(0.05, streak * 0.002)
+        eff_rate = corp.base_dividend + streak_bonus
+        daily_div = int(owned * current_price * eff_rate)
+
+        return {
+            "key": key,
+            "corp": corp,
+            "current_price": current_price,
+            "prev_price": prev_price,
+            "change_pct": change_pct,
+            "price_history": history,
+            "owned": owned,
+            "cost_basis": cost_basis,
+            "avg_cost": avg_cost,
+            "market_val": market_val,
+            "liq_val": liq_val,
+            "unrealized_pnl": unrealized_pnl,
+            "unrealized_pnl_pct": unrealized_pnl_pct,
+            "latest_news": latest_news,
+            "eff_rate": eff_rate,
+            "daily_div": daily_div
+        }
+
     def invest_corporate(self, corp_code: str, shares_str: str) -> Tuple[bool, str]:
         key = self._resolve_corp_key(corp_code)
         if not key:
@@ -2279,21 +2489,24 @@ class CompanionEngine:
             return False, f"Unknown stock code '{corp_code}'! Available codes: {tickers}."
 
         corp = CORPORATIONS[key]
+        sm = self.get_or_init_stock_market()
+        current_price = sm["prices"].get(key, corp.share_price)
+
         clean_str = shares_str.lower().strip()
         if clean_str == "all":
-            shares = self.available_tokens // corp.share_price
+            shares = self.available_tokens // current_price
             if shares <= 0:
-                return False, f"Not enough tokens to buy 1 share of {corp.ticker} ({corp.name}) ({format_tokens(corp.share_price)} tokens)!"
+                return False, f"Not enough tokens to buy 1 share of {corp.ticker} ({corp.name}) ({format_tokens(current_price)} tokens)!"
         else:
             try:
                 shares = int(clean_str)
             except ValueError:
-                return False, f"Invalid number of shares. Example: 'invest {corp.ticker} 2' or 'invest {corp.ticker} all'."
+                return False, f"Invalid number of shares. Example: 'invest {corp.ticker} 2' or 'buy 2'."
 
         if shares <= 0:
             return False, "Shares must be at least 1."
 
-        cost = shares * corp.share_price
+        cost = shares * current_price
         if cost > self.available_tokens:
             return False, f"Not enough tokens! Buying {shares} share(s) of {corp.ticker} costs {format_tokens(cost)} (You have {format_tokens(self.available_tokens)})."
 
@@ -2301,8 +2514,12 @@ class CompanionEngine:
         invs = self.state.setdefault("investments", {"silph": 0, "devon": 0, "aether": 0, "mauville": 0, "macro": 0})
         invs[key] = invs.get(key, 0) + shares
         self.state["investments"] = invs
+
+        # Update cost basis
+        sm["cost_basis"][key] = sm["cost_basis"].get(key, 0) + cost
+
         self.save()
-        return True, f"📈 Invested in {shares} share(s) of {corp.ticker} ({corp.name}) for {format_tokens(cost)} tokens! ({corp.perk_name}: {corp.perk_desc} is now ACTIVE!)"
+        return True, f"📈 Invested in {shares} share(s) of {corp.ticker} ({corp.name}) for {format_tokens(cost)} tokens ({format_tokens(current_price)}/sh)! ({corp.perk_name}: {corp.perk_desc} is now ACTIVE!)"
 
     def divest_corporate(self, corp_code: str, shares_str: str) -> Tuple[bool, str]:
         key = self._resolve_corp_key(corp_code)
@@ -2311,6 +2528,9 @@ class CompanionEngine:
             return False, f"Unknown stock code '{corp_code}'! Available codes: {tickers}."
 
         corp = CORPORATIONS[key]
+        sm = self.get_or_init_stock_market()
+        current_price = sm["prices"].get(key, corp.share_price)
+
         invs = self.state.setdefault("investments", {"silph": 0, "devon": 0, "aether": 0, "mauville": 0, "macro": 0})
         owned = invs.get(key, 0)
         if owned <= 0:
@@ -2323,19 +2543,35 @@ class CompanionEngine:
             try:
                 shares = int(clean_str)
             except ValueError:
-                return False, f"Invalid number of shares. Example: 'divest {corp.ticker} 1' or 'divest {corp.ticker} all'."
+                return False, f"Invalid number of shares. Example: 'divest {corp.ticker} 1' or 'sell 1'."
 
         if shares <= 0 or shares > owned:
             return False, f"Invalid quantity! You own {owned} share(s) of {corp.ticker}."
 
         # 10% liquidation fee / market spread
-        gross_value = shares * corp.share_price
+        gross_value = shares * current_price
         payout = int(gross_value * 0.90)
+
+        # Realized P&L calculation based on weighted-average cost
+        old_cost_basis = sm["cost_basis"].get(key, 0)
+        avg_cost = (old_cost_basis // owned) if owned > 0 else current_price
+        cost_of_sold = int(shares * avg_cost)
+        realized_pnl = payout - cost_of_sold
+
+        remaining_shares = owned - shares
+        if remaining_shares == 0:
+            sm["cost_basis"][key] = 0
+        else:
+            sm["cost_basis"][key] = max(0, old_cost_basis - cost_of_sold)
+
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - payout
-        invs[key] = owned - shares
+        invs[key] = remaining_shares
         self.state["investments"] = invs
         self.save()
-        return True, f"📉 Sold {shares} share(s) of {corp.ticker} ({corp.name}) for {format_tokens(payout)} tokens (10% liquidation spread applied)."
+
+        pnl_sign = "+" if realized_pnl >= 0 else ""
+        pnl_str = f" | P&L: {pnl_sign}{format_tokens(realized_pnl)}"
+        return True, f"📉 Sold {shares} share(s) of {corp.ticker} ({corp.name}) for {format_tokens(payout)} tokens (10% spread applied{pnl_str})."
 
     def get_or_init_black_market(self, force_open: bool = False) -> dict:
         bm = self.state.get("black_market")
@@ -2438,6 +2674,7 @@ class CompanionEngine:
         else:
             msg = f"Purchased {deal['name']}!"
 
+        self._record_catalyst("shop_tokens_spent", total_cost)
         self.save()
         return True, msg
 
@@ -2472,6 +2709,7 @@ class CompanionEngine:
 
         if cmd == "fold":
             outcome, lost = self.poker.play_fold()
+            self._record_catalyst("casino_net_pnl", -lost)
             return True, f"🏳️ \033[1m\033[31mYOU FOLDED!\033[0m Surrendered {format_tokens(lost)} tokens to the House."
         elif cmd == "check":
             if self.poker.game_state == "preflop":
@@ -2535,6 +2773,7 @@ class CompanionEngine:
 
         bet = self.poker.current_bet
         net_change = winnings - bet
+        self._record_catalyst("casino_net_pnl", net_change)
         profit_str = f"+{format_tokens(net_change)}" if net_change >= 0 else f"-{format_tokens(abs(net_change))}"
 
         res_header = f"♦️ TEXAS HOLD'EM SHOWDOWN!\n  Community Board: {board}\n  🎴 YOUR HOLE:  {p_hole} (\033[1m\033[32m{p_rank}\033[0m)\n  🏠 HOUSE HOLE: {d_hole} (\033[1m\033[31m{d_rank}\033[0m)\n"
@@ -2652,6 +2891,7 @@ class CompanionEngine:
         else:
             msg = f"{grid_str}\n\nNo luck this time! You lost {format_tokens(bet)} tokens."
             
+        self._record_catalyst("casino_net_pnl", win_amount - bet)
         self.save()
         return True, msg
 
@@ -2670,11 +2910,13 @@ class CompanionEngine:
         ok, msg = self.blackjack.start_game(bet)
         if ok:
             self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + bet
-            if self.blackjack.game_state == "finished" and self.blackjack.last_winnings > 0:
+            if self.blackjack.game_state == "finished":
                 winnings = self.blackjack.last_winnings
-                if self.has_perk("mauville"):
+                if winnings > 0 and self.has_perk("mauville"):
                     winnings = int(winnings * 1.10)
-                self.state["spent_tokens"] = self.state["spent_tokens"] - winnings
+                if winnings > 0:
+                    self.state["spent_tokens"] = self.state["spent_tokens"] - winnings
+                self._record_catalyst("casino_net_pnl", winnings - bet)
             self.save()
         return ok, msg
 
@@ -2694,11 +2936,12 @@ class CompanionEngine:
             return False, "Invalid action."
             
         if ok and self.blackjack.game_state == "finished":
-            if self.blackjack.last_winnings > 0:
-                winnings = self.blackjack.last_winnings
-                if self.has_perk("mauville"):
-                    winnings = int(winnings * 1.10)
+            winnings = self.blackjack.last_winnings
+            if winnings > 0 and self.has_perk("mauville"):
+                winnings = int(winnings * 1.10)
+            if winnings > 0:
                 self.state["spent_tokens"] = self.state["spent_tokens"] - winnings
+            self._record_catalyst("casino_net_pnl", winnings - self.blackjack.current_bet)
             self.save()
             
         return ok, msg

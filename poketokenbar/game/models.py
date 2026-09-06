@@ -2,7 +2,7 @@ import math
 import random
 from enum import Enum
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional, Set, Tuple
 
 class Rarity(str, Enum):
     COMMON = "common"
@@ -273,6 +273,7 @@ class CorporateInfo:
     base_dividend: float
     perk_name: str
     perk_desc: str
+    catalyst_desc: str
 
 CORPORATIONS: Dict[str, CorporateInfo] = {
     "silph": CorporateInfo(
@@ -282,7 +283,8 @@ CORPORATIONS: Dict[str, CorporateInfo] = {
         share_price=10_000_000,
         base_dividend=0.025,
         perk_name="Silph Tech",
-        perk_desc="+15% Expedition tokens & speed"
+        perk_desc="+15% Expedition tokens & speed",
+        catalyst_desc="Expedition completions boost research & tech"
     ),
     "devon": CorporateInfo(
         id="devon",
@@ -291,7 +293,8 @@ CORPORATIONS: Dict[str, CorporateInfo] = {
         share_price=10_000_000,
         base_dividend=0.025,
         perk_name="Devon Commerce",
-        perk_desc="-10% Discount on Shop items & eggs"
+        perk_desc="-10% Discount on Shop items & eggs",
+        catalyst_desc="Shopping & egg purchases boost retail volume"
     ),
     "aether": CorporateInfo(
         id="aether",
@@ -300,7 +303,8 @@ CORPORATIONS: Dict[str, CorporateInfo] = {
         share_price=5_000_000,
         base_dividend=0.020,
         perk_name="Aether Sanctuary",
-        perk_desc="Halves happiness decay; +5 daily hap."
+        perk_desc="Halves happiness decay; +5 daily hap.",
+        catalyst_desc="High happiness & shinies earn conservation grants"
     ),
     "mauville": CorporateInfo(
         id="mauville",
@@ -309,7 +313,8 @@ CORPORATIONS: Dict[str, CorporateInfo] = {
         share_price=5_000_000,
         base_dividend=0.020,
         perk_name="Casino Royalty",
-        perk_desc="+10% Payout bonus on all minigames"
+        perk_desc="+10% Payout bonus on all minigames",
+        catalyst_desc="Casino house profits & player losses boost revenues"
     ),
     "macro": CorporateInfo(
         id="macro",
@@ -318,8 +323,65 @@ CORPORATIONS: Dict[str, CorporateInfo] = {
         share_price=20_000_000,
         base_dividend=0.030,
         perk_name="Dynamax Energy",
-        perk_desc="+20% Tokens from Boss raids & Red battle"
+        perk_desc="+20% Tokens from Boss raids & Red battle",
+        catalyst_desc="Defeating Gym Bosses & Red validates energy tech"
     )
+}
+
+CORPORATE_LORE_EVENTS: Dict[str, List[Tuple[str, float]]] = {
+    "silph": [
+        ("Silph Co. patents next-gen Poké Ball alloy in Saffron City!", +0.06),
+        ("Expedition surveys return rare geological samples to Silph labs.", +0.04),
+        ("Silph electronics division beats quarterly revenue forecasts.", +0.03),
+        ("Team Rocket disruption reported near Silph Saffron offices.", -0.05),
+        ("Global supply chain shortage delays Silph component shipments.", -0.03),
+    ],
+    "devon": [
+        ("Devon geologists unearth rich evolutionary stone vein in Hoenn!", +0.06),
+        ("Devon Corporation announces surging egg incubator sales.", +0.04),
+        ("Rustboro commerce chamber awards Devon annual trade trophy.", +0.03),
+        ("Oceanic shipping delay halts Devon maritime export fleet.", -0.04),
+        ("Mining machinery malfunction temporarily stalls Devon quarry.", -0.03),
+    ],
+    "aether": [
+        ("Alola Pokémon Sanctuary receives major conservation grant!", +0.05),
+        ("Aether Foundation rehabilitation clinic celebrates zero attrition.", +0.04),
+        ("Rare species census reveals thriving companion populations.", +0.03),
+        ("Severe tropical squall causes minor structural damage at Paradise.", -0.04),
+        ("Conservation foundation overhead costs rise slightly this quarter.", -0.02),
+    ],
+    "mauville": [
+        ("Mauville Game Corner reports record tourist slot revenue!", +0.06),
+        ("Greater Mauville Holdings opens sleek new entertainment arcade.", +0.04),
+        ("Casino VIP poker tournament generates booming token turnover.", +0.03),
+        ("High-roller cleans out Mauville Blackjack vault with winning run.", -0.05),
+        ("Mauville city utility tax assessment comes in above expectations.", -0.03),
+    ],
+    "macro": [
+        ("Macro Cosmos lands Galar national power grid expansion deal!", +0.07),
+        ("Macro energy labs report breakthrough in power containment.", +0.05),
+        ("Wyndon Stadium sponsorship agreement yields record corporate fees.", +0.03),
+        ("Dynamax grid power surge prompts costly routine maintenance.", -0.05),
+        ("Galar environmental review requests Macro energy audit.", -0.03),
+    ]
+}
+
+MARKET_HEADLINES: Dict[str, List[str]] = {
+    "bullish": [
+        "📈 INDICES SURGE: Heavy developer coding volume sparks rally!",
+        "🚀 BULL MARKET: Developer streak fuels massive investor optimism!",
+        "✨ MARKET MOMENTUM: High token burn powers broad corporate gains!"
+    ],
+    "steady": [
+        "📊 MARKET BALANCED: Indices hold steady across all sectors.",
+        "⚖️ TRADING RANGE: Steady developer coding keeps market anchored.",
+        "🏢 CORPORATE OUTLOOK: Mixed trading as investors weigh quarterly yields."
+    ],
+    "bearish": [
+        "📉 MARKET DRAG: Quiet coding session softens trading volumes.",
+        "⚠️ CONSOLIDATION: Sluggish token burn tempers investor appetite.",
+        "🌧️ POKÉMON EXCHANGE: Cautious trading as markets await catalyst."
+    ]
 }
 
 @dataclass

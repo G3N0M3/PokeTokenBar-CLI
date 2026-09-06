@@ -357,11 +357,13 @@ class TestCompanionEngine(unittest.TestCase):
         self.engine.process_usage(200_000_000, ["2026-08-01", "2026-08-02"])
         self.assertGreater(self.engine.available_tokens, avail_before_div)
 
-        # Divest 1 share of Silph using stock code (10M gross -> 9M net with 10% liquidation spread)
+        # Divest 1 share of Silph using stock code (10% liquidation spread)
+        silph_price = self.engine.get_or_init_stock_market()["prices"]["silph"]
+        expected_payout = int(silph_price * 0.90)
         avail_before_divest = self.engine.available_tokens
         ok_divest, msg_divest = self.engine.divest_corporate("SILPH", "1")
         self.assertTrue(ok_divest)
-        self.assertEqual(self.engine.available_tokens, avail_before_divest + 9_000_000)
+        self.assertEqual(self.engine.available_tokens, avail_before_divest + expected_payout)
         self.assertEqual(self.engine.state["investments"]["silph"], 1)
 
     def test_black_market_and_held_items(self):
@@ -478,6 +480,171 @@ class TestCompanionEngine(unittest.TestCase):
         for line in trap.getvalue().split("\n"):
             clean = ansi_regex.sub("", line)
             self.assertLessEqual(len(clean), 72, f"Shop Black Market line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+    def test_stock_market_initialization_and_details(self):
+        sm = self.engine.get_or_init_stock_market()
+        self.assertIn("prices", sm)
+        self.assertIn("price_history", sm)
+        self.assertIn("cost_basis", sm)
+        self.assertIn("latest_news", sm)
+        self.assertIn("daily_catalysts", sm)
+        self.assertIn("market_headline", sm)
+
+        for corp in ["silph", "devon", "aether", "mauville", "macro"]:
+            self.assertIn(corp, sm["prices"])
+            self.assertGreaterEqual(sm["prices"][corp], 1_000_000)
+            self.assertEqual(len(sm["price_history"][corp]), 1)
+
+        details = self.engine.get_stock_details("SILPH")
+        self.assertIsNotNone(details)
+        self.assertEqual(details["key"], "silph")
+        self.assertEqual(details["current_price"], 10_000_000)
+        self.assertEqual(details["owned"], 0)
+        self.assertEqual(details["cost_basis"], 0)
+
+        # Test ticker and alias resolution
+        self.assertEqual(self.engine._resolve_corp_key("slph"), "silph")
+        self.assertEqual(self.engine._resolve_corp_key("devn"), "devon")
+        self.assertEqual(self.engine._resolve_corp_key("athr"), "aether")
+
+    def test_stock_cost_basis_and_pnl_analytics(self):
+        self.engine.state["used_since_install"] = 500_000_000
+        self.engine.state["spent_tokens"] = 0
+
+        # Buy 2 shares of Devon at 10M each -> 20M cost basis
+        ok, msg = self.engine.invest_corporate("DEVON", "2")
+        self.assertTrue(ok)
+        details = self.engine.get_stock_details("DEVON")
+        self.assertEqual(details["owned"], 2)
+        self.assertEqual(details["cost_basis"], 20_000_000)
+        self.assertEqual(details["avg_cost"], 10_000_000)
+
+        # Manually alter Devon price to simulate market shift to 14M
+        sm = self.engine.get_or_init_stock_market()
+        sm["prices"]["devon"] = 14_000_000
+        details = self.engine.get_stock_details("DEVON")
+        self.assertEqual(details["market_val"], 28_000_000)
+        self.assertEqual(details["liq_val"], int(28_000_000 * 0.90)) # 25.2M
+        # Unrealized P&L = liq_val - cost_basis = 25.2M - 20M = 5.2M
+        self.assertEqual(details["unrealized_pnl"], 5_200_000)
+
+        # Buy 1 more share at 14M -> total cost basis 34M, 3 shares -> avg cost 11.33M
+        ok, msg = self.engine.invest_corporate("DEVON", "1")
+        self.assertTrue(ok)
+        details = self.engine.get_stock_details("DEVON")
+        self.assertEqual(details["owned"], 3)
+        self.assertEqual(details["cost_basis"], 34_000_000)
+        self.assertEqual(details["avg_cost"], 34_000_000 // 3)
+
+        # Sell 1 share at 14M: gross 14M, payout = 12.6M (10% spread)
+        # Cost of sold = 1 * (34M // 3) = 11,333,333
+        # Realized P&L = 12,600,000 - 11,333,333 = +1,266,667
+        avail_before = self.engine.available_tokens
+        ok, msg = self.engine.divest_corporate("DEVON", "1")
+        self.assertTrue(ok)
+        self.assertEqual(self.engine.available_tokens, avail_before + 12_600_000)
+        self.assertIn("P&L: +1.2M", msg)
+
+        # Sell remaining 2 shares -> cost_basis resets to 0
+        ok, msg = self.engine.divest_corporate("DEVON", "all")
+        self.assertTrue(ok)
+        details = self.engine.get_stock_details("DEVON")
+        self.assertEqual(details["owned"], 0)
+        self.assertEqual(details["cost_basis"], 0)
+        self.assertEqual(details["avg_cost"], 0)
+
+    def test_player_action_catalysts_and_burn_rollover(self):
+        self.engine.state["used_since_install"] = 500_000_000
+        self.engine.state["spent_tokens"] = 0
+        sm = self.engine.get_or_init_stock_market()
+
+        # Simulate actions to record catalysts
+        self.engine._record_catalyst("expeditions_completed", 2) # Silph boost
+        self.engine._record_catalyst("shop_tokens_spent", 15_000_000) # Devon boost
+        self.engine._record_catalyst("casino_net_pnl", -5_000_000) # Mauville house win boost
+        self.engine._record_catalyst("bosses_defeated", 1) # Macro Cosmos boost
+
+        # Set burned today tokens > 500k for heavy burn momentum
+        self.engine.state["tokens_burned_today"] = 2_000_000
+        silph_price_before = sm["prices"]["silph"]
+
+        events = []
+        self.engine._rollover_stock_market(days_to_apply=1, diff=1, current_streak=5, events=events)
+
+        # Catalysts should be reset
+        cats = sm["daily_catalysts"]
+        self.assertEqual(cats["expeditions_completed"], 0)
+        self.assertEqual(cats["shop_tokens_spent"], 0)
+        self.assertEqual(cats["casino_net_pnl"], 0)
+        self.assertEqual(cats["bosses_defeated"], 0)
+
+        # Price history should have 2 entries now
+        self.assertEqual(len(sm["price_history"]["silph"]), 2)
+        # All prices should respect price floor
+        for corp, price in sm["prices"].items():
+            self.assertGreaterEqual(price, 1_000_000)
+
+        # Market headline and latest news should be populated
+        self.assertTrue(len(sm["market_headline"]) > 0)
+        for corp, news in sm["latest_news"].items():
+            self.assertTrue(len(news) > 0)
+
+    def test_stock_trade_terminal_and_72_col_compliance(self):
+        import io
+        import re
+        from unittest.mock import MagicMock
+        from poketokenbar.tui_tabs.bank import render_bank_tab
+
+        ansi_regex = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        app = MagicMock()
+        app.engine = self.engine
+        app.bank_subtab = "stocks"
+
+        for corp_key in ["silph", "devon", "aether", "mauville", "macro"]:
+            app.stock_terminal = corp_key
+            trap = io.StringIO()
+            with unittest.mock.patch("sys.stdout", trap):
+                render_bank_tab(app)
+            out = trap.getvalue()
+            self.assertIn("TRADE TERMINAL", out)
+            self.assertIn("Your Position & Analytics", out)
+            for line in out.split("\n"):
+                clean = ansi_regex.sub("", line)
+                self.assertLessEqual(len(clean), 72, f"Trade Terminal '{corp_key}' line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+    def test_stock_tui_interactive_commands(self):
+        import io
+        from unittest.mock import patch, MagicMock
+        from poketokenbar.tui import PokeTokenBarTUI
+
+        with patch("poketokenbar.tui.UsageManager") as mock_mgr:
+            instance = MagicMock()
+            instance.get_summary.return_value = {
+                "total_tokens": 500_000_000,
+                "today_tokens": 0,
+                "week_tokens": 0,
+                "month_tokens": 0,
+                "antigravity_today": 0,
+                "gemini_today": 0,
+                "claude_today": 0,
+                "burn_rate_tpm": 0,
+                "active_days": []
+            }
+            mock_mgr.return_value = instance
+
+            tui = PokeTokenBarTUI()
+            tui.engine = self.engine
+            tui.engine.state["used_since_install"] = 500_000_000
+            tui.engine.state["spent_tokens"] = 0
+
+            # Navigate to Bank -> Stocks -> Open Silph via '1' -> Buy 1 -> Sell 1 -> Back -> Open Devon via 'stock DEVON' -> Buy 1 -> Back -> Quit
+            commands = "\n".join(["10", "s", "1", "buy 1", "sell 1", "back", "stock DEVON", "buy 1", "back", "q"]) + "\n"
+            with patch("sys.stdin", io.StringIO(commands)), patch("sys.stdout"):
+                tui.run()
+
+            self.assertEqual(tui.engine.state["investments"]["devon"], 1)
+            self.assertEqual(tui.engine.state["investments"]["silph"], 0)
+            self.assertIsNone(tui.stock_terminal)
 
 if __name__ == "__main__":
     unittest.main()

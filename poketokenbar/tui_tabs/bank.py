@@ -94,14 +94,49 @@ def _render_cd_view(app, avail: int):
     sys.stdout.write(f"  ➔ Type '{BOLD}cd claim <id|all>{RESET}' to claim matured deposits\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}cd break <id>{RESET}' for early withdrawal (10% penalty)\n\n")
 
+SPARK_CHARS = [" ", "▂", "▃", "▄", "▅", "▆", "▇", "█"]
+
+def generate_sparkline(history: list) -> str:
+    if not history:
+        return "[ " + "▄" * 7 + " ]"
+    pts = list(history)
+    if len(pts) < 7:
+        pts = [pts[0]] * (7 - len(pts)) + pts
+    else:
+        pts = pts[-7:]
+    min_v, max_v = min(pts), max(pts)
+    rng = max_v - min_v
+    res = []
+    for p in pts:
+        if rng == 0:
+            res.append("▄")
+        else:
+            norm = (p - min_v) / rng
+            idx = min(len(SPARK_CHARS) - 1, max(0, int(norm * (len(SPARK_CHARS) - 1))))
+            res.append(SPARK_CHARS[idx])
+    return "[ " + "".join(res) + " ]"
+
 def _render_stocks_view(app, avail: int):
-    investments = app.engine.state.get("investments", {})
+    stock_term = getattr(app, "stock_terminal", None)
+    if stock_term and isinstance(stock_term, str) and stock_term.lower() in CORPORATIONS:
+        _render_stock_terminal(app, avail, stock_term.lower())
+        return
+
+    sm = app.engine.get_or_init_stock_market()
     streak = app.engine.state.get("streak_days", 1)
     streak_bonus = min(0.05, streak * 0.002)
     streak_bonus_pct = streak_bonus * 100
 
-    sys.stdout.write(f"  {BOLD}{BLUE}📈 Pokémon Corporate Stock Exchange{RESET}  (Spendable: {BOLD}{CYAN}{format_tokens(avail)}{RESET})\n")
-    sys.stdout.write(f"  🔥 Streak: {BOLD}{YELLOW}{streak}d{RESET} (Grants +{streak_bonus_pct:.1f}% bonus to all dividend yields!)\n\n")
+    sys.stdout.write(f"  {BOLD}{BLUE}📈 Pokémon Corporate Stock Exchange{RESET}\n")
+    streak_str = f"🔥 Streak: {BOLD}{YELLOW}{streak}d{RESET} (+{streak_bonus_pct:.1f}% div)"
+    bal_str = f"Spendable: {BOLD}{CYAN}{format_tokens(avail)}{RESET}"
+    sys.stdout.write(f"  {streak_str} | {bal_str}\n")
+
+    headline = sm.get("market_headline", "POKÉMON EXCHANGE: Indices opening with steady volume.")
+    if len(headline) > 64:
+        headline = headline[:61] + "..."
+    sys.stdout.write(f"  📰 {BOLD}{CYAN}{headline}{RESET}\n")
+    sys.stdout.write("  " + "-" * 68 + "\n\n")
 
     corp_items = list(CORPORATIONS.items())
     page_size = 3
@@ -114,28 +149,121 @@ def _render_stocks_view(app, avail: int):
     end_idx = start_idx + page_size
     visible_corps = corp_items[start_idx:end_idx]
 
-    total_invested = sum(investments.get(k, 0) * c.share_price for k, c in CORPORATIONS.items())
-    total_daily_div = sum(int(investments.get(k, 0) * c.share_price * (c.base_dividend + streak_bonus)) for k, c in CORPORATIONS.items())
+    total_invested = 0
+    total_market_val = 0
+    total_daily_div = 0
+
+    for key, corp in corp_items:
+        details = app.engine.get_stock_details(key)
+        if details:
+            total_invested += details["cost_basis"]
+            total_market_val += details["liq_val"]
+            total_daily_div += details["daily_div"]
+
+    portfolio_pnl = total_market_val - total_invested
+    pnl_sign = "+" if portfolio_pnl >= 0 else ""
 
     idx = start_idx + 1
     for key, corp in visible_corps:
-        shares = investments.get(key, 0)
-        eff_rate = corp.base_dividend + streak_bonus
-        div_day = int(shares * corp.share_price * eff_rate)
+        details = app.engine.get_stock_details(key)
+        if not details:
+            continue
 
-        perk_status = f"{BOLD}{GREEN}[ACTIVE]{RESET}" if shares > 0 else f"{RED}[INACTIVE]{RESET}"
-        owned_str = f"{BOLD}{GREEN}{shares} shares{RESET}" if shares > 0 else "0 shares"
+        c_price = details["current_price"]
+        chg = details["change_pct"]
+        owned = details["owned"]
+        cost_basis = details["cost_basis"]
+        avg_cost = details["avg_cost"]
+        eff_rate = details["eff_rate"]
+        spark = generate_sparkline(details["price_history"])
+        news = details["latest_news"]
 
-        sys.stdout.write(f"  [{idx}] [{BOLD}{CYAN}{corp.ticker}{RESET}] {BOLD}{corp.name}{RESET} — {format_tokens(corp.share_price)}/sh | Own: {owned_str}\n")
-        sys.stdout.write(f"      Div: {corp.base_dividend*100:.1f}% (+{streak_bonus_pct:.1f}% = {eff_rate*100:.1f}%/d) ➔ Yield: +{format_tokens(div_day)}/day\n")
-        sys.stdout.write(f"      Perk: {BOLD}{corp.perk_name}{RESET} {perk_status}\n")
-        sys.stdout.write(f"      Effect: {corp.perk_desc}\n\n")
+        if chg > 0:
+            chg_str = f"{GREEN}▲+{chg:.1f}%{RESET}"
+        elif chg < 0:
+            chg_str = f"{RED}▼{chg:.1f}%{RESET}"
+        else:
+            chg_str = f"{YELLOW}— 0.0%{RESET}"
+
+        status_badge = f"{BOLD}{GREEN}[ACTIVE]{RESET}" if owned > 0 else f"{RED}[INACTIVE]{RESET}"
+
+        sys.stdout.write(f"  [{idx}] [{BOLD}{CYAN}{corp.ticker}{RESET}] {BOLD}{corp.name}{RESET} — {format_tokens(c_price)}/sh ({chg_str}) {status_badge}\n")
+        sys.stdout.write(f"      7d: {spark} | Div: {corp.base_dividend*100:.1f}% (+{streak_bonus_pct:.1f}% = {eff_rate*100:.1f}%/d)\n")
+
+        if owned > 0:
+            unreal_pnl = details["unrealized_pnl"]
+            u_sign = "+" if unreal_pnl >= 0 else ""
+            pnl_col = GREEN if unreal_pnl >= 0 else RED
+            sys.stdout.write(f"      Own: {BOLD}{CYAN}{owned} sh{RESET} ({format_tokens(details['market_val'])}) | Cost: {format_tokens(avg_cost)} | P&L: {pnl_col}{u_sign}{format_tokens(unreal_pnl)}{RESET}\n")
+        else:
+            sys.stdout.write(f"      Perk: {BOLD}{corp.perk_name}{RESET} — {corp.perk_desc}\n")
+
+        if len(news) > 52:
+            news = news[:49] + "..."
+        sys.stdout.write(f"      News: \"{CYAN}{news}{RESET}\"\n\n")
         idx += 1
 
-    if total_pages > 1:
-        sys.stdout.write(f"  ➔ Page {app.stock_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to browse stocks\n\n")
+    sys.stdout.write("  " + "-" * 68 + "\n")
+    pnl_col = GREEN if portfolio_pnl >= 0 else RED
+    pnl_display = f"{pnl_col}{pnl_sign}{format_tokens(portfolio_pnl)}{RESET}"
+    sys.stdout.write(f"  {BOLD}Portfolio:{RESET} Cost: {BOLD}{CYAN}{format_tokens(total_invested)}{RESET} | Val: {BOLD}{GREEN}{format_tokens(total_market_val)}{RESET} | P&L: {pnl_display} | Div: +{format_tokens(total_daily_div)}/d\n")
+    sys.stdout.write(f"  Page {app.stock_page}/{total_pages} ('n'/'p') | Type '{BOLD}stock <CODE>{RESET}' or '{BOLD}1{RESET}'..'{BOLD}5{RESET}' for Terminal\n")
+    sys.stdout.write(f"  ➔ Commands: '{BOLD}invest <code> <qty>{RESET}', '{BOLD}divest <code> <qty>{RESET}'\n\n")
 
-    sys.stdout.write(f"  {BOLD}Portfolio Summary:{RESET} Total: {BOLD}{CYAN}{format_tokens(total_invested)}{RESET} | Daily Div: {BOLD}{GREEN}+{format_tokens(total_daily_div)}{RESET}/day\n\n")
-    sys.stdout.write(f"  {BOLD}Commands:{RESET}\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}invest <code> <shares|all>{RESET}' (e.g. 'invest SILPH 2')\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}divest <code> <shares|all>{RESET}' to sell (10% spread)\n\n")
+def _render_stock_terminal(app, avail: int, corp_key: str):
+    details = app.engine.get_stock_details(corp_key)
+    if not details:
+        sys.stdout.write(f"  {RED}Error: Corporation '{corp_key}' not found.{RESET}\n")
+        sys.stdout.write(f"  Type '{BOLD}back{RESET}' to return to Exchange Board.\n\n")
+        return
+
+    corp = details["corp"]
+    c_price = details["current_price"]
+    chg = details["change_pct"]
+    spark = generate_sparkline(details["price_history"])
+    owned = details["owned"]
+    cost_basis = details["cost_basis"]
+    avg_cost = details["avg_cost"]
+    market_val = details["market_val"]
+    liq_val = details["liq_val"]
+    unreal_pnl = details["unrealized_pnl"]
+    unreal_pct = details["unrealized_pnl_pct"]
+    news = details["latest_news"]
+    eff_rate = details["eff_rate"]
+    daily_div = details["daily_div"]
+
+    if chg > 0:
+        chg_str = f"{GREEN}▲ +{chg:.1f}%{RESET}"
+    elif chg < 0:
+        chg_str = f"{RED}▼ {abs(chg):.1f}%{RESET}"
+    else:
+        chg_str = f"{YELLOW}— 0.0%{RESET}"
+
+    pnl_col = GREEN if unreal_pnl >= 0 else RED
+    pnl_sign = "+" if unreal_pnl >= 0 else ""
+    active_badge = f"{BOLD}{GREEN}[ACTIVE]{RESET}" if owned > 0 else f"{RED}[INACTIVE]{RESET}"
+
+    sys.stdout.write(f"  {BOLD}{CYAN}🏢 TRADE TERMINAL: [{corp.ticker}] {corp.name}{RESET}\n")
+    sys.stdout.write(f"  Price: {BOLD}{GREEN}{format_tokens(c_price)}{RESET}/sh ({chg_str}) | 7d: {spark}\n")
+    sys.stdout.write("  " + "-" * 68 + "\n\n")
+
+    sys.stdout.write(f"  {BOLD}Your Position & Analytics:{RESET}\n")
+    sys.stdout.write(f"  • Shares Owned:       {BOLD}{CYAN}{owned} share(s){RESET} {active_badge}\n")
+    sys.stdout.write(f"  • Weighted Cost:      {format_tokens(avg_cost)}/sh (Total: {format_tokens(cost_basis)})\n")
+    sys.stdout.write(f"  • Market Value:       {format_tokens(market_val)} tokens\n")
+    sys.stdout.write(f"  • Liquidation Value:  {format_tokens(liq_val)} tokens (10% spread applied)\n")
+    pnl_str = f"{pnl_col}{pnl_sign}{format_tokens(unreal_pnl)} ({pnl_sign}{unreal_pct:.1f}%){RESET}"
+    sys.stdout.write(f"  • Unrealized P&L:     {pnl_str}\n")
+    sys.stdout.write(f"  • Daily Dividend:     {BOLD}{GREEN}+{format_tokens(daily_div)}{RESET}/day ({eff_rate*100:.1f}% yield)\n\n")
+
+    sys.stdout.write(f"  {BOLD}Corporate Profile & Catalysts:{RESET}\n")
+    sys.stdout.write(f"  • Perk:     {BOLD}{corp.perk_name}{RESET} — {corp.perk_desc}\n")
+    cat_desc = corp.catalyst_desc if len(corp.catalyst_desc) <= 52 else corp.catalyst_desc[:49] + "..."
+    sys.stdout.write(f"  • Catalyst: {cat_desc}\n")
+    if len(news) > 52:
+        news = news[:49] + "..."
+    sys.stdout.write(f"  • Headline: \"{CYAN}{news}{RESET}\"\n\n")
+
+    sys.stdout.write("  " + "-" * 68 + "\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}buy <qty|all>{RESET}' or '{BOLD}sell <qty|all>{RESET}' to trade\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return to Exchange Board (Spendable: {CYAN}{format_tokens(avail)}{RESET})\n\n")

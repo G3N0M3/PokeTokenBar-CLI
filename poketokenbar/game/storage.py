@@ -88,7 +88,44 @@ class StorageManager:
                 "mauville": 0,
                 "macro": 0
             },
-            "black_market": None
+            "black_market": None,
+            "stock_market": {
+                "prices": {
+                    "silph": 10_000_000,
+                    "devon": 10_000_000,
+                    "aether": 5_000_000,
+                    "mauville": 5_000_000,
+                    "macro": 20_000_000
+                },
+                "price_history": {
+                    "silph": [10_000_000],
+                    "devon": [10_000_000],
+                    "aether": [5_000_000],
+                    "mauville": [5_000_000],
+                    "macro": [20_000_000]
+                },
+                "cost_basis": {
+                    "silph": 0,
+                    "devon": 0,
+                    "aether": 0,
+                    "mauville": 0,
+                    "macro": 0
+                },
+                "latest_news": {
+                    "silph": "Silph Co. operations running steadily across Kanto.",
+                    "devon": "Devon Corp reports steady retail demand in Hoenn.",
+                    "aether": "Aether Foundation maintaining peaceful sanctuary conditions.",
+                    "mauville": "Greater Mauville Game Corner seeing standard foot traffic.",
+                    "macro": "Macro Cosmos power grid operating at nominal capacity."
+                },
+                "daily_catalysts": {
+                    "expeditions_completed": 0,
+                    "shop_tokens_spent": 0,
+                    "casino_net_pnl": 0,
+                    "bosses_defeated": 0
+                },
+                "market_headline": "📈 POKÉMON EXCHANGE: Indices opening with steady volume."
+            }
         }
 
     @staticmethod
