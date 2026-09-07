@@ -1,115 +1,199 @@
 # PokeTokenBar: Technical Architecture Guide
 
-This document is intended for developers maintaining or extending the PokeTokenBar application. It outlines the core architecture, module responsibilities, state management, and the TUI rendering pipeline.
+This document is intended for developers maintaining or extending the PokeTokenBar application. It outlines the core architecture, module responsibilities, state management, safety guarantees, and the TUI rendering pipeline as of **v1.10.0**.
+
+---
 
 ## 1. System Architecture Overview
 
-PokeTokenBar follows a strict separation of concerns between the **View/Controller** (TUI) and the **Model/Logic** (Game Engine).
+PokeTokenBar follows a clean separation of concerns between the **View/Controller** (TUI), the **Model/Logic** (Game Engine), and the **Telemetry Ingestion** (Tracker Daemon).
 
-- **TUI (`tui.py`)**: Responsible entirely for standard input/output, clearing the terminal, rendering ANSI escape sequences, managing the current active tab, and parsing raw user input commands. It holds almost no game logic.
-- **Engine (`game/companion.py`)**: The `CompanionEngine` acts as the central brain and state machine. It orchestrates sub-engines (like Poker, Slots, Bank) and manipulates the user's persistent save data based on inputs forwarded by the TUI.
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        AI Coding Log Sources                            │
+│  Antigravity CLI (SQLite) │ Gemini CLI (JSON) │ Claude Code (JSONL)     │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     ▼
+                       ┌───────────────────────────┐
+                       │  UsageManager (Tracker)   │
+                       └─────────────┬─────────────┘
+                                     ▼
+                       ┌───────────────────────────┐
+                       │ CompanionEngine (Model)   │ ◄─── StorageManager
+                       │   - Growth & Evolution    │      (~/.poketokenbar/
+                       │   - Expeditions & Roster  │       state.json[.bak])
+                       │   - Bank & Stock Market   │
+                       │   - Red Battle & Raids    │
+                       └─────────────┬─────────────┘
+                                     ▼
+                       ┌───────────────────────────┐
+                       │   PokeTokenBarTUI (View)  │
+                       │   - 11 Fixed 72-Col Tabs  │
+                       │   - Interactive Dispatcher│
+                       │   - ANSI Half-Block Sprites│
+                       └───────────────────────────┘
+```
+
+- **TUI (`poketokenbar/tui.py`)**: Responsible for terminal lifecycle, ANSI escape sequences, screen refreshes, active tab navigation, interactive submodes (Stock Terminal, Minigames, Expedition Picker), and parsing raw user input.
+- **Engine (`poketokenbar/game/companion.py`)**: The `CompanionEngine` acts as the central state machine and coordinator. It manages companion progression, inventory, banking, expeditions, stock trading, and calls `self.save()` to persist data.
+- **Storage (`poketokenbar/game/storage.py`)**: Handles atomic JSON serialization, rolling backups (`state.json.bak`), and strict test runner sandboxing.
+- **Tracker (`poketokenbar/tracker/manager.py`)**: Aggregates token usage across multiple local AI assistant logs without external network requests.
+
+---
 
 ## 2. Directory & Module Structure
 
 ```text
 poketokenbar/
-├── __init__.py           # Package version definition
-├── cli.py                # Entry point script (sys.argv parsing, initialization)
-├── tui.py                # `PokeTokenBarTUI`: The 72-column terminal renderer and input loop
-├── sprite_renderer.py    # `SpriteRenderer`: 24-bit TrueColor ANSI half-block renderer & pure-Python PNG decoder
+├── __init__.py           # Package version definition (v1.10.0)
+├── cli.py                # CLI entry point (ptb, ptb status, ptb watch, ptb card, ptb settings)
+├── tui.py                # PokeTokenBarTUI: 72-column terminal renderer and input dispatch loop
+├── sprite_renderer.py    # SpriteRenderer: 24-bit TrueColor ANSI half-block renderer
 ├── game/
-│   ├── companion.py      # `CompanionEngine`: Core game logic, inventory, items, expeditions, growth
-│   ├── storage.py        # `StorageManager`: Reads/writes ~/.poketokenbar/state.json atomically
-│   ├── models.py         # Static data, dataclasses, and constants (e.g. MonState, ItemKind, MEGA_STONES)
-│   ├── pokeapi.py        # `PokeAPIClient`: Handles HTTP requests to pokeapi.co and sprite caching
-│   ├── red_battle.py     # `RedBattleHandler`: Mt. Silver turn-based RPG battle engine & Arceus secret fight
-│   ├── gacha.py          # `GachaEngine`: Drop rate tables and capsule machine randomization
-│   ├── poker.py          # `TexasHoldemEngine`: Deck management, hands, and dealer logic
-│   ├── slots.py          # `SlotMachineEngine`: Weighted reel randomization logic
-│   └── blackjack.py      # `BlackjackEngine`: Classic 21 logic and card value calculation
+│   ├── companion.py      # CompanionEngine: Core progression, evolution, expeditions, bank, stocks
+│   ├── models.py         # Static data, dataclasses (MonState, ItemKind, Corporation, PokemonBalance)
+│   ├── storage.py        # StorageManager: Atomic save, .bak rolling backup, sandbox redirect
+│   ├── pokeapi.py        # PokeAPIClient: Local sprite & metadata caching (~/.poketokenbar/cache/)
+│   ├── red_battle.py     # RedBattleHandler: Mt. Silver 6v6 turn-based RPG battle engine & Arceus fight
+│   ├── gacha.py          # GachaEngine: Drop table probability and capsule pull logic
+│   ├── poker.py          # TexasHoldemEngine: 5-card draw Video Poker engine
+│   ├── slots.py          # SlotMachineEngine: 3-reel weighted slot machine with animation
+│   └── blackjack.py      # BlackjackEngine: Classic 21 logic, card dealer, and double down
 ├── tracker/
-│   ├── manager.py        # `UsageManager`: Thread-safe aggregator and period burn metrics
-│   ├── antigravity.py    # `AntigravityUsageReader`: Protobuf wire decoder for Antigravity SQLite DBs
-│   ├── gemini.py         # `GeminiUsageReader`: JSON session log parser
-│   ├── claude.py         # `ClaudeUsageReader`: JSONL Claude Code log parser
-│   └── base.py           # Base dataclasses (UsageEntry, DailyUsage)
-├── tui_tabs/             # Dedicated renderer modules for each TUI tab
+│   ├── manager.py        # UsageManager: Aggregator of active tokens, daily streak, and burn rates
+│   ├── antigravity.py    # AntigravityUsageReader: Protobuf reader for Antigravity SQLite DBs
+│   ├── gemini.py         # GeminiUsageReader: Session JSON log reader
+│   ├── claude.py         # ClaudeUsageReader: JSONL session log reader
+│   └── base.py           # Usage dataclasses (UsageEntry, DailyUsage)
+├── tui_tabs/             # Dedicated renderer modules for each TUI tab (72-col layout)
 │   ├── companion.py      # Tab [1] Active companion HUD & stats
-│   ├── pokedex.py        # Tab [2] Discovered species archive
-│   ├── roster.py         # Tab [3] Caught Pokémon team & selection
-│   ├── shop.py           # Tab [4] Shop & Bag inventory
-│   ├── expeditions.py    # Tab [5] Background expeditions
-│   ├── battles.py        # Tab [6] Auto-battles, Gym Raids & Mt. Silver Red Battle integration
-│   ├── quests.py         # Tab [7] Daily coding quests
-│   ├── mega_evo.py       # Tab [8] Mega Evolution chamber
-│   ├── game_corner.py    # Tab [9] Poker, Slots, Blackjack, Gacha
-│   ├── bank.py           # Tab [10] Token Bank deposits & loans
-│   ├── settings.py       # Tab [11] Preferences, resolution, data reset
+│   ├── pokedex.py        # Tab [2] Discovered species encyclopedia & graduation status
+│   ├── roster.py         # Tab [3] Caught Pokémon team & staged multi-selection
+│   ├── shop.py           # Tab [4] Mart shop purchases, Bag inventory, item usage, berry feeding
+│   ├── expeditions.py    # Tab [5] Pokédex expeditions & Interactive Multi-Select Dispatcher
+│   ├── battles.py        # Tab [6] Auto-battles, Gym Raids & Mt. Silver challenge prompt
+│   ├── quests.py         # Tab [7] Daily coding quests and scaled token goals
+│   ├── mega_evo.py       # Tab [8] Mega Evolution chamber & form reversal
+│   ├── game_corner.py    # Tab [9] Casino Hub (Poker, Gacha, Slots, Blackjack)
+│   ├── bank.py           # Tab [10] Token Bank (Checking, CDs, and Dynamic Stock Market)
+│   ├── settings.py       # Tab [11] Preferences, sprite resolution, page sizes, safe reset
 │   └── red.py            # Mt. Silver Summit battle interface (called from Tab [6])
 └── utils/
-    └── formatting.py     # ANSI color wrappers, progress bars, and token formatting helpers
+    └── formatting.py     # ANSI color constants, token abbreviation (format_tokens), progress bars
 ```
 
-## 3. State Management
+---
 
-All persistent player data is stored in a local JSON file managed by `StorageManager`.
-- **Location**: `~/.poketokenbar/state.json`
-- **Schema Highlights**:
-  - `total_tokens`: Total all-time tokens tracked by the external daemon.
-  - `spent_tokens`: The amount of tokens spent in the shop/casino. (Available = total - spent).
-  - `bank_balance` / `bank_loan`: Deposited tokens earning interest and active token debt.
-  - `dex`: List of unlocked Pokédex IDs and graduation entries.
-  - `roster`: List of Pokémon dictionaries (ID, name, level, exp, nature, shiny status, happiness).
-  - `inventory`: Dictionary mapping item IDs to quantities.
-  - `active_mon`: Serialized dictionary of the currently active companion.
-  - `red_battle_state`: State for the active Mt. Silver 6v6 battle against PKMN Trainer Red.
+## 3. State Management & Data Safety
 
-When adding new features, modify `self.state` directly within `CompanionEngine` and call `self.save()` to persist the data to disk.
+### Persistent Storage Schema (`~/.poketokenbar/state.json`)
 
-## 4. TUI Rendering Loop (`tui.py`)
+Key                     | Type            | Description
+:---------------------- | :-------------- | :-----------------------------------------------------------------
+`used_since_install`    | `int`           | Lifetime total tokens indexed from AI log sources.
+`spent_tokens`          | `int`           | Lifetime tokens spent on items, casino, or bank. `available = used - spent`.
+`active_mon`            | `Dict / None`   | Serialized `MonState` dictionary of currently active companion.
+`egg_tier`              | `str / None`    | Tier of incubating egg (`"common"`, `"rare"`, `"legendary"`, etc.).
+`egg_usage`             | `int`           | Progress tokens accumulated toward current egg hatch threshold.
+`pending_eggs`          | `List[str]`     | Queue of discovered eggs awaiting assignment/swap.
+`dex`                   | `List[Dict]`    | List of all registered Pokédex entries with form chains and graduation flags.
+`inventory`             | `Dict[str,int]` | Bag inventory counts (`rare_candy`, `berry_oran`, `ice_stone`, etc.).
+`expeditions`           | `List[Dict]`    | Active expeditions (`sp_id`, `area`, `progress`, `target`, `is_mega`).
+`expedition_slots`      | `int`           | Maximum concurrent expedition capacity (default: 10).
+`expedition_logs`       | `List[str]`     | Recent completed expedition event logs (retained to last 3 entries).
+`bank_balance`          | `int`           | Tokens deposited in the Token Bank checking account.
+`bank_loan`             | `int`           | Active token loan debt.
+`cds`                   | `List[Dict]`    | Active Certificates of Deposit (`id`, `tier`, `principal`, `apy`, `matures_at`).
+`investments`           | `Dict[str,int]` | Stock share portfolio (`{"silph": int, "devon": int, ...}`).
+`corporate_catalysts`   | `Dict[str,int]` | Player action counts influencing stock market movement.
+`market_news`           | `List[Dict]`    | Generated Lore News reports with sentiment and ticker effects.
+`gym_badges`            | `List[str]`     | Badges earned from Gym Bosses and Trainer Red.
+`trainer_battles`       | `Dict`          | Auto-battle record `{"wins": int, "losses": int}`.
+`battle_logs`           | `List[str]`     | Recent battle event strings (last 5 fights).
+`red_battle_state`      | `Dict / None`   | Active Mt. Silver RPG battle state against PKMN Trainer Red.
+`page_size_*`           | `int`           | Configurable table page sizes (`page_size_roster`, `page_size_expedition`, etc.).
 
-The TUI operates on an 11-tab fixed 72-character width layout using a synchronous blocking loop with `sys.stdin.readline()`:
-1. **Clear Screen**: ANSI escape sequences (`\033[H\033[2J`) flush the terminal.
-2. **Render Header & Tabs**: Displays the top navigation bar with 11 tabs (`[1] Companion` through `[11] Settings`).
-3. **Render Active Tab**: Based on `self.current_tab` (1..11), delegates to specific render methods in `tui_tabs/`.
-4. **Render Footer**: Displays `self.message`, which contains feedback from the last executed command or unread background alerts.
-5. **Await Input**: Blocks and waits for the user to type a command or tab number (`1`..`11`).
+### Automatic Rolling Backup (`state.json.bak`)
+To prevent accidental save corruption or loss during unexpected process termination, `StorageManager.save_state()` creates an atomic rolling backup copy (`~/.poketokenbar/state.json.bak`) before flushing new state data to disk.
 
-*Note: Visual updates (like the Slot Machine spinning) are achieved by running this render loop inside a rapid `for` loop with `time.sleep()` delays, temporarily bypassing the `readline()` block.*
+### Strict Test Runner Sandboxing
+To protect the player's live save data during automated testing and CI runs:
+- `StorageManager.get_state_path()` checks the `PTB_STATE_FILE` environment variable.
+- If unset, it inspects `sys.modules` and `sys.argv` for active test runners (`pytest`, `unittest`). If detected, it automatically redirects the save path to `/tmp/ptb_test_sandbox.json`.
+- Unit tests run completely isolated from the user's live progress.
 
-## 5. Battles & Mt. Silver Red Battle Integration (Tab [6])
+---
 
-Rather than occupying a standalone 12th tab, the **Mt. Silver Summit (Red Battle)** is architecturally integrated directly inside **Tab [6] Battles**:
-- **Rendering Dispatch (`tui_tabs/battles.py`)**:
-  - If a Red Battle is currently in progress (`status` in `["active", "win", "loss"]`), Tab [6] automatically delegates rendering directly to `tui_tabs/red.py` (`render_red_tab`).
-  - If the player has defeated the Champion (or unlocked via dev flag) but is not in an active battle, the standard Gym Boss Raid and Trainer Auto-Battle logs render first, followed by the Mt. Silver challenge prompt at the bottom.
-- **Command Routing (`tui.py`)**:
-  - When `self.current_tab == 6`, Red Battle commands (`assemble <id1>..<id6>`, `fight <1-4>`, `swap <1-6>`, `run`, `restart`) are intercepted and forwarded to `tui_tabs/red.py` (`handle_red_command`).
-  - If a user inputs `12` in the TUI, the interface smoothly redirects them to Tab [6] with a notification indicating that the Red Battle resides inside Battles.
-- **Battle Engine (`game/red_battle.py`)**:
-  - `RedBattleHandler` maintains an independent battle token pool starting at 20M tokens + tokens earned organically during combat.
-  - Handles turn resolution, type effectiveness multipliers, Red's team AI, Hall of Fame logging, and the secret Arceus Easter egg encounter.
+## 4. Key Subsystem Implementations
 
-## 6. API & Sprite Caching (`pokeapi.py`)
+### 4.1 Pokédex Expeditions & Multi-Select Dispatcher
+Expeditions allow players to send inactive roster Pokémon on background token missions across 5 destinations (*Viridian Forest*, *Evolution Mine*, *Cerulean Cave*, *Mt. Silver*, *Spear Pillar*).
 
-To prevent rate-limiting and ensure fast terminal renders, all data from `pokeapi.co` is aggressively cached.
-- **Cache Location**: `~/.poketokenbar/cache/`
-- Sprites are fetched as PNGs and converted into ANSI block-character strings mapped to standard 24-bit TrueColor palettes via `SpriteRenderer`.
-- The engine uses a default 30-column width for sprites, but this can be dynamically resized by the user in the Settings tab.
+The system supports **three dispatch mechanisms**:
+1. **Interactive Multi-Select Dispatcher (`render_expedition_picker`)**:
+   - Activated via `dispatch`, `send`, or `select` on Tab [5] or Tab [3].
+   - Displays a 72-column table with `[ ]` (available), `[✓]` (selected), `[-]` (deployed), and `[x]` (exhausted) checkboxes.
+   - Users toggle companions by entering row numbers or ranges (e.g. `1 2 3`, `1-5`, `all`, `clear`).
+   - Entering a destination (`viridian`, `mine`, `cerulean`, `silver`, `spear`, or `to 1`..`to 5`) dispatches the entire batch simultaneously.
+2. **Staged Roster Selection**:
+   - In Tab [3] Roster, typing `select 1 2 3` or `pick 1-4` stages companions with green `[✓]` badges.
+   - Typing `send <area>` (e.g. `send mine`) dispatches the staged companions and clears the stage.
+3. **Batch CLI Command**:
+   - Single-line syntax: `send 1,2,3 viridian`, `send 1-5 mine`, `send all silver`.
 
-## 7. The Game Corner (Minigames)
+### 4.2 Evolution Intelligence & Duplicate Prevention
+- **Automatic Evolution Safeguard (`CompanionEngine._check_growth()`)**:
+  When a companion accumulates enough XP to evolve, the engine queries the Pokédex for the next evolutionary stage. If the next stage is already registered (`status != "evolved"`), evolution is automatically halted and the companion is marked `[OWNED]`, preserving the lower-stage companion and preventing duplicate final forms.
+- **Strict Duplicate-Free Hatching (`CompanionEngine._pick_species()`)**:
+  Hatching an egg checks the player's complete Pokédex and roster against all species in the candidate's evolutionary chain. The player is guaranteed to hatch a species they do not already own.
+- **Elemental Evolution Stones**:
+  Branch evolutions (e.g. Eevee ➔ Vaporeon, Jolteon, Flareon, Espeon, Umbreon, Glaceon, Leafeon, Sylveon; Poliwhirl ➔ Poliwrath / Politoed) are triggered by purchasing and using elemental stones from the Shop or mining them in Evolution Mine.
 
-Minigames reside in Tab 9 and follow a unified architectural pattern:
-- The TUI routes commands starting with `play <idx>` to set a `self.minigame_state` (e.g., `"poker"`, `"slot"`).
-- `tui.py` intercepts minigame-specific commands (like `spin` or `hit`) and forwards them to wrapper methods in `CompanionEngine` (like `play_slots` or `play_blackjack_action`).
-- The `CompanionEngine` validates the player's available tokens and interacts with the standalone engines (`poker.py`, `slots.py`, `blackjack.py`).
-- Standalone engines only manage the rules of their specific game (deck state, multipliers, win conditions) and do **not** interact with the file system or token economy directly.
+### 4.3 Token Bank & Dynamic Stock Market
+Tab [10] Bank provides three distinct financial services:
+1. **Checking Account**: Standard deposit/withdrawal with interest accrual and collateralized borrowing up to 30% of deposits (max 500M).
+2. **Certificates of Deposit (CDs)**: Fixed-term deposit contracts (1-Day at 5% APY, 3-Day at 12% APY, 7-Day at 25% APY) with early withdrawal penalties.
+3. **Dynamic Stock Exchange (`stocks`)**:
+   - 5 in-universe corporations: Silph Co. (`SLPH`), Devon Corp (`DEVN`), Rocket Enterprises (`RCKT`), Pokétch Co. (`PKTC`), and Aether Foundation (`AETH`).
+   - Modeled using Geometric Brownian Motion with drift, volatility, and mean-reversion.
+   - **Player Catalysts (`_record_catalyst()`)**: In-game actions trigger market momentum (e.g. completing expeditions drives Silph Co.; winning battles drives Devon Corp; high token burns drive Rocket Enterprises).
+   - **Daily Lore News**: Procedurally generated news bulletins hint at sector performance.
+   - **Corporate Perks**: Owning significant shareholdings unlocks permanent passive perks (+15% expedition tokens, +20% battle tokens, +10% shiny odds).
 
-## 8. Adding a New Feature (Workflow)
+### 4.4 Mt. Silver Summit & Red Battle (Tab [6])
+The Mt. Silver Red Battle is architecturally integrated into Tab [6] Battles:
+- Unlocked upon defeating the Champion or via dev flag.
+- Uses an independent battle token pool (20M base + tokens earned during combat).
+- Turn-based 6v6 RPG combat against PKMN Trainer Red's canonical team (Pikachu, Espeon, Snorlax, Venusaur, Charizard, Blastoise).
+- Winning records the team into the **Hall of Fame**, awards the **Master of Masters** badge and a **Mysterious Fetal Form (Mew)**.
+- **Arceus Easter Egg**: Challenging Red with his exact iconic team triggers a secret battle against Arceus (5,000,000 HP).
 
-If you are adding a new mechanic (e.g., a Daycare):
-1. Create a logic engine (if complex) in `poketokenbar/game/daycare.py`.
-2. Instantiate the engine inside `CompanionEngine.__init__`.
-3. Add a wrapper method in `CompanionEngine` (e.g., `handle_daycare(cmd)`) that updates `self.state` and calls `self.save()`.
-4. Add a new tab rendering module in `poketokenbar/tui_tabs/daycare.py`.
-5. Update `tui.py`'s `render_tabs()` and `run()` event loop to route inputs to your new method when the tab is active.
+---
+
+## 5. TUI Rendering Pipeline & Layout Constraints
+
+All TUI views adhere to strict formatting standards:
+1. **72-Column Fixed Width**:
+   Every rendered line (headers, tables, progress bars, logs) is capped at 72 characters to prevent horizontal wrapping across all standard Linux terminal windows.
+2. **Dividers**:
+   Standardized section dividers use `sys.stdout.write(f"{HEADER}{'='*72}{RESET}\n")` or `"-" * 72`.
+3. **Progress Bars (`format_progress_bar`)**:
+   Bounded to 12–14 character bar widths to leave ample space for numeric values and labels.
+4. **ANSI Half-Block Sprites (`SpriteRenderer`)**:
+   Converts 2 vertical pixels into single terminal characters (`▀` / `▄`) with 24-bit TrueColor foreground and background escape sequences (`\033[38;2;R;G;Bm\033[48;2;R;G;Bm`).
+
+---
+
+## 6. Development & Testing Runbook
+
+### Running the Test Suite
+Always run tests using Python's unittest runner with state isolation:
+```bash
+PTB_STATE_FILE=/tmp/ptb_test.json python -m unittest discover tests
+```
+
+### Adding a New TUI Command
+1. If the command belongs to an existing submode (e.g. Expeditions, Stocks, Minigames), handle it in the appropriate conditional block in `PokeTokenBarTUI.run()`.
+2. Add necessary engine methods in `CompanionEngine` or specific sub-engines.
+3. Ensure user-facing feedback messages (`self.message`) fit cleanly within 72 columns.
+4. Add unit test coverage in `tests/test_companion.py`.
