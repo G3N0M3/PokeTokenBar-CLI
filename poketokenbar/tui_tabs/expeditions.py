@@ -76,11 +76,11 @@ def render_expeditions_tab(app):
 
     # Recent Expedition Logs
     exp_logs = app.engine.state.get("expedition_logs", [])
-    sys.stdout.write(f"  {BOLD}📜 Recent Expedition Logs (Last 5 Expeditions):{RESET}\n")
+    sys.stdout.write(f"  {BOLD}📜 Recent Expedition Logs (Last 3 Expeditions):{RESET}\n")
     if not exp_logs:
         sys.stdout.write("   No completed expeditions recorded yet. Dispatch companions to start!\n\n")
     else:
-        for log in exp_logs:
+        for log in exp_logs[-3:]:
             fixed_log = log.replace("] 🗺️ ", "] ").replace("]   ", "] ")
             sys.stdout.write(f" {fixed_log}\n")
         sys.stdout.write("\n")

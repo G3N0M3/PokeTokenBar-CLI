@@ -1887,7 +1887,7 @@ class CompanionEngine:
                 now_str = datetime.datetime.now().strftime("%H:%M:%S")
                 logs = self.state.get("expedition_logs", [])
                 logs.append(f"[{now_str}] {sp_name}: {reward_str} | +{format_tokens(tokens_gain)} 🪙 | +{format_tokens(xp_gain)} XP")
-                self.state["expedition_logs"] = logs[-5:]
+                self.state["expedition_logs"] = logs[-3:]
                 self._record_catalyst("expeditions_completed", 1)
                 events.append(f"🗺️ {sp_name} finished {area}: {reward_str} | +{format_tokens(tokens_gain)} 🪙 | +{format_tokens(xp_gain)} XP")
             else:
