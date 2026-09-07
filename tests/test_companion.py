@@ -349,7 +349,18 @@ class TestCompanionEngine(unittest.TestCase):
         from unittest.mock import MagicMock
         from poketokenbar.tui_tabs.companion import render as render_companion
 
-        mon, _ = self.engine.hatch_egg(0)
+        mon = MonState(
+            base_id=4,
+            path_ids=[4, 5, 6],
+            planned_path_ids=[4, 5, 6],
+            stage_index=0,
+            used_at_stage=1000,
+            rarity=Rarity.COMMON,
+            total_forms=3,
+            happiness=100
+        )
+        self.engine.set_active_mon(mon)
+        self.engine._register_to_dex(mon, status="active")
         self.engine.state["inventory"]["everstone"] = 1
         ok, msg = self.engine.use_item(ItemKind.EVERSTONE)
         self.assertTrue(ok)
@@ -849,6 +860,15 @@ class TestCompanionEngine(unittest.TestCase):
             self.assertEqual(len(exps), 4)
             self.assertEqual(exps[2]["area"], "Viridian Forest")
             self.assertEqual(exps[3]["area"], "Viridian Forest")
+
+            # 6. Test 'q' in picker mode exits picker mode back to Tab 5 without terminating game
+            tui3 = PokeTokenBarTUI()
+            tui3.engine = self.engine
+            commands3 = "\n".join(["5", "dispatch", "q", "q"]) + "\n"
+            with patch("sys.stdin", io.StringIO(commands3)), patch("sys.stdout"):
+                tui3.run()
+            self.assertFalse(tui3.expedition_picker_mode)
+            self.assertEqual(tui3.current_tab, 5)
 
 if __name__ == "__main__":
     unittest.main()

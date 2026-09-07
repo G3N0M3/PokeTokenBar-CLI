@@ -187,44 +187,16 @@ class PokeTokenBarTUI:
                         self.message = f"🧹 {msg}"
                     else:
                         self.message = "❌ Reset cancelled."
-                elif cmd in ["q", "exit", "quit"]:
-                    print("\nExiting PokeTokenBar. Keep coding! 🐾")
-                    break
-                elif cmd == "250220":
-                    self.engine.state["spent_tokens"] = self.engine.state.get("spent_tokens", 0) - 50_000_000
-                    self.engine.save()
-                    self.message = "🎉 EASTER EGG UNLOCKED! Granted 50.0M Tokens! 🎉"
-                elif cmd == "314159":
-                    is_unlocked = not self.engine.state.get("dev_red_unlocked", False)
-                    self.engine.state["dev_red_unlocked"] = is_unlocked
-                    if not is_unlocked:
-                        self.engine.state.pop("red_battle_state", None)
-                    self.engine.save()
-                    status = "UNLOCKED" if is_unlocked else "LOCKED (and reset)"
-                    self.message = f"🔧 DEV MODE: Red Battle {status} 🔧"
-                elif cmd == "314159+":
-                    self.engine.state["spent_tokens"] = self.engine.state.get("spent_tokens", 0) - 1_000_000
-                    st = self.engine.state.get("red_battle_state")
-                    if st:
-                        st["red_spent_tokens"] = st.get("red_spent_tokens", 0) - 1_000_000
-                    self.engine.save()
-                    self.message = "🔧 DEV MODE: Granted 1,000,000 Tokens! 🔧"
-                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and not getattr(self, "stock_terminal", None) and cmd in ["1", "2", "3", "4", "5"]:
-                    from poketokenbar.game.models import CORPORATIONS
-                    c_keys = list(CORPORATIONS.keys())
-                    idx = int(cmd) - 1
-                    if 0 <= idx < len(c_keys):
-                        self.stock_terminal = c_keys[idx]
-                        self.message = f"Opened {CORPORATIONS[self.stock_terminal].ticker} Trade Terminal."
                 elif getattr(self, "expedition_picker_mode", False):
                     # In Interactive Expedition Picker mode
-                    if cmd in ["back", "exit", "q", "done", "close", "cancel"]:
+                    if cmd in ["back", "exit", "q", "quit", "done", "close", "cancel"]:
                         self.expedition_picker_mode = False
                         self.message = "Exited Expedition Dispatcher."
                     elif cmd in ["next", "n"]:
                         dex = self.engine.state.get("dex", [])
                         roster = [d for d in dex if d.get("status") != "evolved"]
-                        total_pages = max(1, math.ceil(len(roster) / 10))
+                        page_size = 8
+                        total_pages = max(1, math.ceil(len(roster) / page_size))
                         if getattr(self, "picker_page", 1) < total_pages:
                             self.picker_page = getattr(self, "picker_page", 1) + 1
                         else:
@@ -239,7 +211,8 @@ class PokeTokenBarTUI:
                             target_p = int(cmd.split()[1])
                             dex = self.engine.state.get("dex", [])
                             roster = [d for d in dex if d.get("status") != "evolved"]
-                            total_pages = max(1, math.ceil(len(roster) / 10))
+                            page_size = 8
+                            total_pages = max(1, math.ceil(len(roster) / page_size))
                             if 1 <= target_p <= total_pages:
                                 self.picker_page = target_p
                             else:
@@ -269,7 +242,42 @@ class PokeTokenBarTUI:
                         if indices:
                             self._toggle_selection_indices(indices)
                         else:
-                            self.message = "Enter row numbers to toggle, destination ('viridian', 'mine', etc.) to launch, or 'back' to exit."
+                            self.message = "Enter row numbers to toggle, destination ('viridian', 'mine', etc.) to launch, or 'q' to exit."
+                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and getattr(self, "stock_terminal", None) and cmd in ["q", "quit", "exit", "back", "board", "stocks", "leave", "stock", "close"]:
+                    self.stock_terminal = None
+                    self.message = "Closed stock terminal."
+                elif self.current_tab == 9 and getattr(self, "minigame_state", "menu") != "menu" and cmd in ["q", "quit", "leave", "back", "quit game", "exit game", "exit"]:
+                    self.minigame_state = "menu"
+                    self.message = "Returned to Game Corner menu."
+                elif cmd in ["q", "exit", "quit"]:
+                    print("\nExiting PokeTokenBar. Keep coding! 🐾")
+                    break
+                elif cmd == "250220":
+                    self.engine.state["spent_tokens"] = self.engine.state.get("spent_tokens", 0) - 50_000_000
+                    self.engine.save()
+                    self.message = "🎉 EASTER EGG UNLOCKED! Granted 50.0M Tokens! 🎉"
+                elif cmd == "314159":
+                    is_unlocked = not self.engine.state.get("dev_red_unlocked", False)
+                    self.engine.state["dev_red_unlocked"] = is_unlocked
+                    if not is_unlocked:
+                        self.engine.state.pop("red_battle_state", None)
+                    self.engine.save()
+                    status = "UNLOCKED" if is_unlocked else "LOCKED (and reset)"
+                    self.message = f"🔧 DEV MODE: Red Battle {status} 🔧"
+                elif cmd == "314159+":
+                    self.engine.state["spent_tokens"] = self.engine.state.get("spent_tokens", 0) - 1_000_000
+                    st = self.engine.state.get("red_battle_state")
+                    if st:
+                        st["red_spent_tokens"] = st.get("red_spent_tokens", 0) - 1_000_000
+                    self.engine.save()
+                    self.message = "🔧 DEV MODE: Granted 1,000,000 Tokens! 🔧"
+                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and not getattr(self, "stock_terminal", None) and cmd in ["1", "2", "3", "4", "5"]:
+                    from poketokenbar.game.models import CORPORATIONS
+                    c_keys = list(CORPORATIONS.keys())
+                    idx = int(cmd) - 1
+                    if 0 <= idx < len(c_keys):
+                        self.stock_terminal = c_keys[idx]
+                        self.message = f"Opened {CORPORATIONS[self.stock_terminal].ticker} Trade Terminal."
                 elif cmd == "1":
                     self.expedition_picker_mode = False
                     self.current_tab = 1

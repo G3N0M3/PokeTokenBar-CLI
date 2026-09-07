@@ -14,7 +14,7 @@ BOLD = "\033[1m"
 def render_expeditions_tab(app):
     expeditions = app.engine.state.get("expeditions", [])
     slot_limit = app.engine.state.get("expedition_slots", 10)
-    sys.stdout.write(f"\n  {BOLD}{HEADER}🗺️ Pokédex Expeditions ({len(expeditions)}/{slot_limit} Active){RESET}\n\n")
+    sys.stdout.write(f"\n  {BOLD}{HEADER}🗺️ Pokédex Expeditions ({len(expeditions)}/{slot_limit} Active){RESET}\n")
 
     # Staged selection summary if any companions are selected
     selected_targets = getattr(app, "selected_expedition_targets", set())
@@ -26,33 +26,22 @@ def render_expeditions_tab(app):
                 s_sp = roster[s_idx - 1].get("species_id", roster[s_idx - 1].get("base_id"))
                 names.append(f"{app.engine.api.get_species_name(s_sp)} (#{s_idx})")
         names_str = ", ".join(names)
-        if len(names_str) > 50:
-            names_str = names_str[:47] + "..."
-        sys.stdout.write(f"  🎯 {BOLD}{GREEN}Selected for Dispatch ({len(selected_targets)}):{RESET} {names_str}\n")
-        sys.stdout.write(f"  ➔ Type '{BOLD}send <area>{RESET}' to dispatch! (e.g. 'send mine') | '{BOLD}clear{RESET}' to deselect\n\n")
+        if len(names_str) > 42:
+            names_str = names_str[:39] + "..."
+        sys.stdout.write(f"  🎯 {BOLD}{GREEN}Selected ({len(selected_targets)}):{RESET} {names_str} | '{BOLD}send <area>{RESET}' to launch\n")
 
-    sys.stdout.write(f"  {BOLD}Available Expedition Destinations:{RESET}\n")
-    sys.stdout.write(f"   (💡 {YELLOW}Hint: High Rarity/MEGA = Faster Expeditions!{RESET})\n")
-    sys.stdout.write(f"   • Viridian Forest - Target: 5.0M tokens  - Reward: 🌿 Mint + XP + 🪙\n")
-    sys.stdout.write(f"   • Evolution Mine  - Target: 10.0M tokens - Reward: 💎 Random Evo Stone\n")
-    sys.stdout.write(f"   • Cerulean Cave   - Target: 15.0M tokens - Reward: 🍬 Rare Candy + XP + 🪙\n")
-    sys.stdout.write(f"                       (+5% chance of finding a Map)\n")
-    sys.stdout.write(f"   • Mt. Silver      - Target: 30.0M tokens - Reward: 🍇 Golden Razz + XP + 🪙\n")
-    sys.stdout.write(f"                       (+15% chance of finding a Map)\n")
-    sys.stdout.write(f"   • Spear Pillar    - Target: 100.0M tokens (Requires 3x Maps)\n")
-    sys.stdout.write(f"                       Reward: 🌟 LEGENDARY EGG + XP + 🪙\n\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}dispatch{RESET}' or '{BOLD}send{RESET}' to open Interactive Multi-Select Picker!\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}send <row(s)|#dex|all> [area]{RESET}' to dispatch directly!\n")
-    sys.stdout.write(f"     (e.g. 'send 1,2,3 viridian', 'send 1-5 mine', 'send all silver')\n")
-    
     passes_count = app.engine.state.get("inventory", {}).get("expedition_pass", 0)
-    sys.stdout.write(f"  ➔ Type '{BOLD}pass <idx>{RESET}' to instantly finish! (🎫 Passes: {BOLD}{YELLOW}{passes_count}{RESET})\n\n")
+    sys.stdout.write(f"  {BOLD}Available Destinations (High Rarity/MEGA = Faster | 🎫 Passes: {YELLOW}{passes_count}{RESET}):\n")
+    sys.stdout.write(f"  • [1] Viridian(5M): Mint+XP+🪙   • [4] Mt.Silver(30M): Razz+Map\n")
+    sys.stdout.write(f"  • [2] Evo Mine(10M): Evo Stone   • [5] Spear(100M): Leg Egg (3 Maps)\n")
+    sys.stdout.write(f"  • [3] Cerulean(15M): Candy+Map   (Cerulean 5% Map, Silver 15% Map)\n")
+    sys.stdout.write(f"  ➔ '{BOLD}dispatch{RESET}' opens picker | '{BOLD}send <rows|all> <area>{RESET}' | '{BOLD}pass <#>{RESET}'\n\n")
 
     sys.stdout.write(f"  {BOLD}🗺️ Active Expeditions Status:{RESET}\n")
     if not expeditions:
         sys.stdout.write("   No companions currently on expedition.\n\n")
     else:
-        page_size = app.engine.state.get("page_size_expedition", 10)
+        page_size = app.engine.state.get("page_size_expedition", 5)
         total_pages = max(1, (len(expeditions) - 1) // page_size + 1)
         if not hasattr(app, 'expedition_page'):
             app.expedition_page = 1
@@ -71,7 +60,7 @@ def render_expeditions_tab(app):
             sys.stdout.write(f"   [{i}] • {BOLD}{CYAN}{sp_name} (#{sp_id}){RESET} @ {area}: {format_tokens(progress)} / {format_tokens(target)} ({pct:.0f}%)\n")
             
         if total_pages > 1:
-            sys.stdout.write(f"\n  ➔ Page {app.expedition_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")
+            sys.stdout.write(f"  ➔ Page {app.expedition_page}/{total_pages} - '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}'\n")
         sys.stdout.write("\n")
 
     # Recent Expedition Logs
@@ -82,6 +71,8 @@ def render_expeditions_tab(app):
     else:
         for log in exp_logs[-3:]:
             fixed_log = log.replace("] 🗺️ ", "] ").replace("]   ", "] ")
+            if len(fixed_log) > 70:
+                fixed_log = fixed_log[:67] + "..."
             sys.stdout.write(f" {fixed_log}\n")
         sys.stdout.write("\n")
 
@@ -102,7 +93,7 @@ def render_expedition_picker(app):
         sys.stdout.write("   No companions available in your Roster!\n\n")
         return
 
-    page_size = 10
+    page_size = 8
     total_pages = max(1, math.ceil(len(roster) / page_size))
     if not hasattr(app, "picker_page"):
         app.picker_page = 1
@@ -155,13 +146,10 @@ def render_expedition_picker(app):
                 s_sp = s_entry.get("species_id", s_entry.get("base_id"))
                 selected_names.append(f"{app.engine.api.get_species_name(s_sp)} (#{s_idx})")
         names_str = ", ".join(selected_names)
-        if len(names_str) > 50:
-            names_str = names_str[:47] + "..."
+        if len(names_str) > 42:
+            names_str = names_str[:39] + "..."
         sys.stdout.write(f"  🎯 {BOLD}{GREEN}Selected ({len(selected)}):{RESET} {names_str}\n")
 
-    sys.stdout.write(f"\n  ➔ {BOLD}Toggle Selection:{RESET} enter numbers (e.g. '{BOLD}1{RESET}', '{BOLD}1 2 3{RESET}', '{BOLD}1-5{RESET}', '{BOLD}all{RESET}', '{BOLD}clear{RESET}')\n")
-    sys.stdout.write(f"  ➔ {BOLD}Dispatch Destination:{RESET}\n")
-    sys.stdout.write(f"     • '{BOLD}viridian{RESET}' (5M)  • '{BOLD}mine{RESET}' (10M)  • '{BOLD}cerulean{RESET}' (15M)\n")
-    sys.stdout.write(f"     • '{BOLD}silver{RESET}' (30M)   • '{BOLD}spear{RESET}' (100M, req 3x Map, 100% Hap)\n")
-    sys.stdout.write(f"     (Shortcuts: '{BOLD}to 1{RESET}'..'{BOLD}to 5{RESET}' or '{BOLD}send <area>{RESET}')\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' or '{BOLD}q{RESET}' to return to Expeditions view.\n\n")
+    sys.stdout.write(f"  ➔ {BOLD}Select:{RESET} '1 2 3', '1-5', 'all', 'clear' | 'next', 'prev', 'page <N>'\n")
+    sys.stdout.write(f"  ➔ {BOLD}Launch Area:{RESET} 'viridian', 'mine', 'cerulean', 'silver', or 'spear'\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}q{RESET}' or '{BOLD}back{RESET}' to return to Expeditions tab.\n\n")
