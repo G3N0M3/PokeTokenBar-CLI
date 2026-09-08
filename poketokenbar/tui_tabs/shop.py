@@ -34,7 +34,7 @@ def render_shop_tab(app):
         sys.stdout.write(f"  {BOLD}{GREEN}💼 Devon Corp Active: -10% discount applied to all shop items!{RESET}\n")
 
     bm = app.engine.get_or_init_black_market()
-    if bm.get("active", False):
+    if bm.get("is_open"):
         sys.stdout.write(f"  {BOLD}{YELLOW}🕵️ [WANDERING MERCHANT IS IN TOWN! Type '{BOLD}{CYAN}black{RESET}{BOLD}{YELLOW}' for Black Market]{RESET}\n")
     sys.stdout.write("\n")
 
@@ -111,7 +111,7 @@ def _render_black_market_view(app):
         days = bm.get("days_until_next", 2)
         sys.stdout.write(f"\n  {YELLOW}The Wandering Merchant is currently traveling between regions.{RESET}\n")
         sys.stdout.write(f"  Expected return in: {BOLD}{days} day(s){RESET}.\n\n")
-        sys.stdout.write(f"  ➔ Type '{BOLD}shop{RESET}' or '{BOLD}back{RESET}' to return to regular Token Shop.\n\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return to regular Token Shop.\n\n")
         return
 
     sys.stdout.write(f"\n  {BOLD}Today's Smuggled Contraband & Limited Offers:{RESET}\n")

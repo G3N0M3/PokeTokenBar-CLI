@@ -415,7 +415,7 @@ class CompanionEngine:
                                 until = bm.get("days_until_next", 3) - days_to_apply
                                 if until <= 0:
                                     self.get_or_init_black_market(force_open=True)
-                                    events.append("🕵️ A Wandering Merchant has arrived in town with Black Market contraband! (Type 'market' in Shop)")
+                                    events.append("🕵️ A Wandering Merchant has arrived in town with Black Market contraband! (Type 'black' in Shop)")
                                 else:
                                     bm["days_until_next"] = until
 
