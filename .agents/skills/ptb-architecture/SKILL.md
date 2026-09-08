@@ -1,66 +1,81 @@
 ---
 name: ptb-architecture
 description: >-
-  Developer architecture guide for PokeTokenBar CLI & TUI codebase layout, state storage schema,
-  tracker log parsers, sprite rendering, and game engine internals.
+  Developer architecture guide for PokeTokenBar: system layering, data flow, state persistence principles, and development workflow.
 ---
 
-# 🏗️ PokeTokenBar Architecture Guide
+# 🏗️ PokeTokenBar Architecture & Development Process Guide
 
-PokeTokenBar is built with Python 3.8+ using standard libraries and zero heavy dependencies.
-
----
-
-## 📁 Module Breakdown
-
-Directory / File                      | Description
-:----------------------------------- | :---------------------------------------------------------------------
-`poketokenbar/cli.py`                 | CLI entry point (`ptb`, `ptb status`, `ptb watch`, `ptb card`)
-`poketokenbar/tui.py`                 | Interactive 11-tab Linux CLI TUI event loop & orchestrator (72-col fixed width)
-`poketokenbar/tui_tabs/`              | Modular tab renderers (`companion`, `pokedex`, `roster`, `shop`, `expeditions`, `red`, `quests`, `mega`, `game_corner`, `bank`, `settings`)
-`poketokenbar/sprite_renderer.py`     | PNG to 24-bit TrueColor ANSI terminal sprite renderer
-`poketokenbar/game/companion.py`      | Game engine (`CompanionEngine`), hatch, evolution, raids, expeditions
-`poketokenbar/game/models.py`         | Data models (`MonState`, `Rarity`, `ItemKind`, `PokemonBalance`, `DifficultyMode`)
-`poketokenbar/game/black_market.py`   | 100-item contraband pool, trove unpackers, crate drop tables, counterfeit fraud checks
-`poketokenbar/game/stock_market.py`   | Corporate Stock Exchange engine (Silph, Devon, Aether, Mauville, Macro Cosmos)
-`poketokenbar/game/red_battle.py`     | Turn-based RPG Mt. Silver Summit battle engine vs Trainer Red & Arceus
-`poketokenbar/game/storage.py`        | Persistent JSON state manager (`~/.poketokenbar/state.json`)
-`poketokenbar/game/pokeapi.py`        | PokéAPI local caching & sprite fetcher (`~/.poketokenbar/cache/`)
-`poketokenbar/tracker/manager.py`     | Multi-source log tracker aggregator
-`poketokenbar/tracker/antigravity.py` | Antigravity CLI SQLite DB parser (`~/.gemini/antigravity-cli/conversations/*.db`)
-`poketokenbar/tracker/gemini.py`      | Gemini CLI JSON log parser (`~/.gemini/tmp/**/chats/*.json*`)
-`poketokenbar/tracker/claude.py`      | Claude Code JSONL log parser (`~/.claude/projects/**/*.jsonl`)
-`tests/test_companion.py`             | Comprehensive test suite for game mechanics, stock engine, and 72-col layout
+PokeTokenBar is built with Python 3.8+ using pure standard libraries and zero heavy dependencies (no curses, urwid, or heavy frameworks).
 
 ---
 
-## 💾 State Persistence Schema (`~/.poketokenbar/state.json`)
+## 1. System Layering & Data Flow
 
-Key                   | Type            | Description
-:-------------------- | :-------------- | :------------------------------------------------------------
-`active_mon`          | `Dict / None`   | Serialized `MonState` dictionary of currently active mon
-`dex`                 | `List[Dict]`    | List of registered Pokédex species entries
-`incubating_eggs`     | `Dict`          | Tier to egg usage map (cleared on hatch)
-`pending_eggs`        | `List[str]`     | Overflow egg queue awaiting incubation upon graduation
-`inventory`           | `Dict[str,int]` | Bag inventory counts (`rare_candy`, held items, mega stones, fakes)
-`spent_tokens`        | `int`           | Lifetime spent tokens (used to calculate spendable balance)
-`used_since_install`  | `int`           | Lifetime total tokens indexed from log files
-`streak_days`         | `int`           | Active daily coding streak in days
-`happiness`           | `int` (0..100)  | Companion happiness percentage
-`gym_badges`          | `List[str]`     | Earned gym badges list
-`expeditions`         | `List[Dict]`    | Active background expeditions
-`black_market`        | `Dict`          | `{"is_open": bool, "natural_open": bool, "deals": list, "deals_date": str}`
-`stock_market`        | `Dict`          | Corporate exchange state (`prices`, `price_history`, `cost_basis`, `daily_catalysts`)
-`investments`         | `Dict[str,int]` | Corporate shares owned (`silph`, `devon`, `aether`, etc.)
-`cds`                 | `List[Dict]`    | Active Certificate of Deposit term contracts
-`trainer_battles`     | `Dict`          | Auto-battle record `{"wins": int, "losses": int}`
-`battle_logs`         | `List[str]`     | Recent auto-battle log strings (last 5 fights)
-`golden_razz_active`  | `bool`          | Active shiny odds boost flag (1/24 on next hatch)
+```text
+[Coding Activity / IDE Logs]
+          │ (SQLite DBs & JSONL logs)
+          ▼
+┌──────────────────────────────────────┐
+│ 1. Tracker Layer (poketokenbar/tracker)
+│    Parses Antigravity, Gemini, Claude
+└──────────────────┬───────────────────┘
+                   │ Token deltas & active days
+                   ▼
+┌──────────────────────────────────────┐
+│ 2. Game Engine Layer (poketokenbar/game)
+│    CompanionEngine, models, storage,
+│    sub-engines (stocks, casino, raids)
+└──────────┬───────────────────┬───────┘
+           │ State persistence │ Cache & sprites
+           ▼                   ▼
+    [~/.poketokenbar/    [~/.poketokenbar/
+       state.json]            cache/]
+           │
+           ▼
+┌──────────────────────────────────────┐
+│ 3. Presentation Layer (poketokenbar/tui)
+│    TUI orchestrator & modular tui_tabs/
+│    72-column ANSI terminal rendering
+└──────────────────────────────────────┘
+```
+
+### Layer Responsibilities:
+1. **Tracker Layer (`tracker/`)**:
+   - Discovers and parses local LLM usage logs without locking files.
+   - Computes lifetime totals, daily active sessions, and burn rates.
+2. **Game Engine Layer (`game/`)**:
+   - `CompanionEngine`: Central state orchestrator for hatch, growth, happiness, quests, expeditions, and inventory.
+   - Subsystem engines: Dedicated modules for discrete domains (`black_market.py`, `stock_market.py`, `red_battle.py`, casino engines).
+   - `models.py`: Immutable enums, balance formulas, and data classes.
+   - `storage.py`: Atomic read/write of game state with schema fallback.
+   - `pokeapi.py`: Lazy HTTP client with local filesystem caching.
+3. **Presentation Layer (`tui.py`, `tui_tabs/`, `cli.py`)**:
+   - `tui.py`: Central event loop handling keyboard inputs and frame dispatching.
+   - `tui_tabs/`: Isolated renderers for each of the 11 tabs, ensuring strict separation of rendering from business logic.
+   - `sprite_renderer.py`: Converts PNGs to ANSI TrueColor half-blocks (`▀` / `▄`).
 
 ---
 
-## 📐 Layout Constraints
-- **Terminal Width**: The TUI is formatted to a strict **72-character fixed width** (`len(ansi_regex.sub("", line)) <= 72`).
-- **Dividers**: Always use `"=" * 72` or `"-" * 72`.
-- **Progress Bars**: Default width set to `12` or `14` columns to prevent text line wrapping.
-- **Color Codes**: Use standard ANSI TrueColor or standard 16-color ANSI escapes with reset codes.
+## 2. State Design & Persistence Principles
+
+- **Single Source of Truth**: All game progress is stored in a single JSON document at `~/.poketokenbar/state.json`.
+- **Schema Evolution & Backward Compatibility**:
+  - Always provide sensible fallback defaults in `StorageManager.default_state()`.
+  - When loading state, never assume keys exist; use `.get()` with safe defaults or run migration routines during `CompanionEngine.__init__`.
+- **Test State Isolation**:
+  - `StorageManager` checks the `PTB_STATE_FILE` environment variable.
+  - Tests set this variable to temporary files, ensuring test runs never mutate player save data.
+
+---
+
+## 3. Feature Development Workflow
+
+When adding or extending features:
+1. **Model**: Define new items, enums, or balance curves in `models.py`.
+2. **Logic**: Add state mutation methods in `companion.py` or a dedicated game sub-engine.
+3. **Persistence**: Ensure state changes are recorded and saved through `self.save()`.
+4. **UI**: Render new interface elements in the appropriate `tui_tabs/<tab>.py` module.
+5. **Input**: Wire command parsing in `tui.py`.
+6. **Constraints**: Verify strict $\le 72$-column formatting (`len(strip_ansi(line)) <= 72`).
+7. **Test**: Write isolated unit tests in `tests/test_companion.py`.

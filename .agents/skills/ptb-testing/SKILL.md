@@ -1,88 +1,55 @@
 ---
 name: ptb-testing
 description: >-
-  Runbook for executing unit tests, validating CLI commands, testing TUI 72-column layout rendering,
-  and performing release verification for PokeTokenBar.
+  Testing methodology, state isolation practices, layout regression verification, and pre-release runbook for PokeTokenBar.
 ---
 
-# 🧪 PokeTokenBar Testing & Release Verification Guide
+# 🧪 PokeTokenBar Testing & Quality Verification Guide
 
-This skill provides step-by-step instructions for running test suites, verifying CLI commands, testing layout width, and releasing updates.
+This guide outlines the testing philosophy, automated test execution, layout compliance verification, and pre-release validation for PokeTokenBar.
 
 ---
 
-## 1. Running Unit Tests
+## 1. Test Suite Execution & State Isolation
 
-Execute the test suite with state isolation:
+All unit tests must run with state isolation to prevent reading or mutating the user's real `~/.poketokenbar/state.json`.
 
 ```bash
-# Recommended pytest runner:
+# Recommended pytest execution:
 /opt/anaconda3/bin/pytest tests/
 
-# Or standard unittest runner with temp state file:
+# Standard unittest execution with isolated state file:
 PTB_STATE_FILE=/tmp/ptb_test.json python3 -m unittest discover tests
 ```
 
----
-
-## 2. CLI Commands Testing Checklist
-
-Test each CLI subcommand to verify expected output format:
-
-```bash
-# 1. Check compact 1-line status banner (includes Happiness & Streak)
-ptb status
-
-# 2. Check Trainer Card ASCII generation
-ptb card
-
-# 3. Check Pokédex archive listing
-ptb dex
-
-# 4. Check Shop & Bag listing
-ptb shop
-
-# 5. Check live monitor execution (CTRL+C to stop)
-ptb watch --interval 2.0
-```
+### State Isolation Best Practices:
+- In test classes, define `setUpClass` and `tearDownClass` using `tempfile.TemporaryDirectory()`.
+- Set `os.environ["PTB_STATE_FILE"] = str(temp_state_path)` before initializing any engines.
+- Clean up environment variables in `tearDownClass`.
 
 ---
 
-## 3. TUI Layout & Fixed-Width Verification
+## 2. Layout & Terminal Width Verification
 
-Launch the full interactive 11-tab TUI:
+PokeTokenBar enforces a strict **72-column terminal width** limit across all rendered output to avoid line-wrapping on standard terminal configurations.
 
-```bash
-ptb
-```
-
-### Verification Criteria:
-1. **Strict 72-Column Width Compliance**:
-   - Automated via `test_72_column_layout_compliance` in `tests/test_companion.py`.
-   - Every rendered line across all tabs (Companion, Pokédex, Roster, Mart, Black Market across all 100 items, Expeditions, Battles, Quests, Mega, Game Corner, Bank & Stocks, Settings) must satisfy `len(ansi_regex.sub("", line)) <= 72`.
-2. **Dual Black Market Entrances**:
-   - Verify Mart Tab [4] shows discreet cipher `🕶️ [A faint "R" is etched beneath the counter. Type 'black']` only when `natural_open == True`.
-   - Verify Game Corner Tab [9] poster bribe session decouples cleanly from Mart alley door.
-3. **Stock Market & Pagination**:
-   - Verify Bank Tab [10] Exchange paginates stocks (Page 1/2) with `next`/`prev`.
-4. **Expeditions & Selection**:
-   - Verify `send <id> <dest>` or `pick` dispatches companions without allowing active selection until returned.
+### Verification Runbook:
+- Automated regression test: `test_72_column_layout_compliance` in `tests/test_companion.py`.
+- Strips ANSI escape sequences (`re.compile(r'\x1b\[[0-9;]*[mK]')`) and verifies `len(clean_line) <= 72` on every single line rendered across all 11 tabs and sub-views.
+- When creating or modifying tab renderers, always verify that dynamic values (tokens, long species names, formatted badges) fit within 72 columns even at maximum width values.
 
 ---
 
-## 4. Release Checklist (Version Bump)
+## 3. Pre-Release Verification Runbook
 
-When releasing a new version (e.g. `v1.1.0`):
-
-1. **Update Version Strings**:
-   - `setup.py`: `version="1.1.0"`
-   - `pyproject.toml`: `version = "1.1.0"`
-   - `poketokenbar/__init__.py`: `__version__ = "1.1.0"`
-
-2. **Commit & Tag**:
+Before committing a release or tagging a new version:
+1. **Run Full Test Suite**: Verify zero failures or regressions (`pytest tests/`).
+2. **CLI Smoke Test**: Verify CLI subcommands run without uncaught exceptions:
    ```bash
-   git add setup.py pyproject.toml poketokenbar/ README.md
-   git commit -m "chore(release): bump version to 1.1.0"
-   git tag -a v1.1.0 -m "PokeTokenBar v1.1.0 Release"
-   git push && git push --tags
+   ptb status
+   ptb card
+   ptb dex
+   ptb shop
    ```
+3. **Interactive TUI Smoke Test**: Launch `ptb`, cycle through tabs (1-11), test navigation (`n`/`p`), and exit cleanly (`q`).
+4. **Git Tagging**: Follow the `ptb-git-workflow` skill for semantic version bumping and release tagging.
