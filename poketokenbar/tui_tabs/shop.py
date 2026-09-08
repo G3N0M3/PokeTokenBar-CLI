@@ -34,8 +34,8 @@ def render_shop_tab(app):
         sys.stdout.write(f"  {BOLD}{GREEN}💼 Devon Corp Active: -10% discount applied to all shop items!{RESET}\n")
 
     bm = app.engine.get_or_init_black_market()
-    if bm.get("is_open"):
-        sys.stdout.write(f"  {BOLD}{YELLOW}🕵️ [WANDERING MERCHANT IS IN TOWN! Type '{BOLD}{CYAN}market{RESET}{BOLD}{YELLOW}' for Black Market]{RESET}\n")
+    if bm.get("active", False):
+        sys.stdout.write(f"  {BOLD}{YELLOW}🕵️ [WANDERING MERCHANT IS IN TOWN! Type '{BOLD}{CYAN}black{RESET}{BOLD}{YELLOW}' for Black Market]{RESET}\n")
     sys.stdout.write("\n")
 
     sys.stdout.write(f"  {BOLD}Shop Items (Type 'buy <number> [qty]' to purchase):{RESET}\n")
@@ -132,13 +132,13 @@ def _render_black_market_view(app):
         sys.stdout.write(f"  [{did}] {name} - {BOLD}{CYAN}{cost_str}{RESET} ({stock_str}){badge_str}\n")
 
     sys.stdout.write(f"\n  {BOLD}Commands:{RESET}\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}deal <id> [qty]{RESET}' to purchase (e.g. 'deal 1')\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}shop{RESET}' or '{BOLD}back{RESET}' to return to regular Token Shop\n\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}buy <id> [qty]{RESET}' to purchase (e.g. 'buy 1')\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return to regular Token Shop\n\n")
 
 def handle_deal_buy(app, cmd: str):
     parts = cmd.split()
     if len(parts) < 2:
-        app.message = "Usage: deal <id> [qty] (e.g. 'deal 1')"
+        app.message = "Usage: buy <id> [qty] (e.g. 'buy 1')"
         return
     deal_id = parts[1]
     qty = 1

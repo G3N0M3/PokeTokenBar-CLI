@@ -61,7 +61,7 @@ def render_slot_tab(app):
             sys.stdout.write(f"\n  {BOLD}{RED}No payout.{RESET}\n\n")
     
     sys.stdout.write(f"  ➔ Type '{BOLD}spin <amount>{RESET}' to play (e.g. 'spin 500k', 'spin 1m').\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}leave{RESET}' to return to the Game Corner Menu.\n\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return to the Game Corner Menu.\n\n")
     
 def render_blackjack_tab(app):
     avail = app.engine.available_tokens
@@ -75,7 +75,7 @@ def render_blackjack_tab(app):
     sys.stdout.write(f"  ➔ Step 1: Type '{BOLD}bet <amount>{RESET}' to start (e.g. 'bet 500k').\n")
     sys.stdout.write(f"  ➔ Step 2: Type '{BOLD}hit{RESET}' to take a card, or '{BOLD}stand{RESET}' to hold your total.\n")
     sys.stdout.write(f"  ➔ Step 3: Type '{BOLD}double{RESET}' to double your bet and take exactly one more card.\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}leave{RESET}' to return to the Game Corner Menu.\n\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return to the Game Corner Menu.\n\n")
     
     if app.engine.blackjack.game_state != "idle":
         state_str = "Dealing Phase" if app.engine.blackjack.game_state == "playing" else "Showdown Completed"
@@ -114,7 +114,7 @@ def render_poker_tab(app):
     sys.stdout.write(f"  ➔ Step 2: Type '{BOLD}check{RESET}' to reveal community cards, or '{BOLD}fold{RESET}'\n")
     sys.stdout.write(f"  ➔ Step 3: Type '{BOLD}raise{RESET}' to double your bet, or '{BOLD}allin{RESET}' to bet EVERYTHING!\n")
     sys.stdout.write(f"  ➔ Note: You can raise multiple times in a single hand.\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}leave{RESET}' to return to the Game Corner Menu.\n\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return to the Game Corner Menu.\n\n")
 
     if app.engine.poker.player_hole:
         p_hole = " ".join([str(c) for c in app.engine.poker.player_hole])
@@ -147,7 +147,7 @@ def render_gacha_tab(app):
     sys.stdout.write(f"  Available Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n\n")
 
     sys.stdout.write(f"  ➔ Type '{BOLD}pull <qty>{RESET}' to pull (5.0M tokens each, 1 free every 10 pulls!).\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}leave{RESET}' to return to the Game Corner Menu.\n\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return to the Game Corner Menu.\n\n")
 
     sys.stdout.write(f"  {BOLD}🎁 Drop Rates & Rewards:{RESET}\n")
     sys.stdout.write(f"   • 🌟 Legendary (2%):  Guaranteed Shiny Companion / +50M Tokens\n")

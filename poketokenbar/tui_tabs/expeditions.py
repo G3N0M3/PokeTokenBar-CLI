@@ -60,7 +60,7 @@ def render_expeditions_tab(app):
             sys.stdout.write(f"   [{i}] • {BOLD}{CYAN}{sp_name} (#{sp_id}){RESET} @ {area}: {format_tokens(progress)} / {format_tokens(target)} ({pct:.0f}%)\n")
             
         if total_pages > 1:
-            sys.stdout.write(f"  ➔ Page {app.expedition_page}/{total_pages} - '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}'\n")
+            sys.stdout.write(f"  ➔ Page {app.expedition_page}/{total_pages} - '{BOLD}n{RESET}', '{BOLD}p{RESET}', or '{BOLD}page <N>{RESET}'\n")
         sys.stdout.write("\n")
 
     # Recent Expedition Logs
@@ -136,7 +136,7 @@ def render_expedition_picker(app):
 
     sys.stdout.write(f"  {'-'*68}\n")
     if total_pages > 1:
-        sys.stdout.write(f"  ➔ Page {app.picker_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}'\n")
+        sys.stdout.write(f"  ➔ Page {app.picker_page}/{total_pages} - Type '{BOLD}n{RESET}', '{BOLD}p{RESET}', or '{BOLD}page <N>{RESET}'\n")
 
     if selected:
         selected_names = []
@@ -150,6 +150,6 @@ def render_expedition_picker(app):
             names_str = names_str[:39] + "..."
         sys.stdout.write(f"  🎯 {BOLD}{GREEN}Selected ({len(selected)}):{RESET} {names_str}\n")
 
-    sys.stdout.write(f"  ➔ {BOLD}Select:{RESET} '1 2 3', '1-5', 'all', 'clear' | 'next', 'prev', 'page <N>'\n")
+    sys.stdout.write(f"  ➔ {BOLD}Select:{RESET} '1 2 3', '1-5', 'all', 'clear' | 'n', 'p', 'page <N>'\n")
     sys.stdout.write(f"  ➔ {BOLD}Launch Area:{RESET} 'viridian', 'mine', 'cerulean', 'silver', or 'spear'\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}q{RESET}' or '{BOLD}back{RESET}' to return to Expeditions tab.\n\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return to Expeditions tab.\n\n")

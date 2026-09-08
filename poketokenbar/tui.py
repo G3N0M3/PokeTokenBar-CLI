@@ -179,7 +179,13 @@ class PokeTokenBarTUI:
             sys.stdout.flush()
 
             try:
-                cmd = sys.stdin.readline().strip().lower()
+                line = sys.stdin.readline()
+                if not line:
+                    break
+                cmd = line.strip().lower()
+                if cmd == "q":
+                    print("\nExiting PokeTokenBar. Keep coding! 🐾")
+                    break
                 if self.pending_reset:
                     self.pending_reset = False
                     if cmd == "reset all":
@@ -189,10 +195,10 @@ class PokeTokenBarTUI:
                         self.message = "❌ Reset cancelled."
                 elif getattr(self, "expedition_picker_mode", False):
                     # In Interactive Expedition Picker mode
-                    if cmd in ["back", "exit", "q", "quit", "done", "close", "cancel"]:
+                    if cmd == "back":
                         self.expedition_picker_mode = False
                         self.message = "Exited Expedition Dispatcher."
-                    elif cmd in ["next", "n"]:
+                    elif cmd == "n":
                         dex = self.engine.state.get("dex", [])
                         roster = [d for d in dex if d.get("status") != "evolved"]
                         page_size = 8
@@ -201,7 +207,7 @@ class PokeTokenBarTUI:
                             self.picker_page = getattr(self, "picker_page", 1) + 1
                         else:
                             self.message = f"Already on the last page ({total_pages})."
-                    elif cmd in ["prev", "p", "previous"]:
+                    elif cmd == "p":
                         if getattr(self, "picker_page", 1) > 1:
                             self.picker_page = getattr(self, "picker_page", 1) - 1
                         else:
@@ -219,7 +225,7 @@ class PokeTokenBarTUI:
                                 self.message = f"Invalid page. Must be between 1 and {total_pages}."
                         except ValueError:
                             self.message = "Usage: page <number>"
-                    elif cmd in ["clear", "none", "deselect", "reset"]:
+                    elif cmd == "clear":
                         self.selected_expedition_targets.clear()
                         self.message = "Cleared all selected companions."
                     elif cmd == "all":
@@ -242,35 +248,17 @@ class PokeTokenBarTUI:
                         if indices:
                             self._toggle_selection_indices(indices)
                         else:
-                            self.message = "Enter row numbers to toggle, destination ('viridian', 'mine', etc.) to launch, or 'q' to exit."
-                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and getattr(self, "stock_terminal", None) and cmd in ["q", "quit", "exit", "back", "board", "stocks", "leave", "stock", "close"]:
+                            self.message = "Enter row numbers to toggle, destination ('viridian', 'mine', etc.) to launch, or 'back' to exit."
+                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and getattr(self, "stock_terminal", None) and cmd == "back":
                     self.stock_terminal = None
-                    self.message = "Closed stock terminal."
-                elif self.current_tab == 9 and getattr(self, "minigame_state", "menu") != "menu" and cmd in ["q", "quit", "leave", "back", "quit game", "exit game", "exit"]:
+                    self.message = "Returned to Exchange Board."
+                elif self.current_tab == 9 and getattr(self, "minigame_state", "menu") != "menu" and cmd == "back":
                     self.minigame_state = "menu"
                     self.message = "Returned to Game Corner menu."
-                elif cmd in ["q", "exit", "quit"]:
-                    print("\nExiting PokeTokenBar. Keep coding! 🐾")
-                    break
                 elif cmd == "250220":
                     self.engine.state["spent_tokens"] = self.engine.state.get("spent_tokens", 0) - 50_000_000
                     self.engine.save()
                     self.message = "🎉 EASTER EGG UNLOCKED! Granted 50.0M Tokens! 🎉"
-                elif cmd == "314159":
-                    is_unlocked = not self.engine.state.get("dev_red_unlocked", False)
-                    self.engine.state["dev_red_unlocked"] = is_unlocked
-                    if not is_unlocked:
-                        self.engine.state.pop("red_battle_state", None)
-                    self.engine.save()
-                    status = "UNLOCKED" if is_unlocked else "LOCKED (and reset)"
-                    self.message = f"🔧 DEV MODE: Red Battle {status} 🔧"
-                elif cmd == "314159+":
-                    self.engine.state["spent_tokens"] = self.engine.state.get("spent_tokens", 0) - 1_000_000
-                    st = self.engine.state.get("red_battle_state")
-                    if st:
-                        st["red_spent_tokens"] = st.get("red_spent_tokens", 0) - 1_000_000
-                    self.engine.save()
-                    self.message = "🔧 DEV MODE: Granted 1,000,000 Tokens! 🔧"
                 elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and not getattr(self, "stock_terminal", None) and cmd in ["1", "2", "3", "4", "5"]:
                     from poketokenbar.game.models import CORPORATIONS
                     c_keys = list(CORPORATIONS.keys())
@@ -295,6 +283,7 @@ class PokeTokenBarTUI:
                     self.current_tab = 4
                     self.message = ""
                 elif cmd == "5":
+                    self.expedition_picker_mode = False
                     self.current_tab = 5
                     self.message = ""
                 elif cmd == "6":
@@ -321,22 +310,11 @@ class PokeTokenBarTUI:
                     self.expedition_picker_mode = False
                     self.current_tab = 11
                     self.message = ""
-                elif cmd == "12":
-                    badges = self.engine.state.get("gym_badges", [])
-                    unlocked = self.engine.state.get("dev_red_unlocked", False) or "🏆 Champion Badge" in badges
-                    self.current_tab = 6
-                    if unlocked:
-                        self.message = "Mt. Silver Summit (Red Battle) is integrated into Tab [6] Battles!"
-                    else:
-                        self.message = "Red Battle is located in Tab [6] Battles (Defeat the Champion to unlock!)."
-                elif cmd.startswith("difficulty "):
-                    # Placeholder for potential difficulty commands
-                    pass
-                elif cmd in ["r", "refresh"]:
+                elif cmd == "r":
                     summary = self.tracker.get_summary(force=True)
                     self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
                     self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
-                elif cmd in ["n", "next"] and (self.current_tab in [2, 3, 4, 5, 8] or (self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks")):
+                elif cmd == "n" and (self.current_tab in [2, 3, 4, 5, 8] or (self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks")):
                     if self.current_tab == 2: self.pokedex_page += 1
                     elif self.current_tab == 4:
                         if not hasattr(self, 'shop_page'): self.shop_page = 1
@@ -352,7 +330,7 @@ class PokeTokenBarTUI:
                         self.stock_page += 1
                     else: self.roster_page += 1
                     self.message = ""
-                elif cmd in ["p", "prev", "previous"] and (self.current_tab in [2, 3, 4, 5, 8] or (self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks")):
+                elif cmd == "p" and (self.current_tab in [2, 3, 4, 5, 8] or (self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks")):
                     if self.current_tab == 2: self.pokedex_page = max(1, self.pokedex_page - 1)
                     elif self.current_tab == 4:
                         if not hasattr(self, 'shop_page'): self.shop_page = 1
@@ -406,44 +384,23 @@ class PokeTokenBarTUI:
                             self.engine.save()
                         except ValueError:
                             self.message = "Invalid size. Usage: pagesize <dex|roster|exp|bag|mega> <number>"
-                elif cmd in ["dispatch", "picker"] or (cmd == "pick" and self.current_tab in [3, 5]):
+                elif cmd in ["pick", "picker"]:
                     self.expedition_picker_mode = True
                     self.current_tab = 5
                     self.message = "Opened Expedition Dispatcher."
-                elif cmd in ["clear", "deselect", "unselect"] and self.selected_expedition_targets:
+                elif cmd == "clear" and self.selected_expedition_targets:
                     self.selected_expedition_targets.clear()
                     self.message = "Cleared all selected companions."
-                elif cmd.startswith("select") or cmd.startswith("sel ") or cmd == "sel" or cmd.startswith("pick "):
-                    if self.current_tab == 5 and cmd in ["select", "sel", "pick"]:
-                        self.expedition_picker_mode = True
-                        self.message = "Opened Expedition Dispatcher."
+                elif cmd.startswith("sel ") or cmd == "sel":
+                    arg = cmd.split(maxsplit=1)[1].strip() if " " in cmd else ""
+                    if not arg:
+                        self.message = "Usage: sel <row>|#<dex>|egg to switch active companion"
+                    elif arg.lower() == "egg":
+                        ok, msg = self.engine.select_active_from_dex("egg")
+                        self.message = msg
                     else:
-                        arg = cmd.split(maxsplit=1)[1].strip() if " " in cmd else ""
-                        if not arg:
-                            if self.current_tab == 5:
-                                self.expedition_picker_mode = True
-                                self.message = "Opened Expedition Dispatcher."
-                            else:
-                                self.message = "Usage: sel <row>|#<dex>|egg to switch active, or select <1 2 3> [area] for expedition"
-                        elif arg.lower() == "egg":
-                            ok, msg = self.engine.select_active_from_dex("egg")
-                            self.message = msg
-                        else:
-                            has_area = any(ka in arg.lower() for ka in ["viridian", "mine", "cerulean", "silver", "spear"])
-                            has_multi = ("," in arg) or (len(arg.split()) > 1 and not has_area) or ("-" in arg and not arg.startswith("#")) or (arg.lower() == "all")
-                            if has_area:
-                                targets, area = self._parse_send_args(arg)
-                                ok, msg = self.engine.dispatch_expedition(targets, area)
-                                self.message = msg
-                            elif has_multi or cmd.startswith("pick ") or self.current_tab == 5:
-                                indices = self._parse_indices_string(arg)
-                                if indices:
-                                    self._toggle_selection_indices(indices)
-                                else:
-                                    self.message = "Invalid companion numbers. E.g. 'select 1 2 3' or 'select 1-5'"
-                            else:
-                                ok, msg = self.engine.select_active_from_dex(arg)
-                                self.message = msg
+                        ok, msg = self.engine.select_active_from_dex(arg)
+                        self.message = msg
                 elif cmd.startswith("claim"):
                     parts = cmd.split()
                     if self.current_tab == 10 and getattr(self, "bank_subtab", "") == "cd":
@@ -452,15 +409,13 @@ class PokeTokenBarTUI:
                     else:
                         ok, msg = self.engine.claim_quest_reward(parts[-1] if len(parts) >= 2 else "all")
                     self.message = msg
-                elif cmd.startswith("send") or cmd.startswith("expedition"):
+                elif cmd.startswith("send"):
                     cmd_body = cmd.split(maxsplit=1)[1] if " " in cmd else ""
                     if not cmd_body:
                         if self.selected_expedition_targets:
                             self.message = f"{len(self.selected_expedition_targets)} companion(s) selected! Type: 'send viridian', 'send mine', etc."
                         else:
-                            self.expedition_picker_mode = True
-                            self.current_tab = 5
-                            self.message = "Opened Expedition Dispatcher."
+                            self.message = "Usage: send <rows|all> <area> (or 'pick' to open picker)"
                     else:
                         clean_body = cmd_body.strip().lower()
                         if self.selected_expedition_targets and self._is_expedition_destination_cmd(clean_body):
@@ -553,21 +508,18 @@ class PokeTokenBarTUI:
                             self.message = "Sprite size must be between 10 and 72."
                     else:
                         self.message = "Usage: size <number> (e.g. 'size 30')"
-                elif self.current_tab == 10 and cmd in ["b", "checking"]:
+                elif self.current_tab == 10 and cmd == "b":
                     self.bank_subtab = "checking"
                     self.stock_terminal = None
                     self.message = ""
-                elif self.current_tab == 10 and cmd in ["c", "cd"]:
+                elif self.current_tab == 10 and cmd == "c":
                     self.bank_subtab = "cd"
                     self.stock_terminal = None
                     self.message = ""
-                elif self.current_tab == 10 and cmd in ["s", "stocks", "stock"] and not getattr(self, "stock_terminal", None):
+                elif self.current_tab == 10 and cmd == "s" and not getattr(self, "stock_terminal", None):
                     self.bank_subtab = "stocks"
                     self.stock_terminal = None
                     self.message = ""
-                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and getattr(self, "stock_terminal", None) and cmd in ["back", "board", "stocks", "leave", "exit", "stock"]:
-                    self.stock_terminal = None
-                    self.message = "Returned to Exchange Board."
                 elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and getattr(self, "stock_terminal", None) and (cmd.startswith("buy ") or cmd == "buy"):
                     parts = cmd.split()
                     shares = parts[1] if len(parts) >= 2 else "1"
@@ -597,17 +549,6 @@ class PokeTokenBarTUI:
                     else:
                         self.stock_terminal = None
                         self.message = ""
-                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and not getattr(self, "stock_terminal", None) and cmd in ["1", "2", "3", "4", "5"]:
-                    from poketokenbar.game.models import CORPORATIONS
-                    c_keys = list(CORPORATIONS.keys())
-                    idx = int(cmd) - 1
-                    if 0 <= idx < len(c_keys):
-                        self.stock_terminal = c_keys[idx]
-                        self.message = f"Opened {CORPORATIONS[self.stock_terminal].ticker} Trade Terminal."
-                elif self.current_tab == 10 and cmd.startswith("blackjack"):
-                    self.current_tab = 9
-                    self.minigame_state = "blackjack"
-                    self.message = "Switched to Casino Blackjack in Tab [9] Game Corner!"
                 elif cmd.startswith("cd "):
                     parts = cmd.split()
                     action = parts[1] if len(parts) > 1 else ""
@@ -659,16 +600,13 @@ class PokeTokenBarTUI:
                     else:
                         ok, msg = False, "Usage: divest <code> <shares|all> (e.g. 'divest SILPH 1')"
                     self.message = msg
-                elif cmd in ["market", "bm"]:
+                elif cmd == "black":
                     self.current_tab = 4
                     self.shop_view = "black_market"
                     self.message = ""
-                elif self.current_tab == 4 and cmd in ["shop", "back", "normal"]:
+                elif self.current_tab == 4 and getattr(self, "shop_view", "normal") == "black_market" and cmd == "back":
                     self.shop_view = "normal"
                     self.message = ""
-                elif cmd.startswith("deal"):
-                    from poketokenbar.tui_tabs.shop import handle_deal_buy
-                    handle_deal_buy(self, cmd)
                 elif self.current_tab == 6:
                     if cmd.startswith("assemble ") or cmd in ["fight 1", "fight 2", "fight 3", "fight 4", "run", "restart"] or cmd.startswith("swap "):
                         from poketokenbar.tui_tabs.red import handle_red_command

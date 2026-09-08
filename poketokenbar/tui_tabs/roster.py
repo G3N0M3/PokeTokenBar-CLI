@@ -78,7 +78,7 @@ def render(app):
             sys.stdout.write(f"  {idx:2d}. {staged_badge}{shiny_str}{BOLD}{name}{RESET} (#{sp_id}) [{rarity}] 💖{hap_val}% {status_badge}\n")
 
         if total_pages > 1:
-            sys.stdout.write(f"\n  ➔ Page {app.roster_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")
+            sys.stdout.write(f"\n  ➔ Page {app.roster_page}/{total_pages} - Type '{BOLD}n{RESET}', '{BOLD}p{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")
 
     selected_targets = getattr(app, "selected_expedition_targets", set())
     if isinstance(selected_targets, (set, list)) and len(selected_targets) > 0:
@@ -93,9 +93,8 @@ def render(app):
         sys.stdout.write(f"\n  🎯 {BOLD}{GREEN}Selected for Expedition ({len(selected_targets)}):{RESET} {sel_str}\n")
         sys.stdout.write(f"  ➔ Type '{BOLD}send <area>{RESET}' to dispatch! (e.g. 'send mine') | '{BOLD}clear{RESET}' to deselect\n")
 
-    sys.stdout.write(f"\n  ➔ Type '{BOLD}select <row(s)>{RESET}' or '{BOLD}pick <row(s)>{RESET}' to select for expedition!\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}dispatch{RESET}' to open Interactive Multi-Select Dispatcher!\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}sel <row>|#<dex>|egg{RESET}' to switch active companion!\n")
+    sys.stdout.write(f"\n  ➔ Type '{BOLD}sel <row>|#<dex>|egg{RESET}' to switch active companion!\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}pick{RESET}' to open Interactive Multi-Select Dispatcher!\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}send <row(s)|#dex|all> [area]{RESET}' on expedition!\n")
     sys.stdout.write(f"     Areas:\n")
     sys.stdout.write(f"       • '{BOLD}viridian{RESET}' (5M)  • '{BOLD}mine{RESET}' (10M)  • '{BOLD}cerulean{RESET}' (15M)\n")

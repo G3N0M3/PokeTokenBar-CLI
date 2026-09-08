@@ -848,11 +848,11 @@ class TestCompanionEngine(unittest.TestCase):
             # Selection should be cleared after dispatch
             self.assertEqual(len(tui.selected_expedition_targets), 0)
 
-            # 5. Test Interactive Picker Mode via 'dispatch'
+            # 5. Test Interactive Picker Mode via 'pick'
             # Dispatch Bulbasaur (#3 in roster) and Pikachu (#4 in roster) to Viridian via picker
             tui2 = PokeTokenBarTUI()
             tui2.engine = self.engine
-            commands2 = "\n".join(["5", "dispatch", "3 4", "viridian", "q"]) + "\n"
+            commands2 = "\n".join(["5", "pick", "3 4", "viridian", "q"]) + "\n"
             with patch("sys.stdin", io.StringIO(commands2)), patch("sys.stdout"):
                 tui2.run()
 
@@ -861,14 +861,21 @@ class TestCompanionEngine(unittest.TestCase):
             self.assertEqual(exps[2]["area"], "Viridian Forest")
             self.assertEqual(exps[3]["area"], "Viridian Forest")
 
-            # 6. Test 'q' in picker mode exits picker mode back to Tab 5 without terminating game
+            # 6. Test 'back' in picker mode exits picker mode back to Tab 5, then 'q' exits game
             tui3 = PokeTokenBarTUI()
             tui3.engine = self.engine
-            commands3 = "\n".join(["5", "dispatch", "q", "q"]) + "\n"
+            commands3 = "\n".join(["5", "pick", "back", "q"]) + "\n"
             with patch("sys.stdin", io.StringIO(commands3)), patch("sys.stdout"):
                 tui3.run()
             self.assertFalse(tui3.expedition_picker_mode)
             self.assertEqual(tui3.current_tab, 5)
+
+            # 7. Test 'q' in picker mode directly terminates app (universal exit)
+            tui4 = PokeTokenBarTUI()
+            tui4.engine = self.engine
+            commands4 = "\n".join(["5", "pick", "q"]) + "\n"
+            with patch("sys.stdin", io.StringIO(commands4)), patch("sys.stdout"):
+                tui4.run()
 
 if __name__ == "__main__":
     unittest.main()
