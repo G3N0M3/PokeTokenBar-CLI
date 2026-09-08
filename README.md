@@ -133,6 +133,8 @@ ptb
 | `hold <1..5>` / `all` / `none` | Choose cards to hold in Video Poker |
 | `pull <qty>` | Pull Gacha capsules (e.g. `pull 1`, `pull 10`) |
 | `spin <amount>` | Spin the Slot Machine (e.g. `spin 250k`) |
+| `poster` | Inspect secret switch behind the Slot Machine poster (Tab 9) |
+| `bribe` | Pay the daily Team Rocket Grunt toll (1M–5M) to unlock Black Market |
 | `hit` / `stand` / `double` | Blackjack game actions |
 | `buy <id>` / `sell <id>` | Buy or sell items in Mart / Bag |
 | `use <id>` | Use an item or feed berries from your Bag |

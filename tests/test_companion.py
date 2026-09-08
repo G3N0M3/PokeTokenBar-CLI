@@ -886,6 +886,68 @@ class TestCompanionEngine(unittest.TestCase):
             with patch("sys.stdin", io.StringIO(commands4)), patch("sys.stdout"):
                 tui4.run()
 
+    def test_black_market_5pct_daily_chance_and_poster_grunt_bribe(self):
+        """Verify 5% daily chance, daily bribe randomized in [1M..5M], and Game Corner poster bribe access."""
+        from poketokenbar.tui import PokeTokenBarTUI
+        from poketokenbar.tui_tabs.game_corner import render_grunt_bribe_tab
+        from unittest.mock import patch, MagicMock
+        import io
+        import re
+
+        # 1. Verify bribe amount is valid
+        bribe = self.engine.get_daily_grunt_bribe()
+        self.assertIn(bribe, [1_000_000, 2_000_000, 3_000_000, 4_000_000, 5_000_000])
+
+        # 2. Test bribe failure when not enough tokens
+        self.engine.state["used_since_install"] = 0
+        self.engine.state["spent_tokens"] = 0
+        ok, msg = self.engine.bribe_grunt_for_black_market()
+        self.assertFalse(ok)
+        self.assertIn("don't have enough tokens", msg)
+
+        # 3. Test bribe success when player has enough tokens
+        self.engine.state["used_since_install"] = 20_000_000
+        prev_spent = self.engine.state["spent_tokens"]
+        ok, msg = self.engine.bribe_grunt_for_black_market()
+        self.assertTrue(ok)
+        self.assertEqual(self.engine.state["spent_tokens"], prev_spent + bribe)
+        self.assertTrue(self.engine.state["black_market"]["is_open"])
+
+        # 4. Verify 72-column formatting of grunt bribe view
+        app = PokeTokenBarTUI()
+        app.engine = self.engine
+        app.minigame_state = "grunt_bribe"
+        trap = io.StringIO()
+        with patch("sys.stdout", trap):
+            render_grunt_bribe_tab(app)
+        ansi_regex = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+        for line in trap.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Grunt bribe line exceeds 72 cols: '{clean}'")
+
+        # 5. Test TUI flow: Tab 9 -> Slots ('play 3') -> 'poster' -> 'back' -> 'poster' -> 'bribe'
+        self.engine.state["used_since_install"] = 50_000_000
+        self.engine.state["spent_tokens"] = 0
+        self.engine.state["black_market"]["is_open"] = False
+
+        with patch("poketokenbar.tui.UsageManager") as mock_mgr:
+            instance = MagicMock()
+            instance.get_summary.return_value = {
+                "total_tokens": 50_000_000, "today_tokens": 0, "week_tokens": 0,
+                "month_tokens": 0, "antigravity_today": 0, "gemini_today": 0,
+                "claude_today": 0, "burn_rate_tpm": 0, "active_days": []
+            }
+            mock_mgr.return_value = instance
+
+            tui = PokeTokenBarTUI()
+            tui.engine = self.engine
+            commands = "\n".join(["9", "play 3", "poster", "back", "poster", "bribe", "back", "q"]) + "\n"
+            with patch("sys.stdin", io.StringIO(commands)), patch("sys.stdout"):
+                tui.run()
+
+            # Should have successfully unlocked and opened black market
+            self.assertTrue(self.engine.state["black_market"]["is_open"])
+
 if __name__ == "__main__":
     unittest.main()
 

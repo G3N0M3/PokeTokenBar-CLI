@@ -400,24 +400,28 @@ class CompanionEngine:
                         # Process Corporate Stock Market Rollover & Dynamic Dividends
                         self._rollover_stock_market(days_to_apply, diff, current_streak, events)
 
-                        # Process Black Market rotation
+                        # Process Black Market rotation (5% random chance per day)
                         bm = self.state.get("black_market")
-                        if bm:
-                            if bm.get("is_open"):
-                                dur = bm.get("duration_days", 1) - days_to_apply
-                                if dur <= 0:
-                                    bm["is_open"] = False
-                                    bm["days_until_next"] = 3
-                                    events.append("🕵️ The Wandering Merchant packed up and left town.")
-                                else:
-                                    bm["duration_days"] = dur
+                        if not bm:
+                            bm = self.get_or_init_black_market()
+
+                        if bm.get("is_open"):
+                            dur = bm.get("duration_days", 1) - days_to_apply
+                            if dur <= 0:
+                                bm["is_open"] = False
+                                events.append("🕵️ The Wandering Merchant packed up and left town.")
                             else:
-                                until = bm.get("days_until_next", 3) - days_to_apply
-                                if until <= 0:
+                                bm["duration_days"] = dur
+
+                        if not bm.get("is_open"):
+                            for _ in range(days_to_apply):
+                                if random.random() < 0.05:
                                     self.get_or_init_black_market(force_open=True)
                                     events.append("🕵️ A Wandering Merchant has arrived in town with Black Market contraband! (Type 'black' in Shop)")
-                                else:
-                                    bm["days_until_next"] = until
+                                    break
+
+                        # Reroll daily grunt bribe on day advance
+                        self.state["daily_grunt_bribe"] = random.choice([1_000_000, 2_000_000, 3_000_000, 4_000_000, 5_000_000])
 
                         if bank_loan > 0:
                             new_loan = bank_loan
@@ -2273,6 +2277,9 @@ class CompanionEngine:
                 events.append(msg)
                 logs.append(f"[{now_str}] ❌ LOSS vs {opp_name}")
 
+            if "Team Rocket Grunt" in opp_name:
+                events.append("   Grunt: \"You didn't see anything! And don't you dare go snooping behind the posters in the Game Corner!\"")
+
             self.state["battle_logs"] = logs[-5:]
             self.state["trainer_battles"] = battles
             self.save()
@@ -2933,6 +2940,27 @@ class CompanionEngine:
         self._record_catalyst("shop_tokens_spent", total_cost)
         self.save()
         return True, msg
+
+    def get_daily_grunt_bribe(self) -> int:
+        bribe = self.state.get("daily_grunt_bribe")
+        if not bribe or bribe not in [1_000_000, 2_000_000, 3_000_000, 4_000_000, 5_000_000]:
+            bribe = random.choice([1_000_000, 2_000_000, 3_000_000, 4_000_000, 5_000_000])
+            self.state["daily_grunt_bribe"] = bribe
+            self.save()
+        return bribe
+
+    def bribe_grunt_for_black_market(self) -> Tuple[bool, str]:
+        bribe = self.get_daily_grunt_bribe()
+        if self.available_tokens < bribe:
+            return False, f"You don't have enough tokens to bribe the Grunt! (Required: {format_tokens(bribe)}, Available: {format_tokens(self.available_tokens)})"
+
+        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + bribe
+        bm = self.get_or_init_black_market()
+        bm["is_open"] = True
+        self.state["black_market"] = bm
+        self._record_catalyst("casino_tokens_spent", bribe)
+        self.save()
+        return True, f"💰 You paid {format_tokens(bribe)} tokens to the Grunt! He clicks the secret switch behind the poster. The Black Market is unlocked!"
 
     def play_poker_bet(self, amount_str: str) -> Tuple[bool, str]:
         clean_str = amount_str.lower().strip()

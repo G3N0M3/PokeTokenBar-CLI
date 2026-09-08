@@ -1,3 +1,4 @@
+import random
 import sys
 from poketokenbar.game.models import ItemKind, Rarity
 from poketokenbar.utils.formatting import format_tokens
@@ -108,10 +109,12 @@ def _render_black_market_view(app):
 
     bm = app.engine.get_or_init_black_market()
     if not bm.get("is_open"):
-        days = bm.get("days_until_next", 2)
         sys.stdout.write(f"\n  {YELLOW}The Wandering Merchant is currently traveling between regions.{RESET}\n")
-        sys.stdout.write(f"  Expected return in: {BOLD}{days} day(s){RESET}.\n\n")
-        sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return to regular Token Shop.\n\n")
+        sys.stdout.write(f"  Visits town periodically on random days (5% daily chance).\n")
+        if random.random() < 0.10:
+            sys.stdout.write(f"  💡 {CYAN}Rumor: A secret entrance is hidden behind a poster{RESET}\n")
+            sys.stdout.write(f"     {CYAN}in the Game Corner slot machines...{RESET}\n")
+        sys.stdout.write(f"\n  ➔ Type '{BOLD}back{RESET}' to return to regular Token Shop.\n\n")
         return
 
     sys.stdout.write(f"\n  {BOLD}Today's Smuggled Contraband & Limited Offers:{RESET}\n")

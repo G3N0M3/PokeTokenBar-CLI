@@ -252,6 +252,9 @@ class PokeTokenBarTUI:
                 elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and getattr(self, "stock_terminal", None) and cmd == "back":
                     self.stock_terminal = None
                     self.message = "Returned to Exchange Board."
+                elif self.current_tab == 9 and getattr(self, "minigame_state", "menu") == "grunt_bribe" and cmd == "back":
+                    self.minigame_state = "slot"
+                    self.message = "You stepped away from the suspicious poster."
                 elif self.current_tab == 9 and getattr(self, "minigame_state", "menu") != "menu" and cmd == "back":
                     self.minigame_state = "menu"
                     self.message = "Returned to Game Corner menu."
@@ -410,9 +413,18 @@ class PokeTokenBarTUI:
                             self.message = "Game not found! Type 'play 1' for Poker, 'play 2' for Gacha, etc."
                     else:
                         self.message = "Usage: play <idx> (e.g. 'play 1')"
-                elif cmd in ["leave", "back", "quit game", "exit game", "quit", "exit"] and self.current_tab == 9 and getattr(self, "minigame_state", "menu") != "menu":
-                    self.minigame_state = "menu"
-                    self.message = "Returned to Game Corner menu."
+                elif self.current_tab == 9 and getattr(self, "minigame_state", "menu") == "slot" and cmd == "poster":
+                    self.minigame_state = "grunt_bribe"
+                    self.message = ""
+                elif self.current_tab == 9 and getattr(self, "minigame_state", "menu") == "menu" and cmd == "poster":
+                    self.message = "There's a suspicious poster near the Token Slots! (Type 'play 3')"
+                elif self.current_tab == 9 and getattr(self, "minigame_state", "menu") == "grunt_bribe" and cmd == "bribe":
+                    ok, msg = self.engine.bribe_grunt_for_black_market()
+                    if ok:
+                        self.minigame_state = "menu"
+                        self.current_tab = 4
+                        self.shop_view = "black_market"
+                    self.message = msg
                 elif cmd.startswith("bet"):
                     parts = cmd.split()
                     if len(parts) >= 2:

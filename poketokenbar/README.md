@@ -168,6 +168,12 @@ The Mt. Silver Red Battle is architecturally integrated into Tab [6] Battles:
 - Winning records the team into the **Hall of Fame**, awards the **Master of Masters** badge and a **Mysterious Fetal Form (Mew)**.
 - **Arceus Easter Egg**: Challenging Red with his exact iconic team triggers a secret battle against Arceus (5,000,000 HP).
 
+### 4.5 Rotating Black Market & Underground Syndicate Access (Tabs [4] & [9])
+- **5% Daily Natural Occurrence**: On each active day transition, there is a 5% flat chance that the Wandering Merchant arrives in town with 4 fresh discounted or exclusive contraband deals.
+- **Game Corner Secret Entrance**: Entering `poster` while playing Token Slots (Tab [9]) reveals a hidden switch guarded by a Team Rocket Grunt.
+- **Daily Bribe Toll**: The Grunt demands a daily randomized bribe of `[1M, 2M, 3M, 4M, 5M]` tokens. Typing `bribe` pays the fee and immediately opens the Black Market in Tab [4].
+- **Subtle Clues**: In-game hints dynamically appear (~10% chance) in the Slot Machine room, in the Black Market traveling status screen, and in Team Rocket Grunt mini-trainer battle dialogue.
+
 ---
 
 ## 5. TUI Rendering Pipeline & Layout Constraints
