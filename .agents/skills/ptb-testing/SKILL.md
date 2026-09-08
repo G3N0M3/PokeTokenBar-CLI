@@ -13,10 +13,14 @@ This skill provides step-by-step instructions for running test suites, verifying
 
 ## 1. Running Unit Tests
 
-Execute the unittest suite across all game modules:
+Execute the test suite with state isolation:
 
 ```bash
-python3 -m unittest discover tests
+# Recommended pytest runner:
+/opt/anaconda3/bin/pytest tests/
+
+# Or standard unittest runner with temp state file:
+PTB_STATE_FILE=/tmp/ptb_test.json python3 -m unittest discover tests
 ```
 
 ---
@@ -46,16 +50,23 @@ ptb watch --interval 2.0
 
 ## 3. TUI Layout & Fixed-Width Verification
 
-Launch the full interactive 8-tab TUI:
+Launch the full interactive 11-tab TUI:
 
 ```bash
 ptb
 ```
 
 ### Verification Criteria:
-1. **Width**: Ensure all headers, tab bars, progress bars, and footer messages fit within **72 character columns** without line wrapping.
-2. **Tab Alignment**: Verify Tab `[7] Live Monitor` is vertically aligned with Tab `[3] Shop & Bag` at column index 34.
-3. **Expeditions & Selection**: Verify `send 570 silver` dispatches species #570 on expedition, and that dispatched companions cannot be selected as active until returned.
+1. **Strict 72-Column Width Compliance**:
+   - Automated via `test_72_column_layout_compliance` in `tests/test_companion.py`.
+   - Every rendered line across all tabs (Companion, Pokédex, Roster, Mart, Black Market across all 100 items, Expeditions, Battles, Quests, Mega, Game Corner, Bank & Stocks, Settings) must satisfy `len(ansi_regex.sub("", line)) <= 72`.
+2. **Dual Black Market Entrances**:
+   - Verify Mart Tab [4] shows discreet cipher `🕶️ [A faint "R" is etched beneath the counter. Type 'black']` only when `natural_open == True`.
+   - Verify Game Corner Tab [9] poster bribe session decouples cleanly from Mart alley door.
+3. **Stock Market & Pagination**:
+   - Verify Bank Tab [10] Exchange paginates stocks (Page 1/2) with `next`/`prev`.
+4. **Expeditions & Selection**:
+   - Verify `send <id> <dest>` or `pick` dispatches companions without allowing active selection until returned.
 
 ---
 
