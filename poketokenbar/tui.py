@@ -265,6 +265,9 @@ class PokeTokenBarTUI:
                 elif cmd in [str(i) for i in range(1, 12)]:
                     self.expedition_picker_mode = False
                     self.stock_terminal = None
+                    self.black_market_session = False
+                    if getattr(self, "shop_view", "normal") == "black_market":
+                        self.shop_view = "normal"
                     self.current_tab = int(cmd)
                     self.message = ""
                 elif cmd == "r":
@@ -422,6 +425,7 @@ class PokeTokenBarTUI:
                     ok, msg = self.engine.bribe_grunt_for_black_market()
                     if ok:
                         self.minigame_state = "menu"
+                        self.black_market_session = True
                         self.current_tab = 4
                         self.shop_view = "black_market"
                     self.message = msg
@@ -566,12 +570,23 @@ class PokeTokenBarTUI:
                         ok, msg = False, "Usage: divest <code> <shares|all> (e.g. 'divest SILPH 1')"
                     self.message = msg
                 elif cmd == "black":
-                    self.current_tab = 4
-                    self.shop_view = "black_market"
-                    self.message = ""
+                    bm = self.engine.get_or_init_black_market()
+                    if bm.get("natural_open") or getattr(self, "black_market_session", False):
+                        self.current_tab = 4
+                        self.shop_view = "black_market"
+                        self.message = ""
+                    else:
+                        self.message = "The back alley door is bolted shut from the inside."
                 elif self.current_tab == 4 and getattr(self, "shop_view", "normal") == "black_market" and cmd == "back":
-                    self.shop_view = "normal"
-                    self.message = ""
+                    if getattr(self, "black_market_session", False):
+                        self.black_market_session = False
+                        self.current_tab = 9
+                        self.minigame_state = "slot"
+                        self.shop_view = "normal"
+                        self.message = "Returned to the Game Corner slot machines."
+                    else:
+                        self.shop_view = "normal"
+                        self.message = ""
                 elif self.current_tab == 6:
                     if cmd.startswith("assemble ") or cmd in ["fight 1", "fight 2", "fight 3", "fight 4", "run", "restart"] or cmd.startswith("swap "):
                         from poketokenbar.tui_tabs.red import handle_red_command

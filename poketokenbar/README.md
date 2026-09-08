@@ -168,11 +168,14 @@ The Mt. Silver Red Battle is architecturally integrated into Tab [6] Battles:
 - Winning records the team into the **Hall of Fame**, awards the **Master of Masters** badge and a **Mysterious Fetal Form (Mew)**.
 - **Arceus Easter Egg**: Challenging Red with his exact iconic team triggers a secret battle against Arceus (5,000,000 HP).
 
-### 4.5 Rotating Black Market & Underground Syndicate Access (Tabs [4] & [9])
-- **5% Daily Natural Occurrence**: On each active day transition, there is a 5% flat chance that the Wandering Merchant arrives in town with 4 fresh discounted or exclusive contraband deals.
-- **Game Corner Secret Entrance**: Entering `poster` while playing Token Slots (Tab [9]) reveals a hidden switch guarded by a Team Rocket Grunt.
-- **Daily Bribe Toll**: The Grunt demands a daily randomized bribe of `[1M, 2M, 3M, 4M, 5M]` tokens. Typing `bribe` pays the fee and immediately opens the Black Market in Tab [4].
-- **Subtle Clues**: In-game hints dynamically appear (~10% chance) in the Slot Machine room, in the Black Market traveling status screen, and in Team Rocket Grunt mini-trainer battle dialogue.
+### 4.5 Rocket Syndicate Underground Black Market (Tabs [4] & [9])
+- **7 Daily Contraband Deals from a 100-Item Pool**: Features 7 rotating daily items selected without replacement from an illicit 100-item pool across 9 categories (evolution stones/troves, combat held items, black market consumables, mega stones, mystery crates, map packs, special eggs, syndicate evolution artifacts, and counterfeit items).
+- **Sealed Troves & Mystery Crates**: High-tier packages (such as Evolution Stone Troves and Contraband Crates) remain mysteriously sealed until purchased; unpacked contents and jackpot bonuses are revealed in the purchase receipt.
+- **Counterfeit & Fraud Items**: 12 shady counterfeit items (rock candy Rare Candies, cardboard Master Balls, painted stones) sold by grunts that scam unsuspecting trainers when inspected or used.
+- **Decoupled Dual Entrances**:
+  - **Natural Daily Open (5% chance)**: On daily rollover, Team Rocket operates in the Mart backroom. A discreet cipher appears beneath the Tab [4] counter (`🕶️ [A faint "R" is etched beneath the counter. Type 'black']`).
+  - **Slot Machine Secret Passage**: Bribing the Grunt behind the Game Corner slot machine poster (`poster` -> `bribe`) opens a temporary backroom session. Returning via `back` returns directly to the slot machines without unlocking the Tab [4] Mart entrance.
+- **Subtle Clues**: In-game rumors dynamically appear (~10% chance) in the Slot Machine room and Black Market status screens hinting at underground access.
 
 ---
 

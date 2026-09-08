@@ -154,6 +154,40 @@ class ItemKind(str, Enum):
     SHINY_STONE = "shiny_stone"
     DUSK_STONE = "dusk_stone"
     DAWN_STONE = "dawn_stone"
+    CHOICE_SPECS = "choice_specs"
+    FOCUS_SASH = "focus_sash"
+    ROCKY_HELMET = "rocky_helmet"
+    ASSAULT_VEST = "assault_vest"
+    HEAVY_BOOTS = "heavy_boots"
+    COMPASS_OF_DEEP = "compass_of_deep"
+    REVITALIZING_TONIC = "revitalizing_tonic"
+    SACRED_ASH = "sacred_ash"
+    WARP_WHISTLE = "warp_whistle"
+    EXPEDITION_ENERGY_TONIC = "expedition_energy_tonic"
+    EXPEDITION_INSURANCE = "expedition_insurance"
+    ROCKET_RADAR = "rocket_radar"
+    METAL_COAT = "metal_coat"
+    KINGS_ROCK = "kings_rock"
+    DRAGON_SCALE = "dragon_scale"
+    UPGRADE = "upgrade"
+    DUBIOUS_DISC = "dubious_disc"
+    PROTECTOR = "protector"
+    ELECTIRIZER = "electirizer"
+    MAGMARIZER = "magmarizer"
+    REAPER_CLOTH = "reaper_cloth"
+    PRISM_SCALE = "prism_scale"
+    FAKE_RARE_CANDY = "fake_rare_candy"
+    FAKE_MASTER_BALL = "fake_master_ball"
+    FAKE_THUNDER_STONE = "fake_thunder_stone"
+    FAKE_WATER_STONE = "fake_water_stone"
+    FAKE_FIRE_STONE = "fake_fire_stone"
+    FAKE_ANCIENT_MAP = "fake_ancient_map"
+    FAKE_GOLD_NUGGET = "fake_gold_nugget"
+    FAKE_EXP_SHARE = "fake_exp_share"
+    FAKE_SOOTHE_BELL = "fake_soothe_bell"
+    FAKE_SCOPE_LENS = "fake_scope_lens"
+    FAKE_FOCUS_SASH = "fake_focus_sash"
+    FAKE_MEGA_STONE = "fake_mega_stone"
 
     def price_for(self, difficulty: DifficultyMode = DifficultyMode.EASY) -> int:
         prices = {
@@ -187,6 +221,40 @@ class ItemKind(str, Enum):
             ItemKind.SHINY_STONE: 50_000_000,
             ItemKind.DUSK_STONE: 50_000_000,
             ItemKind.DAWN_STONE: 50_000_000,
+            ItemKind.CHOICE_SPECS: 20_000_000,
+            ItemKind.FOCUS_SASH: 22_000_000,
+            ItemKind.ROCKY_HELMET: 20_000_000,
+            ItemKind.ASSAULT_VEST: 22_000_000,
+            ItemKind.HEAVY_BOOTS: 18_000_000,
+            ItemKind.COMPASS_OF_DEEP: 25_000_000,
+            ItemKind.REVITALIZING_TONIC: 8_000_000,
+            ItemKind.SACRED_ASH: 30_000_000,
+            ItemKind.WARP_WHISTLE: 30_000_000,
+            ItemKind.EXPEDITION_ENERGY_TONIC: 18_000_000,
+            ItemKind.EXPEDITION_INSURANCE: 20_000_000,
+            ItemKind.ROCKET_RADAR: 25_000_000,
+            ItemKind.METAL_COAT: 35_000_000,
+            ItemKind.KINGS_ROCK: 35_000_000,
+            ItemKind.DRAGON_SCALE: 35_000_000,
+            ItemKind.UPGRADE: 30_000_000,
+            ItemKind.DUBIOUS_DISC: 35_000_000,
+            ItemKind.PROTECTOR: 30_000_000,
+            ItemKind.ELECTIRIZER: 35_000_000,
+            ItemKind.MAGMARIZER: 35_000_000,
+            ItemKind.REAPER_CLOTH: 35_000_000,
+            ItemKind.PRISM_SCALE: 35_000_000,
+            ItemKind.FAKE_RARE_CANDY: 1,
+            ItemKind.FAKE_MASTER_BALL: 1,
+            ItemKind.FAKE_THUNDER_STONE: 1,
+            ItemKind.FAKE_WATER_STONE: 1,
+            ItemKind.FAKE_FIRE_STONE: 1,
+            ItemKind.FAKE_ANCIENT_MAP: 1,
+            ItemKind.FAKE_GOLD_NUGGET: 1,
+            ItemKind.FAKE_EXP_SHARE: 1,
+            ItemKind.FAKE_SOOTHE_BELL: 1,
+            ItemKind.FAKE_SCOPE_LENS: 1,
+            ItemKind.FAKE_FOCUS_SASH: 1,
+            ItemKind.FAKE_MEGA_STONE: 1,
         }
         return prices.get(self, 5_000_000)
 
@@ -227,6 +295,40 @@ class ItemKind(str, Enum):
             ItemKind.SHINY_STONE: "Shiny Stone",
             ItemKind.DUSK_STONE: "Dusk Stone",
             ItemKind.DAWN_STONE: "Dawn Stone",
+            ItemKind.CHOICE_SPECS: "Choice Specs",
+            ItemKind.FOCUS_SASH: "Focus Sash",
+            ItemKind.ROCKY_HELMET: "Rocky Helmet",
+            ItemKind.ASSAULT_VEST: "Assault Vest",
+            ItemKind.HEAVY_BOOTS: "Heavy Boots",
+            ItemKind.COMPASS_OF_DEEP: "Compass of Deep",
+            ItemKind.REVITALIZING_TONIC: "Revitalizing Tonic",
+            ItemKind.SACRED_ASH: "Sacred Ash",
+            ItemKind.WARP_WHISTLE: "Warp Whistle",
+            ItemKind.EXPEDITION_ENERGY_TONIC: "Energy Tonic (All)",
+            ItemKind.EXPEDITION_INSURANCE: "Exped. Insurance",
+            ItemKind.ROCKET_RADAR: "Rocket Radar",
+            ItemKind.METAL_COAT: "Metal Coat",
+            ItemKind.KINGS_ROCK: "King's Rock",
+            ItemKind.DRAGON_SCALE: "Dragon Scale",
+            ItemKind.UPGRADE: "Upgrade",
+            ItemKind.DUBIOUS_DISC: "Dubious Disc",
+            ItemKind.PROTECTOR: "Protector",
+            ItemKind.ELECTIRIZER: "Electirizer",
+            ItemKind.MAGMARIZER: "Magmarizer",
+            ItemKind.REAPER_CLOTH: "Reaper Cloth",
+            ItemKind.PRISM_SCALE: "Prism Scale",
+            ItemKind.FAKE_RARE_CANDY: '"Rare Candy"',
+            ItemKind.FAKE_MASTER_BALL: '"Master Ball"',
+            ItemKind.FAKE_THUNDER_STONE: '"Thunder Stone"',
+            ItemKind.FAKE_WATER_STONE: '"Water Stone"',
+            ItemKind.FAKE_FIRE_STONE: '"Fire Stone"',
+            ItemKind.FAKE_ANCIENT_MAP: '"Ancient Map"',
+            ItemKind.FAKE_GOLD_NUGGET: '"Gold Nugget"',
+            ItemKind.FAKE_EXP_SHARE: '"Exp. Share"',
+            ItemKind.FAKE_SOOTHE_BELL: '"Soothe Bell"',
+            ItemKind.FAKE_SCOPE_LENS: '"Scope Lens"',
+            ItemKind.FAKE_FOCUS_SASH: '"Focus Sash"',
+            ItemKind.FAKE_MEGA_STONE: '"Charizardite"',
         }[self]
 
     @property
@@ -262,6 +364,40 @@ class ItemKind(str, Enum):
             ItemKind.SHINY_STONE: "💎",
             ItemKind.DUSK_STONE: "💎",
             ItemKind.DAWN_STONE: "💎",
+            ItemKind.CHOICE_SPECS: "👓",
+            ItemKind.FOCUS_SASH: "🎗️",
+            ItemKind.ROCKY_HELMET: "⛑️",
+            ItemKind.ASSAULT_VEST: "🦺",
+            ItemKind.HEAVY_BOOTS: "🥾",
+            ItemKind.COMPASS_OF_DEEP: "🧭",
+            ItemKind.REVITALIZING_TONIC: "⚗️",
+            ItemKind.SACRED_ASH: "🏺",
+            ItemKind.WARP_WHISTLE: "🌬️",
+            ItemKind.EXPEDITION_ENERGY_TONIC: "⚡",
+            ItemKind.EXPEDITION_INSURANCE: "📜",
+            ItemKind.ROCKET_RADAR: "📡",
+            ItemKind.METAL_COAT: "⚙️",
+            ItemKind.KINGS_ROCK: "👑",
+            ItemKind.DRAGON_SCALE: "🐉",
+            ItemKind.UPGRADE: "💾",
+            ItemKind.DUBIOUS_DISC: "💿",
+            ItemKind.PROTECTOR: "🛡️",
+            ItemKind.ELECTIRIZER: "🔌",
+            ItemKind.MAGMARIZER: "🌋",
+            ItemKind.REAPER_CLOTH: "👻",
+            ItemKind.PRISM_SCALE: "✨",
+            ItemKind.FAKE_RARE_CANDY: "🍬",
+            ItemKind.FAKE_MASTER_BALL: "🌟",
+            ItemKind.FAKE_THUNDER_STONE: "⚡",
+            ItemKind.FAKE_WATER_STONE: "💧",
+            ItemKind.FAKE_FIRE_STONE: "🔥",
+            ItemKind.FAKE_ANCIENT_MAP: "📜",
+            ItemKind.FAKE_GOLD_NUGGET: "🪙",
+            ItemKind.FAKE_EXP_SHARE: "🎒",
+            ItemKind.FAKE_SOOTHE_BELL: "🔔",
+            ItemKind.FAKE_SCOPE_LENS: "🔍",
+            ItemKind.FAKE_FOCUS_SASH: "🎗️",
+            ItemKind.FAKE_MEGA_STONE: "🔮",
         }.get(self, "📦")
 
 @dataclass

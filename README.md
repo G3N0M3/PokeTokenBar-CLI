@@ -126,7 +126,7 @@ ptb
 | `b` / `c` / `s` | Switch Bank subtabs (Checking, Certificate of Deposit, Stocks) |
 | `stock <idx\|sym>` | Open Trade Terminal for Silph (`1`/`SLPH`), Devon (`2`/`DEVN`), etc. |
 | `buy <qty>` / `sell <qty>` | Buy or sell shares in active stock terminal |
-| `black` | Open Black Market wandering merchant (in Tab 4) |
+| `black` | Access Rocket Syndicate Black Market (when open or etched 'R' found) |
 | `back` | Return from submodes (Dispatcher, Stock Terminal, Casino, Black Market) |
 | `play <1..4>` | Open Game Corner minigames (1=Poker, 2=Gacha, 3=Slots, 4=Blackjack) |
 | `bet <amount>` | Place a bet in Poker or Blackjack (e.g. `bet 500k`, `bet 1m`) |

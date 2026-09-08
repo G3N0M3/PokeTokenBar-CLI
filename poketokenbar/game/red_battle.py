@@ -242,8 +242,10 @@ class RedBattleHandler:
             eff = get_effectiveness(move["type"], r_mon["type"])
             dmg = int(move["power"] * 1500 * eff)
             active = self.engine.active_mon
-            if active and active.held_item == "choice_band":
+            if active and active.held_item in ["choice_band", "choice_specs"]:
                 dmg = int(dmg * 1.5)
+            elif active and active.held_item == "metal_coat":
+                dmg = int(dmg * 1.15)
             st["red_hps"][r_idx] = max(0, st["red_hps"][r_idx] - dmg)
             
             eff_str = " It's super effective!" if eff > 1.5 else (" It's not very effective..." if eff < 0.9 else "")

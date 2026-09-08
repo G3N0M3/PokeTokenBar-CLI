@@ -35,8 +35,8 @@ def render_shop_tab(app):
         sys.stdout.write(f"  {BOLD}{GREEN}💼 Devon Corp Active: -10% discount applied to all shop items!{RESET}\n")
 
     bm = app.engine.get_or_init_black_market()
-    if bm.get("is_open"):
-        sys.stdout.write(f"  {BOLD}{YELLOW}🕵️ [WANDERING MERCHANT IS IN TOWN! Type '{BOLD}{CYAN}black{RESET}{BOLD}{YELLOW}' for Black Market]{RESET}\n")
+    if bm.get("natural_open"):
+        sys.stdout.write(f"  {BOLD}{YELLOW}🕶️ [A faint \"R\" is etched beneath the counter. Type '{BOLD}{CYAN}black{RESET}{BOLD}{YELLOW}']{RESET}\n")
     sys.stdout.write("\n")
 
     sys.stdout.write(f"  {BOLD}Shop Items (Type 'buy <number> [qty]' to purchase):{RESET}\n")
@@ -74,12 +74,73 @@ def render_shop_tab(app):
     if inv.get('scope_lens', 0) > 0: bag_items.append(("🔍 Scope Lens (2x Shiny)", "17", inv['scope_lens']))
     if inv.get('life_orb', 0) > 0: bag_items.append(("🔮 Life Orb (+10% Tokens)", "18", inv['life_orb']))
     if inv.get('choice_band', 0) > 0: bag_items.append(("🥊 Choice Band (+50% Dmg)", "19", inv['choice_band']))
-    
+
+    # Combat held items
+    if inv.get('choice_specs', 0) > 0: bag_items.append(("👓 Choice Specs (+50% SpAtk)", "choice_specs", inv['choice_specs']))
+    if inv.get('focus_sash', 0) > 0: bag_items.append(("🎗️ Focus Sash (Endure 1 HP)", "focus_sash", inv['focus_sash']))
+    if inv.get('rocky_helmet', 0) > 0: bag_items.append(("⛑️ Rocky Helmet (Recoil)", "rocky_helmet", inv['rocky_helmet']))
+    if inv.get('assault_vest', 0) > 0: bag_items.append(("🦺 Assault Vest (-30% SpDef)", "assault_vest", inv['assault_vest']))
+    if inv.get('heavy_boots', 0) > 0: bag_items.append(("🥾 Heavy Boots (Hazard Guard)", "heavy_boots", inv['heavy_boots']))
+    if inv.get('compass_of_deep', 0) > 0: bag_items.append(("🧭 Compass of Deep (+25% Spd)", "compass_of_deep", inv['compass_of_deep']))
+
+    # Consumables
+    if inv.get('revitalizing_tonic', 0) > 0: bag_items.append(("⚗️ Revitalizing Tonic (100% Hap)", "revitalizing_tonic", inv['revitalizing_tonic']))
+    if inv.get('sacred_ash', 0) > 0: bag_items.append(("🏺 Sacred Ash (Full Red Revive)", "sacred_ash", inv['sacred_ash']))
+    if inv.get('warp_whistle', 0) > 0: bag_items.append(("🌬️ Warp Whistle (Finish All)", "warp_whistle", inv['warp_whistle']))
+    if inv.get('expedition_pass', 0) > 0: bag_items.append(("🎫 Expedition Pass", "expedition_pass", inv['expedition_pass']))
+    if inv.get('expedition_energy_tonic', 0) > 0: bag_items.append(("⚡ Energy Tonic (+50% Hap All)", "expedition_energy_tonic", inv['expedition_energy_tonic']))
+    if inv.get('expedition_insurance', 0) > 0: bag_items.append(("📜 Exped. Insurance Policy", "expedition_insurance", inv['expedition_insurance']))
+    if inv.get('rocket_radar', 0) > 0: bag_items.append(("📡 Rocket Radar (+50% Tokens)", "rocket_radar", inv['rocket_radar']))
+
+    # Evolution artifacts
+    artifacts = [
+        ("⚙️ Metal Coat", "metal_coat"),
+        ("👑 King's Rock", "kings_rock"),
+        ("🐉 Dragon Scale", "dragon_scale"),
+        ("💾 Upgrade", "upgrade"),
+        ("💿 Dubious Disc", "dubious_disc"),
+        ("🛡️ Protector", "protector"),
+        ("🔌 Electirizer", "electirizer"),
+        ("🌋 Magmarizer", "magmarizer"),
+        ("👻 Reaper Cloth", "reaper_cloth"),
+        ("✨ Prism Scale", "prism_scale"),
+    ]
+    for a_name, a_key in artifacts:
+        if inv.get(a_key, 0) > 0:
+            bag_items.append((a_name, a_key, inv[a_key]))
+
+    # Evolution stones
     stone_keys = ["water_stone", "fire_stone", "thunder_stone", "leaf_stone", "moon_stone", "sun_stone", "ice_stone", "shiny_stone", "dusk_stone", "dawn_stone"]
     for k in stone_keys:
         if inv.get(k, 0) > 0:
             bag_items.append((f"💎 {k.replace('_', ' ').title()}", k, inv[k]))
-            
+
+    # Mega stones
+    from poketokenbar.game.models import MEGA_STONES
+    for sid, sname in MEGA_STONES.items():
+        k = f"mega_stone_{sid}"
+        if inv.get(k, 0) > 0:
+            bag_items.append((f"🔮 {sname}", k, inv[k]))
+
+    # Fake items
+    fake_keys = [
+        ("🍬 \"Rare Candy\"", "fake_rare_candy"),
+        ("🌟 \"Master Ball\"", "fake_master_ball"),
+        ("⚡ \"Thunder Stone\"", "fake_thunder_stone"),
+        ("💧 \"Water Stone\"", "fake_water_stone"),
+        ("🔥 \"Fire Stone\"", "fake_fire_stone"),
+        ("📜 \"Ancient Map\"", "fake_ancient_map"),
+        ("🪙 \"Gold Nugget\"", "fake_gold_nugget"),
+        ("🎒 \"Exp. Share\"", "fake_exp_share"),
+        ("🔔 \"Soothe Bell\"", "fake_soothe_bell"),
+        ("🔍 \"Scope Lens\"", "fake_scope_lens"),
+        ("🎗️ \"Focus Sash\"", "fake_focus_sash"),
+        ("🔮 \"Charizardite\"", "fake_mega_stone"),
+    ]
+    for f_name, f_key in fake_keys:
+        if inv.get(f_key, 0) > 0:
+            bag_items.append((f_name, f_key, inv[f_key]))
+
     page_size = app.engine.state.get("page_size_bag", 10)
     total_pages = max(1, (len(bag_items) - 1) // page_size + 1)
     if not hasattr(app, 'shop_page') or not isinstance(app.shop_page, int): app.shop_page = 1
@@ -102,15 +163,16 @@ def _render_black_market_view(app):
     has_devon = app.engine.has_perk("devon")
     disc = 0.90 if has_devon else 1.0
 
-    sys.stdout.write(f"\n  {BOLD}{YELLOW}🕵️ Wandering Merchant — Rotating Black Market{RESET}\n")
+    sys.stdout.write(f"\n  {BOLD}{YELLOW}🕶️ Rocket Syndicate — Underground Black Market{RESET}\n")
     sys.stdout.write(f"  Available Spendable Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n")
     if has_devon:
         sys.stdout.write(f"  {BOLD}{GREEN}💼 Devon Corp Active: -10% discount applied to deals!{RESET}\n")
 
     bm = app.engine.get_or_init_black_market()
-    if not bm.get("is_open"):
-        sys.stdout.write(f"\n  {YELLOW}The Wandering Merchant is currently traveling between regions.{RESET}\n")
-        sys.stdout.write(f"  Visits town periodically on random days (5% daily chance).\n")
+    is_open = bm.get("natural_open", False) or getattr(app, "black_market_session", False) or bm.get("is_open", False)
+    if not is_open:
+        sys.stdout.write(f"\n  {YELLOW}The backroom is completely silent.{RESET}\n")
+        sys.stdout.write(f"  Rocket Syndicate grunts operate discretely (5% daily chance).\n")
         if random.random() < 0.10:
             sys.stdout.write(f"  💡 {CYAN}Rumor: A secret entrance is hidden behind a poster{RESET}\n")
             sys.stdout.write(f"     {CYAN}in the Game Corner slot machines...{RESET}\n")
@@ -136,7 +198,7 @@ def _render_black_market_view(app):
 
     sys.stdout.write(f"\n  {BOLD}Commands:{RESET}\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}buy <id> [qty]{RESET}' to purchase (e.g. 'buy 1')\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return to regular Token Shop\n\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return\n\n")
 
 def handle_deal_buy(app, cmd: str):
     parts = cmd.split()
@@ -262,6 +324,8 @@ def handle_bag_use(app, cmd: str):
         ok, msg = app.engine.use_item(ItemKind(choice), qty)
     elif choice in [s.value for s in ItemKind]:
         ok, msg = app.engine.use_item(ItemKind(choice), qty)
+    elif choice.startswith("mega_stone_") or choice == "mega_stone":
+        ok, msg = app.engine.use_item(choice, qty)
     else:
         ok, msg = False, "Invalid bag selection."
     app.message = msg
@@ -303,20 +367,24 @@ def handle_bag_sell(app, cmd: str):
             mapping[s.value] = s
 
     item_kind = mapping.get(choice)
-    if not item_kind:
-        app.message = "Invalid bag selection."
-        return
-
     inv = app.engine.state.get("inventory", {})
-    if inv.get(item_kind.value, 0) < qty:
-        app.message = f"You don't have {qty}x {item_kind.name_en} in your Bag to sell!"
-        return
 
-    cost = item_kind.price_for(app.engine.current_difficulty)
-    sell_value = int(cost * 0.8) * qty
-
-    item_name = item_kind.name_en
-    if item_kind == ItemKind.MEGA_STONE:
+    if not item_kind:
+        if choice.startswith("mega_stone_") or choice == "mega_stone":
+            target_key = choice
+            from poketokenbar.game.models import MEGA_STONES
+            sid = choice.replace("mega_stone_", "")
+            item_name = MEGA_STONES.get(sid, "Mega Stone")
+            item_emoji = "🔮"
+            sell_target = choice
+            if inv.get(target_key, 0) < qty:
+                app.message = f"You don't have {qty}x {item_name} in your Bag to sell!"
+                return
+            sell_value = int(50_000_000 * 0.8) * qty
+        else:
+            app.message = "Invalid bag selection."
+            return
+    elif item_kind == ItemKind.MEGA_STONE:
         found_key = None
         from poketokenbar.game.models import MEGA_STONES
         for sp_id, s_name in MEGA_STONES.items():
@@ -328,14 +396,30 @@ def handle_bag_sell(app, cmd: str):
         if not found_key:
             app.message = f"You don't have {qty}x of any specific Mega Stone in your Bag to sell!"
             return
+        sell_target = item_kind
+        sell_value = int(50_000_000 * 0.8) * qty
+        item_emoji = "🔮"
+    else:
+        sell_target = item_kind
+        item_val = item_kind.value
+        if inv.get(item_val, 0) < qty:
+            app.message = f"You don't have {qty}x {item_kind.name_en} in your Bag to sell!"
+            return
+        item_name = item_kind.name_en
+        item_emoji = item_kind.emoji
+        if item_val.startswith("fake_"):
+            sell_value = 1 * qty
+        else:
+            cost = item_kind.price_for(app.engine.current_difficulty)
+            sell_value = max(1, int(cost * 0.8)) * qty
 
     sys.stdout.write(f"\n  {BOLD}{YELLOW}💰 SELL CONFIRMATION{RESET}\n")
-    sys.stdout.write(f"  Are you sure you want to sell {qty}x {item_name} ({item_kind.emoji}) for +{format_tokens(sell_value)} Tokens? (y/n)> ")
+    sys.stdout.write(f"  Are you sure you want to sell {qty}x {item_name} ({item_emoji}) for +{format_tokens(sell_value)} Tokens? (y/n)> ")
     sys.stdout.flush()
     
     ans = sys.stdin.readline().strip().lower()
     if ans in ["y", "yes"]:
-        ok, msg = app.engine.sell_item(item_kind, qty)
+        ok, msg = app.engine.sell_item(sell_target, qty)
         app.message = msg
     else:
-        app.message = f"Canceled selling {qty}x {item_kind.name_en}."
+        app.message = f"Canceled selling {qty}x {item_name}."

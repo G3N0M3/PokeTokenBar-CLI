@@ -71,6 +71,9 @@ BASE_SPECIES_STARTERS = [
     (704, "Goomy", 45, False), (782, "Jangmo-o", 45, False),
     (131, "Lapras", 45, False), (143, "Snorlax", 25, False), (142, "Aerodactyl", 45, False),
     (138, "Omanyte", 45, False), (140, "Kabuto", 45, False), (175, "Togepi", 190, False),
+    (345, "Lileep", 45, False), (347, "Anorith", 45, False), (408, "Cranidos", 45, False),
+    (410, "Shieldon", 45, False), (564, "Tirtouga", 45, False), (566, "Archen", 45, False),
+    (696, "Tyrunt", 45, False), (698, "Amaura", 45, False),
     (447, "Riolu", 75, False), (570, "Zorua", 75, False), (636, "Larvesta", 45, False),
     (610, "Axew", 75, False), (679, "Honedge", 120, False), (778, "Mimikyu", 45, False),
     (359, "Absol", 30, False), (479, "Rotom", 45, False), (442, "Spiritomb", 100, False),
@@ -405,19 +408,20 @@ class CompanionEngine:
                         if not bm:
                             bm = self.get_or_init_black_market()
 
-                        if bm.get("is_open"):
+                        if bm.get("natural_open", bm.get("is_open")):
                             dur = bm.get("duration_days", 1) - days_to_apply
                             if dur <= 0:
+                                bm["natural_open"] = False
                                 bm["is_open"] = False
-                                events.append("🕵️ The Wandering Merchant packed up and left town.")
+                                events.append("🕶️ The Rocket Syndicate Black Market packed up and vanished.")
                             else:
                                 bm["duration_days"] = dur
 
-                        if not bm.get("is_open"):
+                        if not bm.get("natural_open"):
                             for _ in range(days_to_apply):
                                 if random.random() < 0.05:
                                     self.get_or_init_black_market(force_open=True)
-                                    events.append("🕵️ A Wandering Merchant has arrived in town with Black Market contraband! (Type 'black' in Shop)")
+                                    events.append("🕶️ Rocket Syndicate dealers are operating in town! (Check Shop)")
                                     break
 
                         # Reroll daily grunt bribe on day advance
@@ -699,8 +703,10 @@ class CompanionEngine:
         if active_boss is not None:
             active = self.active_mon
             damage = int(delta * 2.0) if (active and active.is_mega) else delta
-            if active and active.held_item == "choice_band":
+            if active and active.held_item in ["choice_band", "choice_specs"]:
                 damage = int(damage * 1.5)
+            elif active and active.held_item == "metal_coat":
+                damage = int(damage * 1.15)
             active_boss["current_hp"] -= damage
             if active_boss["current_hp"] <= 0:
                 active_boss["current_hp"] = 0
@@ -831,7 +837,15 @@ class CompanionEngine:
                 
                 # Reset to new egg
                 self.set_active_mon(None)
-                self.state["egg_tier"] = None
+                pending = self.state.get("pending_eggs", [])
+                if pending:
+                    next_egg = pending.pop(0)
+                    self.state["egg_tier"] = next_egg
+                    self.state["pending_eggs"] = pending
+                    events.append(f"🥚 Next in queue: Now incubating your {next_egg.replace('_', ' ').title()} Egg!")
+                else:
+                    self.state["egg_tier"] = None
+                self.state["egg_usage"] = 0
                 self.save()
                 return events
 
@@ -1104,10 +1118,10 @@ class CompanionEngine:
             # Select base species
             base_id, rarity, chain_ids, is_legendary = self._pick_species(used_tier)
 
-        # Roll Shiny odds (1/64 base, or 1/24 with Golden Razz Berry)
-        denom = 64
+        # Roll Shiny odds (1/64 base, 1/32 for paradox, or 1/24 with Golden Razz Berry)
+        denom = 32 if used_tier == "paradox" else 64
         if self.state.get("golden_razz_active", False):
-            denom = 24
+            denom = min(denom, 24)
         if self.active_mon and self.active_mon.held_item == "scope_lens":
             denom = max(2, denom // 2)
             
@@ -1190,11 +1204,33 @@ class CompanionEngine:
         # 2. Select candidate pool based on tier guarantee
         if tier_guarantee == "legendary":
             candidates = [c for c in BASE_SPECIES_STARTERS if c[3]]
+        elif tier_guarantee == "fossil":
+            fossil_ids = {138, 140, 142, 345, 347, 408, 410, 564, 566, 696, 698}
+            candidates = [c for c in BASE_SPECIES_STARTERS if c[0] in fossil_ids]
+        elif tier_guarantee == "dragon":
+            dragon_ids = {147, 371, 443, 610, 633, 704, 782}
+            candidates = [c for c in BASE_SPECIES_STARTERS if c[0] in dragon_ids]
+        elif tier_guarantee == "shadow_fetal":
+            candidates = [c for c in BASE_SPECIES_STARTERS if c[0] in {151, 251}]
+        elif tier_guarantee == "starter":
+            starter_ids = {1, 4, 7, 152, 155, 158, 252, 255, 258, 387, 390, 393, 495, 498, 501, 650, 653, 656, 722, 725, 728}
+            candidates = [c for c in BASE_SPECIES_STARTERS if c[0] in starter_ids]
+        elif tier_guarantee == "paradox":
+            paradox_ids = {147, 246, 371, 374, 443, 633, 704, 782, 131, 143, 447, 570, 636, 679, 778}
+            candidates = [c for c in BASE_SPECIES_STARTERS if c[0] in paradox_ids]
+        elif tier_guarantee == "smuggler_mystery":
+            if random.random() < 0.50:
+                candidates = [c for c in BASE_SPECIES_STARTERS if c[3]]
+            else:
+                candidates = [c for c in BASE_SPECIES_STARTERS if c[0] == 129]  # Magikarp
         else:
             candidates = [c for c in BASE_SPECIES_STARTERS if not c[3]]
             if tier_guarantee:
-                req_rank = Rarity(tier_guarantee).sort_rank
-                candidates = [c for c in candidates if Rarity.from_capture_rate(c[2], c[3]).sort_rank >= req_rank]
+                try:
+                    req_rank = Rarity(tier_guarantee).sort_rank
+                    candidates = [c for c in candidates if Rarity.from_capture_rate(c[2], c[3]).sort_rank >= req_rank]
+                except (ValueError, KeyError):
+                    pass
                 if not candidates:
                     candidates = [c for c in BASE_SPECIES_STARTERS if not c[3]]
 
@@ -1327,63 +1363,270 @@ class CompanionEngine:
         self.save()
         return True, f"Successfully purchased {qty}x {item_kind.name_en} ({item_kind.emoji})!"
 
-    def sell_item(self, item_kind: ItemKind, qty: int = 1) -> Tuple[bool, str]:
+    def sell_item(self, item_kind: Union[ItemKind, str], qty: int = 1) -> Tuple[bool, str]:
         if qty <= 0:
-            return False, "Quantity must be greater than 0!"
-            
+            return False, "Quantity must be greater than 0."
+
         inv = self.state.get("inventory", {})
-        
-        if item_kind == ItemKind.MEGA_STONE:
+
+        if isinstance(item_kind, str):
+            try: item_kind = ItemKind(item_kind)
+            except ValueError: pass
+
+        k = item_kind.value if isinstance(item_kind, ItemKind) else str(item_kind)
+        inv = self.state.get("inventory", {})
+
+        if k == "mega_stone" or (isinstance(item_kind, ItemKind) and item_kind == ItemKind.MEGA_STONE):
             target_key = None
             target_name = None
             from poketokenbar.game.models import MEGA_STONES
-            for sp_id, s_name in MEGA_STONES.items():
-                k = f"mega_stone_{sp_id}"
-                if inv.get(k, 0) >= qty:
-                    target_key = k
-                    target_name = s_name
+            for key in inv:
+                if key.startswith("mega_stone_") and inv[key] >= qty:
+                    target_key = key
+                    stone_id = key.replace("mega_stone_", "")
+                    target_name = MEGA_STONES.get(stone_id, "Mega Stone")
                     break
             if not target_key:
                 return False, f"You don't have {qty}x of any specific Mega Stone in your Bag to sell!"
-            
+
             diff = self.current_difficulty
-            unit_cost = item_kind.price_for(diff)
+            unit_cost = 50_000_000
             sell_value = int(unit_cost * 0.8) * qty
             inv[target_key] -= qty
+            if inv[target_key] <= 0: del inv[target_key]
             self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - sell_value
             self.state["inventory"] = inv
             self.save()
             return True, f"Successfully sold {qty}x {target_name} (🔮) for +{format_tokens(sell_value)} Tokens!"
 
-        count = inv.get(item_kind.value, 0)
+        count = inv.get(k, 0)
         if count < qty:
-            return False, f"You don't have {qty}x {item_kind.name_en} in your Bag to sell!"
+            return False, f"You don't have {qty}x in your Bag to sell!"
 
-        diff = self.current_difficulty
-        unit_cost = item_kind.price_for(diff)
-        sell_value = int(unit_cost * 0.8) * qty
+        if k.startswith("fake_"):
+            sell_value = 1 * qty
+            name_str = k.replace("fake_", "").replace("_", " ").title()
+            emoji_str = "🪙"
+        elif isinstance(item_kind, ItemKind):
+            cost = item_kind.price_for(self.current_difficulty)
+            sell_value = max(1, int(cost * 0.8)) * qty
+            name_str = item_kind.name_en
+            emoji_str = item_kind.emoji
+        else:
+            sell_value = 100_000 * qty
+            name_str = k.replace("_", " ").title()
+            emoji_str = "📦"
 
-        inv[item_kind.value] -= qty
+        inv[k] -= qty
+        if inv[k] <= 0:
+            del inv[k]
+
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - sell_value
         self.state["inventory"] = inv
         self.save()
-        
-        return True, f"Successfully sold {qty}x {item_kind.name_en} ({item_kind.emoji}) for +{format_tokens(sell_value)} Tokens!"
 
-    def use_item(self, item_kind: ItemKind, qty: int = 1) -> Tuple[bool, str]:
+        return True, f"Successfully sold {qty}x {name_str} ({emoji_str}) for +{format_tokens(sell_value)} Tokens!"
+
+    def use_item(self, item_kind: Union[ItemKind, str], qty: int = 1) -> Tuple[bool, str]:
         if qty <= 0:
             return False, "Quantity must be greater than 0."
-            
+
+        if isinstance(item_kind, str):
+            try: item_kind = ItemKind(item_kind)
+            except ValueError: pass
+
+        item_val = item_kind.value if isinstance(item_kind, ItemKind) else str(item_kind)
+        item_name = item_kind.name_en if isinstance(item_kind, ItemKind) else item_val.replace("_", " ").title()
+        item_emoji = item_kind.emoji if isinstance(item_kind, ItemKind) else "📦"
+
         inv = self.state.get("inventory", {})
-        count = inv.get(item_kind.value, 0)
+        count = inv.get(item_val, 0)
         if count < qty:
-            return False, f"You don't have enough {item_kind.name_en} in your Bag!"
+            return False, f"You don't have enough {item_name} in your Bag!"
 
         active = self.active_mon
-        if item_kind == ItemKind.RARE_CANDY:
+
+        # 1. Counterfeit / Fake items
+        if item_val.startswith("fake_"):
+            inv[item_val] -= 1
+            if inv[item_val] <= 0: del inv[item_val]
+            if item_val == "fake_soothe_bell" and active:
+                active.happiness = max(0, active.happiness - 5)
+                self.set_active_mon(active)
+            elif item_val == "fake_gold_nugget":
+                self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - 1
+            self.state["inventory"] = inv
+            self.save()
+            from poketokenbar.game.black_market import get_fake_item_fraud_message
+            fraud_msg = get_fake_item_fraud_message(item_val)
+            return True, f"⚠️ SCAM REVEALED! {fraud_msg}"
+
+        # 2. Syndicate Evolution Artifacts
+        elif item_val in [
+            "metal_coat", "kings_rock", "dragon_scale", "upgrade",
+            "dubious_disc", "protector", "electirizer", "magmarizer",
+            "reaper_cloth", "prism_scale"
+        ]:
+            if qty > 1:
+                return False, f"You can only use one {item_name} at a time!"
+            if not active:
+                return False, f"You need an active companion to use a {item_name}!"
+            if active.held_item == "everstone":
+                return False, "Your companion is holding an Everstone! It cannot evolve."
+
+            artifact_compat = {
+                "metal_coat": {95: 208, 123: 212},     # Onix -> Steelix, Scyther -> Scizor
+                "kings_rock": {60: 186, 79: 199},      # Poliwhirl -> Politoed, Slowpoke -> Slowking
+                "dragon_scale": {117: 230},            # Seadra -> Kingdra
+                "upgrade": {137: 233},                 # Porygon -> Porygon2
+                "dubious_disc": {233: 474},            # Porygon2 -> Porygon-Z
+                "protector": {112: 464},               # Rhydon -> Rhyperior
+                "electirizer": {125: 466},             # Electabuzz -> Electivire
+                "magmarizer": {126: 467},              # Magmar -> Magmortar
+                "reaper_cloth": {356: 477},            # Dusclops -> Dusknoir
+                "prism_scale": {349: 350},             # Feebas -> Milotic
+            }
+            compat_map = artifact_compat.get(item_val, {})
+            target_evo_id = compat_map.get(active.current_id)
+
+            if not target_evo_id:
+                if item_val == "metal_coat":
+                    # Equip as held item
+                    if active.held_item:
+                        inv[active.held_item] = inv.get(active.held_item, 0) + 1
+                    active.held_item = item_val
+                    inv[item_val] -= 1
+                    if inv[item_val] <= 0: del inv[item_val]
+                    self.state["inventory"] = inv
+                    self.set_active_mon(active)
+                    self.save()
+                    return True, f"Equipped Metal Coat ⚙️ to {self.api.get_species_name(active.current_id)}! (+15% Steel attack damage)"
+                valid_species = ", ".join([self.api.get_species_name(sid) for sid in compat_map.keys()])
+                return False, f"The {item_name} has no effect on {self.api.get_species_name(active.current_id)}! (Compatible with: {valid_species})"
+
+            # Check if target evolved form already exists in Pokédex
+            dex = self.state.get("dex", [])
+            discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
+            if target_evo_id in discovered_sp_ids:
+                next_name = self.api.get_species_name(target_evo_id)
+                return False, f"Cannot evolve into {next_name}! {next_name} (#{target_evo_id}) already exists in your Pokédex."
+
+            inv[item_val] -= 1
+            if inv[item_val] <= 0: del inv[item_val]
+
+            prev_name = self.api.get_species_name(active.current_id)
+            active.stage_index += 1
+
+            if active.stage_index >= len(active.path_ids):
+                active.path_ids.append(target_evo_id)
+            else:
+                active.path_ids[active.stage_index] = target_evo_id
+                active.path_ids = active.path_ids[:active.stage_index + 1]
+
+            active.total_forms = len(active.path_ids)
+            new_name = self.api.get_species_name(target_evo_id)
+
+            sp_data = self.api.get_pokemon_species(target_evo_id)
+            if sp_data:
+                cap_rate = sp_data.get("capture_rate", 255)
+                is_leg = sp_data.get("is_legendary", False) or sp_data.get("is_mythical", False)
+                active.rarity = Rarity.from_capture_rate(cap_rate, is_leg)
+
+            active.used_at_stage = 0
+            self._register_to_dex(active, status="active")
+            self.set_active_mon(active)
+            self.state["inventory"] = inv
+            self.save()
+
+            shiny_str = "✨ Shiny " if active.is_shiny else ""
+            quests_msg = "\n".join(self._progress_quest_by_type("progression"))
+            msg = f"🎉 Amazing! {shiny_str}{prev_name} evolved into {shiny_str}{new_name} using the {item_name}!"
+            if quests_msg:
+                msg += f"\n{quests_msg}"
+            return True, msg
+
+        # 3. Consumables (Tonics, Ash, Whistle, Radar, Insurance)
+        elif item_val == "revitalizing_tonic":
+            if not active:
+                return False, "You need an active Pokémon companion to use Revitalizing Tonic!"
+            inv[item_val] -= 1
+            if inv[item_val] <= 0: del inv[item_val]
+            active.happiness = 100
+            self.set_active_mon(active)
+            self.state["inventory"] = inv
+            self.save()
+            return True, f"⚗️ Revitalizing Tonic restored {self.api.get_species_name(active.current_id)}'s Happiness to 100%! Ready for expeditions again!"
+
+        elif item_val == "sacred_ash":
+            inv[item_val] -= 1
+            if inv[item_val] <= 0: del inv[item_val]
+            red_state = self.state.get("red_battle", {})
+            if red_state and "player_team_hps" in red_state:
+                for i in range(len(red_state.get("player_team_hps", []))):
+                    red_state["player_team_hps"][i] = 100_000
+                self.state["red_battle"] = red_state
+            self.state["inventory"] = inv
+            self.save()
+            return True, "🏺 Sacred Ash sprinkled! All Pokémon on your Mt. Silver roster have been fully restored and revived to peak strength!"
+
+        elif item_val == "warp_whistle":
+            expeditions = self.state.get("expeditions", [])
+            if not expeditions:
+                return False, "You have no active expeditions to complete!"
+            inv[item_val] -= 1
+            if inv[item_val] <= 0: del inv[item_val]
+            count = len(expeditions)
+            events = []
+            while self.state.get("expeditions"):
+                exp = self.state["expeditions"][0]
+                remaining_xp = max(0, exp.get("target", 0) - exp.get("progress", 0))
+                self._update_expeditions(remaining_xp, events)
+            self.state["inventory"] = inv
+            self.save()
+            msg = f"🌬️ Blew the Smuggler's Warp Whistle! A mysterious whirlwind completed all {count} active expeditions!"
+            if events:
+                msg += "\n" + "\n".join(events)
+            return True, msg
+
+        elif item_val == "expedition_energy_tonic":
+            inv[item_val] -= 1
+            if inv[item_val] <= 0: del inv[item_val]
+            if active:
+                active.happiness = min(100, active.happiness + 50)
+                self.set_active_mon(active)
+            dex = self.state.get("dex", [])
+            for d in dex:
+                mon_st = d.get("mon_state")
+                if isinstance(mon_st, dict) and "happiness" in mon_st:
+                    mon_st["happiness"] = min(100, mon_st.get("happiness", 100) + 50)
+            self.state["inventory"] = inv
+            self.save()
+            return True, "⚡ Expedition Energy Tonic invigorated all Pokémon in your party and roster (+50% Happiness)!"
+
+        elif item_val == "expedition_insurance":
+            inv[item_val] -= 1
+            if inv[item_val] <= 0: del inv[item_val]
+            self.state["expedition_insurance"] = self.state.get("expedition_insurance", 0) + 3
+            self.state["inventory"] = inv
+            self.save()
+            charges = self.state["expedition_insurance"]
+            return True, f"📜 Filed Expedition Insurance Policy! Your companions are protected from happiness decay for the next {charges} expeditions!"
+
+        elif item_val == "rocket_radar":
+            inv[item_val] -= 1
+            if inv[item_val] <= 0: del inv[item_val]
+            self.state["rocket_radar_charges"] = self.state.get("rocket_radar_charges", 0) + 3
+            self.state["inventory"] = inv
+            self.save()
+            charges = self.state["rocket_radar_charges"]
+            return True, f"📡 Activated Rocket Radar! Your next {charges} expeditions will gain +50% bonus token yields!"
+
+        # 4. Rare Candy
+        elif item_val == "rare_candy":
             if active is None:
                 return False, "You need an active Pokémon companion to give Rare Candy!"
-            inv[item_kind.value] -= qty
+            inv[item_val] -= qty
+            if inv[item_val] <= 0: del inv[item_val]
             self.state["inventory"] = inv
 
             xp_grant = int(self.current_difficulty.shop_prices["rare_candy"] * 0.6) * qty
@@ -1403,42 +1646,49 @@ class CompanionEngine:
             if events:
                 msg += "\n" + "\n".join(events)
             return True, msg
-            
-        elif item_kind in [
-            ItemKind.EVERSTONE, ItemKind.LUCKY_EGG, ItemKind.AMULET_COIN,
-            ItemKind.LEFTOVERS, ItemKind.CHOICE_SCARF, ItemKind.EXP_SHARE,
-            ItemKind.SOOTHE_BELL, ItemKind.SCOPE_LENS, ItemKind.LIFE_ORB,
-            ItemKind.CHOICE_BAND
+
+        # 5. Held items
+        elif item_val in [
+            "everstone", "lucky_egg", "amulet_coin", "leftovers",
+            "choice_scarf", "exp_share", "soothe_bell", "scope_lens",
+            "life_orb", "choice_band", "choice_specs", "focus_sash",
+            "rocky_helmet", "assault_vest", "heavy_boots", "compass_of_deep"
         ]:
             if active is None:
-                return False, f"You need an active Pokémon to equip a {item_kind.name_en}!"
+                return False, f"You need an active Pokémon to equip a {item_name}!"
             if qty > 1:
-                return False, f"You can only equip one {item_kind.name_en} at a time."
-                
+                return False, f"You can only equip one {item_name} at a time."
+
             if active.held_item:
-                # Unequip whatever is held first
                 inv[active.held_item] = inv.get(active.held_item, 0) + 1
-                
-            active.held_item = item_kind.value
-            inv[item_kind.value] -= 1
+
+            active.held_item = item_val
+            inv[item_val] -= 1
+            if inv[item_val] <= 0: del inv[item_val]
             self.state["inventory"] = inv
             self.set_active_mon(active)
             self.save()
-            
+
             effect_text = {
-                ItemKind.EVERSTONE: "Its evolution is now halted.",
-                ItemKind.LUCKY_EGG: "It will now gain +20% more XP!",
-                ItemKind.AMULET_COIN: "It will now find +50% more tokens in battles and expeditions!",
-                ItemKind.LEFTOVERS: "It will now be protected from daily happiness decay!",
-                ItemKind.CHOICE_SCARF: "It will now complete expeditions 20% faster, but drain happiness faster!",
-                ItemKind.EXP_SHARE: "It will now share 25% of earned XP with inactive companions in your roster!",
-                ItemKind.SOOTHE_BELL: "It will now double happiness gains and halt daily happiness decay!",
-                ItemKind.SCOPE_LENS: "It will now double shiny hatching and encounter chances!",
-                ItemKind.LIFE_ORB: "It will now channel +10% bonus token power from your coding!",
-                ItemKind.CHOICE_BAND: "It will now deal +50% more damage in Boss and Trainer battles!"
-            }.get(item_kind, "")
-            
-            return True, f"Equipped {item_kind.name_en} {item_kind.emoji} to {self.api.get_species_name(active.current_id)}! {effect_text}"
+                "everstone": "Its evolution is now halted.",
+                "lucky_egg": "It will now gain +20% more XP!",
+                "amulet_coin": "It will now find +50% more tokens in battles and expeditions!",
+                "leftovers": "It will now be protected from daily happiness decay!",
+                "choice_scarf": "It will now complete expeditions 20% faster, but drain happiness faster!",
+                "exp_share": "It will now share 25% of earned XP with inactive companions in your roster!",
+                "soothe_bell": "It will now double happiness gains and halt daily happiness decay!",
+                "scope_lens": "It will now double shiny hatching and encounter chances!",
+                "life_orb": "It will now channel +10% bonus token power from your coding!",
+                "choice_band": "It will now deal +50% more damage in Boss and Trainer battles!",
+                "choice_specs": "It will now deal +50% more special damage in Boss and Trainer battles!",
+                "focus_sash": "It will endure a lethal blow with 1 HP remaining in Mt. Silver battles!",
+                "rocky_helmet": "Bosses and foes take recoil damage when striking it!",
+                "assault_vest": "It takes 30% reduced damage from enemy attacks in Mt. Silver!",
+                "heavy_boots": "It is completely protected from environmental field hazards!",
+                "compass_of_deep": "It speeds up all expeditions by +25%!"
+            }.get(item_val, "")
+
+            return True, f"Equipped {item_name} {item_emoji} to {self.api.get_species_name(active.current_id)}! {effect_text}"
 
         elif item_kind == ItemKind.MINT:
             if qty > 1:
@@ -1472,10 +1722,10 @@ class CompanionEngine:
             self.save()
             return True, "Used Golden Razz Berry 🍇! Shiny odds on your NEXT egg hatch boosted to 1/24! ✨"
 
-        elif item_kind == ItemKind.MEGA_STONE:
+        elif item_kind == ItemKind.MEGA_STONE or item_val.startswith("mega_stone_"):
             if qty > 1:
                 return False, "You can only use one Mega Stone at a time!"
-            return self.toggle_mega_evolution()
+            return self.toggle_mega_evolution(target_stone_key=item_val if item_val.startswith("mega_stone_") else None)
 
         elif item_kind.value.endswith("_stone") and item_kind != ItemKind.MEGA_STONE:
             if qty > 1:
@@ -1809,6 +2059,8 @@ class CompanionEngine:
             active = self.active_mon
             if active and active.held_item == "choice_scarf":
                 mult *= 1.20
+            if active and active.held_item == "compass_of_deep":
+                mult *= 1.25
             if self.has_perk("silph"):
                 mult *= 1.15
 
@@ -1865,6 +2117,9 @@ class CompanionEngine:
                     tokens_gain = int(tokens_gain * 1.5)
                 if self.has_perk("silph"):
                     tokens_gain = int(tokens_gain * 1.15)
+                if self.state.get("rocket_radar_charges", 0) > 0:
+                    tokens_gain = int(tokens_gain * 1.5)
+                    self.state["rocket_radar_charges"] -= 1
 
                 # Grant tokens by refunding spent_tokens
                 self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - tokens_gain
@@ -1878,7 +2133,10 @@ class CompanionEngine:
                         else:
                             mon = StorageManager.dict_to_mon(d)
                             
-                        mon.happiness = max(0, mon.happiness - 10)
+                        if self.state.get("expedition_insurance", 0) > 0:
+                            self.state["expedition_insurance"] -= 1
+                        else:
+                            mon.happiness = max(0, mon.happiness - 10)
                         mon.used_at_stage += xp_gain
                         
                         target_xp = PokemonBalance.phase_threshold(mon.rarity, mon.total_forms, mon.stage_index, self.current_difficulty)
@@ -2838,37 +3096,41 @@ class CompanionEngine:
 
     def get_or_init_black_market(self, force_open: bool = False) -> dict:
         bm = self.state.get("black_market")
-        if force_open or not bm or not bm.get("deals"):
-            pool = [
-                {"name": "🍬 Bulk Rare Candies (5x)", "type": "item", "item_key": "rare_candy", "qty": 5, "price": 10_000_000, "stock": 2, "max_stock": 2, "badge": "33% OFF"},
-                {"name": "🍬 Bulk Rare Candies (10x)", "type": "item", "item_key": "rare_candy", "qty": 10, "price": 18_000_000, "stock": 1, "max_stock": 1, "badge": "40% OFF"},
-                {"name": "🌿 Bulk Mints (5x)", "type": "item", "item_key": "mint", "qty": 5, "price": 3_500_000, "stock": 2, "max_stock": 2, "badge": "30% OFF"},
-                {"name": "🫐 Bulk Oran Berries (10x)", "type": "item", "item_key": "berry_oran", "qty": 10, "price": 6_000_000, "stock": 3, "max_stock": 3, "badge": "40% OFF"},
-                {"name": "🍇 Bulk Golden Razz (3x)", "type": "item", "item_key": "berry_golden", "qty": 3, "price": 10_000_000, "stock": 2, "max_stock": 2, "badge": "33% OFF"},
-                {"name": "🎒 Exp. Share (Held Item)", "type": "item", "item_key": "exp_share", "qty": 1, "price": 25_000_000, "stock": 1, "max_stock": 1, "badge": "EXCLUSIVE"},
-                {"name": "🔔 Soothe Bell (Held Item)", "type": "item", "item_key": "soothe_bell", "qty": 1, "price": 20_000_000, "stock": 1, "max_stock": 1, "badge": "EXCLUSIVE"},
-                {"name": "🔍 Scope Lens (Held Item)", "type": "item", "item_key": "scope_lens", "qty": 1, "price": 30_000_000, "stock": 1, "max_stock": 1, "badge": "EXCLUSIVE"},
-                {"name": "🔮 Life Orb (Held Item)", "type": "item", "item_key": "life_orb", "qty": 1, "price": 25_000_000, "stock": 1, "max_stock": 1, "badge": "EXCLUSIVE"},
-                {"name": "🥊 Choice Band (Held Item)", "type": "item", "item_key": "choice_band", "qty": 1, "price": 20_000_000, "stock": 1, "max_stock": 1, "badge": "EXCLUSIVE"},
-                {"name": "🥚 Rare Egg Voucher", "type": "egg", "egg_tier": "rare", "price": 12_000_000, "stock": 1, "max_stock": 1, "badge": "HOT DEAL"},
-                {"name": "🌟 Legendary Egg Voucher", "type": "egg", "egg_tier": "legendary", "price": 40_000_000, "stock": 1, "max_stock": 1, "badge": "LEGENDARY"},
-                {"name": "🌟 Master Ball", "type": "item", "item_key": "master_ball", "qty": 1, "price": 60_000_000, "stock": 1, "max_stock": 1, "badge": "RARE"},
-                {"name": "📜 Ancient Map Trove (3x)", "type": "map_pack", "price": 15_000_000, "stock": 1, "max_stock": 1, "badge": "EXPEDITION"},
-                {"name": "💎 Evolution Stone Trove (3x)", "type": "stone_pack", "price": 30_000_000, "stock": 2, "max_stock": 2, "badge": "EVOLUTION"},
-            ]
+        today_str = datetime.date.today().isoformat()
+        needs_reroll = (
+            bm is None
+            or not bm.get("deals")
+            or bm.get("deals_date") != today_str
+            or len(bm.get("deals", [])) != 7
+        )
+
+        if needs_reroll or force_open:
             import copy
-            selected = random.sample(pool, 4)
+            from poketokenbar.game.black_market import BLACK_MARKET_POOL_100
+            selected = random.sample(BLACK_MARKET_POOL_100, 7)
             deals = []
             for idx, d in enumerate(selected, 1):
                 item = copy.deepcopy(d)
                 item["id"] = idx
                 deals.append(item)
-            bm = {
-                "is_open": True,
-                "days_until_next": 0,
-                "duration_days": 1,
-                "deals": deals
-            }
+
+            if not bm:
+                bm = {
+                    "is_open": force_open,
+                    "natural_open": force_open,
+                    "duration_days": 1,
+                    "deals_date": today_str,
+                    "deals": deals
+                }
+            else:
+                if force_open:
+                    bm["is_open"] = True
+                    bm["natural_open"] = True
+                    bm["duration_days"] = 1
+                if needs_reroll:
+                    bm["deals_date"] = today_str
+                    bm["deals"] = deals
+
             self.state["black_market"] = bm
             self.save()
         return bm
@@ -2876,13 +3138,12 @@ class CompanionEngine:
     def buy_black_market_deal(self, deal_id_str: str, qty: int = 1) -> Tuple[bool, str]:
         bm = self.get_or_init_black_market()
         if not bm.get("is_open"):
-            days = bm.get("days_until_next", 2)
-            return False, f"The Wandering Merchant is currently traveling! Expected return in {days} day(s)."
+            return False, "The Rocket Syndicate backroom is currently locked! Expected return on random days (5% chance)."
 
         try:
             deal_id = int(str(deal_id_str).strip())
         except ValueError:
-            return False, "Invalid deal ID! Example: 'deal 1' or 'deal 2 1'."
+            return False, "Invalid deal ID! Example: 'buy 1' or 'buy 2 1'."
 
         deals = bm.get("deals", [])
         deal = next((d for d in deals if d.get("id") == deal_id), None)
@@ -2915,25 +3176,39 @@ class CompanionEngine:
             if not self.state.get("egg_tier"):
                 self.state["egg_tier"] = tier
                 self.state["egg_usage"] = 0
-                msg = f"Purchased {deal['name']} for {format_tokens(total_cost)} tokens! Now incubating your fresh {tier.capitalize()} Egg."
+                msg = f"Purchased {deal['name']} for {format_tokens(total_cost)} tokens! Now incubating your fresh {tier.replace('_', ' ').title()} Egg."
             else:
                 pending = self.state.setdefault("pending_eggs", [])
                 pending.append(tier)
                 msg = f"Purchased {deal['name']} for {format_tokens(total_cost)} tokens! Added to your Egg Reserves."
-        elif deal_type == "map_pack":
-            inv["map_fragment"] = inv.get("map_fragment", 0) + (3 * qty)
-            msg = f"Purchased {deal['name']} for {format_tokens(total_cost)} tokens! Added {3*qty} Map Fragments to your Bag."
-        elif deal_type == "stone_pack":
-            stone_types = [
-                "water_stone", "fire_stone", "thunder_stone", 
-                "leaf_stone", "moon_stone", "sun_stone", 
-                "ice_stone", "shiny_stone", "dusk_stone", "dawn_stone"
-            ]
-            chosen = [random.choice(stone_types) for _ in range(3 * qty)]
-            for s in chosen:
-                inv[s] = inv.get(s, 0) + 1
-            names = ", ".join(s.replace("_", " ").title() for s in chosen)
-            msg = f"Purchased {deal['name']} for {format_tokens(total_cost)} tokens! Unpacked: {names}!"
+        elif deal_type == "mega_stone":
+            s_id = deal["stone_id"]
+            k = f"mega_stone_{s_id}"
+            inv[k] = inv.get(k, 0) + qty
+            msg = f"Purchased {qty}x {deal['name']} for {format_tokens(total_cost)} tokens! Added to your Bag."
+        elif deal_type.startswith("trove_") or deal_type == "map_pack":
+            from poketokenbar.game.black_market import unpack_trove
+            items_to_add, reveal_names = unpack_trove(deal, qty)
+            for k, v in items_to_add.items():
+                inv[k] = inv.get(k, 0) + v
+            reveals_str = ", ".join(reveal_names)
+            msg = f"Purchased {deal['name']} for {format_tokens(total_cost)} tokens! Unpacked: {reveals_str}!"
+        elif deal_type == "mystery_crate":
+            from poketokenbar.game.black_market import unpack_mystery_crate
+            last_desc = ""
+            for _ in range(qty):
+                c_items, c_tokens, c_egg, last_desc = unpack_mystery_crate(deal["crate_id"])
+                for k, v in c_items.items():
+                    inv[k] = inv.get(k, 0) + v
+                if c_tokens > 0:
+                    self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - c_tokens
+                if c_egg:
+                    if not self.state.get("egg_tier"):
+                        self.state["egg_tier"] = c_egg
+                        self.state["egg_usage"] = 0
+                    else:
+                        self.state.setdefault("pending_eggs", []).append(c_egg)
+            msg = f"Purchased {deal['name']} for {format_tokens(total_cost)} tokens! {last_desc}"
         else:
             msg = f"Purchased {deal['name']}!"
 
@@ -2957,10 +3232,11 @@ class CompanionEngine:
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + bribe
         bm = self.get_or_init_black_market()
         bm["is_open"] = True
+        # NOTE: Backroom session opened. natural_open remains False for Mart alley.
         self.state["black_market"] = bm
         self._record_catalyst("casino_tokens_spent", bribe)
         self.save()
-        return True, f"💰 You paid {format_tokens(bribe)} tokens to the Grunt! He clicks the secret switch behind the poster. The Black Market is unlocked!"
+        return True, f"💰 You paid {format_tokens(bribe)} tokens to the Grunt! He clicks the secret switch behind the poster. The backroom opens!"
 
     def play_poker_bet(self, amount_str: str) -> Tuple[bool, str]:
         clean_str = amount_str.lower().strip()

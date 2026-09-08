@@ -497,10 +497,13 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertEqual(self.engine.state["investments"]["silph"], 1)
 
     def test_black_market_and_held_items(self):
+        from poketokenbar.game.black_market import BLACK_MARKET_POOL_100, unpack_trove, unpack_mystery_crate, get_fake_item_fraud_message
+        self.assertEqual(len(BLACK_MARKET_POOL_100), 100)
+
         self.engine.state["used_since_install"] = 500_000_000
         bm = self.engine.get_or_init_black_market(force_open=True)
         self.assertTrue(bm["is_open"])
-        self.assertEqual(len(bm["deals"]), 4)
+        self.assertEqual(len(bm["deals"]), 7)
 
         # Test purchasing first deal
         deal = bm["deals"][0]
@@ -508,6 +511,32 @@ class TestCompanionEngine(unittest.TestCase):
         ok, msg = self.engine.buy_black_market_deal(str(deal["id"]), 1)
         self.assertTrue(ok)
         self.assertEqual(deal["stock"], initial_stock - 1)
+
+        # Test sealed troves and mystery crates unpack logic
+        trove_res, reveal_names = unpack_trove({"type": "trove_stone", "qty": 3}, 1)
+        self.assertEqual(sum(trove_res.values()), 3)
+        self.assertEqual(len(reveal_names), 3)
+        for it_key in trove_res:
+            self.assertTrue(it_key.endswith("_stone"))
+
+        crate_items, crate_tokens, crate_egg, crate_msg = unpack_mystery_crate("rocket_black_box")
+        self.assertTrue(len(crate_msg) > 0)
+
+        # Test counterfeit items fraud message and usage
+        self.engine.state["inventory"]["fake_rare_candy"] = 2
+        ok_fake, msg_fake = self.engine.use_item("fake_rare_candy", 1)
+        self.assertTrue(ok_fake)
+        self.assertIn("SCAM REVEALED", msg_fake)
+        self.assertIn("rock candy", msg_fake.lower())
+        self.assertEqual(self.engine.state["inventory"].get("fake_rare_candy"), 1)
+
+        # Test selling counterfeit item (should yield 1 token each)
+        avail_before_sell = self.engine.available_tokens
+        ok_sell, msg_sell = self.engine.sell_item("fake_rare_candy", 1)
+        self.assertTrue(ok_sell)
+        self.assertIn("+1 Token", msg_sell)
+        self.assertEqual(self.engine.available_tokens, avail_before_sell + 1)
+        self.assertNotIn("fake_rare_candy", self.engine.state["inventory"])
 
         # Test equipping new held items
         mon, _ = self.engine.hatch_egg(0)
@@ -529,6 +558,14 @@ class TestCompanionEngine(unittest.TestCase):
         self.engine._update_boss_battle(10_000)
         # Normal base damage = 10,000; with Choice Band (+50%) = 15,000 -> 85,000 HP remaining
         self.assertEqual(self.engine.state["active_boss"]["current_hp"], 85_000)
+
+        # Test Choice Specs SpAtk boost against Boss
+        self.engine.state["inventory"]["choice_specs"] = 1
+        ok_specs, msg_specs = self.engine.use_item(ItemKind.CHOICE_SPECS)
+        self.assertTrue(ok_specs)
+        self.assertEqual(self.engine.active_mon.held_item, "choice_specs")
+        self.engine._update_boss_battle(10_000)
+        self.assertEqual(self.engine.state["active_boss"]["current_hp"], 70_000)
 
     def test_72_column_layout_compliance(self):
         import io
@@ -602,14 +639,24 @@ class TestCompanionEngine(unittest.TestCase):
             clean = ansi_regex.sub("", line)
             self.assertLessEqual(len(clean), 72, f"Shop Normal line exceeds 72 cols: '{clean}' (len={len(clean)})")
 
-        # Test Shop Black Market
+        # Test Shop Black Market across all 100 contraband pool items
+        from poketokenbar.game.black_market import BLACK_MARKET_POOL_100
+        import copy
         app.shop_view = "black_market"
-        trap = io.StringIO()
-        with unittest.mock.patch("sys.stdout", trap):
-            render_shop_tab(app)
-        for line in trap.getvalue().split("\n"):
-            clean = ansi_regex.sub("", line)
-            self.assertLessEqual(len(clean), 72, f"Shop Black Market line exceeds 72 cols: '{clean}' (len={len(clean)})")
+        for i in range(0, len(BLACK_MARKET_POOL_100), 7):
+            chunk = BLACK_MARKET_POOL_100[i:i+7]
+            bm_test_deals = []
+            for didx, item in enumerate(chunk, 1):
+                d = copy.deepcopy(item)
+                d["id"] = didx
+                bm_test_deals.append(d)
+            app.engine.state["black_market"]["deals"] = bm_test_deals
+            trap = io.StringIO()
+            with unittest.mock.patch("sys.stdout", trap):
+                render_shop_tab(app)
+            for line in trap.getvalue().split("\n"):
+                clean = ansi_regex.sub("", line)
+                self.assertLessEqual(len(clean), 72, f"Shop Black Market line exceeds 72 cols: '{clean}' (len={len(clean)})")
 
     def test_stock_market_initialization_and_details(self):
         sm = self.engine.get_or_init_stock_market()
@@ -945,8 +992,28 @@ class TestCompanionEngine(unittest.TestCase):
             with patch("sys.stdin", io.StringIO(commands)), patch("sys.stdout"):
                 tui.run()
 
-            # Should have successfully unlocked and opened black market
+            # Should have successfully unlocked and opened black market session, but natural_open remains False
             self.assertTrue(self.engine.state["black_market"]["is_open"])
+            self.assertFalse(self.engine.state["black_market"].get("natural_open", False))
+
+            # 6. Test Mart Tab 4 door is bolted when natural_open is False and no session
+            tui5 = PokeTokenBarTUI()
+            tui5.engine = self.engine
+            commands5 = "\n".join(["4", "black", "q"]) + "\n"
+            trap5 = io.StringIO()
+            with patch("sys.stdin", io.StringIO(commands5)), patch("sys.stdout", trap5):
+                tui5.run()
+            self.assertIn("The back alley door is bolted shut from the inside.", trap5.getvalue())
+            self.assertEqual(getattr(tui5, "shop_view", "normal"), "normal")
+
+            # 7. When natural_open is True, Tab 4 alley door opens
+            self.engine.state["black_market"]["natural_open"] = True
+            tui6 = PokeTokenBarTUI()
+            tui6.engine = self.engine
+            commands6 = "\n".join(["4", "black", "q"]) + "\n"
+            with patch("sys.stdin", io.StringIO(commands6)), patch("sys.stdout"):
+                tui6.run()
+            self.assertEqual(tui6.shop_view, "black_market")
 
 if __name__ == "__main__":
     unittest.main()
