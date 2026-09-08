@@ -207,7 +207,7 @@ def _render_stocks_view(app, avail: int):
     pnl_col = GREEN if portfolio_pnl >= 0 else RED
     pnl_display = f"{pnl_col}{pnl_sign}{format_tokens(portfolio_pnl)}{RESET}"
     sys.stdout.write(f"  {BOLD}Portfolio:{RESET} Cost: {BOLD}{CYAN}{format_tokens(total_invested)}{RESET} | Val: {BOLD}{GREEN}{format_tokens(total_market_val)}{RESET} | P&L: {pnl_display} | Div: +{format_tokens(total_daily_div)}/d\n")
-    sys.stdout.write(f"  Page {app.stock_page}/{total_pages} ('n'/'p') | Type '{BOLD}stock <CODE>{RESET}' or '{BOLD}1{RESET}'..'{BOLD}5{RESET}' for Terminal\n")
+    sys.stdout.write(f"  Page {app.stock_page}/{total_pages} ('n'/'p') | Type '{BOLD}stock <idx|code>{RESET}' for Terminal\n")
     sys.stdout.write(f"  ➔ Commands: '{BOLD}invest <code> <qty>{RESET}', '{BOLD}divest <code> <qty>{RESET}'\n\n")
 
 def _render_stock_terminal(app, avail: int, corp_key: str):

@@ -767,14 +767,23 @@ class TestCompanionEngine(unittest.TestCase):
             tui.engine.state["used_since_install"] = 500_000_000
             tui.engine.state["spent_tokens"] = 0
 
-            # Navigate to Bank -> Stocks -> Open Silph via '1' -> Buy 1 -> Sell 1 -> Back -> Open Devon via 'stock DEVON' -> Buy 1 -> Back -> Quit
-            commands = "\n".join(["10", "s", "1", "buy 1", "sell 1", "back", "stock DEVON", "buy 1", "back", "q"]) + "\n"
+            # Navigate to Bank -> Stocks -> Open Silph via 'stock 1' -> Buy 1 -> Sell 1 -> Back -> Open Devon via 'stock DEVON' -> Buy 1 -> Back -> Quit
+            commands = "\n".join(["10", "s", "stock 1", "buy 1", "sell 1", "back", "stock DEVON", "buy 1", "back", "q"]) + "\n"
             with patch("sys.stdin", io.StringIO(commands)), patch("sys.stdout"):
                 tui.run()
 
             self.assertEqual(tui.engine.state["investments"]["devon"], 1)
             self.assertEqual(tui.engine.state["investments"]["silph"], 0)
             self.assertIsNone(tui.stock_terminal)
+
+            # Test that typing '1'..'5' in stock menu switches tabs instead of opening terminal
+            tui_nav = PokeTokenBarTUI()
+            tui_nav.engine = self.engine
+            commands_nav = "\n".join(["10", "s", "2", "q"]) + "\n"
+            with patch("sys.stdin", io.StringIO(commands_nav)), patch("sys.stdout"):
+                tui_nav.run()
+            self.assertEqual(tui_nav.current_tab, 2)
+            self.assertIsNone(tui_nav.stock_terminal)
 
     def test_expedition_multi_selection_and_interactive_picker(self):
         """Verify interactive multi-select picker and staged expedition dispatching."""

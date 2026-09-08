@@ -114,18 +114,20 @@ ptb
 | :--- | :--- |
 | `1` .. `11` | Switch directly between tabs 1 through 11 |
 | `sel <row> \| #<id> \| egg` | Switch active companion or incubating egg (in Tab 3) |
-| `select <row(s)>` / `pick <row(s)>` | Stage multiple companions for expedition (e.g. `select 1 2 3`) |
-| `dispatch` / `send` | Open the Interactive Multi-Select Expedition Dispatcher |
+| `pick` | Open Interactive Multi-Select Expedition Dispatcher (in Tab 5) |
 | `send <area>` | Dispatch all currently staged companions to `<area>` (e.g. `send mine`) |
 | `send <row(s)> <area>` | Direct batch dispatch (e.g. `send 1,2,3 viridian`, `send 1-5 mine`, `send all silver`) |
+| `clear` | Clear currently selected expedition companions |
 | `pass <idx>` | Instantly finish an active expedition using an Expedition Pass (🎫) |
 | `deposit` / `withdraw <amt>` | Bank checking account deposit/withdrawal (e.g. `deposit 10m`, `withdraw 5m`) |
 | `loan` / `payoff <amt>` | Take out or repay token loans (e.g. `loan 2m`, `payoff all`) |
 | `open <1d\|3d\|7d> <amt>` | Open a Certificate of Deposit (CD) with locked high APY |
 | `claim <id>` / `break <id>` | Claim matured CD payout or break CD early with penalty |
-| `stocks` / `board` | Switch Bank to Stock Market view |
-| `stock <sym>` / `1`..`5` | Open Trade Terminal for Silph (`SLPH`), Devon (`DEVN`), etc. |
+| `b` / `c` / `s` | Switch Bank subtabs (Checking, Certificate of Deposit, Stocks) |
+| `stock <idx\|sym>` | Open Trade Terminal for Silph (`1`/`SLPH`), Devon (`2`/`DEVN`), etc. |
 | `buy <qty>` / `sell <qty>` | Buy or sell shares in active stock terminal |
+| `black` | Open Black Market wandering merchant (in Tab 4) |
+| `back` | Return from submodes (Dispatcher, Stock Terminal, Casino, Black Market) |
 | `play <1..4>` | Open Game Corner minigames (1=Poker, 2=Gacha, 3=Slots, 4=Blackjack) |
 | `bet <amount>` | Place a bet in Poker or Blackjack (e.g. `bet 500k`, `bet 1m`) |
 | `hold <1..5>` / `all` / `none` | Choose cards to hold in Video Poker |

@@ -259,56 +259,10 @@ class PokeTokenBarTUI:
                     self.engine.state["spent_tokens"] = self.engine.state.get("spent_tokens", 0) - 50_000_000
                     self.engine.save()
                     self.message = "🎉 EASTER EGG UNLOCKED! Granted 50.0M Tokens! 🎉"
-                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and not getattr(self, "stock_terminal", None) and cmd in ["1", "2", "3", "4", "5"]:
-                    from poketokenbar.game.models import CORPORATIONS
-                    c_keys = list(CORPORATIONS.keys())
-                    idx = int(cmd) - 1
-                    if 0 <= idx < len(c_keys):
-                        self.stock_terminal = c_keys[idx]
-                        self.message = f"Opened {CORPORATIONS[self.stock_terminal].ticker} Trade Terminal."
-                elif cmd == "1":
+                elif cmd in [str(i) for i in range(1, 12)]:
                     self.expedition_picker_mode = False
-                    self.current_tab = 1
-                    self.message = ""
-                elif cmd == "2":
-                    self.expedition_picker_mode = False
-                    self.current_tab = 2
-                    self.message = ""
-                elif cmd == "3":
-                    self.expedition_picker_mode = False
-                    self.current_tab = 3
-                    self.message = ""
-                elif cmd == "4":
-                    self.expedition_picker_mode = False
-                    self.current_tab = 4
-                    self.message = ""
-                elif cmd == "5":
-                    self.expedition_picker_mode = False
-                    self.current_tab = 5
-                    self.message = ""
-                elif cmd == "6":
-                    self.expedition_picker_mode = False
-                    self.current_tab = 6
-                    self.message = ""
-                elif cmd == "7":
-                    self.expedition_picker_mode = False
-                    self.current_tab = 7
-                    self.message = ""
-                elif cmd == "8":
-                    self.expedition_picker_mode = False
-                    self.current_tab = 8
-                    self.message = ""
-                elif cmd == "9":
-                    self.expedition_picker_mode = False
-                    self.current_tab = 9
-                    self.message = ""
-                elif cmd == "10":
-                    self.expedition_picker_mode = False
-                    self.current_tab = 10
-                    self.message = ""
-                elif cmd == "11":
-                    self.expedition_picker_mode = False
-                    self.current_tab = 11
+                    self.stock_terminal = None
+                    self.current_tab = int(cmd)
                     self.message = ""
                 elif cmd == "r":
                     summary = self.tracker.get_summary(force=True)
@@ -530,7 +484,7 @@ class PokeTokenBarTUI:
                     shares = parts[1] if len(parts) >= 2 else "1"
                     ok, msg = self.engine.divest_corporate(self.stock_terminal, shares)
                     self.message = msg
-                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and (cmd.startswith("stock ") or cmd.startswith("view ")):
+                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and (cmd.startswith("stock ") or cmd == "stock"):
                     from poketokenbar.game.models import CORPORATIONS
                     parts = cmd.split()
                     if len(parts) >= 2:
@@ -547,8 +501,7 @@ class PokeTokenBarTUI:
                         else:
                             self.message = f"Unknown stock code '{target}'!"
                     else:
-                        self.stock_terminal = None
-                        self.message = ""
+                        self.message = "Usage: stock <idx|code> (e.g. 'stock 1' or 'stock SILPH')"
                 elif cmd.startswith("cd "):
                     parts = cmd.split()
                     action = parts[1] if len(parts) > 1 else ""
