@@ -1015,6 +1015,678 @@ class TestCompanionEngine(unittest.TestCase):
                 tui6.run()
             self.assertEqual(tui6.shop_view, "black_market")
 
+    def test_viridian_stock_market_and_perk(self):
+        from poketokenbar.game.models import CORPORATIONS
+        self.assertIn("viridian", CORPORATIONS)
+        corp = CORPORATIONS["viridian"]
+        self.assertEqual(corp.ticker, "VRDN")
+        self.assertEqual(corp.share_price, 25_000_000)
+
+        # Check alias resolution
+        self.assertEqual(self.engine._resolve_corp_key("vrdn"), "viridian")
+        self.assertEqual(self.engine._resolve_corp_key("virg"), "viridian")
+        self.assertEqual(self.engine._resolve_corp_key("VRDN"), "viridian")
+
+        # Invest in VRDN
+        self.engine.state["used_since_install"] = 100_000_000
+        self.engine.state["spent_tokens"] = 0
+        ok, msg = self.engine.invest_corporate("VRDN", "2")
+        self.assertTrue(ok)
+        self.assertEqual(self.engine.state["investments"]["viridian"], 2)
+
+    def test_rocket_story_unlock_prerequisites_500m_holding(self):
+        # Case A: Red badge present, but 0 VRDN shares
+        self.engine.state["gym_badges"] = ["👑 Master of Masters"]
+        self.engine.state["investments"]["viridian"] = 0
+        unlocked, _ = self.engine.check_rocket_story_unlock()
+        self.assertFalse(unlocked)
+        self.assertFalse(self.engine.state.get("rocket_story_unlocked", False))
+
+        # Case B: No Red badge, but 20 VRDN shares (500M holding value)
+        self.engine.state["gym_badges"] = []
+        self.engine.state["investments"]["viridian"] = 20
+        unlocked, _ = self.engine.check_rocket_story_unlock()
+        self.assertFalse(unlocked)
+        self.assertFalse(self.engine.state.get("rocket_story_unlocked", False))
+
+        # Case C: Red badge present, but 19 shares (475M holding value < 500M)
+        self.engine.state["gym_badges"] = ["👑 Master of Masters"]
+        self.engine.state["investments"]["viridian"] = 19
+        unlocked, _ = self.engine.check_rocket_story_unlock()
+        self.assertFalse(unlocked)
+        self.assertFalse(self.engine.state.get("rocket_story_unlocked", False))
+
+        # Case D: Red badge present AND 20 shares (500M holding value) -> UNLOCK!
+        self.engine.state["investments"]["viridian"] = 20
+        unlocked, alert_msg = self.engine.check_rocket_story_unlock()
+        self.assertTrue(unlocked)
+        self.assertTrue(self.engine.state["rocket_story_unlocked"])
+        self.assertFalse(self.engine.state["rocket_story_viewed"])
+        self.assertIn("Commander Petrel", alert_msg)
+
+    def test_tab_12_hidden_until_unlocked(self):
+        from poketokenbar.tui import PokeTokenBarTUI
+        import io
+        from unittest.mock import patch
+
+        tui = PokeTokenBarTUI()
+        tui.engine = self.engine
+
+        # 1. Before unlock: Tab 12 is NOT rendered
+        self.engine.state["rocket_story_unlocked"] = False
+        trap = io.StringIO()
+        with patch("sys.stdout", trap):
+            tui.render_tabs()
+        output = trap.getvalue()
+        self.assertNotIn("Rocket HQ", output)
+        self.assertNotIn("[12]", output)
+
+        # 2. After unlock before alliance accepted: Tab 12 is rendered as [12] Secure Comm
+        self.engine.state["rocket_story_unlocked"] = True
+        self.engine.state["rocket_alliance_accepted"] = False
+        trap2 = io.StringIO()
+        with patch("sys.stdout", trap2):
+            tui.render_tabs()
+        output2 = trap2.getvalue()
+        self.assertIn("[12] Secure Comm", output2)
+
+        # 3. After alliance accepted: Tab 12 is rendered as [12] Rocket HQ
+        self.engine.state["rocket_alliance_accepted"] = True
+        trap3 = io.StringIO()
+        with patch("sys.stdout", trap3):
+            tui.render_tabs()
+        output3 = trap3.getvalue()
+        self.assertIn("[12] Rocket HQ", output3)
+
+    def test_rocket_interactive_transmission_and_dormant_channel(self):
+        import io
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.rocket import render_rocket_transmission, handle_rocket_command
+
+        app = MagicMock()
+        app.engine = self.engine
+
+        # Scenario A: Accept immediately (choice 1)
+        self.engine.state["rocket_story_viewed"] = False
+        self.engine.state["rocket_alliance_accepted"] = False
+        with patch("sys.stdout", io.StringIO()), patch("sys.stdin.readline", side_effect=["1\n"]):
+            render_rocket_transmission(app)
+        self.assertTrue(self.engine.state["rocket_story_viewed"])
+        self.assertTrue(self.engine.state["rocket_alliance_accepted"])
+
+        # Scenario B: Demand proof (choice 2) then accept (choice 1)
+        self.engine.state["rocket_story_viewed"] = False
+        self.engine.state["rocket_alliance_accepted"] = False
+        with patch("sys.stdout", io.StringIO()), patch("sys.stdin.readline", side_effect=["2\n", "1\n"]):
+            render_rocket_transmission(app)
+        self.assertTrue(self.engine.state["rocket_story_viewed"])
+        self.assertTrue(self.engine.state["rocket_alliance_accepted"])
+
+        # Scenario C: Decline (choice 3), then refuse again (choice 2) -> sets dormant fallback
+        self.engine.state["rocket_story_viewed"] = False
+        self.engine.state["rocket_alliance_accepted"] = False
+        with patch("sys.stdout", io.StringIO()), patch("sys.stdin.readline", side_effect=["3\n", "2\n", "\n"]):
+            render_rocket_transmission(app)
+        self.assertTrue(self.engine.state["rocket_story_viewed"])
+        self.assertFalse(self.engine.state["rocket_alliance_accepted"])
+
+        # Dormant channel accepts command 'accept'
+        handle_rocket_command(app, "accept")
+        self.assertTrue(self.engine.state["rocket_alliance_accepted"])
+
+    def test_rocket_operations_and_boss_progression(self):
+        self.engine.state["used_since_install"] = 500_000_000
+        self.engine.state["spent_tokens"] = 0
+        self.engine.state["rocket_alliance_accepted"] = True
+
+        ops = self.engine.get_rocket_operations()
+        self.assertEqual(len(ops), 10)
+        self.assertEqual(ops[0]["status"], "available")
+        self.assertEqual(ops[1]["status"], "locked")
+
+        # Op 1: Start and test objective check
+        ok_start, _ = self.engine.start_rocket_operation("1")
+        self.assertTrue(ok_start)
+        self.engine.state["expedition_logs"] = ["log 1", "log 2"]
+        events = []
+        self.engine._update_rocket_operations(5_000_000, events)
+        ok_claim, msg_claim = self.engine.claim_rocket_operation("1")
+        self.assertTrue(ok_claim)
+        self.assertEqual(self.engine.state["rocket_reputation"], 1)
+
+        # Op 2: Requires 2 battle wins
+        self.engine.state["trainer_battles"] = {"wins": 2, "losses": 0}
+        ok_start2, _ = self.engine.start_rocket_operation("2")
+        self.assertTrue(ok_start2)
+        self.engine._update_rocket_operations(10_000_000, events)
+        ok_claim2, _ = self.engine.claim_rocket_operation("2")
+        self.assertTrue(ok_claim2)
+        self.assertEqual(self.engine.state["rocket_reputation"], 2)
+        self.assertEqual(self.engine.state["rocket_rank"], "Operative")
+
+        # Op 3: Boss 1 (Prototype Chimera-001)
+        ok_start3, _ = self.engine.start_rocket_operation("3")
+        self.assertTrue(ok_start3)
+        # Cannot claim while boss is alive
+        ok_premature, _ = self.engine.claim_rocket_operation("3")
+        self.assertFalse(ok_premature)
+        # Attack boss
+        ok_atk, msg_atk = self.engine.attack_rocket_boss(burst=False)
+        self.assertTrue(ok_atk)
+        # Burst attack with tokens
+        ok_burst, msg_burst = self.engine.attack_rocket_boss(burst=True)
+        self.assertTrue(ok_burst)
+        # Defeat boss
+        self.engine.state["rocket_ops"]["op_3"]["boss_hp_remaining"] = 0
+        ok_claim3, msg_claim3 = self.engine.claim_rocket_operation("3")
+        self.assertTrue(ok_claim3)
+
+        # Test Dossiers 1-3 unlocked
+        dossier = self.engine.get_rocket_dossier()
+        self.assertEqual(len(dossier), 10)
+        self.assertTrue(dossier[0]["unlocked"])
+        self.assertTrue(dossier[1]["unlocked"])
+        self.assertTrue(dossier[2]["unlocked"])
+
+        # Test Final Op 10 Climax Unlocks
+        self.engine.state["rocket_ops"]["op_10"]["status"] = "available"
+        self.engine.start_rocket_operation("10")
+        self.engine.state["rocket_ops"]["op_10"]["boss_hp_remaining"] = 0
+        ok_final, msg_final = self.engine.claim_rocket_operation("10")
+        self.assertTrue(ok_final)
+
+        # Verify Endgame Rewards
+        self.assertIn("👑 Seeker of Truth", self.engine.state.get("gym_badges", []))
+        self.assertTrue(self.engine.state.get("permanent_black_market", False))
+
+        # Check recruited companions in dex roster
+        dex_sp_ids = [d.get("species_id") for d in self.engine.state.get("dex", [])]
+        self.assertIn(2001, dex_sp_ids)  # Armored Mewtwo
+        self.assertIn(2002, dex_sp_ids)  # Porygon-Zero
+        for aug_id in [2003, 2004, 2005, 2006, 2007, 2008]:
+            self.assertIn(aug_id, dex_sp_ids)
+
+        # Verify species names
+        self.assertEqual(self.engine.api.get_species_name(2001), "Armored Mewtwo")
+        self.assertEqual(self.engine.api.get_species_name(2002), "Porygon-Zero")
+        self.assertEqual(self.engine.api.get_species_name(2003), "Augmented Venusaur")
+
+    def test_rocket_armory_rank_clearance(self):
+        self.engine.state["used_since_install"] = 500_000_000
+        self.engine.state["spent_tokens"] = 0
+
+        # At Informant rank:
+        self.engine.state["rocket_rank"] = "Informant"
+        ok_elixir, _ = self.engine.buy_rocket_armory_item("elixir")
+        self.assertTrue(ok_elixir)
+
+        # Overclock chip requires Operative
+        ok_chip_denied, msg_chip = self.engine.buy_rocket_armory_item("chip")
+        self.assertFalse(ok_chip_denied)
+        self.assertIn("Clearance Denied", msg_chip)
+
+        # Upgrade to Operative
+        self.engine.state["rocket_rank"] = "Operative"
+        self.engine.state["expeditions"] = [{"area_id": "viridian", "target_tokens": 10_000_000, "progress_tokens": 0}]
+        ok_chip, _ = self.engine.buy_rocket_armory_item("chip")
+        self.assertTrue(ok_chip)
+
+    def test_72_column_layout_compliance_tab_12(self):
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.rocket import render_rocket_tab, render_rocket_transmission
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+        app = MagicMock()
+        app.engine = self.engine
+        self.engine.state["rocket_story_unlocked"] = True
+        self.engine.state["rocket_alliance_accepted"] = True
+
+        # Test all subviews: ops, intel, read_intel, armory
+        for subview in ["ops", "intel", "read_intel", "armory"]:
+            app.rocket_subview = subview
+            app.rocket_reading_file = 1
+            trap = io.StringIO()
+            with patch("sys.stdout", trap):
+                render_rocket_tab(app)
+            for line in trap.getvalue().split("\n"):
+                clean = ansi_regex.sub("", line)
+                self.assertLessEqual(len(clean), 72, f"Rocket Tab [{subview}] exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+        # Test dormant secure comm channel
+        self.engine.state["rocket_alliance_accepted"] = False
+        trap_comm = io.StringIO()
+        with patch("sys.stdout", trap_comm):
+            render_rocket_tab(app)
+        for line in trap_comm.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Secure Comm line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+        # Test active boss chamber HUD in ops view
+        self.engine.state["rocket_alliance_accepted"] = True
+        app.rocket_subview = "ops"
+        self.engine.state["rocket_ops"]["op_3"]["status"] = "active"
+        self.engine.state["rocket_ops"]["op_3"]["boss_hp_remaining"] = 12_500
+        trap_boss = io.StringIO()
+        with patch("sys.stdout", trap_boss):
+            render_rocket_tab(app)
+        for line in trap_boss.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Boss chamber line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+        # Test transmission screens with all choices
+        for seq in [["1\n"], ["2\n", "1\n"], ["3\n", "1\n"], ["3\n", "2\n", "\n"]]:
+            trap_modal = io.StringIO()
+            with patch("sys.stdout", trap_modal), patch("sys.stdin.readline", side_effect=seq):
+                render_rocket_transmission(app)
+            for line in trap_modal.getvalue().split("\n"):
+                clean = ansi_regex.sub("", line)
+                self.assertLessEqual(len(clean), 72, f"Transmission line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+    def test_graduated_companion_no_repeated_graduation_or_alerts(self):
+        """Verify that once a companion graduates, feeding berries or gaining tokens does not re-trigger graduation."""
+        # 1. Setup Venusaur (ID: 3) in dex as graduated
+        venusaur_state = MonState(
+            base_id=1,
+            path_ids=[1, 2, 3],
+            planned_path_ids=[1, 2, 3],
+            stage_index=2,
+            used_at_stage=125_000_000,
+            rarity=Rarity.RARE,
+            total_forms=3,
+            is_shiny=True,
+            happiness=50,
+            is_graduated=True
+        )
+        self.engine.state["collected_finals"] = ["1_3"]
+        self.engine.state["dex"] = [{
+            "id": "sp_3",
+            "species_id": 3,
+            "base_id": 1,
+            "chain_order": [1, 2, 3],
+            "rarity": "rare",
+            "status": "graduated",
+            "mon_state": StorageManager.mon_to_dict(venusaur_state)
+        }]
+        self.engine.state["inventory"] = {"berry_oran": 5}
+        self.engine.state["unread_alerts"] = []
+
+        # 2. Select Venusaur from dex as active companion
+        ok_sel, msg_sel = self.engine.select_active_from_dex("3")
+        self.assertTrue(ok_sel)
+        self.assertIsNotNone(self.engine.active_mon)
+        self.assertEqual(self.engine.active_mon.current_id, 3)
+        self.assertTrue(self.engine.active_mon.is_graduated)
+
+        # 3. Feed an Oran Berry
+        ok_feed, msg_feed = self.engine.use_item("berry_oran", 1)
+        self.assertTrue(ok_feed)
+        self.assertEqual(self.engine.active_mon.happiness, 75)
+
+        # 4. Simulate token growth / process_usage
+        initial_tokens = self.engine.state.get("used_since_install", 0)
+        events = self.engine.process_usage(initial_tokens + 5_000_000)
+
+        # 5. Assertions: Venusaur remains active and NO graduation event or alert is fired!
+        self.assertIsNotNone(self.engine.active_mon)
+        self.assertEqual(self.engine.active_mon.current_id, 3)
+        self.assertNotIn("🎓 Graduation!", " ".join(events))
+        alerts = self.engine.state.get("unread_alerts", [])
+        self.assertFalse(any("Graduation!" in a for a in alerts))
+
+        # 6. Switch away to egg, verify status in dex returns to 'graduated', not 'inactive'
+        self.engine.state["egg_tier"] = "common"
+        self.engine.select_active_from_dex("egg")
+        self.assertIsNone(self.engine.active_mon)
+        dex_v = [d for d in self.engine.state["dex"] if d.get("species_id") == 3][0]
+        self.assertEqual(dex_v["status"], "graduated")
+
+    def test_stock_market_pattern_cycles_and_forward_hints(self):
+        """Verify stock market pattern cycles, forward-looking hints, and anti-infinite price bounds."""
+        from poketokenbar.game.stock_market import (
+            StockMarketEngine, BASE_PRICES, PATTERN_HINTS
+        )
+
+        sm = self.engine.get_or_init_stock_market()
+        self.assertIn("market_state", sm)
+
+        # 1. Verify all corporations have pattern state and hints <= 52 characters
+        for c_key in BASE_PRICES:
+            self.assertIn(c_key, sm["market_state"])
+            st = sm["market_state"][c_key]
+            self.assertIn("pattern", st)
+            self.assertIn("phase", st)
+            self.assertIn("next_bias", st)
+            self.assertIn("next_hint", st)
+            self.assertLessEqual(len(st["next_hint"]), 52, f"Hint for {c_key} exceeds 52 chars: {st['next_hint']}")
+            self.assertEqual(sm["latest_news"][c_key], st["next_hint"])
+
+        # 2. Verify all pattern hints in the dictionary are <= 52 characters
+        for c_key, pat_map in PATTERN_HINTS.items():
+            for pat_name, phase_list in pat_map.items():
+                for bias, hint_text in phase_list:
+                    self.assertLessEqual(len(hint_text), 52, f"Hint '{hint_text}' for {c_key} exceeds 52 cols")
+
+        # 3. Step the market forward 30 days and verify price bounds
+        events = []
+        for day in range(30):
+            self.engine._rollover_stock_market(days_to_apply=1, diff=1, current_streak=day + 1, events=events)
+
+        for c_key, base in BASE_PRICES.items():
+            price = sm["prices"][c_key]
+            floor = StockMarketEngine.get_floor_price(c_key)
+            cap = StockMarketEngine.get_hard_cap(c_key)
+            self.assertGreaterEqual(price, floor, f"{c_key} fell below floor: {price} < {floor}")
+            self.assertLessEqual(price, cap, f"{c_key} exceeded hard cap: {price} > {cap}")
+
+    def test_72_column_layout_compliance_tab_10_bank_and_terminal(self):
+        """Verify that Bank Tab 10 and Stock Terminal views strictly respect <= 72 columns."""
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.bank import render_bank_tab, _render_stock_terminal
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+        app = MagicMock()
+        app.engine = self.engine
+        app.bank_subtab = "stocks"
+        app.stock_terminal = None
+        app.stock_page = 1
+
+        # Render Main Board page 1 and page 2
+        for p in [1, 2]:
+            app.stock_page = p
+            trap = io.StringIO()
+            with patch("sys.stdout", trap):
+                render_bank_tab(app)
+            for line in trap.getvalue().split("\n"):
+                clean = ansi_regex.sub("", line)
+                self.assertLessEqual(len(clean), 72, f"Bank Tab [stocks page {p}] exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+        # Render Stock Terminal for each corporation
+        for c_key in ["silph", "devon", "aether", "mauville", "macro", "viridian"]:
+            trap_term = io.StringIO()
+            with patch("sys.stdout", trap_term):
+                _render_stock_terminal(app, avail=50_000_000, corp_key=c_key)
+            for line in trap_term.getvalue().split("\n"):
+                clean = ansi_regex.sub("", line)
+                self.assertLessEqual(len(clean), 72, f"Stock Terminal [{c_key}] exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+    def test_spear_pillar_expedition_happiness_retention(self):
+        """Verify Spear Pillar expedition dispatch and pass usage retain proper happiness (90% without insurance, 100% with insurance)."""
+        # 1. Setup Charizard in dex with 100% happiness
+        charizard_state = MonState(
+            base_id=4,
+            path_ids=[4, 5, 6],
+            planned_path_ids=[4, 5, 6],
+            stage_index=2,
+            used_at_stage=100_000_000,
+            rarity=Rarity.RARE,
+            total_forms=3,
+            happiness=100,
+            is_graduated=True
+        )
+        self.engine.state["dex"] = [{
+            "id": "sp_6",
+            "species_id": 6,
+            "base_id": 4,
+            "chain_order": [4, 5, 6],
+            "rarity": "rare",
+            "status": "inactive",
+            "happiness": 100,
+            "mon_state": StorageManager.mon_to_dict(charizard_state)
+        }]
+        self.engine.state["inventory"] = {
+            "map_fragment": 3,
+            "expedition_pass": 1
+        }
+        self.engine.state["expeditions"] = []
+
+        # 2. Dispatch Charizard to Spear Pillar
+        ok_disp, msg_disp = self.engine.dispatch_expedition("#6", "spear")
+        self.assertTrue(ok_disp, f"Dispatch failed: {msg_disp}")
+        self.assertEqual(len(self.engine.state["expeditions"]), 1)
+        self.assertEqual(self.engine.state["expeditions"][0]["sp_id"], 6)
+
+        # 3. Assert happiness was NOT deducted prematurely upon dispatch
+        entry = [d for d in self.engine.state["dex"] if d.get("species_id") == 6][0]
+        self.assertEqual(entry.get("happiness"), 100)
+        self.assertEqual(entry.get("mon_state", {}).get("happiness"), 100)
+
+        # 4. Use Expedition Pass to instantly complete the expedition
+        ok_pass, msg_pass = self.engine.use_expedition_pass("1")
+        self.assertTrue(ok_pass, f"Use pass failed: {msg_pass}")
+        self.assertEqual(len(self.engine.state["expeditions"]), 0)
+
+        # 5. Assert happiness is 90% (standard -10 fatigue on completion, NOT 0%!)
+        entry = [d for d in self.engine.state["dex"] if d.get("species_id") == 6][0]
+        self.assertEqual(entry.get("happiness"), 90)
+        self.assertEqual(entry.get("mon_state", {}).get("happiness"), 90)
+
+        # 6. Now test with expedition insurance: happiness stays protected at 100%
+        charizard_state.happiness = 100
+        entry["happiness"] = 100
+        entry["mon_state"] = StorageManager.mon_to_dict(charizard_state)
+        self.engine.state["inventory"]["map_fragment"] = 3
+        self.engine.state["inventory"]["expedition_pass"] = 1
+        self.engine.state["expedition_insurance"] = 1
+
+        ok_disp2, msg_disp2 = self.engine.dispatch_expedition("#6", "spear")
+        self.assertTrue(ok_disp2, f"Dispatch 2 failed: {msg_disp2}")
+        ok_pass2, msg_pass2 = self.engine.use_expedition_pass("1")
+        self.assertTrue(ok_pass2, f"Use pass 2 failed: {msg_pass2}")
+        entry = [d for d in self.engine.state["dex"] if d.get("species_id") == 6][0]
+        self.assertEqual(entry.get("happiness"), 100)
+        self.assertEqual(entry.get("mon_state", {}).get("happiness"), 100)
+        self.assertEqual(self.engine.state.get("expedition_insurance"), 0)
+
+    def test_mega_stone_bag_exclusion_and_single_ownership_enforcement(self):
+        """Verify Mega Stones do not appear in the Bag, only in Tab 8, and strictly enforce 1 stone limit."""
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.shop import render_shop_tab
+        from poketokenbar.tui_tabs.mega_evo import render_mega_evo_tab
+        from poketokenbar.game.models import MEGA_STONES
+
+        # 1. Setup inventory with a regular item and multiple mega stones
+        self.engine.state["inventory"] = {
+            "rare_candy": 5,
+            "mega_stone_6_X": 1,
+            "mega_stone_6_Y": 1,
+            "mega_stone_3": 1
+        }
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+        app = MagicMock()
+        app.engine = self.engine
+        app.shop_view = "normal"
+        app.shop_page = 1
+        app.mega_page = 1
+
+        # 2. Render Shop/Bag Tab (Tab 4): Mega Stones must NOT appear in Bag output!
+        trap_bag = io.StringIO()
+        with patch("sys.stdout", trap_bag):
+            render_shop_tab(app)
+        bag_output = ansi_regex.sub("", trap_bag.getvalue())
+        self.assertIn("Rare Candy", bag_output)
+        self.assertNotIn("Charizardite", bag_output)
+        self.assertNotIn("Venusaurite", bag_output)
+
+        # 3. Render Mega Evolution Tab (Tab 8): Mega Stones MUST appear!
+        trap_mega = io.StringIO()
+        with patch("sys.stdout", trap_mega):
+            render_mega_evo_tab(app)
+        mega_output = ansi_regex.sub("", trap_mega.getvalue())
+        self.assertIn("Venusaurite", mega_output)
+        self.assertIn("Charizardite X", mega_output)
+        self.assertIn("Charizardite Y", mega_output)
+        # Ensure 72-col compliance in Tab 8
+        for line in trap_mega.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Tab 8 line exceeds 72 cols: '{clean}'")
+
+        # 4. Enforce max 1 stone: Clamping on initialization
+        self.engine.state["inventory"]["mega_stone_6_X"] = 5
+        self.engine.__init__()
+        self.assertEqual(self.engine.state["inventory"]["mega_stone_6_X"], 1)
+
+        # 5. Prevent selling Mega Stones
+        ok_sell, msg_sell = self.engine.sell_item("mega_stone_6_X", 1)
+        self.assertFalse(ok_sell)
+        self.assertIn("cannot be sold", msg_sell)
+
+        # 6. Prevent duplicate purchases in Shop (buy_item)
+        for sid in MEGA_STONES.keys():
+            self.engine.state["inventory"][f"mega_stone_{sid}"] = 1
+        self.engine.state["spent_tokens"] = 0
+        self.engine.state["used_since_install"] = 100_000_000
+        ok_buy, msg_buy = self.engine.buy_item(ItemKind.MEGA_STONE, 1)
+        self.assertFalse(ok_buy)
+        self.assertIn("already own all available Mega Stones", msg_buy)
+
+        # 7. Prevent duplicate purchases in Black Market
+        bm = self.engine.get_or_init_black_market(force_open=True)
+        deals = [{"id": i, "name": f"Deal {i}", "type": "item", "item_key": "rare_candy", "price": 10_000_000, "stock": 1, "qty": 1} for i in range(1, 8)]
+        deals[0] = {"id": 1, "name": "🔮 Charizardite X", "type": "mega_stone", "stone_id": "6_X", "price": 10_000_000, "stock": 1}
+        bm["deals"] = deals
+        self.engine.state["black_market"] = bm
+        self.engine.save()
+        ok_bm, msg_bm = self.engine.buy_black_market_deal("1", 1)
+        self.assertFalse(ok_bm)
+        self.assertIn("already own", msg_bm)
+
+    def test_fixed_numeric_bag_catalog_and_np_paging(self):
+        """Verify fixed numeric indexing for all items in Bag, 'n'/'p' navigation hints, and 72-col compliance."""
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.shop import render_shop_tab, handle_bag_use, handle_bag_sell, BAG_CATALOG_MAP
+        from poketokenbar.tui_tabs.mega_evo import render_mega_evo_tab
+        from poketokenbar.game.models import ItemKind, MonState, Rarity
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+
+        # Verify BAG_CATALOG_MAP maps fixed numeric keys
+        self.assertEqual(BAG_CATALOG_MAP["43"], "water_stone")
+        self.assertEqual(BAG_CATALOG_MAP["20"], "choice_specs")
+        self.assertEqual(BAG_CATALOG_MAP["26"], "revitalizing_tonic")
+        self.assertEqual(BAG_CATALOG_MAP["33"], "metal_coat")
+        self.assertEqual(BAG_CATALOG_MAP["53"], "fake_rare_candy")
+
+        # 1. Setup inventory with diverse items
+        self.engine.state["inventory"] = {
+            "rare_candy": 5,
+            "choice_specs": 1,
+            "revitalizing_tonic": 2,
+            "metal_coat": 1,
+            "water_stone": 2,
+            "fake_rare_candy": 1,
+        }
+        self.engine.state["page_size_bag"] = 3
+        app = MagicMock()
+        app.engine = self.engine
+        app.shop_view = "normal"
+        app.shop_page = 1
+        app.message = ""
+
+        # 2. Render Bag page 1: Check numeric indices and 'n', 'p' navigation hint
+        trap_bag = io.StringIO()
+        with patch("sys.stdout", trap_bag):
+            render_shop_tab(app)
+        bag_output = ansi_regex.sub("", trap_bag.getvalue())
+
+        self.assertIn("[1] 🍬 Rare Candy: 5 owned", bag_output)
+        self.assertIn("Type 'n', 'p', or 'page <N>' to navigate bag!", bag_output)
+        self.assertNotIn("Type 'next', 'prev'", bag_output)
+
+        for line in trap_bag.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Bag line exceeds 72 cols: '{clean}'")
+
+        # 3. Render Bag page 2: Check evolution stone numeric index [43]
+        app.shop_page = 2
+        trap_bag2 = io.StringIO()
+        with patch("sys.stdout", trap_bag2):
+            render_shop_tab(app)
+        bag_output2 = ansi_regex.sub("", trap_bag2.getvalue())
+
+        self.assertIn("[43] 💎 Water Stone: 2 owned", bag_output2)
+        self.assertNotIn("[water_stone]", bag_output2)
+
+        for line in trap_bag2.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Bag line exceeds 72 cols: '{clean}'")
+
+        # 4. Use item with numeric ID '43' to evolve active Eevee into Vaporeon
+        eevee = MonState(
+            base_id=133,
+            path_ids=[133],
+            planned_path_ids=[133],
+            stage_index=0,
+            used_at_stage=0,
+            rarity=Rarity.UNCOMMON,
+            total_forms=1,
+            happiness=100
+        )
+        self.engine.set_active_mon(eevee)
+
+        handle_bag_use(app, "use 43")
+        self.assertIn("Vaporeon", app.message)
+        self.assertEqual(self.engine.active_mon.current_id, 134)
+        self.assertEqual(self.engine.state["inventory"].get("water_stone", 0), 1)
+
+        # 5. Sell item with numeric ID '43' and confirm 'y'
+        trap_sell = io.StringIO()
+        with patch("sys.stdout", trap_sell), patch("sys.stdin.readline", return_value="y\n"):
+            handle_bag_sell(app, "sell 43 1")
+        self.assertIn("Successfully sold 1x Water Stone", app.message)
+        self.assertEqual(self.engine.state["inventory"].get("water_stone", 0), 0)
+
+        for line in trap_sell.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Sell prompt line exceeds 72 cols: '{clean}'")
+
+        # 6. Backwards compatibility: verify string name 'water_stone' works for use and sell
+        self.engine.state["inventory"]["water_stone"] = 2
+        eevee2 = MonState(
+            base_id=133,
+            path_ids=[133],
+            planned_path_ids=[133],
+            stage_index=0,
+            used_at_stage=0,
+            rarity=Rarity.UNCOMMON,
+            total_forms=1,
+            happiness=100
+        )
+        self.engine.state["dex"] = []
+        self.engine.set_active_mon(eevee2)
+        handle_bag_use(app, "use water_stone")
+        self.assertIn("Vaporeon", app.message)
+        self.assertEqual(self.engine.state["inventory"]["water_stone"], 1)
+
+        with patch("sys.stdout", io.StringIO()), patch("sys.stdin.readline", return_value="y\n"):
+            handle_bag_sell(app, "sell water_stone 1")
+        self.assertIn("Successfully sold 1x Water Stone", app.message)
+        self.assertEqual(self.engine.state["inventory"].get("water_stone", 0), 0)
+
+        # 7. Tab 8 Mega Evolution: verify 'n', 'p' paging hint
+        self.engine.state["inventory"]["mega_stone_6_X"] = 1
+        self.engine.state["inventory"]["mega_stone_6_Y"] = 1
+        self.engine.state["page_size_mega"] = 1
+        app.mega_page = 1
+        trap_mega = io.StringIO()
+        with patch("sys.stdout", trap_mega):
+            render_mega_evo_tab(app)
+        mega_output = ansi_regex.sub("", trap_mega.getvalue())
+        self.assertIn("Type 'n', 'p', or 'page <N>' to navigate!", mega_output)
+        self.assertNotIn("Type 'next', 'prev'", mega_output)
+
+        for line in trap_mega.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Mega Evo line exceeds 72 cols: '{clean}'")
+
 if __name__ == "__main__":
     unittest.main()
+
 

@@ -2,7 +2,7 @@ import math
 import random
 from enum import Enum
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Set, Tuple
+from typing import List, Dict, Optional, Set, Tuple, Any
 
 class Rarity(str, Enum):
     COMMON = "common"
@@ -16,10 +16,15 @@ class Rarity(str, Enum):
         ranks = {Rarity.COMMON: 0, Rarity.UNCOMMON: 1, Rarity.RARE: 2, Rarity.LEGENDARY: 3, Rarity.MEGA: 4}
         return ranks[self]
 
-    def graduation_total_for(self, difficulty: 'DifficultyMode' = None) -> int:
-        if difficulty is None:
-            difficulty = DifficultyMode.MEDIUM
-        return difficulty.graduation_totals[self]
+    def graduation_total_for(self, difficulty=None) -> int:
+        ranks = {
+            Rarity.COMMON: 50_000_000,
+            Rarity.UNCOMMON: 125_000_000,
+            Rarity.RARE: 250_000_000,
+            Rarity.LEGENDARY: 500_000_000,
+            Rarity.MEGA: 1_000_000_000
+        }
+        return ranks[self]
 
     @classmethod
     def from_capture_rate(cls, capture_rate: int, is_legendary: bool = False, is_mythical: bool = False) -> 'Rarity':
@@ -31,52 +36,6 @@ class Rarity(str, Enum):
             return cls.UNCOMMON
         return cls.COMMON
 
-class DifficultyMode(str, Enum):
-    SPEED = "speed"      # Super fast progression (~200x easier)
-    EASY = "easy"        # Very casual scale (~50x easier)
-    MEDIUM = "medium"    # Balanced CLI scale (Default - ~15x easier)
-    HARD = "hard"        # Challenging CLI scale (~5x easier)
-    ORIGINAL = "original"# Heavy original macOS app scale
-
-    @property
-    def graduation_totals(self) -> Dict[Rarity, int]:
-        if self == DifficultyMode.SPEED:
-            return {Rarity.COMMON: 2_000_000, Rarity.UNCOMMON: 5_000_000, Rarity.RARE: 10_000_000, Rarity.LEGENDARY: 20_000_000, Rarity.MEGA: 40_000_000}
-        elif self == DifficultyMode.EASY:
-            return {Rarity.COMMON: 10_000_000, Rarity.UNCOMMON: 25_000_000, Rarity.RARE: 50_000_000, Rarity.LEGENDARY: 100_000_000, Rarity.MEGA: 200_000_000}
-        elif self == DifficultyMode.HARD:
-            return {Rarity.COMMON: 150_000_000, Rarity.UNCOMMON: 375_000_000, Rarity.RARE: 750_000_000, Rarity.LEGENDARY: 1_500_000_000, Rarity.MEGA: 3_000_000_000}
-        elif self == DifficultyMode.ORIGINAL:
-            return {Rarity.COMMON: 750_000_000, Rarity.UNCOMMON: 1_875_000_000, Rarity.RARE: 3_000_000_000, Rarity.LEGENDARY: 6_000_000_000, Rarity.MEGA: 12_000_000_000}
-        else: # MEDIUM (Default)
-            return {Rarity.COMMON: 50_000_000, Rarity.UNCOMMON: 125_000_000, Rarity.RARE: 250_000_000, Rarity.LEGENDARY: 500_000_000, Rarity.MEGA: 1_000_000_000}
-
-    @property
-    def hatch_threshold(self) -> int:
-        if self == DifficultyMode.SPEED:
-            return 100_000
-        elif self == DifficultyMode.EASY:
-            return 500_000
-        elif self == DifficultyMode.HARD:
-            return 3_000_000
-        elif self == DifficultyMode.ORIGINAL:
-            return 5_000_000
-        else: # MEDIUM
-            return 1_500_000
-
-    @property
-    def shop_prices(self) -> Dict[str, int]:
-        if self == DifficultyMode.SPEED:
-            return {"rare_candy": 1_000_000, "mint": 200_000, "egg_normal": 2_000_000, "egg_uncommon": 5_000_000, "egg_rare": 10_000_000}
-        elif self == DifficultyMode.EASY:
-            return {"rare_candy": 5_000_000, "mint": 1_000_000, "egg_normal": 10_000_000, "egg_uncommon": 25_000_000, "egg_rare": 50_000_000}
-        elif self == DifficultyMode.HARD:
-            return {"rare_candy": 75_000_000, "mint": 15_000_000, "egg_normal": 100_000_000, "egg_uncommon": 250_000_000, "egg_rare": 500_000_000}
-        elif self == DifficultyMode.ORIGINAL:
-            return {"rare_candy": 500_000_000, "mint": 100_000_000, "egg_normal": 1_000_000_000, "egg_uncommon": 2_500_000_000, "egg_rare": 4_000_000_000}
-        else: # MEDIUM
-            return {"rare_candy": 25_000_000, "mint": 5_000_000, "egg_normal": 30_000_000, "egg_uncommon": 75_000_000, "egg_rare": 150_000_000}
-
 class PokemonBalance:
     EGG_HATCH_THRESHOLD = 1_500_000
     EXPEDITION_VIRIDIAN = 5_000_000
@@ -85,10 +44,10 @@ class PokemonBalance:
     EXPEDITION_SPEAR_PILLAR = 100_000_000
 
     @staticmethod
-    def phase_threshold(rarity: Rarity, total_forms: int, stage_index: int, difficulty: DifficultyMode = DifficultyMode.MEDIUM) -> int:
+    def phase_threshold(rarity: Rarity, total_forms: int, stage_index: int, difficulty=None) -> int:
         k = max(1, total_forms)
         i = stage_index + 1  # 1-based
-        total = float(rarity.graduation_total_for(difficulty))
+        total = float(rarity.graduation_total_for())
         denom = float(k * (k + 1)) / 2.0
         return int(round(total * float(i) / denom))
 
@@ -189,10 +148,10 @@ class ItemKind(str, Enum):
     FAKE_FOCUS_SASH = "fake_focus_sash"
     FAKE_MEGA_STONE = "fake_mega_stone"
 
-    def price_for(self, difficulty: DifficultyMode = DifficultyMode.EASY) -> int:
+    def price_for(self, difficulty=None) -> int:
         prices = {
-            ItemKind.RARE_CANDY: difficulty.shop_prices.get("rare_candy", 5_000_000),
-            ItemKind.MINT: difficulty.shop_prices.get("mint", 1_000_000),
+            ItemKind.RARE_CANDY: 5_000_000,
+            ItemKind.MINT: 1_000_000,
             ItemKind.BERRY_ORAN: 1_000_000,
             ItemKind.BERRY_GOLDEN: 5_000_000,
             ItemKind.MEGA_STONE: 50_000_000,
@@ -260,7 +219,7 @@ class ItemKind(str, Enum):
 
     @property
     def price(self) -> int:
-        return self.price_for(DifficultyMode.EASY)
+        return self.price_for()
 
     @property
     def name_en(self) -> str:
@@ -461,6 +420,16 @@ CORPORATIONS: Dict[str, CorporateInfo] = {
         perk_name="Dynamax Energy",
         perk_desc="+20% Tokens from Boss raids & Red battle",
         catalyst_desc="Defeating Gym Bosses & Red validates energy tech"
+    ),
+    "viridian": CorporateInfo(
+        id="viridian",
+        name="Viridian Global Logistics",
+        ticker="VRDN",
+        share_price=25_000_000,
+        base_dividend=0.025,
+        perk_name="Covert Logistics",
+        perk_desc="+15% Dividend yield & covert trade ties",
+        catalyst_desc="Nocturnal shipments & high market volume fuel growth"
     )
 }
 
@@ -499,6 +468,13 @@ CORPORATE_LORE_EVENTS: Dict[str, List[Tuple[str, float]]] = {
         ("Wyndon Stadium sponsorship agreement yields record corporate fees.", +0.03),
         ("Dynamax grid power surge prompts costly routine maintenance.", -0.05),
         ("Galar environmental review requests Macro energy audit.", -0.03),
+    ],
+    "viridian": [
+        ("Viridian Logistics expands nocturnal freight runs between Saffron and Celadon.", +0.06),
+        ("Warehouse security upgrade: All guards equipped with black berets and comms.", +0.04),
+        ("Unscheduled bulk cargo arrived at Celadon basement depot after midnight.", +0.03),
+        ("Rumors of subterranean tunnels beneath Viridian Gym dismissed as routine.", -0.04),
+        ("Viridian Logistics CEO conducts annual shareholder meeting behind tinted glass.", -0.03),
     ]
 }
 
@@ -520,6 +496,46 @@ MARKET_HEADLINES: Dict[str, List[str]] = {
     ]
 }
 
+class RocketRank(str, Enum):
+    INFORMANT = "Informant"
+    OPERATIVE = "Operative"
+    SPECIAL_AGENT = "Special Agent"
+    EXECUTIVE = "Executive"
+    COMMANDER = "Commander"
+
+SPECIAL_SPECIES: Dict[int, Dict[str, Any]] = {
+    2001: {"name": "Armored Mewtwo", "rarity": Rarity.LEGENDARY, "base_id": 150},
+    2002: {"name": "Porygon-Zero", "rarity": Rarity.RARE, "base_id": 137},
+    2003: {"name": "Augmented Venusaur", "rarity": Rarity.RARE, "base_id": 3},
+    2004: {"name": "Augmented Charizard", "rarity": Rarity.RARE, "base_id": 6},
+    2005: {"name": "Augmented Blastoise", "rarity": Rarity.RARE, "base_id": 9},
+    2006: {"name": "Augmented Tauros", "rarity": Rarity.UNCOMMON, "base_id": 128},
+    2007: {"name": "Augmented Dragonite", "rarity": Rarity.RARE, "base_id": 149},
+    2008: {"name": "Augmented Alakazam", "rarity": Rarity.RARE, "base_id": 65},
+}
+
+@dataclass
+class RocketOperation:
+    id: str
+    code_name: str
+    title: str
+    briefing: str
+    target_description: str
+    target_tokens: int
+    reward_tokens: int
+    reward_rank: RocketRank
+    intel_unlocked: str
+    is_boss: bool = False
+    boss_name: Optional[str] = None
+    boss_hp: int = 0
+
+@dataclass
+class SyndicateIntelEntry:
+    id: str
+    title: str
+    date: str
+    content: str
+
 @dataclass
 class MonState:
     base_id: int
@@ -537,6 +553,7 @@ class MonState:
     mega_form: Optional[str] = None
     happiness: int = 100
     held_item: Optional[str] = None
+    is_graduated: bool = False
 
     @property
     def current_id(self) -> int:

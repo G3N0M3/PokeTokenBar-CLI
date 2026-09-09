@@ -103,7 +103,8 @@ class StorageManager:
                 "devon": 0,
                 "aether": 0,
                 "mauville": 0,
-                "macro": 0
+                "macro": 0,
+                "viridian": 0
             },
             "black_market": None,
             "stock_market": {
@@ -112,28 +113,32 @@ class StorageManager:
                     "devon": 10_000_000,
                     "aether": 5_000_000,
                     "mauville": 5_000_000,
-                    "macro": 20_000_000
+                    "macro": 20_000_000,
+                    "viridian": 25_000_000
                 },
                 "price_history": {
                     "silph": [10_000_000],
                     "devon": [10_000_000],
                     "aether": [5_000_000],
                     "mauville": [5_000_000],
-                    "macro": [20_000_000]
+                    "macro": [20_000_000],
+                    "viridian": [25_000_000]
                 },
                 "cost_basis": {
                     "silph": 0,
                     "devon": 0,
                     "aether": 0,
                     "mauville": 0,
-                    "macro": 0
+                    "macro": 0,
+                    "viridian": 0
                 },
                 "latest_news": {
                     "silph": "Silph Co. operations running steadily across Kanto.",
                     "devon": "Devon Corp reports steady retail demand in Hoenn.",
                     "aether": "Aether Foundation maintaining peaceful sanctuary conditions.",
                     "mauville": "Greater Mauville Game Corner seeing standard foot traffic.",
-                    "macro": "Macro Cosmos power grid operating at nominal capacity."
+                    "macro": "Macro Cosmos power grid operating at nominal capacity.",
+                    "viridian": "Viridian Global Logistics freight operations proceeding on schedule."
                 },
                 "daily_catalysts": {
                     "expeditions_completed": 0,
@@ -142,7 +147,19 @@ class StorageManager:
                     "bosses_defeated": 0
                 },
                 "market_headline": "📈 POKÉMON EXCHANGE: Indices opening with steady volume."
-            }
+            },
+            "rocket_story_unlocked": False,
+            "rocket_story_viewed": False,
+            "rocket_alliance_accepted": False,
+            "rocket_transmission_state": "intro",
+            "rocket_rank": "Informant",
+            "rocket_reputation": 0,
+            "rocket_ops": {
+                f"op_{i}": {"status": "available" if i == 1 else "locked", "progress": 0, "claimed": False, "objective_done": False, "boss_hp_remaining": 0}
+                for i in range(1, 11)
+            },
+            "rocket_intel_unlocked": ["intel_001"],
+            "permanent_black_market": False
         }
 
     @staticmethod
@@ -162,7 +179,8 @@ class StorageManager:
             "is_mega": mon.is_mega,
             "mega_form": mon.mega_form,
             "happiness": mon.happiness,
-            "held_item": mon.held_item
+            "held_item": mon.held_item,
+            "is_graduated": getattr(mon, "is_graduated", False)
         }
 
     @staticmethod
@@ -185,7 +203,8 @@ class StorageManager:
                 is_mega=data.get("is_mega", False),
                 mega_form=data.get("mega_form"),
                 happiness=data.get("happiness", 100),
-                held_item=data.get("held_item")
+                held_item=data.get("held_item"),
+                is_graduated=data.get("is_graduated", False)
             )
         except Exception:
             return None

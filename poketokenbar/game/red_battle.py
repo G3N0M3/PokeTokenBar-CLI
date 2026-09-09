@@ -324,6 +324,7 @@ class RedBattleHandler:
                         badges.append("👑 Master of Masters")
                     self.engine.state["gym_badges"] = badges
                     self.engine.state["spent_tokens"] -= 500_000_000
+                    self.engine.check_rocket_story_unlock()
                     self.engine.save()
                     
                     st["turn_log"] = logs[-5:]

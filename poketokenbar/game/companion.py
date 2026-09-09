@@ -3,11 +3,12 @@ import datetime
 from typing import Dict, List, Optional, Tuple, Any, Union
 
 from poketokenbar.game.models import (
-    MonState, DexEntry, Rarity, PokemonNature, PokemonBalance, ItemKind, DifficultyMode,
+    MonState, DexEntry, Rarity, PokemonNature, PokemonBalance, ItemKind,
     CORPORATIONS, CorporateInfo, CORPORATE_LORE_EVENTS, MARKET_HEADLINES
 )
 from poketokenbar.game.pokeapi import PokeAPIClient
 from poketokenbar.game.storage import StorageManager
+from poketokenbar.game.stock_market import StockMarketEngine
 from poketokenbar.utils.formatting import format_tokens, parse_tokens
 
 from poketokenbar.game.poker import TexasHoldemEngine
@@ -127,6 +128,91 @@ class CompanionEngine:
             self.state["install_date"] = min(caught_dates) if caught_dates else datetime.datetime.now().strftime("%Y-%m-%d")
             self.save()
 
+        # Migrate Rocket expansion state
+        ops_state = self.state.setdefault("rocket_ops", {})
+        for i in range(1, 11):
+            key = f"op_{i}"
+            if key not in ops_state:
+                ops_state[key] = {
+                    "status": "available" if i == 1 else "locked",
+                    "progress": 0,
+                    "claimed": False,
+                    "objective_done": False,
+                    "boss_hp_remaining": 0
+                }
+            else:
+                ops_state[key].setdefault("objective_done", False)
+                ops_state[key].setdefault("boss_hp_remaining", 0)
+
+        # Unlock ops sequentially if preceding is claimed
+        for i in range(1, 10):
+            if ops_state.get(f"op_{i}", {}).get("claimed", False):
+                nxt = f"op_{i+1}"
+                if nxt in ops_state and ops_state[nxt].get("status") == "locked":
+                    ops_state[nxt]["status"] = "available"
+
+        rep = sum(1 for v in ops_state.values() if v.get("claimed", False))
+        self.state["rocket_reputation"] = rep
+        if "rocket_alliance_accepted" not in self.state:
+            self.state["rocket_alliance_accepted"] = bool(self.state.get("rocket_story_viewed", False))
+
+        if rep >= 10: rank = "Commander"
+        elif rep >= 8: rank = "Executive"
+        elif rep >= 5: rank = "Special Agent"
+        elif rep >= 2: rank = "Operative"
+        else: rank = "Informant"
+        self.state["rocket_rank"] = rank
+
+        unlocked_intel = self.state.setdefault("rocket_intel_unlocked", [])
+        if "intel_red_autopsy" in unlocked_intel and "intel_001" not in unlocked_intel:
+            unlocked_intel.append("intel_001")
+        if not unlocked_intel:
+            unlocked_intel.append("intel_001")
+
+        # Migrate graduation status for active mon and dex
+        collected = set(self.state.get("collected_finals", []))
+        active = self.active_mon
+        if active and f"{active.base_id}_{active.current_id}" in collected:
+            if not getattr(active, "is_graduated", False):
+                active.is_graduated = True
+                self.set_active_mon(active)
+
+        for d in self.state.get("dex", []):
+            sp_id = d.get("species_id", d.get("final_id", d.get("base_id")))
+            base_id = d.get("base_id", sp_id)
+            if f"{base_id}_{sp_id}" in collected:
+                m_st = d.get("mon_state")
+                if isinstance(m_st, dict):
+                    m_st["is_graduated"] = True
+                if d.get("status") not in ["active", "evolved"]:
+                    d["status"] = "graduated"
+
+            # Synchronize outer happiness key with mon_state happiness
+            m_st = d.get("mon_state")
+            if isinstance(m_st, dict) and "happiness" in m_st:
+                d["happiness"] = m_st["happiness"]
+
+        # Restore Charizard's happiness if it was zeroed by the Spear Pillar dispatch bug
+        for d in self.state.get("dex", []):
+            if d.get("species_id") == 6:
+                m_st = d.get("mon_state")
+                if isinstance(m_st, dict) and m_st.get("happiness") == 0:
+                    recent_logs = " ".join(self.state.get("expedition_logs", []))
+                    if "Charizard" in recent_logs and "LEGENDARY EGG" in recent_logs:
+                        m_st["happiness"] = 90
+                        d["happiness"] = 90
+                        self.save()
+
+        # Enforce maximum of 1 stone per Mega Stone in inventory
+        inv = self.state.get("inventory", {})
+        mega_clamped = False
+        for k in list(inv.keys()):
+            if k.startswith("mega_stone_") and inv[k] > 1:
+                inv[k] = 1
+                mega_clamped = True
+        if mega_clamped:
+            self.save()
+
     def save(self):
         import json
         state_str = json.dumps(self.state, sort_keys=True)
@@ -157,12 +243,18 @@ class CompanionEngine:
         self.save()
 
     @property
-    def current_difficulty(self) -> DifficultyMode:
-        diff_str = self.state.get("settings", {}).get("difficulty", "medium")
-        try:
-            return DifficultyMode(diff_str)
-        except Exception:
-            return DifficultyMode.MEDIUM
+    def current_difficulty(self):
+        class DefaultBalanceConfig:
+            hatch_threshold = 1_500_000
+            shop_prices = {"rare_candy": 5_000_000, "mint": 1_000_000, "egg_normal": 10_000_000, "egg_uncommon": 25_000_000, "egg_rare": 50_000_000}
+            graduation_totals = {
+                Rarity.COMMON: 50_000_000,
+                Rarity.UNCOMMON: 125_000_000,
+                Rarity.RARE: 250_000_000,
+                Rarity.LEGENDARY: 500_000_000,
+                Rarity.MEGA: 1_000_000_000
+            }
+        return DefaultBalanceConfig()
 
     def has_perk(self, corp_key: str) -> bool:
         return self.state.get("investments", {}).get(corp_key.lower(), 0) > 0
@@ -325,6 +417,15 @@ class CompanionEngine:
                                 sub_evos = self._check_growth(sub_mon)
                                 events.extend(sub_evos)
                                 d["mon_state"] = StorageManager.mon_to_dict(sub_mon)
+
+        # Update active Rocket Operation progress
+        if effective_xp > 0 and self.state.get("rocket_story_unlocked", False):
+            self._update_rocket_operations(effective_xp, events)
+
+        # Check for Rocket story unlock
+        unlocked, alert_msg = self.check_rocket_story_unlock()
+        if unlocked and alert_msg:
+            events.append(alert_msg)
 
         # Check achievements
         ach_events = self._check_achievements()
@@ -825,7 +926,16 @@ class CompanionEngine:
                 self._register_to_dex(mon, status="active")
                 target_xp = PokemonBalance.phase_threshold(mon.rarity, mon.total_forms, mon.stage_index, diff)
             else:
-                # Final form + reached graduation threshold!
+                # Final form check
+                is_already_grad = getattr(mon, "is_graduated", False) or \
+                                  f"{mon.base_id}_{mon.current_id}" in self.state.get("collected_finals", [])
+                if is_already_grad:
+                    mon.is_graduated = True
+                    mon.used_at_stage = min(mon.used_at_stage, target_xp)
+                    self.set_active_mon(mon)
+                    return events
+
+                # Final form + reached graduation threshold for the first time!
                 mon_name = self.api.get_species_name(mon.current_id)
                 shiny_str = "✨ Shiny " if mon.is_shiny else ""
                 grad_str = f"🎓 Graduation! {shiny_str}{mon_name} has graduated to your Pokédex!"
@@ -833,6 +943,7 @@ class CompanionEngine:
                 self.state["last_evolution"] = f"{shiny_str}{mon_name} graduated to Pokédex!"
 
                 # Add to Pokédex as graduated
+                mon.is_graduated = True
                 self._register_to_dex(mon, status="graduated")
                 
                 # Reset to new egg
@@ -870,8 +981,12 @@ class CompanionEngine:
                     stage_rarity = Rarity.from_capture_rate(cap_rate, is_leg)
 
             target_xp = PokemonBalance.phase_threshold(stage_rarity, mon.total_forms, idx, diff)
-            if status == "graduated" or idx < mon.stage_index:
-                sp_status = "graduated" if status == "graduated" else "evolved"
+            is_form_grad = getattr(mon, "is_graduated", False) or (f"{mon.base_id}_{sp_id}" in self.state.get("collected_finals", []))
+            if status == "graduated" or is_form_grad or idx < mon.stage_index:
+                if status == "active" and idx == mon.stage_index:
+                    sp_status = "active"
+                else:
+                    sp_status = "graduated" if (status == "graduated" or is_form_grad) else "evolved"
                 stage_xp = target_xp
             else:
                 sp_status = status  # "active" or "inactive"
@@ -893,7 +1008,8 @@ class CompanionEngine:
                 ditto_revealed=mon.ditto_revealed,
                 is_mega=mon.is_mega if idx == mon.stage_index else False,
                 mega_form=mon.mega_form if idx == mon.stage_index else None,
-                held_item=mon.held_item if idx == mon.stage_index else None
+                held_item=mon.held_item if idx == mon.stage_index else None,
+                is_graduated=is_form_grad if idx == mon.stage_index else (idx < mon.stage_index)
             )
             sub_dict = StorageManager.mon_to_dict(sub_stage_mon)
 
@@ -901,6 +1017,7 @@ class CompanionEngine:
                 entry = existing_sp_ids[sp_id]
                 entry["status"] = sp_status
                 entry["mon_state"] = sub_dict
+                entry["happiness"] = mon.happiness
                 if mon.is_shiny:
                     entry["is_shiny"] = True
                 if mon.nature:
@@ -916,7 +1033,8 @@ class CompanionEngine:
                     "is_shiny": mon.is_shiny,
                     "nature": mon.nature.value if mon.nature else None,
                     "status": sp_status,
-                    "mon_state": sub_dict
+                    "mon_state": sub_dict,
+                    "happiness": mon.happiness
                 }
                 dex.append(entry)
                 existing_sp_ids[sp_id] = entry
@@ -978,7 +1096,8 @@ class CompanionEngine:
                 
             curr_active = self.active_mon
             if curr_active:
-                self._register_to_dex(curr_active, status="inactive")
+                prev_status = "graduated" if (getattr(curr_active, "is_graduated", False) or f"{curr_active.base_id}_{curr_active.current_id}" in self.state.get("collected_finals", [])) else "inactive"
+                self._register_to_dex(curr_active, status=prev_status)
             
             self.set_active_mon(None)
             egg_usage = self.state.get("egg_usage", 0)
@@ -1049,10 +1168,11 @@ class CompanionEngine:
                 next_name = self.api.get_species_name(higher_forms[-1]) if higher_forms else "its evolved form"
                 return False, f"Cannot select {sp_name}! It has already evolved into {next_name}. Select {next_name} instead."
 
-        # First, save current active mon into dex as inactive if exists
+        # First, save current active mon into dex as inactive/graduated if exists
         curr_active = self.active_mon
         if curr_active:
-            self._register_to_dex(curr_active, status="inactive")
+            prev_status = "graduated" if (getattr(curr_active, "is_graduated", False) or f"{curr_active.base_id}_{curr_active.current_id}" in self.state.get("collected_finals", [])) else "inactive"
+            self._register_to_dex(curr_active, status=prev_status)
 
         # Load or reconstruct target MonState
         mon_data = target_entry.get("mon_state")
@@ -1081,10 +1201,17 @@ class CompanionEngine:
                 nature=PokemonNature(target_entry["nature"]) if target_entry.get("nature") else None
             )
 
+        # Check if target companion is already graduated
+        is_already_grad = (target_entry.get("status") == "graduated") or \
+                          (f"{mon.base_id}_{mon.current_id}" in self.state.get("collected_finals", [])) or \
+                          getattr(mon, "is_graduated", False)
+        if is_already_grad:
+            mon.is_graduated = True
+
         # Check if this species is an already-evolved pre-evolution stage
         target_xp = PokemonBalance.phase_threshold(mon.rarity, mon.total_forms, mon.stage_index, diff)
         discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
-        is_already_evolved = (target_entry.get("status") in ["evolved", "graduated"]) or \
+        is_already_evolved = is_already_grad or (target_entry.get("status") in ["evolved", "graduated"]) or \
                             (mon.stage_index < len(mon.path_ids) - 1 and mon.path_ids[mon.stage_index + 1] in discovered_sp_ids)
 
         if is_already_evolved:
@@ -1346,15 +1473,20 @@ class CompanionEngine:
         if item_kind == ItemKind.MEGA_STONE:
             import random
             from poketokenbar.game.models import MEGA_STONES
-            stone_id = random.choice(list(MEGA_STONES.keys()))
+            available_stones = [s for s in MEGA_STONES.keys() if inv.get(f"mega_stone_{s}", 0) == 0]
+            if not available_stones:
+                return False, "You already own all available Mega Stones! (Only 1 per Mega Stone permitted)"
+            if qty > 1:
+                return False, "You can only purchase 1 Mega Stone at a time!"
+            stone_id = random.choice(available_stones)
             stone_key = f"mega_stone_{stone_id}"
             stone_name = MEGA_STONES[stone_id]
             self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + cost
-            inv[stone_key] = inv.get(stone_key, 0) + qty
+            inv[stone_key] = 1
             self.state["inventory"] = inv
             self._record_catalyst("shop_tokens_spent", cost)
             self.save()
-            return True, f"Successfully purchased {qty}x Mystery Mega Stone! You unboxed: 🔮 {stone_name}!"
+            return True, f"Successfully purchased 1x Mystery Mega Stone! You unboxed: 🔮 {stone_name}!"
 
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + cost
         inv[item_kind.value] = inv.get(item_kind.value, 0) + qty
@@ -1376,28 +1508,8 @@ class CompanionEngine:
         k = item_kind.value if isinstance(item_kind, ItemKind) else str(item_kind)
         inv = self.state.get("inventory", {})
 
-        if k == "mega_stone" or (isinstance(item_kind, ItemKind) and item_kind == ItemKind.MEGA_STONE):
-            target_key = None
-            target_name = None
-            from poketokenbar.game.models import MEGA_STONES
-            for key in inv:
-                if key.startswith("mega_stone_") and inv[key] >= qty:
-                    target_key = key
-                    stone_id = key.replace("mega_stone_", "")
-                    target_name = MEGA_STONES.get(stone_id, "Mega Stone")
-                    break
-            if not target_key:
-                return False, f"You don't have {qty}x of any specific Mega Stone in your Bag to sell!"
-
-            diff = self.current_difficulty
-            unit_cost = 50_000_000
-            sell_value = int(unit_cost * 0.8) * qty
-            inv[target_key] -= qty
-            if inv[target_key] <= 0: del inv[target_key]
-            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - sell_value
-            self.state["inventory"] = inv
-            self.save()
-            return True, f"Successfully sold {qty}x {target_name} (🔮) for +{format_tokens(sell_value)} Tokens!"
+        if k == "mega_stone" or (isinstance(item_kind, ItemKind) and item_kind == ItemKind.MEGA_STONE) or k.startswith("mega_stone_"):
+            return False, "Mega Stones are unique key artifacts and cannot be sold!"
 
         count = inv.get(k, 0)
         if count < qty:
@@ -2333,7 +2445,10 @@ class CompanionEngine:
                 return False, f"{sp_name} is already on an expedition!"
 
             mon_state_dict = target_entry.get("mon_state", {})
-            current_hap = mon_state_dict.get("happiness", target_entry.get("happiness", 100)) if isinstance(mon_state_dict, dict) else target_entry.get("happiness", 100)
+            if isinstance(mon_state_dict, dict) and "happiness" in mon_state_dict:
+                current_hap = mon_state_dict["happiness"]
+            else:
+                current_hap = target_entry.get("happiness", 100)
 
             if current_hap <= 0:
                 return False, f"{sp_name} is completely exhausted (0% Happiness) and refuses to go on an expedition! Please feed it Oran Berries 🫐 first."
@@ -2356,9 +2471,6 @@ class CompanionEngine:
                 self.set_active_mon(None)
 
             area_title, target_xp, reward_type = areas[key]
-            target_entry["happiness"] = max(0, target_entry.get("happiness", 100) - 10)
-            if isinstance(mon_state_dict, dict):
-                mon_state_dict["happiness"] = target_entry["happiness"]
 
             expeditions.append({
                 "sp_id": sp_id,
@@ -2413,7 +2525,10 @@ class CompanionEngine:
                 continue
 
             mon_state_dict = entry.get("mon_state", {})
-            hap = mon_state_dict.get("happiness", entry.get("happiness", 100)) if isinstance(mon_state_dict, dict) else entry.get("happiness", 100)
+            if isinstance(mon_state_dict, dict) and "happiness" in mon_state_dict:
+                hap = mon_state_dict["happiness"]
+            else:
+                hap = entry.get("happiness", 100)
 
             if hap <= 0:
                 skipped_notes.append(f"{sp_name} (exhausted)")
@@ -2435,10 +2550,6 @@ class CompanionEngine:
                 is_mega_dispatch = active.is_mega
                 self._register_to_dex(active, status="inactive")
                 self.set_active_mon(None)
-
-            entry["happiness"] = max(0, entry.get("happiness", 100) - 10)
-            if isinstance(mon_state_dict, dict):
-                mon_state_dict["happiness"] = entry["happiness"]
 
             expeditions.append({
                 "sp_id": sp_id,
@@ -2788,7 +2899,7 @@ class CompanionEngine:
                 return k
         if raw in CORPORATIONS:
             return raw
-        aliases = {"devn": "devon", "athr": "aether", "slph": "silph"}
+        aliases = {"devn": "devon", "athr": "aether", "slph": "silph", "vrdn": "viridian", "virg": "viridian"}
         return aliases.get(raw)
 
     def get_or_init_stock_market(self) -> dict:
@@ -2798,7 +2909,8 @@ class CompanionEngine:
             "devon": 10_000_000,
             "aether": 5_000_000,
             "mauville": 5_000_000,
-            "macro": 20_000_000
+            "macro": 20_000_000,
+            "viridian": 25_000_000
         }
         sm.setdefault("prices", default_prices.copy())
         sm.setdefault("price_history", {k: [v] for k, v in sm["prices"].items()})
@@ -2808,7 +2920,8 @@ class CompanionEngine:
             "devon": "Devon Corp reports steady retail demand in Hoenn.",
             "aether": "Aether Foundation maintaining peaceful sanctuary conditions.",
             "mauville": "Greater Mauville Game Corner seeing standard foot traffic.",
-            "macro": "Macro Cosmos power grid operating at nominal capacity."
+            "macro": "Macro Cosmos power grid operating at nominal capacity.",
+            "viridian": "Viridian Global Logistics freight operations proceeding on schedule."
         })
         sm.setdefault("daily_catalysts", {
             "expeditions_completed": 0,
@@ -2833,6 +2946,7 @@ class CompanionEngine:
             if shares > 0 and sm["cost_basis"].get(k, 0) == 0:
                 sm["cost_basis"][k] = shares * sm["prices"].get(k, default_prices.get(k, 10_000_000))
 
+        StockMarketEngine.ensure_market_state(sm)
         return sm
 
     def _record_catalyst(self, key: str, amount: int):
@@ -2849,23 +2963,7 @@ class CompanionEngine:
         sm = self.get_or_init_stock_market()
         previous_burn = self.state.get("tokens_burned_today", 0)
 
-        # 1. Developer Token Burn Velocity
-        if previous_burn >= 500_000:
-            burn_momentum = random.uniform(0.03, 0.06)
-        elif previous_burn >= 100_000:
-            burn_momentum = random.uniform(0.00, 0.02)
-        else:
-            burn_momentum = random.uniform(-0.03, -0.01)
-
-        # 2. Coding Streak Sentiment
-        if current_streak >= 5:
-            streak_sentiment = 0.01
-        elif diff > 1:
-            streak_sentiment = -0.03
-        else:
-            streak_sentiment = 0.0
-
-        # 3. Player In-Game Action Catalysts
+        # 1. Player In-Game Action Catalysts
         cats = sm.get("daily_catalysts", {})
         exp_count = cats.get("expeditions_completed", 0)
         shop_spent = cats.get("shop_tokens_spent", 0)
@@ -2899,31 +2997,21 @@ class CompanionEngine:
             "devon": devon_boost,
             "aether": aether_boost,
             "mauville": mauv_boost,
-            "macro": macro_boost
+            "macro": macro_boost,
+            "viridian": min(0.12, (previous_burn // 500_000) * 0.03)
         }
 
-        # 4. Lore Events & Price Updates
-        price_changes = {}
-        for c_key, corp in CORPORATIONS.items():
-            curr_price = sm["prices"].get(c_key, corp.share_price)
-            lore_choice = random.choice(CORPORATE_LORE_EVENTS.get(c_key, [("Standard corporate operations reported.", 0.0)]))
-            headline, shock_pct = lore_choice
+        # 2. Pattern Progression, Price Updates, and Forward News Hints
+        price_changes = StockMarketEngine.step_day(
+            sm_data=sm,
+            days_to_apply=days_to_apply,
+            streak=current_streak,
+            burn_tokens=previous_burn,
+            catalysts=cats,
+            corp_boosts=corp_boosts
+        )
 
-            c_boost = corp_boosts.get(c_key, 0.0)
-            net_pct = burn_momentum + streak_sentiment + c_boost + shock_pct
-            clamped_pct = max(-0.20, min(0.30, net_pct))
-
-            new_price = int(curr_price * (1.0 + clamped_pct))
-            new_price = max(1_000_000, new_price)
-
-            sm["prices"][c_key] = new_price
-            hist = sm["price_history"].setdefault(c_key, [curr_price])
-            hist.append(new_price)
-            sm["price_history"][c_key] = hist[-7:]
-            sm["latest_news"][c_key] = headline
-            price_changes[c_key] = clamped_pct
-
-        # 5. Top Market Headline
+        # 3. Top Market Headline
         avg_change = sum(price_changes.values()) / len(price_changes) if price_changes else 0.0
         if avg_change > 0.03:
             sentiment = "bullish"
@@ -3032,12 +3120,15 @@ class CompanionEngine:
             return False, f"Not enough tokens! Buying {shares} share(s) of {corp.ticker} costs {format_tokens(cost)} (You have {format_tokens(self.available_tokens)})."
 
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + cost
-        invs = self.state.setdefault("investments", {"silph": 0, "devon": 0, "aether": 0, "mauville": 0, "macro": 0})
+        invs = self.state.setdefault("investments", {"silph": 0, "devon": 0, "aether": 0, "mauville": 0, "macro": 0, "viridian": 0})
         invs[key] = invs.get(key, 0) + shares
         self.state["investments"] = invs
 
         # Update cost basis
         sm["cost_basis"][key] = sm["cost_basis"].get(key, 0) + cost
+
+        # Check for Team Rocket story unlock
+        self.check_rocket_story_unlock()
 
         self.save()
         return True, f"📈 Invested in {shares} share(s) of {corp.ticker} ({corp.name}) for {format_tokens(cost)} tokens ({format_tokens(current_price)}/sh)! ({corp.perk_name}: {corp.perk_desc} is now ACTIVE!)"
@@ -3052,7 +3143,7 @@ class CompanionEngine:
         sm = self.get_or_init_stock_market()
         current_price = sm["prices"].get(key, corp.share_price)
 
-        invs = self.state.setdefault("investments", {"silph": 0, "devon": 0, "aether": 0, "mauville": 0, "macro": 0})
+        invs = self.state.setdefault("investments", {"silph": 0, "devon": 0, "aether": 0, "mauville": 0, "macro": 0, "viridian": 0})
         owned = invs.get(key, 0)
         if owned <= 0:
             return False, f"You don't own any shares of {corp.ticker} ({corp.name})!"
@@ -3095,6 +3186,8 @@ class CompanionEngine:
         return True, f"📉 Sold {shares} share(s) of {corp.ticker} ({corp.name}) for {format_tokens(payout)} tokens (10% spread applied{pnl_str})."
 
     def get_or_init_black_market(self, force_open: bool = False) -> dict:
+        if self.state.get("permanent_black_market", False):
+            force_open = True
         bm = self.state.get("black_market")
         today_str = datetime.date.today().isoformat()
         needs_reroll = (
@@ -3107,7 +3200,14 @@ class CompanionEngine:
         if needs_reroll or force_open:
             import copy
             from poketokenbar.game.black_market import BLACK_MARKET_POOL_100
-            selected = random.sample(BLACK_MARKET_POOL_100, 7)
+            inv = self.state.get("inventory", {})
+            valid_pool = [
+                d for d in BLACK_MARKET_POOL_100
+                if not (d.get("type") == "mega_stone" and inv.get(f"mega_stone_{d.get('stone_id')}", 0) >= 1)
+            ]
+            if len(valid_pool) < 7:
+                valid_pool = BLACK_MARKET_POOL_100
+            selected = random.sample(valid_pool, 7)
             deals = []
             for idx, d in enumerate(selected, 1):
                 item = copy.deepcopy(d)
@@ -3133,6 +3233,18 @@ class CompanionEngine:
 
             self.state["black_market"] = bm
             self.save()
+        if self.state.get("permanent_black_market", False):
+            bm["is_open"] = True
+            bm["natural_open"] = True
+
+        # Ensure any deals offering already-owned Mega Stones are marked out of stock
+        inv = self.state.get("inventory", {})
+        for d in bm.get("deals", []):
+            if d.get("type") == "mega_stone":
+                s_id = d.get("stone_id")
+                if inv.get(f"mega_stone_{s_id}", 0) >= 1:
+                    d["stock"] = 0
+
         return bm
 
     def buy_black_market_deal(self, deal_id_str: str, qty: int = 1) -> Tuple[bool, str]:
@@ -3150,6 +3262,17 @@ class CompanionEngine:
         if not deal:
             return False, f"Black Market Deal #{deal_id} not found."
 
+        deal_type = deal.get("type", "item")
+        inv = self.state.setdefault("inventory", {})
+
+        if deal_type == "mega_stone":
+            s_id = deal["stone_id"]
+            k = f"mega_stone_{s_id}"
+            if inv.get(k, 0) >= 1:
+                return False, f"You already own {deal['name']}! (Only 1 per Mega Stone permitted)"
+            if qty > 1:
+                return False, f"You can only purchase 1 {deal['name']}!"
+
         if deal.get("stock", 0) < qty:
             return False, f"Not enough stock! Deal #{deal_id} only has {deal.get('stock', 0)} in stock."
 
@@ -3163,9 +3286,7 @@ class CompanionEngine:
 
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + total_cost
         deal["stock"] -= qty
-        inv = self.state.setdefault("inventory", {})
 
-        deal_type = deal.get("type", "item")
         if deal_type == "item":
             k = deal["item_key"]
             item_qty = deal.get("qty", 1) * qty
@@ -3184,8 +3305,8 @@ class CompanionEngine:
         elif deal_type == "mega_stone":
             s_id = deal["stone_id"]
             k = f"mega_stone_{s_id}"
-            inv[k] = inv.get(k, 0) + qty
-            msg = f"Purchased {qty}x {deal['name']} for {format_tokens(total_cost)} tokens! Added to your Bag."
+            inv[k] = 1
+            msg = f"Purchased {deal['name']} for {format_tokens(total_cost)} tokens! Unlocked in Tab [8] Mega Evolution."
         elif deal_type.startswith("trove_") or deal_type == "map_pack":
             from poketokenbar.game.black_market import unpack_trove
             items_to_add, reveal_names = unpack_trove(deal, qty)
@@ -3197,9 +3318,16 @@ class CompanionEngine:
             from poketokenbar.game.black_market import unpack_mystery_crate
             last_desc = ""
             for _ in range(qty):
-                c_items, c_tokens, c_egg, last_desc = unpack_mystery_crate(deal["crate_id"])
+                c_items, c_tokens, c_egg, last_desc = unpack_mystery_crate(deal["crate_id"], inv=inv)
                 for k, v in c_items.items():
-                    inv[k] = inv.get(k, 0) + v
+                    if k.startswith("mega_stone_"):
+                        if inv.get(k, 0) == 0:
+                            inv[k] = 1
+                        else:
+                            # Safeguard against duplicate: convert to 10.0M tokens
+                            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - 10_000_000
+                    else:
+                        inv[k] = inv.get(k, 0) + v
                 if c_tokens > 0:
                     self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - c_tokens
                 if c_egg:
@@ -3390,7 +3518,13 @@ class CompanionEngine:
             results_txt.append(f"  • [{color}{tier}\033[0m] {name}")
 
             if r_type == "item":
-                inv[val] = inv.get(val, 0) + 1
+                if isinstance(val, str) and val.startswith("mega_stone_"):
+                    if inv.get(val, 0) == 0:
+                        inv[val] = 1
+                    else:
+                        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - 5_000_000
+                else:
+                    inv[val] = inv.get(val, 0) + 1
             elif r_type == "tokens":
                 self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - val
             elif r_type == "egg":
@@ -3505,3 +3639,713 @@ class CompanionEngine:
             self.save()
             
         return ok, msg
+
+    def check_rocket_story_unlock(self) -> Tuple[bool, Optional[str]]:
+        """Checks if the player qualifies for the Team Rocket story unlock."""
+        if self.state.get("rocket_story_unlocked", False):
+            return False, None
+
+        badges = self.state.get("gym_badges", [])
+        if "👑 Master of Masters" not in badges:
+            return False, None
+
+        invs = self.state.get("investments", {})
+        vrdn_shares = invs.get("viridian", 0)
+        sm = self.get_or_init_stock_market()
+        vrdn_price = sm.get("prices", {}).get("viridian", CORPORATIONS["viridian"].share_price)
+        holding_value = vrdn_shares * vrdn_price
+
+        if holding_value < 500_000_000:
+            return False, None
+
+        self.state["rocket_story_unlocked"] = True
+        self.state["rocket_story_viewed"] = False
+
+        alert_msg = "🚨 [ENCRYPTED TRANSMISSION] Frequency intercepted from Commander Petrel! Press '12' to view!"
+        alerts = self.state.get("unread_alerts", [])
+        if alert_msg not in alerts:
+            alerts.append(alert_msg)
+        self.state["unread_alerts"] = alerts
+        self.save()
+        return True, alert_msg
+
+    def _update_rocket_operations(self, delta_xp: int, events: List[str]):
+        """Accumulates progress toward the active Rocket Operation."""
+        ops_state = self.state.setdefault("rocket_ops", {})
+        for op_id, op_info in ops_state.items():
+            if op_info.get("status") == "active" and not op_info.get("claimed", False):
+                for op_def in self.get_rocket_operations():
+                    if op_def["id"] == op_id and op_def["target"] > 0:
+                        old_prog = op_info.get("progress", 0)
+                        new_prog = old_prog + delta_xp
+                        op_info["progress"] = new_prog
+                        if old_prog < op_def["target"] <= new_prog:
+                            events.append(f"🚀 Rocket Operation Ready! Coding target reached for {op_id.upper()}. Type '12' to inspect!")
+
+    def get_rocket_operations(self) -> List[Dict[str, Any]]:
+        """Returns the list of 10 Rocket operations with current state."""
+        ops_state = self.state.setdefault("rocket_ops", {})
+        
+        op_defs = [
+            {
+                "id": "op_1",
+                "code": "1",
+                "name": "Operation Genesis: Subterranean Pallet Wiretap",
+                "briefing": "Oak's high-speed fiber relay runs secretly under Route 1. Decrypt his data line to access syndicate transmissions.",
+                "target": 5_000_000,
+                "target_desc": "5.0M coding tokens & 2+ completed expeditions",
+                "reward_tokens": 15_000_000,
+                "reward_rank": "Informant",
+                "intel_id": "intel_001",
+                "is_boss": False,
+                "boss_name": None,
+                "boss_hp": 0
+            },
+            {
+                "id": "op_2",
+                "code": "2",
+                "name": "Operation Chimera: Celadon Reagent Intercept",
+                "briefing": "Hijack Oak's automated convoy smuggling mutagen canisters through Celadon City.",
+                "target": 10_000_000,
+                "target_desc": "10.0M coding tokens & 2+ Trainer Battle arena wins",
+                "reward_tokens": 25_000_000,
+                "reward_rank": "Informant",
+                "intel_id": "intel_002",
+                "is_boss": False,
+                "boss_name": None,
+                "boss_hp": 0
+            },
+            {
+                "id": "op_3",
+                "code": "3",
+                "name": "[BOSS 1] Silph Sub-Vault: Prototype Chimera-001",
+                "briefing": "Infiltrate Silph Co's sealed sub-basement and neutralize Oak's early bio-weapon prototype.",
+                "target": 0,
+                "target_desc": "Neutralize Prototype Chimera-001 in tactical combat ('attack' / 'burst')",
+                "reward_tokens": 40_000_000,
+                "reward_rank": "Operative",
+                "intel_id": "intel_003",
+                "is_boss": True,
+                "boss_name": "Prototype Chimera-001",
+                "boss_hp": 15_000
+            },
+            {
+                "id": "op_4",
+                "code": "4",
+                "name": "Operation Blackout: Cerulean Power Disruption",
+                "briefing": "Disrupt the high-output cooling conduits supplying Oak's subterranean bio-vats.",
+                "target": 15_000_000,
+                "target_desc": "15.0M coding tokens & hold at least 1 Bank CD deposit",
+                "reward_tokens": 50_000_000,
+                "reward_rank": "Operative",
+                "intel_id": "intel_004",
+                "is_boss": False,
+                "boss_name": None,
+                "boss_hp": 0
+            },
+            {
+                "id": "op_5",
+                "code": "5",
+                "name": "Operation Leviathan: Vermilion Dark Cargo Sabotage",
+                "briefing": "Sabotage the automated freighter S.S. Dreadnought carrying heavy titanium cybernetic armor.",
+                "target": 0,
+                "target_desc": "Deploy 2+ simultaneous expeditions & trade on the Black Market",
+                "reward_tokens": 65_000_000,
+                "reward_rank": "Special Agent",
+                "intel_id": "intel_005",
+                "is_boss": False,
+                "boss_name": None,
+                "boss_hp": 0
+            },
+            {
+                "id": "op_6",
+                "code": "6",
+                "name": "[BOSS 2] Power Plant: Cyber-Enforcer Core",
+                "briefing": "Oak's automated enforcer construct has occupied the abandoned Power Plant to supercharge the grid.",
+                "target": 0,
+                "target_desc": "Neutralize Cyber-Enforcer Unit in tactical combat ('attack' / 'burst')",
+                "reward_tokens": 80_000_000,
+                "reward_rank": "Special Agent",
+                "intel_id": "intel_006",
+                "is_boss": True,
+                "boss_name": "Cyber-Enforcer Unit",
+                "boss_hp": 35_000
+            },
+            {
+                "id": "op_7",
+                "code": "7",
+                "name": "Operation Necropolis: Lavender Crypt Decryption",
+                "briefing": "Recover the lost neural-frequency cipher Oak used to interface organic brains with cybernetics.",
+                "target": 20_000_000,
+                "target_desc": "20.0M coding tokens & companion at 100% Happiness",
+                "reward_tokens": 100_000_000,
+                "reward_rank": "Special Agent",
+                "intel_id": "intel_007",
+                "is_boss": False,
+                "boss_name": None,
+                "boss_hp": 0
+            },
+            {
+                "id": "op_8",
+                "code": "8",
+                "name": "Operation Gene-Lock: Fuchsia Gene-Vault Extraction",
+                "briefing": "Infiltrate the deep genetics lab concealed within the Safari Zone and extract Oak's master drive.",
+                "target": 25_000_000,
+                "target_desc": "25.0M coding tokens & hold at least 10 VRDN shares",
+                "reward_tokens": 120_000_000,
+                "reward_rank": "Executive",
+                "intel_id": "intel_008",
+                "is_boss": False,
+                "boss_name": None,
+                "boss_hp": 0
+            },
+            {
+                "id": "op_9",
+                "code": "9",
+                "name": "[BOSS 3] Cinnabar Caldera: Apex Vanguard Mon-Omega",
+                "briefing": "Storm the volcanic caldera facility where Oak's supreme tactical combat unit is being awakened.",
+                "target": 0,
+                "target_desc": "Neutralize Apex Vanguard: Mon-Omega in tactical combat ('attack' / 'burst')",
+                "reward_tokens": 150_000_000,
+                "reward_rank": "Executive",
+                "intel_id": "intel_009",
+                "is_boss": True,
+                "boss_name": "Apex Vanguard: Mon-Omega",
+                "boss_hp": 75_000
+            },
+            {
+                "id": "op_10",
+                "code": "10",
+                "name": "[FINAL BOSS] The Oak Citadel: Arch-Director Samuel Oak",
+                "briefing": "Full Rocket assault on Oak's Himalayan mountain fortress. Defeat Oak & his Augmented Legion!",
+                "target": 0,
+                "target_desc": "Conquer Arch-Director Oak & The Augmented Legion in final combat ('attack' / 'burst')",
+                "reward_tokens": 200_000_000,
+                "reward_rank": "Commander",
+                "intel_id": "intel_010",
+                "is_boss": True,
+                "boss_name": "Arch-Director Samuel Oak & Augmented Legion",
+                "boss_hp": 120_000
+            }
+        ]
+
+        result = []
+        for d in op_defs:
+            op_st = ops_state.get(d["id"], {"status": "locked", "progress": 0, "claimed": False, "objective_done": False, "boss_hp_remaining": 0})
+            cur_prog = op_st.get("progress", 0)
+            if d["target"] > 0:
+                cur_prog = min(cur_prog, d["target"])
+            result.append({
+                **d,
+                "status": op_st.get("status", "locked"),
+                "progress": cur_prog,
+                "claimed": op_st.get("claimed", False),
+                "objective_done": op_st.get("objective_done", False),
+                "boss_hp_remaining": op_st.get("boss_hp_remaining", d["boss_hp"])
+            })
+        return result
+
+    def check_operation_objective(self, op_id: str) -> Tuple[bool, str]:
+        """Checks whether the active objective for an operation is met."""
+        ops_state = self.state.setdefault("rocket_ops", {})
+        st = ops_state.setdefault(op_id, {})
+        if st.get("objective_done", False):
+            return True, "Objective verified!"
+
+        if op_id == "op_1":
+            exp_count = len(self.state.get("expedition_logs", [])) + self.state.get("daily_catalysts", {}).get("expeditions_completed", 0) + len(self.state.get("expeditions", []))
+            if exp_count >= 2:
+                st["objective_done"] = True
+                return True, "Completed 2+ expeditions!"
+            return False, f"Need 2 completed expeditions (Current: {exp_count}/2)."
+
+        elif op_id == "op_2":
+            wins = self.state.get("trainer_battles", {}).get("wins", 0)
+            if wins >= 2:
+                st["objective_done"] = True
+                return True, "Won 2+ Trainer Battles!"
+            return False, f"Need 2 Trainer Battle wins in Tab [6] (Current: {wins}/2)."
+
+        elif op_id == "op_3":
+            hp_rem = st.get("boss_hp_remaining", 15_000)
+            if hp_rem <= 0:
+                st["objective_done"] = True
+                return True, "Prototype Chimera-001 neutralized!"
+            return False, f"Boss remaining HP: {hp_rem}/15,000. Use 'attack' or 'burst'!"
+
+        elif op_id == "op_4":
+            cds = len(self.state.get("term_deposits", []))
+            if cds >= 1:
+                st["objective_done"] = True
+                return True, "Active Bank CD verified!"
+            return False, "Requires at least 1 active Bank CD in Tab [10]."
+
+        elif op_id == "op_5":
+            exp_active = len(self.state.get("expeditions", []))
+            spent = self.state.get("daily_catalysts", {}).get("shop_tokens_spent", 0) + self.state.get("spent_tokens", 0)
+            if exp_active >= 2 and spent > 0:
+                st["objective_done"] = True
+                return True, "2 expeditions deployed & Black Market transaction verified!"
+            return False, f"Requires 2 active expeditions ({exp_active}/2) and trading on the Black Market."
+
+        elif op_id == "op_6":
+            hp_rem = st.get("boss_hp_remaining", 35_000)
+            if hp_rem <= 0:
+                st["objective_done"] = True
+                return True, "Cyber-Enforcer Unit neutralized!"
+            return False, f"Boss remaining HP: {hp_rem}/35,000. Use 'attack' or 'burst'!"
+
+        elif op_id == "op_7":
+            hap = self.active_mon.happiness if self.active_mon else self.state.get("happiness", 0)
+            if hap >= 100:
+                st["objective_done"] = True
+                return True, "Companion at 100% Happiness!"
+            return False, f"Companion Happiness must be 100% (Current: {hap}%)."
+
+        elif op_id == "op_8":
+            shares = self.state.get("investments", {}).get("viridian", 0)
+            if shares >= 10:
+                st["objective_done"] = True
+                return True, "Holding 10+ VRDN shares!"
+            return False, f"Must hold at least 10 VRDN shares in Tab [10] (Current: {shares}/10)."
+
+        elif op_id == "op_9":
+            hp_rem = st.get("boss_hp_remaining", 75_000)
+            if hp_rem <= 0:
+                st["objective_done"] = True
+                return True, "Apex Vanguard: Mon-Omega neutralized!"
+            return False, f"Boss remaining HP: {hp_rem}/75,000. Use 'attack' or 'burst'!"
+
+        elif op_id == "op_10":
+            hp_rem = st.get("boss_hp_remaining", 120_000)
+            if hp_rem <= 0:
+                st["objective_done"] = True
+                return True, "Arch-Director Samuel Oak & The Augmented Legion conquered!"
+            return False, f"Boss remaining HP: {hp_rem}/120,000. Use 'attack' or 'burst'!"
+
+        return True, "Objective verified!"
+
+    def start_rocket_operation(self, op_code: str) -> Tuple[bool, str]:
+        """Activates a specific Rocket operation."""
+        op_id = f"op_{op_code}" if not op_code.startswith("op_") else op_code
+        ops_list = self.get_rocket_operations()
+        selected = next((op for op in ops_list if op["id"] == op_id), None)
+
+        if not selected:
+            return False, f"Unknown operation '{op_code}'! Valid codes are 1 through 10."
+
+        ops_state = self.state.setdefault("rocket_ops", {})
+        st = ops_state.setdefault(op_id, {"status": "locked", "progress": 0, "claimed": False, "objective_done": False, "boss_hp_remaining": 0})
+
+        if st.get("claimed", False):
+            return False, f"Operation {op_code} is already completed and claimed!"
+        if st.get("status") == "locked":
+            return False, f"Operation {op_code} is locked! Complete preceding operations first."
+        if st.get("status") == "active":
+            return False, f"Operation {op_code} is already active!"
+
+        for k, v in ops_state.items():
+            if v.get("status") == "active" and not v.get("claimed", False):
+                v["status"] = "available"
+
+        st["status"] = "active"
+        if selected["is_boss"] and st.get("boss_hp_remaining", 0) <= 0 and not st.get("objective_done", False):
+            st["boss_hp_remaining"] = selected["boss_hp"]
+
+        self.save()
+        msg = f"🚀 Operation {selected['code']} activated: {selected['name']}!"
+        if selected["is_boss"]:
+            msg += f" Target Boss: {selected['boss_name']} ({selected['boss_hp']:,} HP). Type 'attack' to engage!"
+        return True, msg
+
+    def attack_rocket_boss(self, burst: bool = False) -> Tuple[bool, str]:
+        """Attacks the syndicate boss of the currently active Rocket operation."""
+        ops_list = self.get_rocket_operations()
+        active_op = next((op for op in ops_list if op["status"] == "active"), None)
+        if not active_op or not active_op["is_boss"]:
+            return False, "No active Syndicate Boss encounter! Select an active boss operation first (Op 3, 6, 9, 10)."
+
+        op_id = active_op["id"]
+        ops_state = self.state.setdefault("rocket_ops", {})
+        st = ops_state.setdefault(op_id, {})
+        cur_hp = st.get("boss_hp_remaining", active_op["boss_hp"])
+
+        if cur_hp <= 0:
+            st["objective_done"] = True
+            return False, f"{active_op['boss_name']} is already neutralized! Type 'claim {active_op['code']}' to claim victory!"
+
+        # Determine damage
+        base_dmg = random.randint(1800, 3200)
+        if self.active_mon and getattr(self.active_mon, "is_mega", False):
+            base_dmg = int(base_dmg * 1.5)
+
+        burst_cost = 5_000_000
+        burst_text = ""
+        if burst:
+            if self.available_tokens < burst_cost:
+                return False, f"Not enough tokens for Burst Strike! Requires {format_tokens(burst_cost)} tokens (You have {format_tokens(self.available_tokens)})."
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + burst_cost
+            base_dmg += 5000
+            burst_text = " [ROCKET OVERCLOCK BURST (+5,000 DMG)]"
+
+        new_hp = max(0, cur_hp - base_dmg)
+        st["boss_hp_remaining"] = new_hp
+
+        mon_name = self.api.get_species_name(self.active_mon.current_id) if self.active_mon else "Companion"
+        if new_hp <= 0:
+            st["objective_done"] = True
+            self.save()
+            return True, f"💥 CRITICAL IMPACT! {mon_name} struck {active_op['boss_name']} for {base_dmg:,} damage{burst_text}! BOSS NEUTRALIZED! Type 'claim {active_op['code']}' to finalize!"
+
+        self.save()
+        return True, f"⚔️ {mon_name} attacked {active_op['boss_name']} for {base_dmg:,} damage{burst_text}! (Boss HP: {new_hp:,}/{active_op['boss_hp']:,})"
+
+    def _recruit_rocket_companion(self, species_id: int):
+        """Helper to recruit unique rocket rewards into dex roster."""
+        from poketokenbar.game.models import SPECIAL_SPECIES, Rarity, PokemonNature
+        spec_info = SPECIAL_SPECIES.get(species_id, {})
+        rarity = spec_info.get("rarity", Rarity.RARE)
+        mon = MonState(
+            base_id=species_id,
+            path_ids=[species_id],
+            planned_path_ids=[species_id],
+            stage_index=0,
+            used_at_stage=0,
+            rarity=rarity,
+            total_forms=1,
+            is_shiny=False,
+            nature=PokemonNature.ADAMANT,
+            happiness=100
+        )
+        self._register_to_dex(mon, status="inactive")
+
+    def claim_rocket_operation(self, op_code: str) -> Tuple[bool, str]:
+        """Claims rewards for a completed operation, promoting rank and unlocking intel."""
+        op_id = f"op_{op_code}" if not op_code.startswith("op_") else op_code
+        ops_list = self.get_rocket_operations()
+        selected = next((op for op in ops_list if op["id"] == op_id), None)
+
+        if not selected:
+            return False, f"Unknown operation '{op_code}'!"
+
+        ops_state = self.state.setdefault("rocket_ops", {})
+        st = ops_state.setdefault(op_id, {"status": "locked", "progress": 0, "claimed": False, "objective_done": False, "boss_hp_remaining": 0})
+
+        if st.get("claimed", False):
+            return False, f"Operation {op_code} reward has already been claimed!"
+
+        if selected["target"] > 0 and st.get("progress", 0) < selected["target"]:
+            rem = selected["target"] - st.get("progress", 0)
+            return False, f"Operation {op_code} incomplete! Need {format_tokens(rem)} more coding tokens."
+
+        ok_obj, msg_obj = self.check_operation_objective(op_id)
+        if not ok_obj:
+            return False, f"Operation {op_code} objective not fulfilled: {msg_obj}"
+
+        st["claimed"] = True
+        st["status"] = "completed"
+        st["objective_done"] = True
+
+        # Award tokens
+        reward = selected["reward_tokens"]
+        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - reward
+
+        # Update Reputation & Rank
+        rep = sum(1 for v in ops_state.values() if v.get("claimed", False))
+        self.state["rocket_reputation"] = rep
+        if rep >= 10: new_rank = "Commander"
+        elif rep >= 8: new_rank = "Executive"
+        elif rep >= 5: new_rank = "Special Agent"
+        elif rep >= 2: new_rank = "Operative"
+        else: new_rank = "Informant"
+        self.state["rocket_rank"] = new_rank
+
+        # Unlock dossier
+        intel_id = selected["intel_id"]
+        unlocked_intel = self.state.setdefault("rocket_intel_unlocked", [])
+        if intel_id not in unlocked_intel:
+            unlocked_intel.append(intel_id)
+
+        # Unlock next op sequentially
+        try:
+            curr_num = int(selected["code"])
+            if curr_num < 10:
+                next_key = f"op_{curr_num + 1}"
+                if next_key in ops_state and not ops_state[next_key].get("claimed", False):
+                    ops_state[next_key]["status"] = "available"
+        except ValueError:
+            pass
+
+        climax_msg = ""
+        # Final Operation 10 Climax Unlocks!
+        if op_id == "op_10":
+            badges = self.state.setdefault("gym_badges", [])
+            truth_badge = "👑 Seeker of Truth"
+            if truth_badge not in badges:
+                badges.append(truth_badge)
+
+            # Recruit Armored Mewtwo & Porygon-Zero
+            self._recruit_rocket_companion(2001)  # Armored Mewtwo
+            self._recruit_rocket_companion(2002)  # Porygon-Zero
+
+            # Recruit Oak's Augmented Team
+            for aug_id in [2003, 2004, 2005, 2006, 2007, 2008]:
+                self._recruit_rocket_companion(aug_id)
+
+            # Permanent Black Market access
+            self.state["permanent_black_market"] = True
+            climax_msg = "\n  👑 EARNED TITLE: 'Seeker of Truth'!\n  🎁 RECRUITED: Armored Mewtwo, Porygon-Zero, & Oak's Augmented Team into Roster!\n  🔓 UNLOCKED: Permanent 24/7 Black Market Access!"
+
+        self.save()
+        return True, f"🎉 Operation {selected['code']} Completed! Claimed {format_tokens(reward)} tokens! Rank: {new_rank} (Rep: {rep}/10)!{climax_msg}"
+
+    def get_rocket_dossier(self) -> List[Dict[str, Any]]:
+        """Returns the 10 classified dossier entries."""
+        unlocked_set = set(self.state.get("rocket_intel_unlocked", ["intel_001"]))
+        return [
+            {
+                "id": 1,
+                "key": "intel_001",
+                "title": "Dossier #001: Red's Biological Blueprint",
+                "date": "1996-02-27",
+                "unlocked": "intel_001" in unlocked_set,
+                "content": [
+                    "LOG DATE: 1996-02-27 | FACILITY: Cinnabar Deep Lab Sub-Level 4",
+                    "SUBJECT: Specimen-001 (Designation: RED)",
+                    "",
+                    "Neural pathways successfully synthesized using purified DNA strands.",
+                    "Emotional response matrices eliminated to optimize pure battle instinct.",
+                    "Growth acceleration reached physical maturity in 48 months.",
+                    "Subject dispatched to Pallet Town for field trial under the guise",
+                    "of an ordinary youth. Pokédex telemetry uplink confirmed active.",
+                    "",
+                    "Commander Petrel note: 'We found this blueprint buried in Oak's",
+                    "private mainframe. Red wasn't an ordinary champion—he was engineered",
+                    "to enforce total compliance across the Pokémon League.'"
+                ]
+            },
+            {
+                "id": 2,
+                "key": "intel_002",
+                "title": "Dossier #002: The Oak Syndicate Network",
+                "date": "1999-11-21",
+                "unlocked": "intel_002" in unlocked_set,
+                "content": [
+                    "LOG DATE: 1999-11-21 | INTERCEPTED TRANSMISSION: Pallet -> League Council",
+                    "DIRECTIVE: Regional Oversight Realignment",
+                    "",
+                    "With Gym Leaders serving as regional overseers, resource allocation",
+                    "to the Pallet Deep Lab has increased by 400%. Automated supply drones",
+                    "now transit from Cerulean Cave and Saffron unhindered.",
+                    "",
+                    "Commander Petrel note: 'The entire League system was designed as a",
+                    "filtration network to harvest top battle data for Oak's bio-constructs.'"
+                ]
+            },
+            {
+                "id": 3,
+                "key": "intel_003",
+                "title": "Dossier #003: Project Chimera: The Silph Vault",
+                "date": "2000-05-14",
+                "unlocked": "intel_003" in unlocked_set,
+                "content": [
+                    "LOG DATE: 2000-05-14 | RECOVERED SILPH R&D LOGS",
+                    "PROJECT: Chimera Synthesis",
+                    "",
+                    "Prototypes synthesized by combining multi-elemental gene drives.",
+                    "Initial trials yielded extreme volatility. Specimen-001 was quarantined",
+                    "in Silph sub-basement with automated containment shielding.",
+                    "",
+                    "Commander Petrel note: 'Oak used Silph Co to fund his monstrous tests.",
+                    "When we raided Silph in Saffron, we were trying to seize this data.'"
+                ]
+            },
+            {
+                "id": 4,
+                "key": "intel_004",
+                "title": "Dossier #004: The Cerulean Cooling Conduit",
+                "date": "2001-08-30",
+                "unlocked": "intel_004" in unlocked_set,
+                "content": [
+                    "LOG DATE: 2001-08-30 | INFRASTRUCTURE TELEMETRY",
+                    "TARGET: Subterranean Liquid Nitrogen Conduit",
+                    "",
+                    "Massive sub-aquatic conduits route chilled heavy water from Cerulean",
+                    "Cape directly into the Pallet underground bio-vats. Power draw",
+                    "disguised under municipal grid allocations.",
+                    "",
+                    "Commander Petrel note: 'Diverting Cerulean power destabilized Oak's",
+                    "cloning vats, buying us crucial time to organize the counterstrike.'"
+                ]
+            },
+            {
+                "id": 5,
+                "key": "intel_005",
+                "title": "Dossier #005: S.S. Dreadnought Cargo Manifest",
+                "date": "2002-02-18",
+                "unlocked": "intel_005" in unlocked_set,
+                "content": [
+                    "LOG DATE: 2002-02-18 | FREIGHT CARGO MANIFEST: S.S. DREADNOUGHT",
+                    "SHIPPED TO: Vermilion Deep Anchorage // Oak Syndicate Logistics",
+                    "",
+                    "Consignment: 80 metric tons of reinforced titanium-weave exoskeleton",
+                    "housings, designed to encase bio-engineered apex Pokémon.",
+                    "",
+                    "Commander Petrel note: 'These hulls were intended for Oak's Augmented",
+                    "Legion. Intercepting this shipment dealt a critical blow to their armor.'"
+                ]
+            },
+            {
+                "id": 6,
+                "key": "intel_006",
+                "title": "Dossier #006: Cybernetic DNA Schematics",
+                "date": "2002-11-15",
+                "unlocked": "intel_006" in unlocked_set,
+                "content": [
+                    "LOG DATE: 2002-11-15 | RECOVERED SCHEMATICS: Power Plant Core",
+                    "PROTOTYPE: Cyber-Enforcer Bio-Construct",
+                    "",
+                    "Mechanized skeletal frame grafted with regenerative cellular tissue.",
+                    "Power cell powered by condensed token resonance. In the event of",
+                    "Specimen-001 deactivation, automated defenses engage immediately.",
+                    "",
+                    "Commander Petrel note: 'Oak anticipated Red's defeat. He had automated",
+                    "cyber-constructs sleeping in reinforced mountain silos.'"
+                ]
+            },
+            {
+                "id": 7,
+                "key": "intel_007",
+                "title": "Dossier #007: Celadon Institute (1975)",
+                "date": "1975-06-12",
+                "unlocked": "intel_007" in unlocked_set,
+                "content": [
+                    "LOG DATE: 1975-06-12 | ARCHIVE: Celadon Institute of Biology",
+                    "FELLOW RESEARCHERS: Samuel Oak & Giovanni",
+                    "",
+                    "Before the badges, before the syndicate, Samuel Oak and Giovanni were",
+                    "inseparable research partners. Together they mapped the first genetic",
+                    "sequences of wild Pokémon in the Viridian basin.",
+                    "",
+                    "Commander Petrel note: 'They weren't always enemies. In fact, they were",
+                    "best friends. But brilliance without restraint breeds monstrous ambition.'"
+                ]
+            },
+            {
+                "id": 8,
+                "key": "intel_008",
+                "title": "Dossier #008: The Ideological Schism",
+                "date": "1982-04-09",
+                "unlocked": "intel_008" in unlocked_set,
+                "content": [
+                    "LOG DATE: 1982-04-09 | DECLASSIFIED DEBATE RECORD",
+                    "PHILOSOPHICAL SPLIT: The Limits of Organic Biology",
+                    "",
+                    "GIOVANNI: 'True strength comes from bonding with nature's creatures,",
+                    "tempering their wild spirits through discipline, respect, and battle.'",
+                    "",
+                    "OAK: 'Nature is flawed. Biological limits are a failure of evolution.",
+                    "True order requires engineered perfection—Pokémon stripped of fear,",
+                    "unbound by empathy, synthesized for absolute obedience.'",
+                    "",
+                    "Commander Petrel note: 'When Giovanni discovered Oak's mutagen vats,",
+                    "he walked away and founded Team Rocket to resist him. Oak used his League",
+                    "influence to paint Giovanni as a criminal mastermind to silence him.'"
+                ]
+            },
+            {
+                "id": 9,
+                "key": "intel_009",
+                "title": "Dossier #009: Mon-Omega Vanguard Directive",
+                "date": "2003-09-01",
+                "unlocked": "intel_009" in unlocked_set,
+                "content": [
+                    "LOG DATE: 2003-09-01 | CINNABAR CALDERA VAULT REPORT",
+                    "DESIGNATION: Mon-Omega (Syndicate Vanguard)",
+                    "",
+                    "Peak bio-synthetic apex combatant completed. Telepathic override",
+                    "matrix active. Calibrated to withstand multi-elemental assaults.",
+                    "",
+                    "Commander Petrel note: 'Mon-Omega was Oak's supreme bodyguard.",
+                    "With this construct broken, the path to the Citadel is wide open.'"
+                ]
+            },
+            {
+                "id": 10,
+                "key": "intel_010",
+                "title": "Dossier #010: Fall of the Shadow Architect",
+                "date": "CURRENT",
+                "unlocked": "intel_010" in unlocked_set,
+                "content": [
+                    "LOG DATE: CURRENT | DECLASSIFIED AFTER ACTION REPORT",
+                    "OPERATION FINALITY: CITADEL NEUTRALIZATION",
+                    "",
+                    "The Himalayan Citadel has fallen. Arch-Director Samuel Oak's secret",
+                    "syndicate operations across Kanto and Johto are completely offline.",
+                    "His Augmented Pokémon have been cleansed of cybernetic overrides.",
+                    "",
+                    "Commander Petrel note: 'You achieved what Giovanni and all of Team Rocket",
+                    "could not. You broke the architect's empire and saved the world from",
+                    "artificial subjugation. You are the true Seeker of Truth.'"
+                ]
+            }
+        ]
+
+    def buy_rocket_armory_item(self, item_code: str) -> Tuple[bool, str]:
+        """Purchases covert tech from the Rocket Armory with rank clearance checks."""
+        item_code = item_code.lower().strip()
+        catalog = {
+            "elixir": ("Shadow Elixir", 20_000_000, "Informant"),
+            "chip": ("Overclock Chip", 35_000_000, "Operative"),
+            "scanner": ("Syndicate Scanner", 45_000_000, "Operative"),
+            "radar": ("Rocket Decryptor", 50_000_000, "Special Agent"),
+            "catalyst": ("Dark Gene Catalyst", 75_000_000, "Executive"),
+            "ball": ("Rocket Master Ball", 150_000_000, "Commander"),
+        }
+
+        if item_code not in catalog:
+            valid_codes = ", ".join(f"'{k}'" for k in catalog.keys())
+            return False, f"Unknown tech code '{item_code}'! Valid codes: {valid_codes}."
+
+        name, cost, min_rank = catalog[item_code]
+        rank_order = {"Informant": 1, "Operative": 2, "Special Agent": 3, "Executive": 4, "Commander": 5}
+        user_rank = self.state.get("rocket_rank", "Informant")
+        if rank_order.get(user_rank, 1) < rank_order.get(min_rank, 1):
+            return False, f"Clearance Denied! {name} requires rank '{min_rank}' (Your Rank: {user_rank})."
+
+        if cost > self.available_tokens:
+            return False, f"Not enough tokens! {name} costs {format_tokens(cost)} (You have {format_tokens(self.available_tokens)})."
+
+        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + cost
+        if item_code == "elixir":
+            if self.active_mon:
+                self.active_mon.happiness = 100
+                self.set_active_mon(self.active_mon)
+            self.state["happiness"] = 100
+            msg = f"🧪 Acquired Shadow Elixir! Restored active companion to 100% Happiness!"
+        elif item_code == "chip":
+            expeds = self.state.get("expeditions", [])
+            for ex in expeds:
+                ex["target_tokens"] = max(ex.get("progress_tokens", 0), int(ex.get("target_tokens", 10_000_000) * 0.5))
+            msg = f"💾 Acquired Overclock Chip! Active expedition durations cut in half!"
+        elif item_code == "scanner":
+            self.state["has_syndicate_scanner"] = True
+            msg = f"🔍 Acquired Syndicate Scanner! Covert tracking enabled for expeditions!"
+        elif item_code == "radar":
+            self.state["has_rocket_decryptor"] = True
+            msg = f"📡 Acquired Rocket Decryptor! High-yield insider market frequencies enabled!"
+        elif item_code == "catalyst":
+            inv = self.state.setdefault("inventory", {})
+            inv["dark_gene_catalyst"] = inv.get("dark_gene_catalyst", 0) + 1
+            if isinstance(inv.get("items"), dict):
+                inv["items"]["dark_gene_catalyst"] = inv["dark_gene_catalyst"]
+            msg = f"🧬 Acquired Dark Gene Catalyst! Stored in Bag inventory."
+        elif item_code == "ball":
+            inv = self.state.setdefault("inventory", {})
+            inv["rocket_master_ball"] = inv.get("rocket_master_ball", 0) + 1
+            if isinstance(inv.get("items"), dict):
+                inv["items"]["rocket_master_ball"] = inv["rocket_master_ball"]
+            msg = f"🔮 Acquired Rocket Master Ball! Ultra-high capture matrix stored in Bag."
+
+        self.save()
+        return True, msg

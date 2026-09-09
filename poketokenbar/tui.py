@@ -144,6 +144,12 @@ class PokeTokenBarTUI:
                     time.sleep(1)
                 continue
 
+            if self.engine.state.get("rocket_story_unlocked") and not self.engine.state.get("rocket_story_viewed"):
+                from poketokenbar.tui_tabs.rocket import render_rocket_transmission
+                render_rocket_transmission(self)
+                self.current_tab = 12
+                continue
+
             self.clear_screen()
             summary = self.tracker.get_summary()
 
@@ -172,10 +178,14 @@ class PokeTokenBarTUI:
                 self.render_bank_tab()
             elif self.current_tab == 11:
                 self.render_settings_tab()
+            elif self.current_tab == 12:
+                from poketokenbar.tui_tabs.rocket import render_rocket_tab
+                render_rocket_tab(self)
 
             self.render_footer()
 
-            sys.stdout.write(f"\n{BOLD}Select tab (1-11), command, r=Refresh, q=Quit: {RESET}")
+            tab_max = 12 if self.engine.state.get("rocket_story_unlocked") else 11
+            sys.stdout.write(f"\n{BOLD}Select tab (1-{tab_max}), command, r=Refresh, q=Quit: {RESET}")
             sys.stdout.flush()
 
             try:
@@ -198,7 +208,7 @@ class PokeTokenBarTUI:
                     if cmd == "back":
                         self.expedition_picker_mode = False
                         self.message = "Exited Expedition Dispatcher."
-                    elif cmd == "n":
+                    elif cmd in ["n", "next"]:
                         dex = self.engine.state.get("dex", [])
                         roster = [d for d in dex if d.get("status") != "evolved"]
                         page_size = 8
@@ -207,7 +217,7 @@ class PokeTokenBarTUI:
                             self.picker_page = getattr(self, "picker_page", 1) + 1
                         else:
                             self.message = f"Already on the last page ({total_pages})."
-                    elif cmd == "p":
+                    elif cmd in ["p", "prev"]:
                         if getattr(self, "picker_page", 1) > 1:
                             self.picker_page = getattr(self, "picker_page", 1) - 1
                         else:
@@ -262,7 +272,7 @@ class PokeTokenBarTUI:
                     self.engine.state["spent_tokens"] = self.engine.state.get("spent_tokens", 0) - 50_000_000
                     self.engine.save()
                     self.message = "🎉 EASTER EGG UNLOCKED! Granted 50.0M Tokens! 🎉"
-                elif cmd in [str(i) for i in range(1, 12)]:
+                elif cmd in [str(i) for i in range(1, 13 if self.engine.state.get("rocket_story_unlocked") else 12)]:
                     self.expedition_picker_mode = False
                     self.stock_terminal = None
                     self.black_market_session = False
@@ -274,7 +284,7 @@ class PokeTokenBarTUI:
                     summary = self.tracker.get_summary(force=True)
                     self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
                     self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
-                elif cmd == "n" and (self.current_tab in [2, 3, 4, 5, 8] or (self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks")):
+                elif cmd in ["n", "next"] and (self.current_tab in [2, 3, 4, 5, 8] or (self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks")):
                     if self.current_tab == 2: self.pokedex_page += 1
                     elif self.current_tab == 4:
                         if not hasattr(self, 'shop_page'): self.shop_page = 1
@@ -290,7 +300,7 @@ class PokeTokenBarTUI:
                         self.stock_page += 1
                     else: self.roster_page += 1
                     self.message = ""
-                elif cmd == "p" and (self.current_tab in [2, 3, 4, 5, 8] or (self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks")):
+                elif cmd in ["p", "prev"] and (self.current_tab in [2, 3, 4, 5, 8] or (self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks")):
                     if self.current_tab == 2: self.pokedex_page = max(1, self.pokedex_page - 1)
                     elif self.current_tab == 4:
                         if not hasattr(self, 'shop_page'): self.shop_page = 1
@@ -632,6 +642,9 @@ class PokeTokenBarTUI:
                         self.message = msg
                     else:
                         self.message = "Usage: deposit, withdraw, loan, or payoff <amount>"
+                elif self.current_tab == 12:
+                    from poketokenbar.tui_tabs.rocket import handle_rocket_command
+                    handle_rocket_command(self, cmd)
             except KeyboardInterrupt:
                 print("\nExiting PokeTokenBar. Keep coding! 🐾")
                 break
@@ -820,7 +833,14 @@ class PokeTokenBarTUI:
         
         sys.stdout.write(f"  {t1}   {t2}     {t3}      {t4}\n")
         sys.stdout.write(f"  {t5} {t6}     {t7}      {t8}\n")
-        sys.stdout.write(f"  {t9} {t10}       {t11}\n")
+        if self.engine.state.get("rocket_story_unlocked", False):
+            if self.engine.state.get("rocket_alliance_accepted", False):
+                t12 = f"{BOLD}{RED}[12] Rocket HQ{RESET}" if self.current_tab == 12 else "[12] Rocket HQ"
+            else:
+                t12 = f"{BOLD}{YELLOW}[12] Secure Comm{RESET}" if self.current_tab == 12 else "[12] Secure Comm"
+            sys.stdout.write(f"  {t9} {t10}       {t11}   {t12}\n")
+        else:
+            sys.stdout.write(f"  {t9} {t10}       {t11}\n")
         sys.stdout.write("-" * 72 + "\n")
 
     def render_companion_tab(self, summary: dict):

@@ -177,12 +177,13 @@ def unpack_trove(deal: Dict[str, Any], qty: int = 1) -> Tuple[Dict[str, int], Li
 
     return items_to_add, reveal_names
 
-def unpack_mystery_crate(crate_id: str) -> Tuple[Dict[str, int], int, Optional[str], str]:
+def unpack_mystery_crate(crate_id: str, inv: Optional[Dict[str, int]] = None) -> Tuple[Dict[str, int], int, Optional[str], str]:
     """Unpacks a contraband mystery crate into inventory items, token grant, optional egg, and reveal text."""
     roll = random.random()
     items: Dict[str, int] = {}
     tokens = 0
     egg: Optional[str] = None
+    from poketokenbar.game.models import MEGA_STONES
 
     if crate_id == "rocket_black_box":
         if roll < 0.10:
@@ -197,9 +198,16 @@ def unpack_mystery_crate(crate_id: str) -> Tuple[Dict[str, int], int, Optional[s
                 items["rare_candy"] = 10
                 desc = "🍬 GREAT FIND! Unpacked 10x Rare Candies!"
             else:
-                s_key = random.choice(["6_X", "6_Y", "94", "448"])
-                items[f"mega_stone_{s_key}"] = 1
-                desc = f"🔮 GREAT FIND! Unpacked a rare Mega Stone (stone #{s_key})!"
+                pool = ["6_X", "6_Y", "94", "448"]
+                unowned = [s for s in pool if not inv or inv.get(f"mega_stone_{s}", 0) == 0]
+                if unowned:
+                    s_key = random.choice(unowned)
+                    items[f"mega_stone_{s_key}"] = 1
+                    s_name = MEGA_STONES.get(s_key, f"stone #{s_key}")
+                    desc = f"🔮 GREAT FIND! Unpacked a rare Mega Stone ({s_name})!"
+                else:
+                    items["rare_candy"] = 10
+                    desc = "🍬 GREAT FIND! (Already owned Mega Stone converted to 10x Rare Candies!)"
         elif roll < 0.80:
             s1, s2, s3 = random.choices(ALL_STONE_TYPES, k=3)
             for s in [s1, s2, s3]: items[s] = items.get(s, 0) + 1
@@ -247,9 +255,16 @@ def unpack_mystery_crate(crate_id: str) -> Tuple[Dict[str, int], int, Optional[s
 
     elif crate_id == "devon_stolen_vault":
         if roll < 0.25:
-            s_key = random.choice(["254", "257", "260", "373", "376"])
-            items[f"mega_stone_{s_key}"] = 1
-            desc = f"🔮 Devon Masterpiece! Unpacked a Hoenn Mega Stone (stone #{s_key})!"
+            pool = ["254", "257", "260", "373", "376"]
+            unowned = [s for s in pool if not inv or inv.get(f"mega_stone_{s}", 0) == 0]
+            if unowned:
+                s_key = random.choice(unowned)
+                items[f"mega_stone_{s_key}"] = 1
+                s_name = MEGA_STONES.get(s_key, f"stone #{s_key}")
+                desc = f"🔮 Devon Masterpiece! Unpacked a Hoenn Mega Stone ({s_name})!"
+            else:
+                items["rare_candy"] = 15
+                desc = "🍬 Devon Vault Sweetness! (Already owned Mega Stone converted to 15x Rare Candies!)"
         elif roll < 0.60:
             items["rare_candy"] = 15
             desc = "🍬 Devon Vault Sweetness! Unpacked 15x Rare Candies!"
@@ -292,10 +307,22 @@ def unpack_mystery_crate(crate_id: str) -> Tuple[Dict[str, int], int, Optional[s
             tokens = 75_000_000
             desc = "💰 MASSIVE JACKPOT! Found 75.0M Tokens in gold bullion!"
         elif roll < 0.90:
-            s1, s2 = random.choices(["150_X", "150_Y", "382", "383", "94", "6_X"], k=2)
-            items[f"mega_stone_{s1}"] = items.get(f"mega_stone_{s1}", 0) + 1
-            items[f"mega_stone_{s2}"] = items.get(f"mega_stone_{s2}", 0) + 1
-            desc = "🔮 High-Roller Stash! Unpacked 2x Legendary Mega Stones / Orbs!"
+            pool = ["150_X", "150_Y", "382", "383", "94", "6_X"]
+            unowned = [s for s in pool if not inv or inv.get(f"mega_stone_{s}", 0) == 0]
+            if len(unowned) >= 2:
+                s1, s2 = random.sample(unowned, 2)
+                items[f"mega_stone_{s1}"] = 1
+                items[f"mega_stone_{s2}"] = 1
+                desc = "🔮 High-Roller Stash! Unpacked 2x Legendary Mega Stones / Orbs!"
+            elif len(unowned) == 1:
+                s1 = unowned[0]
+                items[f"mega_stone_{s1}"] = 1
+                tokens = 25_000_000
+                s_name = MEGA_STONES.get(s1, s1)
+                desc = f"🔮 High-Roller Stash! Unpacked 1x Mega Stone ({s_name}) & 25.0M Tokens!"
+            else:
+                tokens = 50_000_000
+                desc = "💰 High-Roller Stash! (Already owned Mega Stones converted to 50.0M Tokens!)"
         else:
             items["rare_candy"] = 20
             desc = "🍬 Sweet Syndicate! Unpacked 20x Rare Candies!"

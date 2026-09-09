@@ -1,19 +1,21 @@
 def format_tokens(num: float) -> str:
     """Format token count into compact human readable string (e.g. 40.7M, 74.9K, 123) without rounding up."""
     val = float(num)
-    if val >= 1_000_000_000:
-        truncated = int(val / 100_000_000) / 10.0
-        return f"{truncated:.1f}B"
-    elif val >= 1_000_000:
-        truncated = int(val / 100_000) / 10.0
-        return f"{truncated:.1f}M"
-    elif val >= 1_000:
-        truncated = int(val / 100) / 10.0
-        return f"{truncated:.1f}K"
+    sign = "-" if val < 0 else ""
+    abs_val = abs(val)
+    if abs_val >= 1_000_000_000:
+        truncated = int(abs_val / 100_000_000) / 10.0
+        return f"{sign}{truncated:.1f}B"
+    elif abs_val >= 1_000_000:
+        truncated = int(abs_val / 100_000) / 10.0
+        return f"{sign}{truncated:.1f}M"
+    elif abs_val >= 1_000:
+        truncated = int(abs_val / 100) / 10.0
+        return f"{sign}{truncated:.1f}K"
     else:
-        if val.is_integer():
-            return str(int(val))
-        return f"{val:.1f}"
+        if abs_val.is_integer():
+            return f"{sign}{int(abs_val)}"
+        return f"{sign}{abs_val:.1f}"
 
 def parse_tokens(amount_str: str) -> int:
     clean_str = str(amount_str).lower().strip()

@@ -1,5 +1,6 @@
 import random
 import sys
+from typing import Optional, Tuple, Dict, List, Any
 from poketokenbar.game.models import ItemKind, Rarity
 from poketokenbar.utils.formatting import format_tokens
 
@@ -11,6 +12,102 @@ YELLOW = "\033[93m"
 RED = "\033[91m"
 RESET = "\033[0m"
 BOLD = "\033[1m"
+
+BAG_CATALOG = [
+    ("1", "rare_candy", "🍬 Rare Candy"),
+    ("2", "mint", "🌿 Mint"),
+    ("3", "berry_oran", "🫐 Oran Berry"),
+    ("4", "berry_golden", "🍇 Golden Razz"),
+    ("6", "poke_flute", "🪈 Poké Flute (Summons Boss)"),
+    ("7", "master_ball", "🌟 Master Ball (Hatch Shiny)"),
+    ("8", "map_fragment", "📜 Map"),
+    ("9", "expedition_license", "📜 Exped. License (+10 slots)"),
+    ("10", "everstone", "🪨 Everstone (No evolution)"),
+    ("11", "lucky_egg", "🍀 Lucky Egg (+20% XP)"),
+    ("12", "amulet_coin", "🪙 Amulet Coin (+50% tokens)"),
+    ("13", "leftovers", "🍎 Leftovers (No hap. decay)"),
+    ("14", "choice_scarf", "🥊 Choice Scarf (+20% spd)"),
+    ("15", "exp_share", "🎒 Exp. Share (XP Sharing)"),
+    ("16", "soothe_bell", "🔔 Soothe Bell (Hap. Boost)"),
+    ("17", "scope_lens", "🔍 Scope Lens (2x Shiny)"),
+    ("18", "life_orb", "🔮 Life Orb (+10% Tokens)"),
+    ("19", "choice_band", "🥊 Choice Band (+50% Dmg)"),
+    # Combat held items
+    ("20", "choice_specs", "👓 Choice Specs (+50% SpAtk)"),
+    ("21", "focus_sash", "🎗️ Focus Sash (Endure 1 HP)"),
+    ("22", "rocky_helmet", "⛑️ Rocky Helmet (Recoil)"),
+    ("23", "assault_vest", "🦺 Assault Vest (-30% SpDef)"),
+    ("24", "heavy_boots", "🥾 Heavy Boots (Hazard Guard)"),
+    ("25", "compass_of_deep", "🧭 Compass of Deep (+25% Spd)"),
+    # Consumables & Field Tech
+    ("26", "revitalizing_tonic", "⚗️ Revitalizing Tonic (100% Hap)"),
+    ("27", "sacred_ash", "🏺 Sacred Ash (Full Red Revive)"),
+    ("28", "warp_whistle", "🌬️ Warp Whistle (Finish All)"),
+    ("29", "expedition_pass", "🎫 Expedition Pass"),
+    ("30", "expedition_energy_tonic", "⚡ Energy Tonic (+50% Hap All)"),
+    ("31", "expedition_insurance", "📜 Exped. Insurance Policy"),
+    ("32", "rocket_radar", "📡 Rocket Radar (+50% Tokens)"),
+    # Syndicate Evolution Artifacts
+    ("33", "metal_coat", "⚙️ Metal Coat"),
+    ("34", "kings_rock", "👑 King's Rock"),
+    ("35", "dragon_scale", "🐉 Dragon Scale"),
+    ("36", "upgrade", "💾 Upgrade"),
+    ("37", "dubious_disc", "💿 Dubious Disc"),
+    ("38", "protector", "🛡️ Protector"),
+    ("39", "electirizer", "🔌 Electirizer"),
+    ("40", "magmarizer", "🌋 Magmarizer"),
+    ("41", "reaper_cloth", "👻 Reaper Cloth"),
+    ("42", "prism_scale", "✨ Prism Scale"),
+    # Evolution Stones
+    ("43", "water_stone", "💎 Water Stone"),
+    ("44", "fire_stone", "💎 Fire Stone"),
+    ("45", "thunder_stone", "💎 Thunder Stone"),
+    ("46", "leaf_stone", "💎 Leaf Stone"),
+    ("47", "moon_stone", "💎 Moon Stone"),
+    ("48", "sun_stone", "💎 Sun Stone"),
+    ("49", "ice_stone", "💎 Ice Stone"),
+    ("50", "shiny_stone", "💎 Shiny Stone"),
+    ("51", "dusk_stone", "💎 Dusk Stone"),
+    ("52", "dawn_stone", "💎 Dawn Stone"),
+    # Fake Contraband items
+    ("53", "fake_rare_candy", "🍬 \"Rare Candy\""),
+    ("54", "fake_master_ball", "🌟 \"Master Ball\""),
+    ("55", "fake_thunder_stone", "⚡ \"Thunder Stone\""),
+    ("56", "fake_water_stone", "💧 \"Water Stone\""),
+    ("57", "fake_fire_stone", "🔥 \"Fire Stone\""),
+    ("58", "fake_ancient_map", "📜 \"Ancient Map\""),
+    ("59", "fake_gold_nugget", "🪙 \"Gold Nugget\""),
+    ("60", "fake_exp_share", "🎒 \"Exp. Share\""),
+    ("61", "fake_soothe_bell", "🔔 \"Soothe Bell\""),
+    ("62", "fake_scope_lens", "🔍 \"Scope Lens\""),
+    ("63", "fake_focus_sash", "🎗️ \"Focus Sash\""),
+    ("64", "fake_mega_stone", "🔮 \"Charizardite\""),
+    # Special Rocket Bag items
+    ("65", "dark_gene_catalyst", "🧬 Dark Gene Catalyst"),
+    ("66", "rocket_master_ball", "🔮 Rocket Master Ball"),
+]
+
+BAG_CATALOG_MAP = {cid: key for cid, key, _ in BAG_CATALOG}
+BAG_KEY_TO_ID = {key: cid for cid, key, _ in BAG_CATALOG}
+
+def resolve_bag_item(app, choice: str) -> Optional[str]:
+    choice = choice.strip().lower()
+    if not choice:
+        return None
+    bag_id_map = getattr(app, "bag_id_map", {})
+    if choice in bag_id_map:
+        return bag_id_map[choice]
+    if choice in BAG_CATALOG_MAP:
+        return BAG_CATALOG_MAP[choice]
+    if choice in BAG_KEY_TO_ID:
+        return choice
+    for s in ItemKind:
+        if choice == s.value or choice == s.value.replace("_", ""):
+            return s.value
+    inv = app.engine.state.get("inventory", {}) if hasattr(app, "engine") else {}
+    if choice in inv:
+        return choice
+    return None
 
 def render_shop_tab(app):
     if getattr(app, "shop_view", "normal") == "black_market":
@@ -56,90 +153,33 @@ def render_shop_tab(app):
     sys.stdout.write(f"  {BOLD}Your Bag (Type 'use <id>', 'sell <id> [qty]', or 'unequip'):{RESET}\n")
     
     bag_items = []
-    if inv.get('rare_candy', 0) > 0: bag_items.append(("🍬 Rare Candy", "1", inv['rare_candy']))
-    if inv.get('mint', 0) > 0: bag_items.append(("🌿 Mint", "2", inv['mint']))
-    if inv.get('berry_oran', 0) > 0: bag_items.append(("🫐 Oran Berry", "3", inv['berry_oran']))
-    if inv.get('berry_golden', 0) > 0: bag_items.append(("🍇 Golden Razz", "4", inv['berry_golden']))
-    if inv.get('poke_flute', 0) > 0: bag_items.append(("🪈 Poké Flute (Summons Boss)", "6", inv['poke_flute']))
-    if inv.get('master_ball', 0) > 0: bag_items.append(("🌟 Master Ball (Hatch Shiny)", "7", inv['master_ball']))
-    if inv.get('map_fragment', 0) > 0: bag_items.append(("📜 Map", "8", inv['map_fragment']))
-    if inv.get('expedition_license', 0) > 0: bag_items.append(("📜 Exped. License (+10 slots)", "9", inv['expedition_license']))
-    if inv.get('everstone', 0) > 0: bag_items.append(("🪨 Everstone (No evolution)", "10", inv['everstone']))
-    if inv.get('lucky_egg', 0) > 0: bag_items.append(("🍀 Lucky Egg (+20% XP)", "11", inv['lucky_egg']))
-    if inv.get('amulet_coin', 0) > 0: bag_items.append(("🪙 Amulet Coin (+50% tokens)", "12", inv['amulet_coin']))
-    if inv.get('leftovers', 0) > 0: bag_items.append(("🍎 Leftovers (No hap. decay)", "13", inv['leftovers']))
-    if inv.get('choice_scarf', 0) > 0: bag_items.append(("🥊 Choice Scarf (+20% spd)", "14", inv['choice_scarf']))
-    if inv.get('exp_share', 0) > 0: bag_items.append(("🎒 Exp. Share (XP Sharing)", "15", inv['exp_share']))
-    if inv.get('soothe_bell', 0) > 0: bag_items.append(("🔔 Soothe Bell (Hap. Boost)", "16", inv['soothe_bell']))
-    if inv.get('scope_lens', 0) > 0: bag_items.append(("🔍 Scope Lens (2x Shiny)", "17", inv['scope_lens']))
-    if inv.get('life_orb', 0) > 0: bag_items.append(("🔮 Life Orb (+10% Tokens)", "18", inv['life_orb']))
-    if inv.get('choice_band', 0) > 0: bag_items.append(("🥊 Choice Band (+50% Dmg)", "19", inv['choice_band']))
+    seen_keys = set()
+    app.bag_id_map = {}
 
-    # Combat held items
-    if inv.get('choice_specs', 0) > 0: bag_items.append(("👓 Choice Specs (+50% SpAtk)", "choice_specs", inv['choice_specs']))
-    if inv.get('focus_sash', 0) > 0: bag_items.append(("🎗️ Focus Sash (Endure 1 HP)", "focus_sash", inv['focus_sash']))
-    if inv.get('rocky_helmet', 0) > 0: bag_items.append(("⛑️ Rocky Helmet (Recoil)", "rocky_helmet", inv['rocky_helmet']))
-    if inv.get('assault_vest', 0) > 0: bag_items.append(("🦺 Assault Vest (-30% SpDef)", "assault_vest", inv['assault_vest']))
-    if inv.get('heavy_boots', 0) > 0: bag_items.append(("🥾 Heavy Boots (Hazard Guard)", "heavy_boots", inv['heavy_boots']))
-    if inv.get('compass_of_deep', 0) > 0: bag_items.append(("🧭 Compass of Deep (+25% Spd)", "compass_of_deep", inv['compass_of_deep']))
+    for id_str, k, name in BAG_CATALOG:
+        qty = inv.get(k, 0)
+        if qty <= 0 and isinstance(inv.get("items"), dict):
+            qty = inv["items"].get(k, 0)
+        if qty > 0:
+            bag_items.append((name, id_str, qty))
+            app.bag_id_map[id_str] = k
+            app.bag_id_map[k] = k
+            seen_keys.add(k)
 
-    # Consumables
-    if inv.get('revitalizing_tonic', 0) > 0: bag_items.append(("⚗️ Revitalizing Tonic (100% Hap)", "revitalizing_tonic", inv['revitalizing_tonic']))
-    if inv.get('sacred_ash', 0) > 0: bag_items.append(("🏺 Sacred Ash (Full Red Revive)", "sacred_ash", inv['sacred_ash']))
-    if inv.get('warp_whistle', 0) > 0: bag_items.append(("🌬️ Warp Whistle (Finish All)", "warp_whistle", inv['warp_whistle']))
-    if inv.get('expedition_pass', 0) > 0: bag_items.append(("🎫 Expedition Pass", "expedition_pass", inv['expedition_pass']))
-    if inv.get('expedition_energy_tonic', 0) > 0: bag_items.append(("⚡ Energy Tonic (+50% Hap All)", "expedition_energy_tonic", inv['expedition_energy_tonic']))
-    if inv.get('expedition_insurance', 0) > 0: bag_items.append(("📜 Exped. Insurance Policy", "expedition_insurance", inv['expedition_insurance']))
-    if inv.get('rocket_radar', 0) > 0: bag_items.append(("📡 Rocket Radar (+50% Tokens)", "rocket_radar", inv['rocket_radar']))
-
-    # Evolution artifacts
-    artifacts = [
-        ("⚙️ Metal Coat", "metal_coat"),
-        ("👑 King's Rock", "kings_rock"),
-        ("🐉 Dragon Scale", "dragon_scale"),
-        ("💾 Upgrade", "upgrade"),
-        ("💿 Dubious Disc", "dubious_disc"),
-        ("🛡️ Protector", "protector"),
-        ("🔌 Electirizer", "electirizer"),
-        ("🌋 Magmarizer", "magmarizer"),
-        ("👻 Reaper Cloth", "reaper_cloth"),
-        ("✨ Prism Scale", "prism_scale"),
-    ]
-    for a_name, a_key in artifacts:
-        if inv.get(a_key, 0) > 0:
-            bag_items.append((a_name, a_key, inv[a_key]))
-
-    # Evolution stones
-    stone_keys = ["water_stone", "fire_stone", "thunder_stone", "leaf_stone", "moon_stone", "sun_stone", "ice_stone", "shiny_stone", "dusk_stone", "dawn_stone"]
-    for k in stone_keys:
-        if inv.get(k, 0) > 0:
-            bag_items.append((f"💎 {k.replace('_', ' ').title()}", k, inv[k]))
-
-    # Mega stones
-    from poketokenbar.game.models import MEGA_STONES
-    for sid, sname in MEGA_STONES.items():
-        k = f"mega_stone_{sid}"
-        if inv.get(k, 0) > 0:
-            bag_items.append((f"🔮 {sname}", k, inv[k]))
-
-    # Fake items
-    fake_keys = [
-        ("🍬 \"Rare Candy\"", "fake_rare_candy"),
-        ("🌟 \"Master Ball\"", "fake_master_ball"),
-        ("⚡ \"Thunder Stone\"", "fake_thunder_stone"),
-        ("💧 \"Water Stone\"", "fake_water_stone"),
-        ("🔥 \"Fire Stone\"", "fake_fire_stone"),
-        ("📜 \"Ancient Map\"", "fake_ancient_map"),
-        ("🪙 \"Gold Nugget\"", "fake_gold_nugget"),
-        ("🎒 \"Exp. Share\"", "fake_exp_share"),
-        ("🔔 \"Soothe Bell\"", "fake_soothe_bell"),
-        ("🔍 \"Scope Lens\"", "fake_scope_lens"),
-        ("🎗️ \"Focus Sash\"", "fake_focus_sash"),
-        ("🔮 \"Charizardite\"", "fake_mega_stone"),
-    ]
-    for f_name, f_key in fake_keys:
-        if inv.get(f_key, 0) > 0:
-            bag_items.append((f_name, f_key, inv[f_key]))
+    # Dynamic fallback for uncataloged items (excluding mega stones)
+    next_dyn_id = 67
+    for k, v in inv.items():
+        if k in seen_keys or k == "items":
+            continue
+        if k == "mega_stone" or k.startswith("mega_stone_"):
+            continue
+        if isinstance(v, int) and v > 0:
+            dyn_id = str(next_dyn_id)
+            next_dyn_id += 1
+            disp_name = k.replace("_", " ").title()
+            bag_items.append((f"📦 {disp_name}", dyn_id, v))
+            app.bag_id_map[dyn_id] = k
+            app.bag_id_map[k] = k
 
     page_size = app.engine.state.get("page_size_bag", 10)
     total_pages = max(1, (len(bag_items) - 1) // page_size + 1)
@@ -155,7 +195,7 @@ def render_shop_tab(app):
             sys.stdout.write(f"  [{cmd_id}] {name}: {qty} owned\n")
             
         if total_pages > 1:
-            sys.stdout.write(f"\n  ➔ Page {app.shop_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to navigate bag!\n")
+            sys.stdout.write(f"\n  ➔ Page {app.shop_page}/{total_pages} - Type '{BOLD}n{RESET}', '{BOLD}p{RESET}', or '{BOLD}page <N>{RESET}' to navigate bag!\n")
         sys.stdout.write("\n")
 
 def _render_black_market_view(app):
@@ -270,6 +310,8 @@ def handle_shop_buy(app, cmd: str):
 
 def handle_bag_use(app, cmd: str):
     parts = cmd.split()
+    if not parts:
+        return
     if parts[0] == "unequip":
         ok, msg = app.engine.unequip_item()
         app.message = msg
@@ -280,54 +322,34 @@ def handle_bag_use(app, cmd: str):
     if len(parts) > 2:
         try:
             qty = int(parts[2])
+            if qty <= 0:
+                app.message = "Quantity must be greater than 0."
+                return
         except ValueError:
             app.message = "Invalid quantity."
             return
 
-    if choice == "1":
-        ok, msg = app.engine.use_item(ItemKind.RARE_CANDY, qty)
-    elif choice == "2":
-        ok, msg = app.engine.use_item(ItemKind.MINT, qty)
-    elif choice == "3":
-        ok, msg = app.engine.use_item(ItemKind.BERRY_ORAN, qty)
-    elif choice == "4":
-        ok, msg = app.engine.use_item(ItemKind.BERRY_GOLDEN, qty)
-    elif choice == "6":
-        ok, msg = app.engine.use_item(ItemKind.POKE_FLUTE, qty)
-    elif choice == "7":
-        ok, msg = app.engine.use_item(ItemKind.MASTER_BALL, qty)
-    elif choice == "8":
-        ok, msg = False, "Maps are used automatically when dispatching expeditions to Spear Pillar (3x required)!"
-    elif choice == "9":
-        ok, msg = app.engine.use_item(ItemKind.EXPEDITION_LICENSE, qty)
-    elif choice == "10":
-        ok, msg = app.engine.use_item(ItemKind.EVERSTONE, qty)
-    elif choice == "11":
-        ok, msg = app.engine.use_item(ItemKind.LUCKY_EGG, qty)
-    elif choice == "12":
-        ok, msg = app.engine.use_item(ItemKind.AMULET_COIN, qty)
-    elif choice == "13":
-        ok, msg = app.engine.use_item(ItemKind.LEFTOVERS, qty)
-    elif choice == "14":
-        ok, msg = app.engine.use_item(ItemKind.CHOICE_SCARF, qty)
-    elif choice == "15":
-        ok, msg = app.engine.use_item(ItemKind.EXP_SHARE, qty)
-    elif choice == "16":
-        ok, msg = app.engine.use_item(ItemKind.SOOTHE_BELL, qty)
-    elif choice == "17":
-        ok, msg = app.engine.use_item(ItemKind.SCOPE_LENS, qty)
-    elif choice == "18":
-        ok, msg = app.engine.use_item(ItemKind.LIFE_ORB, qty)
-    elif choice == "19":
-        ok, msg = app.engine.use_item(ItemKind.CHOICE_BAND, qty)
-    elif choice in [s.value for s in ItemKind if s.value.endswith("_stone") and s != ItemKind.MEGA_STONE]:
-        ok, msg = app.engine.use_item(ItemKind(choice), qty)
-    elif choice in [s.value for s in ItemKind]:
-        ok, msg = app.engine.use_item(ItemKind(choice), qty)
-    elif choice.startswith("mega_stone_") or choice == "mega_stone":
-        ok, msg = app.engine.use_item(choice, qty)
-    else:
-        ok, msg = False, "Invalid bag selection."
+    target_key = resolve_bag_item(app, choice)
+    if not target_key:
+        if choice.startswith("mega_stone") or choice == "mega_stone":
+            app.message = "Mega Stones must be used from Tab [8] Mega Evolution!"
+        else:
+            app.message = "Invalid bag selection."
+        return
+
+    if target_key == "map_fragment" or choice == "8":
+        app.message = "Maps are used automatically when dispatching expeditions to Spear Pillar (3x required)!"
+        return
+    elif target_key == "mega_stone" or target_key.startswith("mega_stone_"):
+        app.message = "Mega Stones must be used from Tab [8] Mega Evolution!"
+        return
+
+    try:
+        item_target = ItemKind(target_key)
+    except ValueError:
+        item_target = target_key
+
+    ok, msg = app.engine.use_item(item_target, qty)
     app.message = msg
 
 def handle_bag_sell(app, cmd: str):
@@ -337,84 +359,56 @@ def handle_bag_sell(app, cmd: str):
     if len(parts) >= 3:
         try:
             qty = int(parts[2])
+            if qty <= 0:
+                app.message = "Quantity must be greater than 0."
+                return
         except ValueError:
             app.message = "Invalid quantity."
             return
 
-    mapping = {
-        "1": ItemKind.RARE_CANDY,
-        "2": ItemKind.MINT,
-        "3": ItemKind.BERRY_ORAN,
-        "4": ItemKind.BERRY_GOLDEN,
-        "6": ItemKind.POKE_FLUTE,
-        "7": ItemKind.MASTER_BALL,
-        "8": ItemKind.MAP_FRAGMENT,
-        "9": ItemKind.EXPEDITION_LICENSE,
-        "10": ItemKind.EVERSTONE,
-        "11": ItemKind.LUCKY_EGG,
-        "12": ItemKind.AMULET_COIN,
-        "13": ItemKind.LEFTOVERS,
-        "14": ItemKind.CHOICE_SCARF,
-        "15": ItemKind.EXP_SHARE,
-        "16": ItemKind.SOOTHE_BELL,
-        "17": ItemKind.SCOPE_LENS,
-        "18": ItemKind.LIFE_ORB,
-        "19": ItemKind.CHOICE_BAND,
-    }
-    
-    for s in ItemKind:
-        if s != ItemKind.MEGA_STONE:
-            mapping[s.value] = s
-
-    item_kind = mapping.get(choice)
-    inv = app.engine.state.get("inventory", {})
-
-    if not item_kind:
-        if choice.startswith("mega_stone_") or choice == "mega_stone":
-            target_key = choice
-            from poketokenbar.game.models import MEGA_STONES
-            sid = choice.replace("mega_stone_", "")
-            item_name = MEGA_STONES.get(sid, "Mega Stone")
-            item_emoji = "🔮"
-            sell_target = choice
-            if inv.get(target_key, 0) < qty:
-                app.message = f"You don't have {qty}x {item_name} in your Bag to sell!"
-                return
-            sell_value = int(50_000_000 * 0.8) * qty
+    target_key = resolve_bag_item(app, choice)
+    if not target_key:
+        if choice.startswith("mega_stone") or choice == "mega_stone":
+            app.message = "Mega Stones are unique key artifacts and cannot be sold!"
         else:
             app.message = "Invalid bag selection."
-            return
-    elif item_kind == ItemKind.MEGA_STONE:
-        found_key = None
-        from poketokenbar.game.models import MEGA_STONES
-        for sp_id, s_name in MEGA_STONES.items():
-            k = f"mega_stone_{sp_id}"
-            if inv.get(k, 0) >= qty:
-                found_key = k
-                item_name = s_name
-                break
-        if not found_key:
-            app.message = f"You don't have {qty}x of any specific Mega Stone in your Bag to sell!"
-            return
-        sell_target = item_kind
-        sell_value = int(50_000_000 * 0.8) * qty
-        item_emoji = "🔮"
-    else:
-        sell_target = item_kind
-        item_val = item_kind.value
-        if inv.get(item_val, 0) < qty:
-            app.message = f"You don't have {qty}x {item_kind.name_en} in your Bag to sell!"
-            return
+        return
+
+    if target_key == "mega_stone" or target_key.startswith("mega_stone_"):
+        app.message = "Mega Stones are unique key artifacts and cannot be sold!"
+        return
+
+    inv = app.engine.state.get("inventory", {})
+    count = inv.get(target_key, 0)
+    if count <= 0 and isinstance(inv.get("items"), dict):
+        count = inv["items"].get(target_key, 0)
+
+    try:
+        item_kind = ItemKind(target_key)
         item_name = item_kind.name_en
         item_emoji = item_kind.emoji
-        if item_val.startswith("fake_"):
-            sell_value = 1 * qty
-        else:
-            cost = item_kind.price_for(app.engine.current_difficulty)
-            sell_value = max(1, int(cost * 0.8)) * qty
+        sell_target = item_kind
+    except ValueError:
+        item_kind = None
+        item_name = target_key.replace("_", " ").title()
+        item_emoji = "📦"
+        sell_target = target_key
+
+    if count < qty:
+        app.message = f"You don't have {qty}x {item_name} in your Bag to sell!"
+        return
+
+    if target_key.startswith("fake_"):
+        sell_value = 1 * qty
+    elif item_kind:
+        cost = item_kind.price_for(app.engine.current_difficulty)
+        sell_value = max(1, int(cost * 0.8)) * qty
+    else:
+        sell_value = 100_000 * qty
 
     sys.stdout.write(f"\n  {BOLD}{YELLOW}💰 SELL CONFIRMATION{RESET}\n")
-    sys.stdout.write(f"  Are you sure you want to sell {qty}x {item_name} ({item_emoji}) for +{format_tokens(sell_value)} Tokens? (y/n)> ")
+    sys.stdout.write(f"  Sell {qty}x {item_name} ({item_emoji}) for +{format_tokens(sell_value)} Tokens?\n")
+    sys.stdout.write(f"  Confirm (y/n)> ")
     sys.stdout.flush()
     
     ans = sys.stdin.readline().strip().lower()

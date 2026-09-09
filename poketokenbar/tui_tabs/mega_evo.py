@@ -22,7 +22,7 @@ def render_mega_evo_tab(app):
         k = f"mega_stone_{sid}"
         c = inv.get(k, 0)
         if c > 0: 
-            stones.append((idx, f"{stone_name} x{c}"))
+            stones.append((idx, stone_name))
             app.mega_stone_map[str(idx)] = k
             idx += 1
             
@@ -58,7 +58,7 @@ def render_mega_evo_tab(app):
     
     page_size = app.engine.state.get("page_size_mega", 21)
     total_pages = max(1, (len(stones) - 1) // page_size + 1)
-    if not hasattr(app, 'mega_page'): app.mega_page = 1
+    if not hasattr(app, 'mega_page') or not isinstance(app.mega_page, int): app.mega_page = 1
     app.mega_page = max(1, min(app.mega_page, total_pages))
     
     if not stones:
@@ -75,6 +75,7 @@ def render_mega_evo_tab(app):
             sys.stdout.write(f"   {col1:<22} {col2:<22} {col3}\n".rstrip() + "\n")
                 
         if total_pages > 1:
-            sys.stdout.write(f"\n  ➔ Page {app.mega_page}/{total_pages} - Type '{BOLD}next{RESET}', '{BOLD}prev{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")
+            sys.stdout.write(f"\n  ➔ Page {app.mega_page}/{total_pages} - Type '{BOLD}n{RESET}', '{BOLD}p{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")
             
-    sys.stdout.write(f"\n  ➔ Type '{BOLD}use <number>{RESET}' to Mega Evolve, or '{BOLD}revert{RESET}' to return to standard form!\n\n")
+    sys.stdout.write(f"\n  ➔ Type '{BOLD}use <number>{RESET}' to Mega Evolve!\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}revert{RESET}' to return to standard form!\n\n")
