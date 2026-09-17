@@ -30,6 +30,7 @@ class PokeTokenBarTUI:
         self.current_tab = 1
         self.message = ""
         self.pending_reset = False
+        self.pending_rocket_init = False
         self.pokedex_page = 1
         self.roster_page = 1
         self.stock_page = 1
@@ -37,6 +38,7 @@ class PokeTokenBarTUI:
         self.selected_expedition_targets: Set[int] = set()
         self.expedition_picker_mode: bool = False
         self.picker_page: int = 1
+        self.settings_page: int = 1
 
     def clear_screen(self):
         sys.stdout.write("\033[H\033[2J")
@@ -46,16 +48,16 @@ class PokeTokenBarTUI:
         """Main interactive event loop."""
         # Initial refresh
         summary = self.tracker.get_summary()
-        self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
+        self.engine.process_usage(summary.get("raw_total_tokens", summary["total_tokens"]), summary.get("active_days"))
 
         while True:
             # Refresh usage and process growth on each frame
             summary = self.tracker.get_summary()
-            self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
+            self.engine.process_usage(summary.get("raw_total_tokens", summary["total_tokens"]), summary.get("active_days"))
 
-            # Check for evolution or graduation alerts to show celebration screen
+            # Check for evolution, graduation, or egg hatch alerts to show celebration screen
             alerts = self.engine.state.get("unread_alerts", [])
-            milestone_alerts = [a for a in alerts if "Evolution!" in a or "Graduation!" in a]
+            milestone_alerts = [a for a in alerts if "Evolution!" in a or "Graduation!" in a or "Egg Hatched!" in a]
             if milestone_alerts:
                 m_alert = milestone_alerts[0]
                 alerts.remove(m_alert)
@@ -63,8 +65,14 @@ class PokeTokenBarTUI:
                 self.engine.save()
 
                 self.clear_screen()
+                is_hatch = "Egg Hatched!" in m_alert
                 is_grad = "Graduation!" in m_alert
-                banner_title = "🎓 CONGRATULATIONS! YOUR COMPANION GRADUATED! 🎓" if is_grad else "✨ WHAT? YOUR COMPANION IS EVOLVING! ✨"
+                if is_hatch:
+                    banner_title = "🐣 CONGRATULATIONS! YOUR EGG HATCHED! 🐣"
+                elif is_grad:
+                    banner_title = "🎓 CONGRATULATIONS! YOUR COMPANION GRADUATED! 🎓"
+                else:
+                    banner_title = "✨ WHAT? YOUR COMPANION IS EVOLVING! ✨"
 
                 sys.stdout.write(f"\n{HEADER}{'='*72}{RESET}\n")
                 sys.stdout.write(f"  {BOLD}{YELLOW}{banner_title}{RESET}\n")
@@ -150,6 +158,21 @@ class PokeTokenBarTUI:
                 self.current_tab = 12
                 continue
 
+            # Auto-display operation briefing transmission if not yet viewed
+            if self.current_tab == 12 and getattr(self, "rocket_subview", "ops") == "ops" and self.engine.state.get("rocket_alliance_accepted", False):
+                operations = self.engine.get_rocket_operations()
+                active_op = next((op for op in operations if op["status"] == "active" and not op["claimed"]), None)
+                if not active_op:
+                    active_op = next((op for op in operations if op["status"] == "available" and not op["claimed"]), None)
+                if active_op:
+                    op_st = self.engine.state.get("rocket_ops", {}).get(active_op["id"], {})
+                    if not op_st.get("briefing_viewed", False):
+                        from poketokenbar.tui_tabs.rocket import render_operation_dialogue
+                        render_operation_dialogue(self, active_op["code"])
+                        op_st["briefing_viewed"] = True
+                        self.engine.save()
+                        continue
+
             self.clear_screen()
             summary = self.tracker.get_summary()
 
@@ -203,6 +226,13 @@ class PokeTokenBarTUI:
                         self.message = f"🧹 {msg}"
                     else:
                         self.message = "❌ Reset cancelled."
+                elif getattr(self, "pending_rocket_init", False):
+                    self.pending_rocket_init = False
+                    if cmd in ["confirm", "confirm rocket", "rocket init", "yes", "y"]:
+                        ok, msg = self.engine.initialize_rocket_process()
+                        self.message = f"🚀 {msg}"
+                    else:
+                        self.message = "❌ Team Rocket initialization cancelled."
                 elif getattr(self, "expedition_picker_mode", False):
                     # In Interactive Expedition Picker mode
                     if cmd == "back":
@@ -282,9 +312,9 @@ class PokeTokenBarTUI:
                     self.message = ""
                 elif cmd == "r":
                     summary = self.tracker.get_summary(force=True)
-                    self.engine.process_usage(summary["total_tokens"], summary.get("active_days"))
+                    self.engine.process_usage(summary.get("raw_total_tokens", summary["total_tokens"]), summary.get("active_days"))
                     self.message = f"Refreshed usage logs! Total indexed: {format_tokens(summary['total_tokens'])} tokens."
-                elif cmd in ["n", "next"] and (self.current_tab in [2, 3, 4, 5, 8] or (self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks")):
+                elif cmd in ["n", "next"] and (self.current_tab in [2, 3, 4, 5, 8, 11] or (self.current_tab == 10 and getattr(self, "bank_subtab", "") in ["stocks", "cd"]) or (self.current_tab == 12 and getattr(self, "rocket_subview", "ops") == "intel")):
                     if self.current_tab == 2: self.pokedex_page += 1
                     elif self.current_tab == 4:
                         if not hasattr(self, 'shop_page'): self.shop_page = 1
@@ -296,11 +326,21 @@ class PokeTokenBarTUI:
                         if not hasattr(self, 'mega_page'): self.mega_page = 1
                         self.mega_page += 1
                     elif self.current_tab == 10:
-                        if not hasattr(self, 'stock_page'): self.stock_page = 1
-                        self.stock_page += 1
+                        if getattr(self, "bank_subtab", "") == "cd":
+                            if not hasattr(self, 'cd_page'): self.cd_page = 1
+                            self.cd_page += 1
+                        else:
+                            if not hasattr(self, 'stock_page'): self.stock_page = 1
+                            self.stock_page += 1
+                    elif self.current_tab == 11:
+                        if not hasattr(self, 'settings_page'): self.settings_page = 1
+                        self.settings_page += 1
+                    elif self.current_tab == 12:
+                        if not hasattr(self, 'intel_page'): self.intel_page = 1
+                        self.intel_page += 1
                     else: self.roster_page += 1
                     self.message = ""
-                elif cmd in ["p", "prev"] and (self.current_tab in [2, 3, 4, 5, 8] or (self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks")):
+                elif cmd in ["p", "prev"] and (self.current_tab in [2, 3, 4, 5, 8, 11] or (self.current_tab == 10 and getattr(self, "bank_subtab", "") in ["stocks", "cd"]) or (self.current_tab == 12 and getattr(self, "rocket_subview", "ops") == "intel")):
                     if self.current_tab == 2: self.pokedex_page = max(1, self.pokedex_page - 1)
                     elif self.current_tab == 4:
                         if not hasattr(self, 'shop_page'): self.shop_page = 1
@@ -312,18 +352,36 @@ class PokeTokenBarTUI:
                         if not hasattr(self, 'mega_page'): self.mega_page = 1
                         self.mega_page = max(1, self.mega_page - 1)
                     elif self.current_tab == 10:
-                        if not hasattr(self, 'stock_page'): self.stock_page = 1
-                        self.stock_page = max(1, self.stock_page - 1)
+                        if getattr(self, "bank_subtab", "") == "cd":
+                            if not hasattr(self, 'cd_page'): self.cd_page = 1
+                            self.cd_page = max(1, self.cd_page - 1)
+                        else:
+                            if not hasattr(self, 'stock_page'): self.stock_page = 1
+                            self.stock_page = max(1, self.stock_page - 1)
+                    elif self.current_tab == 11:
+                        if not hasattr(self, 'settings_page'): self.settings_page = 1
+                        self.settings_page = max(1, self.settings_page - 1)
+                    elif self.current_tab == 12:
+                        if not hasattr(self, 'intel_page'): self.intel_page = 1
+                        self.intel_page = max(1, self.intel_page - 1)
                     else: self.roster_page = max(1, self.roster_page - 1)
                     self.message = ""
-                elif cmd.startswith("page ") and (self.current_tab in [2, 3, 4, 5, 8] or (self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks")):
+                elif cmd.startswith("page ") and (self.current_tab in [2, 3, 4, 5, 8, 11] or (self.current_tab == 10 and getattr(self, "bank_subtab", "") in ["stocks", "cd"]) or (self.current_tab == 12 and getattr(self, "rocket_subview", "ops") == "intel")):
                     try:
                         page = max(1, int(cmd.split()[1]))
                         if self.current_tab == 2: self.pokedex_page = page
                         elif self.current_tab == 4: self.shop_page = page
                         elif self.current_tab == 5: self.expedition_page = page
                         elif self.current_tab == 8: self.mega_page = page
-                        elif self.current_tab == 10: self.stock_page = page
+                        elif self.current_tab == 10:
+                            if getattr(self, "bank_subtab", "") == "cd":
+                                self.cd_page = page
+                            else:
+                                self.stock_page = page
+                        elif self.current_tab == 11:
+                            self.settings_page = page
+                        elif self.current_tab == 12:
+                            self.intel_page = page
                         else: self.roster_page = page
                         self.message = ""
                     except ValueError:
@@ -349,11 +407,45 @@ class PokeTokenBarTUI:
                             elif target == "mega":
                                 self.engine.state["page_size_mega"] = val
                                 self.message = f"Mega Evo page size set to {val}."
+                            elif target in ["cd", "deposits"]:
+                                self.engine.state["page_size_cd"] = val
+                                self.message = f"Term Deposits page size set to {val}."
+                            elif target in ["settings", "setting", "set"]:
+                                if val < 1:
+                                    self.message = "Settings page size must be at least 1."
+                                else:
+                                    self.engine.state["page_size_settings"] = val
+                                    self.message = f"Settings page size set to {val}."
                             else:
-                                self.message = "Usage: pagesize <dex|roster|exp|bag|mega> <number>"
+                                self.message = "Usage: pagesize <dex|roster|exp|bag|mega|cd|settings> <number>"
                             self.engine.save()
                         except ValueError:
-                            self.message = "Invalid size. Usage: pagesize <dex|roster|exp|bag|mega> <number>"
+                            self.message = "Invalid size. Usage: pagesize <dex|roster|exp|bag|mega|cd|settings> <number>"
+                elif cmd.startswith("billing ") or cmd.startswith("cycle "):
+                    parts = cmd.split()
+                    if len(parts) >= 2:
+                        try:
+                            day = int(parts[1])
+                            ok, msg = self.engine.set_billing_cycle_day(day)
+                            self.message = msg
+                            if ok:
+                                self.tracker.get_summary(force=True)
+                        except ValueError:
+                            self.message = "Usage: billing <1-31> (day of month for billing cycle start)"
+                    else:
+                        self.message = "Usage: billing <1-31>"
+                elif cmd in ["tokens init", "token init"]:
+                    summary = self.tracker.get_summary(force=True)
+                    raw_total = summary.get("raw_total_tokens", summary.get("total_tokens", 0))
+                    ok, msg = self.engine.initialize_total_tokens(raw_total)
+                    self.message = msg
+                    if ok:
+                        self.tracker.get_summary(force=True)
+                elif cmd in ["tokens clear", "token clear"]:
+                    ok, msg = self.engine.clear_total_tokens_baseline()
+                    self.message = msg
+                    if ok:
+                        self.tracker.get_summary(force=True)
                 elif cmd in ["pick", "picker"]:
                     self.expedition_picker_mode = True
                     self.current_tab = 5
@@ -376,9 +468,13 @@ class PokeTokenBarTUI:
                     if self.current_tab == 10 and getattr(self, "bank_subtab", "") == "cd":
                         target = parts[1] if len(parts) >= 2 else "all"
                         ok, msg = self.engine.claim_cd(target)
+                        self.message = msg
+                    elif self.current_tab == 12:
+                        from poketokenbar.tui_tabs.rocket import handle_rocket_command
+                        handle_rocket_command(self, cmd)
                     else:
                         ok, msg = self.engine.claim_quest_reward(parts[-1] if len(parts) >= 2 else "all")
-                    self.message = msg
+                        self.message = msg
                 elif cmd.startswith("send"):
                     cmd_body = cmd.split(maxsplit=1)[1] if " " in cmd else ""
                     if not cmd_body:
@@ -406,32 +502,54 @@ class PokeTokenBarTUI:
                         self.message = msg
                     else:
                         self.message = "Usage: pass <idx>"
+                elif self.current_tab == 9 and cmd in ["slot", "slots"]:
+                    self.minigame_state = "slot"
+                    self.message = ""
                 elif cmd.startswith("play "):
                     parts = cmd.split()
                     if len(parts) >= 2:
                         game = parts[1]
-                        if game == "1":
+                        if game in ["1", "poker"]:
                             self.minigame_state = "poker"
                             self.message = ""
-                        elif game == "2":
+                        elif game in ["2", "gacha"]:
                             self.minigame_state = "gacha"
                             self.message = ""
-                        elif game == "3":
+                        elif game in ["3", "slot", "slots"]:
                             self.minigame_state = "slot"
                             self.message = ""
-                        elif game == "4":
+                        elif game in ["4", "blackjack", "21"]:
                             self.minigame_state = "blackjack"
                             self.message = ""
                         else:
-                            self.message = "Game not found! Type 'play 1' for Poker, 'play 2' for Gacha, etc."
+                            self.message = (
+                                "Game not found! Type 'play 1' for Poker, "
+                                "'play 2' for Gacha, etc."
+                            )
                     else:
                         self.message = "Usage: play <idx> (e.g. 'play 1')"
                 elif self.current_tab == 9 and getattr(self, "minigame_state", "menu") == "slot" and cmd == "poster":
-                    self.minigame_state = "grunt_bribe"
-                    self.message = ""
+                    if self.engine.state.get("permanent_black_market", False):
+                        ok, msg = self.engine.bribe_grunt_for_black_market()
+                        self.minigame_state = "menu"
+                        self.black_market_session = True
+                        self.current_tab = 4
+                        self.shop_view = "black_market"
+                        self.message = "📯 Syndicate Black Pass recognized! You click the secret switch behind the poster and enter the Black Market directly!"
+                    else:
+                        self.minigame_state = "grunt_bribe"
+                        self.message = ""
                 elif self.current_tab == 9 and getattr(self, "minigame_state", "menu") == "menu" and cmd == "poster":
-                    self.message = "There's a suspicious poster near the Token Slots! (Type 'play 3')"
-                elif self.current_tab == 9 and getattr(self, "minigame_state", "menu") == "grunt_bribe" and cmd == "bribe":
+                    if self.engine.state.get("permanent_black_market", False):
+                        ok, msg = self.engine.bribe_grunt_for_black_market()
+                        self.minigame_state = "menu"
+                        self.black_market_session = True
+                        self.current_tab = 4
+                        self.shop_view = "black_market"
+                        self.message = "📯 Syndicate Black Pass recognized! You click the secret switch behind the poster and enter the Black Market directly!"
+                    else:
+                        self.message = "There's a suspicious poster near the Token Slots! (Type 'play 3')"
+                elif self.current_tab == 9 and getattr(self, "minigame_state", "menu") == "grunt_bribe" and cmd in ["bribe", "enter", "poster", "pass", "yes", "y", ""]:
                     ok, msg = self.engine.bribe_grunt_for_black_market()
                     if ok:
                         self.minigame_state = "menu"
@@ -476,6 +594,16 @@ class PokeTokenBarTUI:
                 elif cmd == "reset" and self.current_tab == 11:
                     self.pending_reset = True
                     self.message = "⚠️ CONFIRMATION REQUIRED: Type 'RESET ALL' to wipe progress & restart fresh, or anything else to cancel!"
+                elif cmd.startswith("rocket init") or cmd.startswith("init rocket") or (self.current_tab == 11 and cmd in ["rocket reset", "reset rocket", "rocket"]):
+                    if "--force" in cmd:
+                        ok, msg = self.engine.initialize_rocket_process()
+                        self.message = f"🚀 {msg}"
+                    elif not self.engine.state.get("rocket_story_unlocked", False):
+                        ok, msg = self.engine.initialize_rocket_process()
+                        self.message = f"🚀 {msg}"
+                    else:
+                        self.pending_rocket_init = True
+                        self.message = "⚠️ CONFIRM: Type 'CONFIRM' to reset Team Rocket back to Op 1, or anything else to cancel!"
                 elif cmd.startswith("size") and self.current_tab == 11:
                     parts = cmd.split()
                     if len(parts) == 2 and parts[1].isdigit():
@@ -642,6 +770,9 @@ class PokeTokenBarTUI:
                         self.message = msg
                     else:
                         self.message = "Usage: deposit, withdraw, loan, or payoff <amount>"
+                elif self.engine.state.get("pending_authority_delivery") and cmd in ["keep", "dismiss"]:
+                    ok, msg = self.engine.handle_authority_delivery(cmd)
+                    self.message = msg
                 elif self.current_tab == 12:
                     from poketokenbar.tui_tabs.rocket import handle_rocket_command
                     handle_rocket_command(self, cmd)
@@ -770,6 +901,7 @@ class PokeTokenBarTUI:
         slot_limit = self.engine.state.get("expedition_slots", 10)
         avail_slots = max(0, slot_limit - len(expeditions))
         deployed_ids = {e.get("sp_id") for e in expeditions if "sp_id" in e}
+        red_team_ids = self.engine.get_red_battle_active_pokemon_ids()
 
         toggled_on = []
         toggled_off = []
@@ -789,6 +921,9 @@ class PokeTokenBarTUI:
             else:
                 if sp_id in deployed_ids:
                     skipped_reasons.append(f"{sp_name} (deployed)")
+                    continue
+                if sp_id in red_team_ids:
+                    skipped_reasons.append(f"{sp_name} (in Red battle)")
                     continue
                 mon_data = entry.get("mon_state", {})
                 hap = mon_data.get("happiness", 100) if isinstance(mon_data, dict) else 100

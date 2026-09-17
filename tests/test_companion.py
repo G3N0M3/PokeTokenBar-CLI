@@ -1,6 +1,8 @@
 import os
+import io
 import tempfile
 import unittest
+from unittest.mock import MagicMock, patch
 from pathlib import Path
 from poketokenbar.game.companion import CompanionEngine
 from poketokenbar.game.models import ItemKind, Rarity, MonState, PokemonBalance
@@ -12,12 +14,16 @@ class TestCompanionEngine(unittest.TestCase):
     def setUpClass(cls):
         cls._temp_dir = tempfile.TemporaryDirectory()
         cls._temp_state_file = Path(cls._temp_dir.name) / "test_state.json"
+        cls._old_state_file = os.environ.get("PTB_STATE_FILE")
         os.environ["PTB_STATE_FILE"] = str(cls._temp_state_file)
 
     @classmethod
     def tearDownClass(cls):
         cls._temp_dir.cleanup()
-        os.environ.pop("PTB_STATE_FILE", None)
+        if cls._old_state_file is not None:
+            os.environ["PTB_STATE_FILE"] = cls._old_state_file
+        else:
+            os.environ.pop("PTB_STATE_FILE", None)
 
     def setUp(self):
         StorageManager.save_state(StorageManager.default_state())
@@ -72,6 +78,221 @@ class TestCompanionEngine(unittest.TestCase):
             hatched_ids.add(mon.base_id)
             self.assertEqual(mon.rarity, Rarity.LEGENDARY)
             self.engine.set_active_mon(None)
+
+    def test_legendary_egg_never_hatches_mew(self):
+        # Mew (#151) must NEVER hatch from legendary eggs, even on an empty Pokédex
+        self.engine.state["dex"] = []
+        self.engine.set_active_mon(None)
+        hatched_ids = set()
+        for _ in range(15):
+            mon, events = self.engine.hatch_egg(0, force_tier="legendary")
+            self.assertNotEqual(mon.base_id, 151)
+            hatched_ids.add(mon.base_id)
+            self.engine.set_active_mon(None)
+        self.assertNotIn(151, hatched_ids)
+
+    def test_shadow_fetal_hatches_celebi_not_mew(self):
+        # Shadow fetal egg must hatch Celebi (#251), never Mew (#151)
+        self.engine.state["dex"] = []
+        self.engine.set_active_mon(None)
+        mon, events = self.engine.hatch_egg(0, force_tier="shadow_fetal")
+        self.assertEqual(mon.base_id, 251)
+        self.assertNotEqual(mon.base_id, 151)
+
+    def test_mysterious_fetal_form_legacy_unowned_hatches_mew(self):
+        # Legacy mysterious fetal form eggs can hatch Mew if unowned
+        self.engine.state["dex"] = []
+        self.engine.set_active_mon(None)
+        mon, events = self.engine.hatch_egg(0, force_tier="mysterious fetal form")
+        self.assertEqual(mon.base_id, 151)
+
+    def test_mysterious_fetal_form_legacy_already_owned_never_duplicates_mew(self):
+        # Legacy mysterious fetal form eggs must fall back to another legendary if Mew is already owned
+        self.engine.state["dex"] = [
+            {"id": "sp_151", "species_id": 151, "base_id": 151, "chain_order": [151], "status": "active"}
+        ]
+        self.engine.set_active_mon(None)
+        mon, events = self.engine.hatch_egg(0, force_tier="mysterious fetal form")
+        self.assertNotEqual(mon.base_id, 151)
+        self.assertEqual(mon.rarity, Rarity.LEGENDARY)
+
+    def test_red_battle_first_win_recruits_mew_directly_without_egg(self):
+        from poketokenbar.game.red_battle import RedBattleHandler
+        red = RedBattleHandler(self.engine)
+        self.engine.state["red_wins"] = 0
+        self.engine.state["dex"] = []
+        self.engine.set_active_mon(None)
+
+        # Simulate win turn on Red battle
+        st = {
+            "player_team": [25],
+            "player_active_index": 0,
+            "player_hps": [1000],
+            "player_max_hps": [1000],
+            "red_team": [{"name": "Pikachu", "type": "electric", "max_hp": 1000}],
+            "red_active_index": 0,
+            "red_hps": [1],
+            "red_max_hps": [1000],
+            "turn_log": [],
+            "status": "active"
+        }
+        red._save_state(st)
+        ok, msg = red.execute_turn(0)
+        self.assertTrue(ok)
+
+        # No egg should be assigned
+        self.assertIsNone(self.engine.state.get("egg_tier"))
+
+        # Mew must be directly recruited into dex/roster
+        dex_sp_ids = {d.get("species_id") for d in self.engine.state.get("dex", [])}
+        self.assertIn(151, dex_sp_ids)
+
+        # Check turn log message
+        st_after = red._get_state()
+        self.assertTrue(any("Mew was touched by your bond" in log for log in st_after.get("turn_log", [])))
+
+    def test_red_battle_win_when_mew_already_owned_does_not_duplicate(self):
+        from poketokenbar.game.red_battle import RedBattleHandler
+        red = RedBattleHandler(self.engine)
+        self.engine.state["red_wins"] = 0
+        self.engine.state["dex"] = [
+            {"id": "sp_151", "species_id": 151, "base_id": 151, "chain_order": [151], "status": "inactive"}
+        ]
+        self.engine.set_active_mon(None)
+
+        st = {
+            "player_team": [151],
+            "player_active_index": 0,
+            "player_hps": [1000],
+            "player_max_hps": [1000],
+            "red_team": [{"name": "Pikachu", "type": "electric", "max_hp": 1000}],
+            "red_active_index": 0,
+            "red_hps": [1],
+            "red_max_hps": [1000],
+            "turn_log": [],
+            "status": "active"
+        }
+        red._save_state(st)
+        ok, msg = red.execute_turn(0)
+        self.assertTrue(ok)
+
+        # No egg should be awarded
+        self.assertIsNone(self.engine.state.get("egg_tier"))
+
+        # Mew should only appear once in dex
+        mew_entries = [d for d in self.engine.state.get("dex", []) if d.get("species_id") == 151 or d.get("base_id") == 151]
+        self.assertEqual(len(mew_entries), 1)
+
+    def test_egg_hatch_sets_milestone_and_alert(self):
+        self.engine.state["egg_tier"] = "common"
+        self.engine.state["egg_usage"] = 0
+        self.engine.set_active_mon(None)
+
+        mon, events = self.engine.hatch_egg(0)
+        self.assertIsNotNone(mon)
+
+        # Check that last_evolution and last_milestone are recorded
+        last_milestone = self.engine.state.get("last_milestone")
+        self.assertIsNotNone(last_milestone)
+        self.assertIn("Egg Hatched!", last_milestone)
+        self.assertEqual(self.engine.state.get("last_evolution"), last_milestone)
+
+        # Check that milestone alert is triggered in events
+        self.assertTrue(any("Egg Hatched!" in e for e in events))
+
+    def test_companion_tab_renders_egg_hatch_milestone(self):
+        from poketokenbar.tui_tabs import companion as companion_tab
+        import io
+        import sys
+        from poketokenbar.game.models import MonState, Rarity, PokemonNature
+
+        self.engine.state["last_milestone"] = "Egg Hatched! You got a Bulbasaur (#1)!"
+        mon = MonState(
+            base_id=1,
+            path_ids=[1, 2, 3],
+            planned_path_ids=[1, 2, 3],
+            stage_index=0,
+            used_at_stage=0,
+            rarity=Rarity.COMMON,
+            total_forms=3,
+            nature=PokemonNature.HARDY
+        )
+        self.engine.set_active_mon(mon)
+
+        class DummyApp:
+            def __init__(self, engine):
+                self.engine = engine
+                self.tab_index = 0
+                self.page = 1
+
+        app = DummyApp(self.engine)
+        buf = io.StringIO()
+        old_stdout = sys.stdout
+        try:
+            sys.stdout = buf
+            companion_tab.render(app, {
+                "total_tokens": 1000,
+                "today_tokens": 500,
+                "antigravity_today": 250,
+                "week_tokens": 2000,
+                "month_tokens": 5000,
+                "burn_rate_tpm": 10,
+            })
+        finally:
+            sys.stdout = old_stdout
+
+        rendered = buf.getvalue()
+        self.assertIn("Milestone:", rendered)
+        self.assertIn("Egg Hatched! You got a Bulbasaur (#1)!", rendered)
+        self.assertIn("🐣", rendered)
+
+        # Verify all rendered lines strictly respect <= 72 visible columns
+        import re
+        for line in rendered.split("\n"):
+            visible_line = re.sub(r'\033\[[0-9;]*m', '', line)
+            self.assertLessEqual(len(visible_line), 72, f"Line exceeds 72 cols: {visible_line}")
+
+    def test_companion_tab_renders_egg_incubation_progress_shortened(self):
+        from poketokenbar.tui_tabs import companion as companion_tab
+        import io
+        import sys
+        import re
+
+        self.engine.set_active_mon(None)
+        self.engine.state["egg_tier"] = "legendary"
+        self.engine.state["egg_usage"] = 197_600
+
+        class DummyApp:
+            def __init__(self, engine):
+                self.engine = engine
+                self.tab_index = 0
+                self.page = 1
+
+        app = DummyApp(self.engine)
+        buf = io.StringIO()
+        old_stdout = sys.stdout
+        try:
+            sys.stdout = buf
+            companion_tab.render(app, {
+                "total_tokens": 1000,
+                "today_tokens": 500,
+                "antigravity_today": 250,
+                "week_tokens": 2000,
+                "month_tokens": 5000,
+                "burn_rate_tpm": 10,
+            })
+        finally:
+            sys.stdout = old_stdout
+
+        rendered = buf.getvalue()
+        self.assertIn("Incubation:", rendered)
+        self.assertNotIn("Incubation Progress:", rendered)
+        self.assertIn("197.6K / 1.5M tokens", rendered)
+
+        # Verify all lines strictly <= 72 visible columns
+        for line in rendered.split("\n"):
+            visible_line = re.sub(r'\033\[[0-9;]*m', '', line)
+            self.assertLessEqual(len(visible_line), 72, f"Egg incubation line exceeds 72 cols: {visible_line}")
 
     def test_new_game_features(self):
         mon, events = self.engine.hatch_egg(0)
@@ -284,6 +505,379 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertIn("already exists in your Pokédex", msg)
         self.assertEqual(self.engine.state["inventory"].get("water_stone"), 1)
 
+    def test_dynamic_evolution_cosmoem_day_night(self):
+        import datetime
+        from poketokenbar.game.models import MonState, Rarity, PokemonBalance
+        day_time = datetime.datetime(2026, 9, 16, 12, 0, 0)
+        night_time = datetime.datetime(2026, 9, 16, 22, 0, 0)
+
+        # Active companion is Cosmoem (#790, stage 1)
+        mon = MonState(
+            base_id=789,
+            path_ids=[789, 790, 791],
+            planned_path_ids=[789, 790, 791],
+            stage_index=1,
+            used_at_stage=0,
+            rarity=Rarity.LEGENDARY,
+            total_forms=3
+        )
+        self.engine.set_active_mon(mon)
+
+        # Test dynamic evolution ID resolution
+        self.assertEqual(self.engine.get_next_evolution_id(mon, now=day_time), 791)
+        self.assertEqual(mon.path_ids[2], 791)
+
+        self.assertEqual(self.engine.get_next_evolution_id(mon, now=night_time), 792)
+        self.assertEqual(mon.path_ids[2], 792)
+
+        # Natural evolution at night -> Lunala (#792)
+        target_xp = PokemonBalance.phase_threshold(mon.rarity, mon.total_forms, mon.stage_index, self.engine.current_difficulty)
+        mon.used_at_stage = target_xp
+        events = self.engine._check_growth(mon, now=night_time)
+        self.assertEqual(mon.stage_index, 2)
+        self.assertEqual(mon.current_id, 792)
+        self.assertTrue(any("Lunala" in ev for ev in events))
+
+    def test_dynamic_evolution_pokedex_duplicate_branching(self):
+        import datetime
+        from poketokenbar.game.models import MonState, Rarity, PokemonBalance
+        day_time = datetime.datetime(2026, 9, 16, 12, 0, 0)
+        night_time = datetime.datetime(2026, 9, 16, 22, 0, 0)
+
+        # Register Solgaleo (#791) in Pokédex
+        self.engine.state["dex"] = [
+            {"id": "sp_791", "species_id": 791, "base_id": 789, "status": "inactive"}
+        ]
+
+        # Active companion is Cosmoem (#790, stage 1)
+        mon = MonState(
+            base_id=789,
+            path_ids=[789, 790, 791],
+            planned_path_ids=[789, 790, 791],
+            stage_index=1,
+            used_at_stage=0,
+            rarity=Rarity.LEGENDARY,
+            total_forms=3
+        )
+        self.engine.set_active_mon(mon)
+
+        target_xp = PokemonBalance.phase_threshold(mon.rarity, mon.total_forms, mon.stage_index, self.engine.current_difficulty)
+        mon.used_at_stage = target_xp + 100_000
+
+        # During the Day, next form is Solgaleo (791), which is already owned -> evolution halts
+        events_day = self.engine._check_growth(mon, now=day_time)
+        self.assertEqual(self.engine.active_mon.stage_index, 1)
+        self.assertEqual(self.engine.active_mon.current_id, 790)
+        self.assertEqual(self.engine.active_mon.used_at_stage, target_xp)
+        self.assertEqual(len(events_day), 0)
+
+        # During the Night, next form resolves to Lunala (792), which is unowned -> evolves into Lunala!
+        events_night = self.engine._check_growth(mon, now=night_time)
+        self.assertEqual(self.engine.active_mon.stage_index, 2)
+        self.assertEqual(self.engine.active_mon.current_id, 792)
+        self.assertTrue(any("Lunala" in ev for ev in events_night))
+
+    def test_cosmoem_sun_moon_stone_overrides(self):
+        from poketokenbar.game.models import ItemKind, MonState, Rarity
+        # Cosmoem can use Sun Stone to become Solgaleo
+        mon_sol = MonState(
+            base_id=789,
+            path_ids=[789, 790, 791],
+            planned_path_ids=[789, 790, 791],
+            stage_index=1,
+            used_at_stage=0,
+            rarity=Rarity.LEGENDARY,
+            total_forms=3
+        )
+        self.engine.set_active_mon(mon_sol)
+        self.engine.state["inventory"] = {"sun_stone": 1, "moon_stone": 1}
+
+        ok_sun, msg_sun = self.engine.use_item(ItemKind.SUN_STONE)
+        self.assertTrue(ok_sun)
+        self.assertEqual(self.engine.active_mon.current_id, 791)
+        self.assertIn("Solgaleo", msg_sun)
+
+        # Fresh Cosmoem can use Moon Stone to become Lunala
+        mon_luna = MonState(
+            base_id=789,
+            path_ids=[789, 790, 791],
+            planned_path_ids=[789, 790, 791],
+            stage_index=1,
+            used_at_stage=0,
+            rarity=Rarity.LEGENDARY,
+            total_forms=3
+        )
+        self.engine.set_active_mon(mon_luna)
+        ok_moon, msg_moon = self.engine.use_item(ItemKind.MOON_STONE)
+        self.assertTrue(ok_moon)
+        self.assertEqual(self.engine.active_mon.current_id, 792)
+        self.assertIn("Lunala", msg_moon)
+
+    def test_eevee_day_night_evolution(self):
+        import datetime
+        from poketokenbar.game.models import MonState, Rarity, PokemonBalance
+        day_time = datetime.datetime(2026, 9, 16, 10, 0, 0)
+        night_time = datetime.datetime(2026, 9, 16, 20, 0, 0)
+
+        # Day evolution: Eevee -> Espeon (#196)
+        eevee_day = MonState(
+            base_id=133,
+            path_ids=[133, 196],
+            planned_path_ids=[133, 196],
+            stage_index=0,
+            used_at_stage=0,
+            rarity=Rarity.UNCOMMON,
+            total_forms=2
+        )
+        self.assertEqual(self.engine.get_next_evolution_id(eevee_day, now=day_time), 196)
+        target_xp = PokemonBalance.phase_threshold(eevee_day.rarity, eevee_day.total_forms, eevee_day.stage_index, self.engine.current_difficulty)
+        eevee_day.used_at_stage = target_xp
+        self.engine.set_active_mon(eevee_day)
+        events_day = self.engine._check_growth(eevee_day, now=day_time)
+        self.assertEqual(self.engine.active_mon.current_id, 196)
+        self.assertTrue(any("Espeon" in ev for ev in events_day))
+
+        # Night evolution: Eevee -> Umbreon (#197)
+        eevee_night = MonState(
+            base_id=133,
+            path_ids=[133, 196],
+            planned_path_ids=[133, 196],
+            stage_index=0,
+            used_at_stage=0,
+            rarity=Rarity.UNCOMMON,
+            total_forms=2
+        )
+        self.assertEqual(self.engine.get_next_evolution_id(eevee_night, now=night_time), 197)
+        eevee_night.used_at_stage = target_xp
+        self.engine.set_active_mon(eevee_night)
+        events_night = self.engine._check_growth(eevee_night, now=night_time)
+        self.assertEqual(self.engine.active_mon.current_id, 197)
+        self.assertTrue(any("Umbreon" in ev for ev in events_night))
+
+    def test_companion_tab_72_col_compliance_with_dynamic_evo(self):
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.companion import render as render_companion_tab
+        from poketokenbar.game.models import MonState, Rarity
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+        app = MagicMock()
+        app.engine = self.engine
+
+        # Active companion: Cosmoem (#790)
+        cosmoem = MonState(
+            base_id=789,
+            path_ids=[789, 790, 791],
+            planned_path_ids=[789, 790, 791],
+            stage_index=1,
+            used_at_stage=100_000,
+            rarity=Rarity.LEGENDARY,
+            total_forms=3
+        )
+        self.engine.set_active_mon(cosmoem)
+
+        summary = {
+            "today_tokens": 150_000,
+            "antigravity_today": 120_000,
+            "week_tokens": 800_000,
+            "month_tokens": 2_500_000,
+            "total_tokens": 10_000_000,
+            "burn_rate_tpm": 2500,
+        }
+
+        for time_mock in ["day", "night"]:
+            with patch.object(self.engine, "get_current_time_of_day", return_value=time_mock):
+                trap = io.StringIO()
+                with patch("sys.stdout", trap):
+                    render_companion_tab(app, summary)
+                output = trap.getvalue()
+                expected_tag = "☀️" if time_mock == "day" else "🌙"
+                self.assertIn(expected_tag, output)
+                for line in output.split("\n"):
+                    clean = ansi_regex.sub("", line)
+                    self.assertLessEqual(len(clean), 72, f"Companion tab line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+    def test_billing_cycle_start_calculation(self):
+        import datetime
+        from poketokenbar.tracker.manager import get_billing_cycle_start
+
+        # Day 1 cycle: Sept 16, 2026 -> Sept 1, 2026
+        dt1 = datetime.datetime(2026, 9, 16, 12, 0, 0)
+        s1 = get_billing_cycle_start(dt1, 1)
+        self.assertEqual(s1.year, 2026)
+        self.assertEqual(s1.month, 9)
+        self.assertEqual(s1.day, 1)
+
+        # Day 15 cycle: Sept 16, 2026 (day >= 15) -> Sept 15, 2026
+        s2 = get_billing_cycle_start(dt1, 15)
+        self.assertEqual(s2.month, 9)
+        self.assertEqual(s2.day, 15)
+
+        # Day 15 cycle: Sept 10, 2026 (day < 15) -> August 15, 2026
+        dt2 = datetime.datetime(2026, 9, 10, 12, 0, 0)
+        s3 = get_billing_cycle_start(dt2, 15)
+        self.assertEqual(s3.month, 8)
+        self.assertEqual(s3.day, 15)
+
+        # Year rollover: Jan 5, 2027 (day < 20) -> Dec 20, 2026
+        dt3 = datetime.datetime(2027, 1, 5, 12, 0, 0)
+        s4 = get_billing_cycle_start(dt3, 20)
+        self.assertEqual(s4.year, 2026)
+        self.assertEqual(s4.month, 12)
+        self.assertEqual(s4.day, 20)
+
+    def test_usage_manager_billing_cycle_and_baseline(self):
+        import datetime
+        from poketokenbar.tracker.base import UsageEntry
+        from poketokenbar.tracker.manager import UsageManager
+
+        tracker = UsageManager()
+        tz = datetime.timezone.utc
+        e1 = UsageEntry(
+            id="test|1",
+            date=datetime.datetime(2026, 8, 20, 10, 0, 0, tzinfo=tz),
+            local_day="2026-08-20",
+            model="claude-3-5-sonnet",
+            input_tokens=500_000,
+            output_tokens=500_000
+        )
+        e2 = UsageEntry(
+            id="test|2",
+            date=datetime.datetime(2026, 9, 10, 10, 0, 0, tzinfo=tz),
+            local_day="2026-09-10",
+            model="claude-3-5-sonnet",
+            input_tokens=1_000_000,
+            output_tokens=1_000_000
+        )
+        e3 = UsageEntry(
+            id="test|3",
+            date=datetime.datetime(2026, 9, 16, 10, 0, 0, tzinfo=tz),
+            local_day="2026-09-16",
+            model="claude-3-5-sonnet",
+            input_tokens=1_500_000,
+            output_tokens=1_500_000
+        )
+        entries = [e1, e2, e3]
+
+        # Case A: Billing cycle day = 15 (as of Sept 16)
+        # Cycle start is Sept 15. Only e3 (Sept 16) is in current billing cycle (3,000,000 tokens)
+        summary_d15 = tracker._compute_summary(entries, billing_cycle_day=15, baseline_total=0)
+        self.assertEqual(summary_d15["month_tokens"], 3_000_000)
+        self.assertEqual(summary_d15["raw_total_tokens"], 6_000_000)
+        self.assertEqual(summary_d15["total_tokens"], 6_000_000)
+
+        # Case B: Re-baseline total tokens by 5,000,000
+        # Displayed total should be 6,000,000 - 5,000,000 = 1,000,000
+        summary_base = tracker._compute_summary(entries, billing_cycle_day=15, baseline_total=5_000_000)
+        self.assertEqual(summary_base["total_tokens"], 1_000_000)
+        self.assertEqual(summary_base["raw_total_tokens"], 6_000_000)
+        self.assertEqual(summary_base["baseline_total_tokens"], 5_000_000)
+
+    def test_engine_billing_cycle_and_baseline_methods(self):
+        # Set billing cycle day
+        ok_valid, msg = self.engine.set_billing_cycle_day(15)
+        self.assertTrue(ok_valid)
+        self.assertEqual(self.engine.get_billing_cycle_day(), 15)
+
+        ok_invalid, _ = self.engine.set_billing_cycle_day(35)
+        self.assertFalse(ok_invalid)
+
+        # Initialize total tokens baseline
+        ok_init, msg_init = self.engine.initialize_total_tokens(10_000_000)
+        self.assertTrue(ok_init)
+        self.assertEqual(self.engine.state["baseline_total_tokens"], 10_000_000)
+
+        # Ensure companion growth and process_usage remain unaffected
+        mon = self.engine.active_mon
+        if not mon:
+            mon, _ = self.engine.hatch_egg(0)
+        old_used = self.engine.state.get("used_since_install", 0)
+        # Passing raw cumulative tokens to process_usage continues normal game progression
+        self.engine.process_usage(old_used + 500_000)
+        self.assertEqual(self.engine.state["used_since_install"], old_used + 500_000)
+
+        # Clear baseline
+        ok_clear, _ = self.engine.clear_total_tokens_baseline()
+        self.assertTrue(ok_clear)
+        self.assertEqual(self.engine.state["baseline_total_tokens"], 0)
+
+    def test_settings_tab_72_col_compliance_with_billing_and_baseline(self):
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.settings import render_settings_tab
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+        app = MagicMock()
+        app.engine = self.engine
+        self.engine.state["billing_cycle_day"] = 15
+        self.engine.state["baseline_total_tokens"] = 5_000_000
+
+        # Page 1
+        app.settings_page = 1
+        trap1 = io.StringIO()
+        with patch("sys.stdout", trap1):
+            render_settings_tab(app)
+        out1 = trap1.getvalue()
+        self.assertIn("System Date & Hour:", out1)
+        self.assertRegex(out1, r'\d{4}-\d{2}-\d{2} \d{2}')
+        for line in out1.split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Settings tab page 1 line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+        # Page 2
+        app.settings_page = 2
+        trap2 = io.StringIO()
+        with patch("sys.stdout", trap2):
+            render_settings_tab(app)
+        out2 = trap2.getvalue()
+        self.assertIn("System Date & Hour:", out2)
+        self.assertRegex(out2, r'\d{4}-\d{2}-\d{2} \d{2}')
+        self.assertIn("Day 15 of each month", out2)
+        self.assertIn("Active baseline", out2)
+        for line in out2.split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Settings tab page 2 line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+    def test_quests_tab_72_col_compliance_and_achievements_formatting(self):
+        """Verify Quests tab and compact Achievements lines satisfy 72 cols with tight spacing."""
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.quests import render_quests_tab
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+        app = MagicMock()
+        app.engine = self.engine
+
+        # Test with mix of locked and unlocked achievements
+        self.engine.state["achievements"] = ["shiny_hunter", "token_tycoon"]
+        self.engine.state["gym_badges"] = ["Boulder", "Cascade", "Thunder", "Rainbow"]
+        self.engine.state["daily_quests"] = {
+            "quests": [
+                {"id": "1", "text": "Burn 10,000,000 tokens", "progress": 5_000_000, "target": 10_000_000, "claimed": False},
+                {"id": "2", "text": "Complete 2 Expeditions", "progress": 2, "target": 2, "claimed": True}
+            ]
+        }
+
+        trap = io.StringIO()
+        with patch("sys.stdout", trap):
+            render_quests_tab(app)
+        output = trap.getvalue()
+        clean_output = ansi_regex.sub("", output)
+
+        self.assertIn("🌟 Shiny Hunter - Hatch a Shiny Pokémon [UNLOCKED]", clean_output)
+        self.assertIn("💎 Token Tycoon - Burn 100M+ tokens [UNLOCKED]", clean_output)
+        self.assertIn("⚡ Streak Master - Maintain 3+ day streak [LOCKED]", clean_output)
+
+        for line in output.split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Quests tab line exceeds 72 cols: '{clean}' (len={len(clean)})")
+            # Verify no excessive 4+ space gaps in achievement lines
+            if "•" in clean:
+                self.assertNotIn("    ", clean, f"Achievement line contains excessive spacing: '{clean}'")
+
     def test_expedition_missing_keys_defensive(self):
         # Expeditions with missing reward/target/progress should not raise KeyError
         self.engine.state["expeditions"] = [
@@ -343,6 +937,122 @@ class TestCompanionEngine(unittest.TestCase):
         ok, msg = handler.assemble_team([3, 6, 9, 25, 143, 149])
         self.assertFalse(ok)
         self.assertIn("expedition", msg)
+
+    def test_red_battle_hp_reduction_does_not_mutate_max_hp(self):
+        from poketokenbar.game.red_battle import RedBattleHandler
+        self.engine.state["dex"] = [
+            {"species_id": pid, "base_id": pid, "status": "graduated"}
+            for pid in [3, 6, 9, 25, 143, 149]
+        ]
+        handler = RedBattleHandler(self.engine)
+        ok, msg = handler.assemble_team([3, 6, 9, 25, 143, 149])
+        self.assertTrue(ok)
+        st = handler._get_state()
+        
+        # Verify that player_hps and player_max_hps are distinct list instances
+        self.assertIsNot(st["player_hps"], st["player_max_hps"])
+        initial_hp = st["player_hps"][0]
+        initial_max_hp = st["player_max_hps"][0]
+        self.assertEqual(initial_hp, initial_max_hp)
+
+        # Force Red's turn: execute turn 0 (Strike) where Red retaliates
+        ok, msg = handler.execute_turn(0)
+        self.assertTrue(ok)
+        
+        st_after = handler._get_state()
+        # Verify Red deals damage to player and reduces current HP
+        self.assertLess(st_after["player_hps"][0], initial_hp)
+        # Verify that player_max_hps has NOT shrunk with current HP!
+        self.assertEqual(st_after["player_max_hps"][0], initial_max_hp)
+
+    def test_red_battle_companions_cannot_be_active_or_sent_on_expeditions(self):
+        from poketokenbar.game.red_battle import RedBattleHandler
+        from poketokenbar.game.models import MonState, Rarity
+        # Register a roster: 6 for Red, and 1 extra (#1)
+        self.engine.state["dex"] = [
+            {"species_id": pid, "base_id": pid, "status": "graduated"}
+            for pid in [1, 3, 6, 9, 25, 143, 149]
+        ]
+        # Set #25 as active companion before assembly
+        mon25 = MonState(
+            base_id=25,
+            path_ids=[25],
+            planned_path_ids=[25],
+            stage_index=0,
+            used_at_stage=0,
+            rarity=Rarity.COMMON,
+            total_forms=1
+        )
+        self.engine.set_active_mon(mon25)
+        self.assertIsNotNone(self.engine.active_mon)
+
+        handler = RedBattleHandler(self.engine)
+        ok, msg = handler.assemble_team([3, 6, 9, 25, 143, 149])
+        self.assertTrue(ok)
+
+        # 1. Active companion must be disengaged because #25 was drafted into Red battle
+        self.assertIsNone(self.engine.active_mon)
+
+        # 2. Cannot select any of the 6 Pokémon currently in Red battle as active companion
+        ok_sel, msg_sel = self.engine.select_active_from_dex("25")
+        self.assertFalse(ok_sel)
+        self.assertIn("battle with Red", msg_sel)
+
+        # But Pokémon #1 (not in battle with Red) can still be selected
+        ok_sel_1, msg_sel_1 = self.engine.select_active_from_dex("1")
+        self.assertTrue(ok_sel_1)
+        self.assertEqual(self.engine.active_mon.base_id, 1)
+
+        # 3. Cannot dispatch Pokémon in Red battle on single expedition
+        ok_exp, msg_exp = self.engine.dispatch_expedition("25", "viridian")
+        self.assertFalse(ok_exp)
+        self.assertIn("battle with Red", msg_exp)
+
+        # 4. Batch expedition skips Pokémon in Red battle
+        ok_batch, msg_batch = self.engine.dispatch_expedition("all", "viridian")
+        # #1 is dispatched, #25, #3, etc. are skipped because they are in Red battle
+        self.assertIn("in Red battle", msg_batch)
+
+        # 5. When battle ends (e.g. running away), Pokémon are freed
+        ok_run, msg_run = handler.run_away()
+        self.assertTrue(ok_run)
+        self.assertEqual(self.engine.get_red_battle_active_pokemon_ids(), set())
+
+        # Now #25 can be selected as active companion
+        ok_sel_again, msg_sel_again = self.engine.select_active_from_dex("25")
+        self.assertTrue(ok_sel_again)
+        self.assertEqual(self.engine.active_mon.base_id, 25)
+
+    def test_render_battles_tab_shows_both_original_tui_and_hall_of_fame(self):
+        import io
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.battles import render_battles_tab
+
+        # Setup state as won Red battle
+        self.engine.state["gym_badges"] = ["🏆 Champion Badge"]
+        self.engine.state["red_wins"] = 1
+        self.engine.state["red_hof"] = [[3, 6, 9, 25, 143, 149]]
+        self.engine.state["red_battle_state"] = {"status": "win", "player_team": [3, 6, 9, 25, 143, 149]}
+        self.engine.state["trainer_battles"] = {"wins": 15, "losses": 3}
+        self.engine.state["battle_logs"] = ["Won against Youngster Joey"]
+
+        app = MagicMock()
+        app.engine = self.engine
+
+        stdout_trap = io.StringIO()
+        with patch("sys.stdout", stdout_trap):
+            render_battles_tab(app)
+
+        output = stdout_trap.getvalue()
+        # Verifies that the original Battles TUI is rendered
+        self.assertIn("Gym Boss Raids & Trainer Auto-Battles", output)
+        self.assertIn("Mini-Trainer Auto-Battle Record", output)
+        self.assertIn("Won against Youngster Joey", output)
+        # AND verifies that the Hall of Fame section is also rendered
+        self.assertIn("HALL OF FAME", output)
+        self.assertIn("Total Wins: 1", output)
+        self.assertIn("restart", output)
+        self.assertIn("challenge him again!", output)
 
     def test_held_item_persistence_and_display(self):
         import io
@@ -470,6 +1180,11 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertTrue(self.engine.has_perk("silph"))
         self.assertTrue(self.engine.has_perk("devon"))
         self.assertFalse(self.engine.has_perk("macro"))
+
+        from poketokenbar.game.models import CORPORATIONS
+        self.assertNotIn("Red", CORPORATIONS["macro"].perk_desc)
+        self.assertNotIn("Red", CORPORATIONS["macro"].catalyst_desc)
+        self.assertIn("Boss raids", CORPORATIONS["macro"].perk_desc)
 
         # Test Devon perk: 10% discount on Shop Rare Candy
         rc_base = ItemKind.RARE_CANDY.price_for(self.engine.current_difficulty)
@@ -1015,6 +1730,43 @@ class TestCompanionEngine(unittest.TestCase):
                 tui6.run()
             self.assertEqual(tui6.shop_view, "black_market")
 
+            # 8. When permanent_black_market is True, 'poster' in Slots enters Black Market directly without bribe
+            self.engine.state["permanent_black_market"] = True
+            self.engine.state["spent_tokens"] = 1000
+            tui7 = PokeTokenBarTUI()
+            tui7.engine = self.engine
+            commands7 = "\n".join(["9", "play 3", "poster", "q"]) + "\n"
+            trap7 = io.StringIO()
+            with patch("sys.stdin", io.StringIO(commands7)), patch("sys.stdout", trap7):
+                tui7.run()
+            # Directly transitions to Tab 4 Black Market with 0 bribe deducted
+            self.assertEqual(tui7.current_tab, 4)
+            self.assertEqual(tui7.shop_view, "black_market")
+            self.assertEqual(self.engine.state["spent_tokens"], 1000)
+            self.assertIn("Syndicate Black Pass recognized", trap7.getvalue())
+
+            # 9. Test slot alias and entering with pass
+            tui8 = PokeTokenBarTUI()
+            tui8.engine = self.engine
+            commands8 = "\n".join(["9", "slot", "poster", "q"]) + "\n"
+            trap8 = io.StringIO()
+            with patch("sys.stdin", io.StringIO(commands8)), patch("sys.stdout", trap8):
+                tui8.run()
+            self.assertEqual(tui8.current_tab, 4)
+            self.assertEqual(tui8.shop_view, "black_market")
+
+            # 10. Verify render_grunt_bribe_tab does not display "Bribe Demanded" when pass is owned
+            from poketokenbar.tui_tabs.game_corner import render_grunt_bribe_tab
+            app_mock = MagicMock()
+            app_mock.engine = self.engine
+            trap_bribe = io.StringIO()
+            with patch("sys.stdout", trap_bribe):
+                render_grunt_bribe_tab(app_mock)
+            bribe_out = trap_bribe.getvalue()
+            self.assertNotIn("Bribe Demanded", bribe_out)
+            self.assertIn("Access Clearance", bribe_out)
+            self.assertIn("WAIVED", bribe_out)
+
     def test_viridian_stock_market_and_perk(self):
         from poketokenbar.game.models import CORPORATIONS
         self.assertIn("viridian", CORPORATIONS)
@@ -1130,6 +1882,10 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertTrue(self.engine.state["rocket_story_viewed"])
         self.assertFalse(self.engine.state["rocket_alliance_accepted"])
 
+        # Dormant channel rejects command '1' (reserved for tab switching)
+        handle_rocket_command(app, "1")
+        self.assertFalse(self.engine.state["rocket_alliance_accepted"])
+
         # Dormant channel accepts command 'accept'
         handle_rocket_command(app, "accept")
         self.assertTrue(self.engine.state["rocket_alliance_accepted"])
@@ -1147,7 +1903,7 @@ class TestCompanionEngine(unittest.TestCase):
         # Op 1: Start and test objective check
         ok_start, _ = self.engine.start_rocket_operation("1")
         self.assertTrue(ok_start)
-        self.engine.state["expedition_logs"] = ["log 1", "log 2"]
+        self.engine.state["rocket_ops"]["op_1"]["expeditions_done"] = 2
         events = []
         self.engine._update_rocket_operations(5_000_000, events)
         ok_claim, msg_claim = self.engine.claim_rocket_operation("1")
@@ -1155,7 +1911,7 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertEqual(self.engine.state["rocket_reputation"], 1)
 
         # Op 2: Requires 2 battle wins
-        self.engine.state["trainer_battles"] = {"wins": 2, "losses": 0}
+        self.engine.state["rocket_ops"]["op_2"]["battle_wins"] = 2
         ok_start2, _ = self.engine.start_rocket_operation("2")
         self.assertTrue(ok_start2)
         self.engine._update_rocket_operations(10_000_000, events)
@@ -1217,19 +1973,274 @@ class TestCompanionEngine(unittest.TestCase):
 
         # At Informant rank:
         self.engine.state["rocket_rank"] = "Informant"
-        ok_elixir, _ = self.engine.buy_rocket_armory_item("elixir")
-        self.assertTrue(ok_elixir)
+        ok_pass, _ = self.engine.buy_rocket_armory_item("pass")
+        self.assertTrue(ok_pass)
 
-        # Overclock chip requires Operative
-        ok_chip_denied, msg_chip = self.engine.buy_rocket_armory_item("chip")
-        self.assertFalse(ok_chip_denied)
-        self.assertIn("Clearance Denied", msg_chip)
+        # Operative items require Operative rank
+        ok_spray_denied, msg_spray = self.engine.buy_rocket_armory_item("spray")
+        self.assertFalse(ok_spray_denied)
+        self.assertIn("Clearance Denied", msg_spray)
+
+        ok_chrono_denied, msg_chrono = self.engine.buy_rocket_armory_item("chrono")
+        self.assertFalse(ok_chrono_denied)
+        self.assertIn("Clearance Denied", msg_chrono)
 
         # Upgrade to Operative
         self.engine.state["rocket_rank"] = "Operative"
-        self.engine.state["expeditions"] = [{"area_id": "viridian", "target_tokens": 10_000_000, "progress_tokens": 0}]
-        ok_chip, _ = self.engine.buy_rocket_armory_item("chip")
-        self.assertTrue(ok_chip)
+        ok_spray, _ = self.engine.buy_rocket_armory_item("spray")
+        self.assertTrue(ok_spray)
+
+        # Special Agent items require Special Agent rank
+        ok_splitter_denied, msg_split = self.engine.buy_rocket_armory_item("splitter")
+        self.assertFalse(ok_splitter_denied)
+        self.assertIn("Clearance Denied", msg_split)
+
+        # Upgrade to Special Agent
+        self.engine.state["rocket_rank"] = "Special Agent"
+        ok_splitter, _ = self.engine.buy_rocket_armory_item("splitter")
+        self.assertTrue(ok_splitter)
+
+        # Executive items require Executive rank
+        ok_cat_denied, msg_cat = self.engine.buy_rocket_armory_item("catalyst")
+        self.assertFalse(ok_cat_denied)
+        self.assertIn("Clearance Denied", msg_cat)
+
+        # Upgrade to Executive
+        self.engine.state["rocket_rank"] = "Executive"
+        ok_cat, _ = self.engine.buy_rocket_armory_item("catalyst")
+        self.assertTrue(ok_cat)
+
+        # Commander items require Commander rank
+        ok_auth_denied, msg_auth = self.engine.buy_rocket_armory_item("authority")
+        self.assertFalse(ok_auth_denied)
+        self.assertIn("Clearance Denied", msg_auth)
+
+        # Upgrade to Commander
+        self.engine.state["rocket_rank"] = "Commander"
+        ok_auth, _ = self.engine.buy_rocket_armory_item("authority")
+        self.assertTrue(ok_auth)
+
+    def test_syndicate_black_pass_and_grunt_toll_waiver(self):
+        """Verify Syndicate Black Pass waives Grunt bribe and unlocks 24/7 Black Market."""
+        self.engine.state["used_since_install"] = 50_000_000
+        self.engine.state["spent_tokens"] = 0
+        self.engine.state["rocket_rank"] = "Informant"
+
+        # Buy pass
+        ok, msg = self.engine.buy_rocket_armory_item("pass")
+        self.assertTrue(ok)
+        self.assertTrue(self.engine.state.get("permanent_black_market"))
+
+        # Cannot buy duplicate pass
+        ok_dup, msg_dup = self.engine.buy_rocket_armory_item("pass")
+        self.assertFalse(ok_dup)
+        self.assertIn("already possess", msg_dup)
+
+        # Black market is open
+        bm = self.engine.get_or_init_black_market()
+        self.assertTrue(bm.get("natural_open"))
+        self.assertTrue(bm.get("is_open"))
+
+        # Grunt bribe is completely waived (0 tokens deducted)
+        prev_spent = self.engine.state.get("spent_tokens", 0)
+        ok_bribe, msg_bribe = self.engine.bribe_grunt_for_black_market()
+        self.assertTrue(ok_bribe)
+        self.assertIn("Syndicate Black Pass recognized", msg_bribe)
+        self.assertEqual(self.engine.state.get("spent_tokens"), prev_spent)
+
+    def test_syndicate_morale_mist_squad_happiness(self):
+        """Verify Syndicate Morale Mist restores 100% happiness across entire squad."""
+        self.engine.state["used_since_install"] = 100_000_000
+        self.engine.state["spent_tokens"] = 0
+        self.engine.state["rocket_rank"] = "Operative"
+
+        # Setup active mon with 25 happiness
+        active_mon = MonState(
+            base_id=25, path_ids=[25, 26], planned_path_ids=[25, 26], stage_index=0,
+            used_at_stage=0, rarity=Rarity.COMMON, total_forms=2, happiness=25
+        )
+        self.engine.set_active_mon(active_mon)
+        self.assertEqual(self.engine.state.get("happiness"), 25)
+
+        # Setup reserve roster mons with low happiness
+        sub1 = MonState(base_id=1, path_ids=[1, 2, 3], planned_path_ids=[1, 2, 3], stage_index=0, used_at_stage=0, rarity=Rarity.COMMON, total_forms=3, happiness=10)
+        sub2 = MonState(base_id=4, path_ids=[4, 5, 6], planned_path_ids=[4, 5, 6], stage_index=0, used_at_stage=0, rarity=Rarity.COMMON, total_forms=3, happiness=50)
+        self.engine.state["dex"] = [
+            {"species_id": 1, "status": "inactive", "happiness": 10, "mon_state": StorageManager.mon_to_dict(sub1)},
+            {"species_id": 4, "status": "inactive", "happiness": 50, "mon_state": StorageManager.mon_to_dict(sub2)},
+            {"species_id": 100, "status": "evolved", "happiness": 0}  # Evolved form shouldn't prevent or break anything
+        ]
+
+        # Buy Morale Mist
+        ok, msg = self.engine.buy_rocket_armory_item("spray")
+        self.assertTrue(ok)
+        self.assertIn("Syndicate Morale Mist", msg)
+        self.assertEqual(self.engine.active_mon.happiness, 100)
+        self.assertEqual(self.engine.state.get("happiness"), 100)
+        for d in self.engine.state["dex"]:
+            if d.get("status") != "evolved":
+                self.assertEqual(d.get("happiness"), 100)
+                self.assertEqual(d["mon_state"]["happiness"], 100)
+
+    def test_chrono_accelerator_cd_fast_forward(self):
+        """Verify Chrono Accelerator advances active Bank CDs by +1 day and triggers maturity."""
+        self.engine.state["used_since_install"] = 200_000_000
+        self.engine.state["spent_tokens"] = 0
+        self.engine.state["rocket_rank"] = "Operative"
+
+        # Open a 3-day CD for 10M tokens
+        ok_open, _ = self.engine.open_cd("10m", 3)
+        self.assertTrue(ok_open)
+        cds = self.engine.state.get("term_deposits", [])
+        self.assertEqual(len(cds), 1)
+        cd = cds[0]
+        self.assertEqual(cd["days_elapsed"], 0)
+        self.assertFalse(cd["matured"])
+
+        # First acceleration
+        ok_ch1, msg_ch1 = self.engine.buy_rocket_armory_item("chrono")
+        self.assertTrue(ok_ch1)
+        self.assertEqual(self.engine.state["term_deposits"][0]["days_elapsed"], 1)
+        self.assertFalse(self.engine.state["term_deposits"][0]["matured"])
+
+        # Second acceleration
+        ok_ch2, _ = self.engine.buy_rocket_armory_item("chrono")
+        self.assertTrue(ok_ch2)
+        self.assertEqual(self.engine.state["term_deposits"][0]["days_elapsed"], 2)
+        self.assertFalse(self.engine.state["term_deposits"][0]["matured"])
+
+        # Third acceleration -> Matures!
+        ok_ch3, msg_ch3 = self.engine.buy_rocket_armory_item("chrono")
+        self.assertTrue(ok_ch3)
+        self.assertEqual(self.engine.state["term_deposits"][0]["days_elapsed"], 3)
+        self.assertTrue(self.engine.state["term_deposits"][0]["matured"])
+        self.assertIn("1 matured", msg_ch3)
+
+        # Claim the matured CD
+        ok_claim, msg_claim = self.engine.claim_cd(str(cd["id"]))
+        self.assertTrue(ok_claim)
+        self.assertIn("Claimed CD", msg_claim)
+
+    def test_corrupted_exp_splitter_passive_xp_mirror(self):
+        """Verify Corrupted EXP Splitter mirrors 25% of coding XP to inactive roster mons without unseating active mon."""
+        self.engine.state["used_since_install"] = 100_000_000
+        self.engine.state["spent_tokens"] = 0
+        self.engine.state["rocket_rank"] = "Special Agent"
+        self.engine.state["install_baseline_set"] = True
+
+        # Buy Corrupted Splitter
+        ok_split, _ = self.engine.buy_rocket_armory_item("splitter")
+        self.assertTrue(ok_split)
+        self.assertTrue(self.engine.state.get("has_exp_splitter"))
+
+        # Setup active Charmander (ID: 4)
+        char_mon = MonState(
+            base_id=4, path_ids=[4, 5, 6], planned_path_ids=[4, 5, 6], stage_index=0,
+            used_at_stage=0, rarity=Rarity.COMMON, total_forms=3, happiness=100
+        )
+        self.engine.set_active_mon(char_mon)
+
+        # Setup reserve Squirtle (ID: 7) in dex
+        sq_mon = MonState(
+            base_id=7, path_ids=[7, 8, 9], planned_path_ids=[7, 8, 9], stage_index=0,
+            used_at_stage=0, rarity=Rarity.COMMON, total_forms=3, happiness=100
+        )
+        self.engine.state["dex"] = [
+            {"species_id": 7, "base_id": 7, "status": "inactive", "happiness": 100, "mon_state": StorageManager.mon_to_dict(sq_mon)}
+        ]
+        self.engine.save()
+
+        # Generate coding token usage
+        curr_used = self.engine.state.get("used_since_install", 0)
+        self.engine.process_usage(curr_used + 100_000)
+
+        # Squirtle in dex should have received 25% of effective XP
+        sq_entry = self.engine.state["dex"][0]
+        sq_saved = sq_entry["mon_state"]
+        self.assertGreater(sq_saved["used_at_stage"], 0)
+        # Active companion remains Charmander!
+        self.assertEqual(self.engine.active_mon.base_id, 4)
+
+    def test_dark_gene_catalyst_evolution(self):
+        """Verify Dark Gene Catalyst triggers immediate evolution of active companion."""
+        self.engine.state["used_since_install"] = 100_000_000
+        self.engine.state["spent_tokens"] = 0
+        self.engine.state["rocket_rank"] = "Executive"
+
+        # Buy catalyst
+        ok_buy, msg_buy = self.engine.buy_rocket_armory_item("catalyst")
+        self.assertTrue(ok_buy)
+        self.assertEqual(self.engine.state["inventory"].get("dark_gene_catalyst"), 1)
+
+        # Active Wartortle (ID: 8)
+        wartortle = MonState(
+            base_id=7, path_ids=[7, 8, 9], planned_path_ids=[7, 8, 9], stage_index=1,
+            used_at_stage=0, rarity=Rarity.COMMON, total_forms=3, happiness=100
+        )
+        self.engine.set_active_mon(wartortle)
+        self.assertEqual(self.engine.active_mon.current_id, 8)
+
+        # Use Dark Gene Catalyst
+        ok_use, msg_use = self.engine.use_item("dark_gene_catalyst")
+        self.assertTrue(ok_use)
+        self.assertIn("Dark Gene Catalyst", msg_use)
+        self.assertEqual(self.engine.active_mon.current_id, 9)
+        self.assertEqual(self.engine.active_mon.stage_index, 2)
+        self.assertEqual(self.engine.state["inventory"].get("dark_gene_catalyst", 0), 0)
+
+    def test_team_rocket_authority_delivery_and_recruitment(self):
+        """Verify Team Rocket Authority costs 100 tokens, delivers non-duplicate species, and supports keep/dismiss."""
+        self.engine.state["used_since_install"] = 1_000
+        self.engine.state["spent_tokens"] = 0
+        self.engine.state["rocket_rank"] = "Commander"
+
+        # Populate roster with specific IDs
+        pika = MonState(base_id=25, path_ids=[25, 26], planned_path_ids=[25, 26], stage_index=0, used_at_stage=0, rarity=Rarity.COMMON, total_forms=2)
+        self.engine.set_active_mon(pika)
+
+        # Buy authority (costs 100 tokens)
+        ok_auth, msg_auth = self.engine.buy_rocket_armory_item("authority")
+        self.assertTrue(ok_auth)
+        self.assertEqual(self.engine.state["spent_tokens"], 100)
+        self.assertIn("Team Rocket Authority", msg_auth)
+        pending_id = self.engine.state.get("pending_authority_delivery")
+        self.assertIsNotNone(pending_id)
+        self.assertNotEqual(pending_id, 25)
+        self.assertIn(pending_id, range(1, 152))
+
+        # Cannot buy again same day / while delivery pending
+        ok_rep, msg_rep = self.engine.buy_rocket_armory_item("authority")
+        self.assertFalse(ok_rep)
+        self.assertIn("already waiting", msg_rep)
+
+        # Test dismiss
+        ok_dis, msg_dis = self.engine.handle_authority_delivery("dismiss")
+        self.assertTrue(ok_dis)
+        self.assertIn("dismissed back into the wild", msg_dis)
+        self.assertIsNone(self.engine.state.get("pending_authority_delivery"))
+
+        # Cannot buy again today due to daily limit
+        ok_daily, msg_daily = self.engine.buy_rocket_armory_item("authority")
+        self.assertFalse(ok_daily)
+        self.assertIn("already dispatched today", msg_daily)
+
+        # Reset daily limit and buy again for 'keep' test
+        self.engine.state["last_authority_date"] = "2020-01-01"
+        ok_auth2, _ = self.engine.buy_rocket_armory_item("authority")
+        self.assertTrue(ok_auth2)
+        new_pending_id = self.engine.state.get("pending_authority_delivery")
+        self.assertIsNotNone(new_pending_id)
+
+        # Test keep
+        ok_keep, msg_keep = self.engine.handle_authority_delivery("keep")
+        self.assertTrue(ok_keep)
+        self.assertIn("Registered", msg_keep)
+        self.assertIsNone(self.engine.state.get("pending_authority_delivery"))
+
+        # Verify new Pokémon is in Dex roster as inactive with 100 happiness
+        roster = [d for d in self.engine.state["dex"] if d.get("species_id") == new_pending_id or d.get("base_id") == new_pending_id]
+        self.assertTrue(len(roster) > 0)
+        self.assertEqual(roster[0]["status"], "inactive")
 
     def test_72_column_layout_compliance_tab_12(self):
         import io
@@ -1259,7 +2270,10 @@ class TestCompanionEngine(unittest.TestCase):
         trap_comm = io.StringIO()
         with patch("sys.stdout", trap_comm):
             render_rocket_tab(app)
-        for line in trap_comm.getvalue().split("\n"):
+        comm_val = trap_comm.getvalue()
+        self.assertIn("Type 'accept' to initiate the Rocket Alliance.", ansi_regex.sub("", comm_val))
+        self.assertNotIn("or '1'", ansi_regex.sub("", comm_val))
+        for line in comm_val.split("\n"):
             clean = ansi_regex.sub("", line)
             self.assertLessEqual(len(clean), 72, f"Secure Comm line exceeds 72 cols: '{clean}' (len={len(clean)})")
 
@@ -1283,6 +2297,197 @@ class TestCompanionEngine(unittest.TestCase):
             for line in trap_modal.getvalue().split("\n"):
                 clean = ansi_regex.sub("", line)
                 self.assertLessEqual(len(clean), 72, f"Transmission line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+    def test_rocket_single_active_quest_display(self):
+        """Verify Rocket Operations menu displays ONLY the single active/available operation."""
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.rocket import render_rocket_tab, handle_rocket_command
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+        app = MagicMock()
+        app.engine = self.engine
+        app.rocket_subview = "ops"
+        self.engine.state["rocket_story_unlocked"] = True
+        self.engine.state["rocket_alliance_accepted"] = True
+
+        # 1. Op 1 is available initially
+        trap = io.StringIO()
+        with patch("sys.stdout", trap):
+            render_rocket_tab(app)
+        out = ansi_regex.sub("", trap.getvalue())
+
+        # Op 1 should appear without [ NUM] index and with 'start operation' badge
+        self.assertIn("Operation Genesis", out)
+        self.assertIn("[AVAILABLE - 'start operation']", out)
+        self.assertNotIn("[ 1]", out)
+        self.assertNotIn("[1]", out)
+        # Notice and switch view hints should be removed
+        self.assertNotIn("Complete 10 operations to dismantle Oak's secret facilities", out)
+        self.assertNotIn("Switch view:", out)
+        # Op 2 through 10 should NOT be printed
+        self.assertNotIn("Operation Chimera", out)
+        self.assertNotIn("Silph Sub-Vault", out)
+        self.assertNotIn("The Oak Citadel", out)
+
+        # 2. 'start 1' is rejected; only 'start operation' is accepted
+        handle_rocket_command(app, "start 1")
+        self.assertEqual(self.engine.state["rocket_ops"]["op_1"]["status"], "available")
+        self.assertIn("start operation", app.message)
+
+        handle_rocket_command(app, "start operation")
+        self.assertEqual(self.engine.state["rocket_ops"]["op_1"]["status"], "active")
+
+        # Re-render with Op 1 active
+        trap2 = io.StringIO()
+        with patch("sys.stdout", trap2):
+            render_rocket_tab(app)
+        out2 = ansi_regex.sub("", trap2.getvalue())
+        self.assertIn("[ACTIVE]", out2)
+        self.assertNotIn("[ 1]", out2)
+        self.assertNotIn("Operation Chimera", out2)
+        self.assertNotIn("Switch view:", out2)
+
+        # 3. Fulfill Op 1 objective and test parameterless 'claim' command
+        self.engine.state["expedition_logs"] = ["log 1", "log 2"]
+        events = []
+        self.engine._update_rocket_operations(5_000_000, events)
+        handle_rocket_command(app, "claim")
+        self.assertTrue(self.engine.state["rocket_ops"]["op_1"]["claimed"])
+        self.assertEqual(self.engine.state["rocket_ops"]["op_2"]["status"], "available")
+
+        # Re-render: now Op 2 is the ONLY quest shown, without [ NUM] index
+        trap3 = io.StringIO()
+        with patch("sys.stdout", trap3):
+            render_rocket_tab(app)
+        out3 = ansi_regex.sub("", trap3.getvalue())
+        self.assertIn("Operation Chimera", out3)
+        self.assertNotIn("[ 2]", out3)
+        self.assertNotIn("Operation Genesis", out3)
+        self.assertNotIn("Silph Sub-Vault", out3)
+        self.assertNotIn("Switch view:", out3)
+
+        # 4. When all 10 are claimed, verify completion message
+        for i in range(1, 11):
+            self.engine.state["rocket_ops"][f"op_{i}"]["claimed"] = True
+        trap4 = io.StringIO()
+        with patch("sys.stdout", trap4):
+            render_rocket_tab(app)
+        out4 = ansi_regex.sub("", trap4.getvalue())
+        self.assertIn("ALL 10 COVERT OPERATIONS COMPLETED!", out4)
+        self.assertNotIn("Switch view:", out4)
+
+        # 5. Verify Intel and Armory also have no menu changing hints
+        app.rocket_subview = "intel"
+        trap_intel = io.StringIO()
+        with patch("sys.stdout", trap_intel):
+            render_rocket_tab(app)
+        self.assertNotIn("return to Operations menu", ansi_regex.sub("", trap_intel.getvalue()))
+
+        app.rocket_subview = "armory"
+        trap_armory = io.StringIO()
+        with patch("sys.stdout", trap_armory):
+            render_rocket_tab(app)
+        self.assertNotIn("Switch view:", ansi_regex.sub("", trap_armory.getvalue()))
+
+        for line in trap3.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Ops line exceeds 72 cols: '{clean}'")
+
+    def test_rocket_intel_paging_and_armory_locked_display(self):
+        """Verify Intel hides locked archives, uses 5-item paging, and Armory masks locked items."""
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.rocket import render_rocket_tab, handle_rocket_command
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+        app = MagicMock()
+        app.engine = self.engine
+        app.intel_page = 1
+        self.engine.state["rocket_story_unlocked"] = True
+        self.engine.state["rocket_alliance_accepted"] = True
+
+        # 1. Test Intel: only intel_001 unlocked initially
+        self.engine.state["rocket_intel_unlocked"] = ["intel_001"]
+        app.rocket_subview = "intel"
+        trap1 = io.StringIO()
+        with patch("sys.stdout", trap1):
+            render_rocket_tab(app)
+        out1 = ansi_regex.sub("", trap1.getvalue())
+
+        self.assertIn("Dossier #001", out1)
+        # Locked archives must be hidden
+        self.assertNotIn("Dossier #002", out1)
+        self.assertNotIn("Dossier #003", out1)
+        self.assertNotIn("[LOCKED", out1)
+        # Single page, so no page navigation hint needed
+        self.assertNotIn("Page 1/", out1)
+
+        # Attempting to read an un-retrieved dossier should be rejected
+        handle_rocket_command(app, "read 2")
+        self.assertIn("not been retrieved yet", app.message)
+        self.assertNotEqual(getattr(app, "rocket_subview", ""), "read_intel")
+
+        # 2. Test Intel: 7 dossiers unlocked -> 2 pages (5 per page)
+        self.engine.state["rocket_intel_unlocked"] = [f"intel_{i:03d}" for i in range(1, 8)]
+        trap_p1 = io.StringIO()
+        with patch("sys.stdout", trap_p1):
+            render_rocket_tab(app)
+        out_p1 = ansi_regex.sub("", trap_p1.getvalue())
+
+        # Page 1 contains dossiers 1..5, but not 6 or 7
+        self.assertIn("Dossier #001", out_p1)
+        self.assertIn("Dossier #005", out_p1)
+        self.assertNotIn("Dossier #006", out_p1)
+        self.assertNotIn("Dossier #007", out_p1)
+        self.assertIn("Page 1/2", out_p1)
+
+        # Page navigation with 'n'
+        handle_rocket_command(app, "n")
+        self.assertEqual(app.intel_page, 2)
+        trap_p2 = io.StringIO()
+        with patch("sys.stdout", trap_p2):
+            render_rocket_tab(app)
+        out_p2 = ansi_regex.sub("", trap_p2.getvalue())
+
+        # Page 2 contains dossiers 6 and 7, but not 1..5
+        self.assertIn("Dossier #006", out_p2)
+        self.assertIn("Dossier #007", out_p2)
+        self.assertNotIn("Dossier #001", out_p2)
+        self.assertNotIn("Dossier #005", out_p2)
+        self.assertIn("Page 2/2", out_p2)
+
+        # Successfully read an unlocked dossier
+        handle_rocket_command(app, "read 7")
+        self.assertEqual(app.rocket_subview, "read_intel")
+        self.assertEqual(app.rocket_reading_file, 7)
+
+        # 3. Test Armory: Informant rank sees higher rank items masked with ??? and higher rank notice
+        app.rocket_subview = "armory"
+        self.engine.state["rocket_rank"] = "Informant"
+        trap_arm = io.StringIO()
+        with patch("sys.stdout", trap_arm):
+            render_rocket_tab(app)
+        out_arm = ansi_regex.sub("", trap_arm.getvalue())
+
+        # Informant item is clear
+        self.assertIn("Syndicate Black Pass", out_arm)
+        self.assertIn("[CLEARANCE GRANTED]", out_arm)
+        # Operative and higher items are masked with ???
+        self.assertIn("??? ???", out_arm)
+        self.assertIn("[LOCKED - HIGHER RANK REQUIRED]", out_arm)
+        self.assertIn("You need a higher rank (Operative) for this purchase.", out_arm)
+        self.assertIn("You need a higher rank (Commander) for this purchase.", out_arm)
+        self.assertNotIn("Syndicate Morale Mist", out_arm)
+        self.assertNotIn("Team Rocket Authority", out_arm)
+
+        # Verify 72-col compliance across Intel and Armory
+        for t in [trap_p1, trap_p2, trap_arm]:
+            for line in t.getvalue().split("\n"):
+                clean = ansi_regex.sub("", line)
+                self.assertLessEqual(len(clean), 72, f"Line exceeds 72 cols: '{clean}'")
 
     def test_graduated_companion_no_repeated_graduation_or_alerts(self):
         """Verify that once a companion graduates, feeding berries or gaining tokens does not re-trigger graduation."""
@@ -1686,7 +2891,1160 @@ class TestCompanionEngine(unittest.TestCase):
             clean = ansi_regex.sub("", line)
             self.assertLessEqual(len(clean), 72, f"Mega Evo line exceeds 72 cols: '{clean}'")
 
+    def test_term_deposit_paging_and_bracket_indexing(self):
+        """Verify Active Term Deposits list uses [NUM] indexing format, supports paging, and adheres to 72 cols."""
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.bank import _render_cd_view
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+
+        # 1. Setup 8 term deposits in state
+        self.engine.state["used_since_install"] = 500_000_000
+        self.engine.state["term_deposits"] = []
+        for i in range(1, 9):
+            self.engine.state["term_deposits"].append({
+                "id": i,
+                "principal": 10_000_000,
+                "term_days": 7,
+                "rate": 0.12,
+                "days_elapsed": i % 8,
+                "current_value": 10_000_000 + i * 1_000_000,
+                "matured": (i == 7)
+            })
+        self.engine.state["page_size_cd"] = 5
+
+        app = MagicMock()
+        app.engine = self.engine
+        app.cd_page = 1
+
+        # 2. Render Page 1 (items 1..5)
+        trap1 = io.StringIO()
+        with patch("sys.stdout", trap1):
+            _render_cd_view(app, self.engine.available_tokens)
+        out1 = ansi_regex.sub("", trap1.getvalue())
+
+        # Check [NUM] indexing format and NOT #NUM
+        self.assertIn("[1] 10.0M", out1)
+        self.assertIn("[5] 10.0M", out1)
+        self.assertNotIn("#1", out1)
+        self.assertNotIn("#5", out1)
+        self.assertNotIn("[6] 10.0M", out1)
+        # Check paging hint
+        self.assertIn("Page 1/2 - Type 'n', 'p', or 'page <N>' to navigate deposits!", out1)
+
+        # Check 72-col compliance
+        for line in trap1.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"CD line exceeds 72 cols: '{clean}'")
+
+        # 3. Render Page 2 (items 6..8)
+        app.cd_page = 2
+        trap2 = io.StringIO()
+        with patch("sys.stdout", trap2):
+            _render_cd_view(app, self.engine.available_tokens)
+        out2 = ansi_regex.sub("", trap2.getvalue())
+
+        self.assertIn("[6] 10.0M", out2)
+        self.assertIn("[7] 10.0M", out2)
+        self.assertIn("[8] 10.0M", out2)
+        self.assertNotIn("[1] 10.0M", out2)
+        self.assertIn("[MATURED! Claimable]", out2)
+        self.assertIn("Page 2/2", out2)
+
+        for line in trap2.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"CD line exceeds 72 cols: '{clean}'")
+
+        # 4. Verify claim and break work with bracketed ID e.g. '[7]' and '[8]'
+        ok_claim, msg_claim = self.engine.claim_cd("[7]")
+        self.assertTrue(ok_claim)
+        self.assertIn("Claimed CD [7]", msg_claim)
+
+        ok_break, msg_break = self.engine.break_cd("[8]")
+        self.assertTrue(ok_break)
+        self.assertIn("Early withdrawal of CD [8]", msg_break)
+
+    def test_term_deposits_dynamic_slot_recycling_and_positional_fallback(self):
+        """Verify CDs recycle lowest available IDs and support positional fallback."""
+        self.engine.state["used_since_install"] = 1_000_000_000
+        self.engine.state["term_deposits"] = []
+
+        # Open 3 CDs -> Should have IDs 1, 2, 3
+        self.assertTrue(self.engine.open_cd("10m", 3)[0])
+        self.assertTrue(self.engine.open_cd("10m", 7)[0])
+        self.assertTrue(self.engine.open_cd("10m", 14)[0])
+        ids = [c["id"] for c in self.engine.state["term_deposits"]]
+        self.assertEqual(ids, [1, 2, 3])
+
+        # Break CD [2] -> CDs 1 and 3 remain
+        ok, msg = self.engine.break_cd("[2]")
+        self.assertTrue(ok)
+        self.assertIn("Early withdrawal of CD [2]", msg)
+        ids = [c["id"] for c in self.engine.state["term_deposits"]]
+        self.assertEqual(ids, [1, 3])
+
+        # Open a new CD -> Should recycle ID 2 (lowest available) instead of incrementing to 4
+        ok, msg = self.engine.open_cd("10m", 3)
+        self.assertTrue(ok)
+        self.assertIn("CD [2]", msg)
+        # Verify term_deposits list remains sorted by ID
+        ids = [c["id"] for c in self.engine.state["term_deposits"]]
+        self.assertEqual(ids, [1, 2, 3])
+
+        # Test positional fallback:
+        # Create a state with sparse IDs [10, 20]
+        self.engine.state["term_deposits"] = [
+            {"id": 10, "principal": 10_000_000, "term_days": 3, "days_elapsed": 3, "current_value": 12_000_000, "matured": True},
+            {"id": 20, "principal": 10_000_000, "term_days": 7, "days_elapsed": 1, "current_value": 10_000_000, "matured": False}
+        ]
+        # Position 1 is CD [10] (matured). Using "[1]" should match position 1 as fallback!
+        ok_pos_claim, msg_pos_claim = self.engine.claim_cd("[1]")
+        self.assertTrue(ok_pos_claim)
+        self.assertIn("Claimed CD [10]", msg_pos_claim)
+        self.assertEqual(len(self.engine.state["term_deposits"]), 1)
+        self.assertEqual(self.engine.state["term_deposits"][0]["id"], 20)
+
+        # Position 1 is now CD [20]. Early break position 1!
+        ok_pos_break, msg_pos_break = self.engine.break_cd("[1]")
+        self.assertTrue(ok_pos_break)
+        self.assertIn("Early withdrawal of CD [20]", msg_pos_break)
+        self.assertEqual(len(self.engine.state["term_deposits"]), 0)
+
+    def test_rocket_operations_and_rank_alignments(self):
+        """Verify operations thematic alignment with armory items and rank promotions."""
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.rocket import render_rocket_tab
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+        ops = self.engine.get_rocket_operations()
+        ops_dict = {op["id"]: op for op in ops}
+
+        # 1. Op 2 (Operative rank approval) aligns with Morale Mist & Chrono Accelerator
+        op2 = ops_dict["op_2"]
+        self.assertEqual(op2["reward_rank"], "Operative")
+        self.assertIn("Operation Chimera", op2["name"])
+        self.assertIn("Morale Mist", op2["briefing"])
+        self.assertIn("Chrono", op2["briefing"])
+
+        # 2. Op 4 (Operative tier) connects to Bank CDs and Chrono disruptors
+        op4 = ops_dict["op_4"]
+        self.assertEqual(op4["reward_rank"], "Operative")
+        self.assertIn("Bank CD", op4["briefing"])
+
+        # 3. Op 5 (Special Agent rank approval) aligns with Corrupted EXP Splitter
+        op5 = ops_dict["op_5"]
+        self.assertEqual(op5["reward_rank"], "Special Agent")
+        self.assertIn("Corrupted EXP Splitter", op5["briefing"])
+        self.assertIn("telemetry", op5["briefing"])
+
+        # 4. Op 7 (Special Agent tier) connects to Morale Mist / 100% Happiness
+        op7 = ops_dict["op_7"]
+        self.assertEqual(op7["reward_rank"], "Special Agent")
+        self.assertIn("Morale Mist", op7["briefing"])
+
+        # 5. Op 8 (Executive rank approval) aligns with Dark Gene Catalyst & evolution
+        op8 = ops_dict["op_8"]
+        self.assertEqual(op8["reward_rank"], "Executive")
+        self.assertIn("Dark Gene Catalyst", op8["briefing"])
+        self.assertIn("evolved Pokémon", op8["target_desc"])
+
+        # 6. Op 10 (Commander rank approval) aligns with Team Rocket Authority
+        op10 = ops_dict["op_10"]
+        self.assertEqual(op10["reward_rank"], "Commander")
+        self.assertIn("Commander Authority", op10["briefing"])
+
+        # 7. Test op_8 objective check with evolved pokemon vs shares
+        self.engine.state["rocket_ops"]["op_8"] = {"status": "active", "progress": 25_000_000, "claimed": False, "objective_done": False}
+        self.engine.state["investments"] = {"viridian": 0}
+        self.engine.state["dex"] = []
+        if self.engine.active_mon:
+            self.engine.active_mon.stage_index = 0
+        ok_8_fail, msg_8_fail = self.engine.check_operation_objective("op_8")
+        self.assertFalse(ok_8_fail)
+        self.assertIn("Requires 2+ evolved Pokémon", msg_8_fail)
+
+        # Satisfy with 2 evolved pokemon
+        self.engine.state["dex"] = [
+            {"id": "sp_2", "species_id": 2, "status": "inactive", "mon_state": {"stage_index": 1}},
+            {"id": "sp_5", "species_id": 5, "status": "inactive", "mon_state": {"stage_index": 1}},
+        ]
+        ok_8_pass, msg_8_pass = self.engine.check_operation_objective("op_8")
+        self.assertTrue(ok_8_pass)
+
+        # Or satisfy with VRDN shares
+        self.engine.state["dex"] = []
+        self.engine.state["rocket_ops"]["op_8"]["objective_done"] = False
+        self.engine.state["investments"] = {"viridian": 10}
+        ok_8_shares, _ = self.engine.check_operation_objective("op_8")
+        self.assertTrue(ok_8_shares)
+
+        # 8. Test Dossiers #002, #005, #008, #010
+        dossiers = {d["id"]: d for d in self.engine.get_rocket_dossier()}
+        self.assertIn("Chrono", dossiers[2]["title"])
+        self.assertIn("Telemetry", dossiers[5]["title"])
+        self.assertIn("Mutagen Protocol", dossiers[8]["title"])
+        self.assertIn("Supreme Authority", dossiers[10]["title"])
+
+        # 9. Verify layout compliance (<= 72 columns) when reading each dossier
+        app = MagicMock()
+        app.engine = self.engine
+        app.rocket_subview = "read_intel"
+        self.engine.state["rocket_alliance_accepted"] = True
+        self.engine.state["rocket_intel_unlocked"] = ["intel_001", "intel_002", "intel_005", "intel_008", "intel_010"]
+
+        for d_id in [2, 5, 8, 10]:
+            app.rocket_reading_file = d_id
+            trap = io.StringIO()
+            with patch("sys.stdout", trap):
+                render_rocket_tab(app)
+            for line in trap.getvalue().split("\n"):
+                clean = ansi_regex.sub("", line)
+                self.assertLessEqual(len(clean), 72, f"Dossier #{d_id} line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+        # 10. Verify layout compliance for operations rendering
+        app.rocket_subview = "ops"
+        for op_key in ["op_2", "op_4", "op_5", "op_7", "op_8", "op_10"]:
+            for k in self.engine.state["rocket_ops"]:
+                self.engine.state["rocket_ops"][k]["status"] = "locked"
+            self.engine.state["rocket_ops"][op_key]["status"] = "active"
+            trap_op = io.StringIO()
+            with patch("sys.stdout", trap_op):
+                render_rocket_tab(app)
+            for line in trap_op.getvalue().split("\n"):
+                clean = ansi_regex.sub("", line)
+                self.assertLessEqual(len(clean), 72, f"Op {op_key} line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+    def test_rocket_operation_dialogues_and_immersion(self):
+        """Verify immersive operation dialogues for all 10 operations and 72-col compliance."""
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.rocket import render_operation_dialogue, handle_rocket_command
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+        app = MagicMock()
+        app.engine = self.engine
+        app.rocket_subview = "ops"
+
+        # 1. Verify dialogues exist and are complete for all 10 operations
+        for i in range(1, 11):
+            d_info = self.engine.get_operation_dialogue(str(i))
+            self.assertIsNotNone(d_info, f"Dialogue for Operation {i} should exist.")
+            self.assertIn("title", d_info)
+            self.assertIn("location", d_info)
+            self.assertEqual(d_info["speaker"], "Commander Petrel")
+            self.assertGreater(len(d_info["dialogue"]), 0)
+            self.assertGreater(len(d_info["tactical_orders"]), 0)
+
+        # 2. Verify render_operation_dialogue strictly obeys <= 72 columns for all 10 ops
+        for i in range(1, 11):
+            trap = io.StringIO()
+            with patch("sys.stdout", trap), patch("sys.stdin.readline", return_value="\n"):
+                render_operation_dialogue(app, str(i))
+            out = trap.getvalue()
+            self.assertIn("TACTICAL COMM-LINK", out)
+            self.assertIn("Commander Petrel", out)
+            for line in out.split("\n"):
+                clean = ansi_regex.sub("", line)
+                self.assertLessEqual(len(clean), 72, f"Op {i} dialogue line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+        # 3. Test 'briefing' command replays dialogue
+        self.engine.state["rocket_alliance_accepted"] = True
+        self.engine.state["rocket_ops"]["op_1"]["status"] = "available"
+        self.engine.state["rocket_ops"]["op_1"]["claimed"] = False
+        trap_b = io.StringIO()
+        with patch("sys.stdout", trap_b), patch("sys.stdin.readline", return_value="\n"):
+            handle_rocket_command(app, "briefing")
+        self.assertIn("Replayed Operation 1 tactical briefing", app.message)
+        self.assertIn("TACTICAL MISSION DIRECTIVES", trap_b.getvalue())
+
+        # 4. Test 'start operation' renders dialogue and activates operation
+        trap_start = io.StringIO()
+        with patch("sys.stdout", trap_start), patch("sys.stdin.readline", return_value="\n"):
+            handle_rocket_command(app, "start operation")
+        self.assertEqual(self.engine.state["rocket_ops"]["op_1"]["status"], "active")
+        self.assertIn("Operation 1 activated", app.message)
+        self.assertIn("TACTICAL COMM-LINK", trap_start.getvalue())
+
+        # 5. Test claim command in Tab 12 routes to Rocket operations instead of daily quests
+        from poketokenbar.tui import PokeTokenBarTUI
+        tui = PokeTokenBarTUI()
+        tui.engine = self.engine
+        tui.tracker.get_summary = MagicMock(return_value={"total_tokens": 0, "active_days": []})
+        tui.current_tab = 12
+        self.engine.state["unread_alerts"] = []
+        self.engine.state["rocket_story_unlocked"] = True
+        self.engine.state["rocket_story_viewed"] = True
+        self.engine.state["rocket_alliance_accepted"] = True
+        self.engine.state["rocket_ops"]["op_1"]["status"] = "active"
+        self.engine.state["rocket_ops"]["op_1"]["progress"] = 5_000_000
+        self.engine.state["rocket_ops"]["op_1"]["objective_done"] = True
+        self.engine.state["rocket_ops"]["op_1"]["claimed"] = False
+        self.engine.state["rocket_ops"]["op_1"]["briefing_viewed"] = True
+        self.engine.state["expedition_logs"] = [{"id": 1}, {"id": 2}]
+        trap_out = io.StringIO()
+        with patch("sys.stdin", io.StringIO("claim\nq\n")), patch("sys.stdout", trap_out):
+            tui.run()
+        self.assertTrue(self.engine.state["rocket_ops"]["op_1"]["claimed"])
+        self.assertIn("Operation 1 Completed", trap_out.getvalue())
+
+    def test_rocket_operation_requirements_tracing_and_auto_briefing(self):
+        """Verify explicit multi-requirement tracing, hints order, and auto-briefing."""
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.rocket import render_rocket_tab, handle_rocket_command
+        from poketokenbar.tui import PokeTokenBarTUI
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+        app = MagicMock()
+        app.engine = self.engine
+        app.rocket_subview = "ops"
+        self.engine.state["rocket_story_unlocked"] = True
+        self.engine.state["rocket_alliance_accepted"] = True
+
+        # 1. Test get_operation_requirements returns individual tracked tasks
+        # Test Op 1 initial
+        self.engine.state["rocket_ops"]["op_1"] = {
+            "status": "available",
+            "progress": 0,
+            "claimed": False,
+            "objective_done": False,
+            "boss_hp_remaining": 0,
+            "briefing_viewed": True,
+            "expeditions_done": 0,
+            "battle_wins": 0,
+            "black_market_trades": 0
+        }
+        self.engine.state["expeditions"] = []
+        self.engine.state["expedition_logs"] = [
+            {"id": 1}, {"id": 2}, {"id": 3}
+        ]
+        reqs1 = self.engine.get_operation_requirements("1")
+        self.assertEqual(len(reqs1), 2)
+        self.assertEqual(reqs1[0]["name"], "Coding Tokens")
+        self.assertEqual(reqs1[0]["target"], 5_000_000)
+        self.assertFalse(reqs1[0]["is_met"])
+        self.assertEqual(reqs1[1]["name"], "Scout Expeditions")
+        self.assertEqual(reqs1[1]["target"], 2)
+        self.assertEqual(reqs1[1]["current"], 0)
+        self.assertFalse(reqs1[1]["is_met"])
+
+        # Trace Op 1 progress when 1 expedition is logged
+        self.engine.state["rocket_ops"]["op_1"]["expeditions_done"] = 1
+        reqs1_step = self.engine.get_operation_requirements("1")
+        self.assertEqual(reqs1_step[1]["current"], 1)
+        self.assertFalse(reqs1_step[1]["is_met"])
+
+        # Trace Op 1 progress when 2 expeditions are logged
+        self.engine.state["rocket_ops"]["op_1"]["expeditions_done"] = 2
+        reqs1_done = self.engine.get_operation_requirements("1")
+        self.assertEqual(reqs1_done[1]["current"], 2)
+        self.assertTrue(reqs1_done[1]["is_met"])
+
+        # Test Op 2 requirements (Tokens + Trainer Battle Wins)
+        self.engine.state["trainer_battles"] = {"wins": 50}
+        self.engine.state["rocket_ops"]["op_2"]["battle_wins"] = 1
+        reqs2 = self.engine.get_operation_requirements("2")
+        self.assertEqual(len(reqs2), 2)
+        self.assertEqual(reqs2[1]["name"], "Battle Arena Wins")
+        self.assertEqual(reqs2[1]["current"], 1)
+        self.assertFalse(reqs2[1]["is_met"])
+
+        # Test Op 4 requirements (Tokens + Bank CD)
+        self.engine.state["term_deposits"] = [{"id": 101}]
+        reqs4 = self.engine.get_operation_requirements("4")
+        self.assertEqual(len(reqs4), 2)
+        self.assertEqual(reqs4[1]["name"], "Active Bank CD")
+        self.assertTrue(reqs4[1]["is_met"])
+
+        # Test Op 5 requirements (Active Expeditions + Black Market Trade)
+        self.engine.state["expeditions"] = [{"id": 1}, {"id": 2}]
+        self.engine.state["rocket_ops"]["op_5"]["black_market_trades"] = 1
+        reqs5 = self.engine.get_operation_requirements("5")
+        self.assertEqual(len(reqs5), 2)
+        self.assertEqual(reqs5[0]["name"], "Active Expeditions")
+        self.assertTrue(reqs5[0]["is_met"])
+        self.assertEqual(reqs5[1]["name"], "Black Market Trade")
+        self.assertTrue(reqs5[1]["is_met"])
+
+        # Test Op 7 requirements (Tokens + Happiness)
+        self.engine.state["happiness"] = 100
+        reqs7 = self.engine.get_operation_requirements("7")
+        self.assertEqual(len(reqs7), 2)
+        self.assertEqual(reqs7[1]["name"], "Companion Happiness")
+        self.assertTrue(reqs7[1]["is_met"])
+
+        # 2. Test command hints order: briefing first, start operation second
+        self.engine.state["rocket_ops"]["op_1"]["status"] = "available"
+        self.engine.state["rocket_ops"]["op_1"]["briefing_viewed"] = True
+        trap_render = io.StringIO()
+        with patch("sys.stdout", trap_render):
+            render_rocket_tab(app)
+        raw_out = ansi_regex.sub("", trap_render.getvalue())
+        self.assertIn("Requirements:", raw_out)
+        self.assertIn("• Coding Tokens", raw_out)
+        self.assertIn("• Scout Expeditions", raw_out)
+        # Verify briefing hint appears before start operation hint
+        pos_briefing = raw_out.find("Type 'briefing'")
+        pos_start = raw_out.find("Type 'start operation'")
+        self.assertNotEqual(pos_briefing, -1)
+        self.assertNotEqual(pos_start, -1)
+        self.assertLess(pos_briefing, pos_start, "'briefing' command hint must appear before 'start operation'")
+
+        # 3. Test 72-column layout compliance with traced requirements
+        for line in raw_out.split("\n"):
+            self.assertLessEqual(len(line), 72, f"Line exceeds 72 cols: '{line}' (len={len(line)})")
+
+        # 4. Test automatic briefing display in TUI loop
+        tui = PokeTokenBarTUI()
+        tui.engine = self.engine
+        tui.tracker.get_summary = MagicMock(return_value={"total_tokens": 0, "active_days": []})
+        tui.current_tab = 12
+        tui.rocket_subview = "ops"
+        self.engine.state["unread_alerts"] = []
+        self.engine.state["rocket_story_viewed"] = True
+        self.engine.state["rocket_alliance_accepted"] = True
+        self.engine.state["rocket_ops"]["op_1"]["status"] = "available"
+        self.engine.state["rocket_ops"]["op_1"]["briefing_viewed"] = False
+
+        trap_auto = io.StringIO()
+        with patch("sys.stdin", io.StringIO("q\n")), patch("sys.stdout", trap_auto):
+            tui.run()
+        # Briefing should have been triggered automatically
+        self.assertTrue(self.engine.state["rocket_ops"]["op_1"]["briefing_viewed"])
+        self.assertIn("TACTICAL COMM-LINK", trap_auto.getvalue())
+
+    def test_bank_repossession_liquidates_cds_and_stocks(self):
+        """Verify that bank repossession at day 7 liquidates CDs and stocks before touching inventory."""
+        import datetime
+        from unittest.mock import patch
+
+        _orig_dt = datetime.datetime
+
+        # 1. Setup loan nearing repossession (day 6 -> day 7)
+        self.engine.state["install_baseline_set"] = True
+        self.engine.state["bank_loan"] = 50_000_000
+        self.engine.state["loan_days_active"] = 6
+        self.engine.state["bank_balance"] = 0
+        total_used = 100_000_000
+        self.engine.state["used_since_install"] = total_used
+        self.engine.state["spent_tokens"] = total_used + 1000
+
+        # 1 matured CD worth 20M
+        self.engine.state["term_deposits"] = [{
+            "id": 1,
+            "principal": 20_000_000,
+            "term_days": 7,
+            "rate": 0.12,
+            "days_elapsed": 7,
+            "current_value": 20_000_000,
+            "matured": True
+        }]
+
+        # 4 shares of Silph Co (base 10M, 90% forced sale value = 9M each)
+        self.engine.state["investments"] = {"silph": 4, "devon": 0, "aether": 0, "mauville": 0, "macro": 0, "viridian": 0}
+        self.engine.get_or_init_stock_market()
+        self.engine.state["stock_market"]["prices"]["silph"] = 10_000_000
+        self.engine.state["stock_market"]["cost_basis"]["silph"] = 40_000_000
+
+        # Bag items that should be spared if CD + stocks cover the debt
+        self.engine.state["inventory"] = {"rare_candy": 10}
+
+        # Set last active date to yesterday to trigger 1-day rollover
+        yesterday_str = "2026-09-01"
+        today_str = "2026-09-02"
+        self.engine.state["last_active_date"] = yesterday_str
+
+        mock_dt = _orig_dt.strptime(today_str, "%Y-%m-%d")
+        with patch.object(self.engine, "_rollover_stock_market"):
+            with patch("poketokenbar.game.companion.datetime.datetime") as mock_datetime:
+                mock_datetime.now.return_value = mock_dt
+                mock_datetime.strptime.side_effect = lambda *args, **kwargs: _orig_dt.strptime(*args, **kwargs)
+                events = self.engine.process_usage(total_used + 1000, active_days=[yesterday_str, today_str])
+
+        # CD liquidation: 20M seized -> CD removed
+        self.assertEqual(len(self.engine.state["term_deposits"]), 0)
+        self.assertTrue(any("Liquidated 1 CD(s) for 20.0M tokens" in e for e in events))
+
+        # Stock liquidation: shares sold to satisfy debt
+        self.assertEqual(self.engine.state["investments"]["silph"], 0)
+        self.assertTrue(any("Liquidated" in e and "SILPH" in e for e in events))
+
+        # Loan completely cleared
+        self.assertEqual(self.engine.state["bank_loan"], 0)
+        self.assertEqual(self.engine.state["loan_days_active"], 0)
+        self.assertTrue(any("All companions suffered a 50 happiness penalty" in e for e in events))
+
+    def test_bank_checking_tab_renders_repossession_protocol_72_cols(self):
+        """Verify checking subtab renders updated Repossession Protocol within 72 columns."""
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.bank import render_bank_tab
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+        self.engine.state["bank_loan"] = 20_000_000
+        self.engine.state["loan_days_active"] = 5
+
+        app = MagicMock()
+        app.engine = self.engine
+        app.bank_subtab = "checking"
+
+        trap = io.StringIO()
+        with patch("sys.stdout", trap):
+            render_bank_tab(app)
+
+        output = trap.getvalue()
+        self.assertIn("Repossession Protocol:", output)
+        self.assertIn("Liquidation of Term Deposits (CDs)", output)
+        self.assertIn("Liquidation of Corporate Stock Shares", output)
+
+        for line in output.split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Bank Checking line exceeds 72 cols: '{clean}'")
+
+    def test_rocket_operation_token_tracking_with_process_usage(self):
+        """Verify Rocket Operations track raw coding tokens regardless of companion happiness, auto-activate from available, and save state."""
+        self.engine.state["install_baseline_set"] = True
+        self.engine.state["rocket_story_unlocked"] = True
+        self.engine.state["rocket_alliance_accepted"] = True
+        self.engine.state["rocket_ops"]["op_1"]["status"] = "available"
+        self.engine.state["rocket_ops"]["op_1"]["progress"] = 0
+        self.engine.state["rocket_ops"]["op_1"]["claimed"] = False
+
+        mon, _ = self.engine.hatch_egg(0)
+        self.engine.set_active_mon(mon)
+        mon.happiness = 0
+        self.engine.state["happiness"] = 0
+
+        initial_used = self.engine.state.get("used_since_install", 0)
+        burn_tokens = 500_000
+        new_total = initial_used + burn_tokens
+
+        # Process usage with delta = 500,000
+        events = self.engine.process_usage(new_total)
+
+        # Op 1 should have auto-activated and gained exactly 500,000 tokens
+        op1 = self.engine.state["rocket_ops"]["op_1"]
+        self.assertEqual(op1["status"], "active")
+        self.assertEqual(op1["progress"], 500_000)
+
+        # start_rocket_operation should return True when already active
+        ok_start, msg_start = self.engine.start_rocket_operation("1")
+        self.assertTrue(ok_start)
+        self.assertIn("already active", msg_start)
+
+        # Burn remainder to reach target (5,000,000)
+        events = self.engine.process_usage(new_total + 4_500_000)
+        self.assertEqual(self.engine.state["rocket_ops"]["op_1"]["progress"], 5_000_000)
+        self.assertTrue(any("Rocket Operation Ready!" in e for e in events))
+
+    def test_rocket_boss_tactical_combat_handler(self):
+        """Verify RocketBattleHandler initialization, multi-stage boss gauntlet, stance shifts, and victory condition."""
+        from poketokenbar.game.rocket_battle import RocketBattleHandler, get_effectiveness, generate_player_moves
+
+        # 1. Type effectiveness including glitch
+        self.assertEqual(get_effectiveness("glitch", "psychic"), 2.0)
+        self.assertEqual(get_effectiveness("glitch", "ghost"), 2.0)
+        self.assertEqual(get_effectiveness("fighting", "glitch"), 0.0)
+        self.assertEqual(get_effectiveness("water", "fire"), 2.0)
+
+        # 2. Setup engine state for Op 3
+        self.engine.state["install_baseline_set"] = True
+        self.engine.state["rocket_story_unlocked"] = True
+        self.engine.state["rocket_alliance_accepted"] = True
+        self.engine.state["rocket_ops"]["op_3"]["status"] = "active"
+        self.engine.state["rocket_ops"]["op_3"]["claimed"] = False
+        self.engine.state["rocket_ops"]["op_3"]["objective_done"] = False
+
+        handler = RocketBattleHandler(self.engine)
+        squad = handler.auto_assemble_squad()
+        self.assertEqual(len(squad), 6)
+
+        # 3. Start boss battle
+        ok, msg = handler.start_boss_battle("3")
+        self.assertTrue(ok)
+        self.assertIn("MissingNo.", msg)
+
+        st = handler._get_state()
+        self.assertEqual(st["status"], "in_combat")
+        self.assertEqual(len(st["boss_team"]), 3)
+        self.assertEqual(st["boss_team"][0]["name"], "MissingNo.")
+        self.assertEqual(st["boss_team"][1]["name"], "Venustoise")
+        self.assertEqual(st["boss_team"][2]["name"], "Prototype Chimera-001")
+
+        # 4. Player moves generation
+        moves = generate_player_moves("fire")
+        self.assertEqual(len(moves), 4)
+        self.assertIn("Fire Strike", moves[0]["name"])
+
+        # 5. Execute Turn
+        ok, msg = handler.execute_turn(0)
+        self.assertTrue(ok)
+        st = handler._get_state()
+        self.assertGreater(st["turn_count"], 0)
+        self.assertLess(st["boss_hps"][0], st["boss_max_hps"][0])
+
+        # 6. Defeat MissingNo. -> Advances to Venustoise
+        st["boss_hps"][0] = 10
+        handler._save_state(st)
+        ok, msg = handler.execute_turn(0)
+        self.assertTrue(ok)
+        st = handler._get_state()
+        self.assertEqual(st["boss_active_index"], 1)
+        self.assertEqual(st["boss_team"][1]["name"], "Venustoise")
+
+        # 7. Defeat Venustoise -> Advances to Prototype Chimera-001
+        st["boss_hps"][1] = 10
+        handler._save_state(st)
+        ok, msg = handler.execute_turn(0)
+        self.assertTrue(ok)
+        st = handler._get_state()
+        self.assertEqual(st["boss_active_index"], 2)
+        self.assertEqual(st["boss_team"][2]["name"], "Prototype Chimera-001")
+
+        # 8. Test Chimera stance shift on even turns
+        st["turn_count"] = 3
+        handler._save_state(st)
+        ok, msg = handler.execute_turn(0)
+        self.assertTrue(ok)
+        st = handler._get_state()
+        chimera = st["boss_team"][2]
+        self.assertIn(chimera["type"], ["fire", "ice", "electric", "dragon"])
+
+        # 9. Defeat Chimera -> Victory!
+        st["boss_hps"][2] = 10
+        handler._save_state(st)
+        ok, msg = handler.execute_turn(0)
+        self.assertTrue(ok)
+        st = handler._get_state()
+        self.assertEqual(st["status"], "win")
+        self.assertTrue(self.engine.state["rocket_ops"]["op_3"]["objective_done"])
+        self.assertEqual(self.engine.state["rocket_ops"]["op_3"]["boss_hp_remaining"], 0)
+
+        # 10. Test swap_pokemon
+        handler.start_boss_battle("3")
+        ok, msg = handler.swap_pokemon(1)
+        self.assertTrue(ok)
+        self.assertEqual(handler._get_state()["player_active_index"], 1)
+
+        # 11. Test run_away
+        ok, msg = handler.run_away()
+        self.assertTrue(ok)
+        self.assertEqual(handler._get_state(), {})
+
+    def test_72_column_layout_compliance_tab_12_combat(self):
+        """Verify Rocket Tab [12] combat screen strictly adheres to <= 72 columns."""
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.rocket import render_rocket_tab, handle_rocket_command
+        from poketokenbar.game.rocket_battle import RocketBattleHandler
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+        app = MagicMock()
+        app.engine = self.engine
+        app.rocket_subview = "ops"
+        self.engine.state["rocket_story_unlocked"] = True
+        self.engine.state["rocket_alliance_accepted"] = True
+        self.engine.state["rocket_ops"]["op_3"]["status"] = "active"
+        self.engine.state["rocket_ops"]["op_3"]["claimed"] = False
+        self.engine.state["rocket_ops"]["op_3"]["objective_done"] = False
+
+        handler = RocketBattleHandler(self.engine)
+        handler.start_boss_battle("3")
+
+        # 1. In combat screen
+        trap = io.StringIO()
+        with patch("sys.stdout", trap):
+            render_rocket_tab(app)
+        combat_output = trap.getvalue()
+        self.assertIn("TACTICAL COMBAT", combat_output)
+        self.assertIn("MissingNo.", combat_output)
+        for line in combat_output.split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Combat screen line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+        # 2. Test command handling while in combat
+        handle_rocket_command(app, "fight 1")
+        self.assertIsNotNone(app.message)
+
+        # 3. Test Victory screen layout
+        st = handler._get_state()
+        st["status"] = "win"
+        self.engine.state["rocket_ops"]["op_3"]["objective_done"] = True
+        handler._save_state(st)
+        trap_win = io.StringIO()
+        with patch("sys.stdout", trap_win):
+            render_rocket_tab(app)
+        for line in trap_win.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Victory screen line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+        # 4. Test Blackout / Loss screen layout
+        st["status"] = "loss"
+        handler._save_state(st)
+        trap_loss = io.StringIO()
+        with patch("sys.stdout", trap_loss):
+            render_rocket_tab(app)
+        for line in trap_loss.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Loss screen line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+        # Clean up combat state
+        handler.run_away()
+
+    def test_initialize_rocket_process(self):
+        """Verify initialize_rocket_process unlocks Tab 12, initializes Op 1, and resets progress cleanly."""
+        self.engine.state["rocket_story_unlocked"] = False
+        self.engine.state["rocket_story_viewed"] = False
+        self.engine.state["rocket_alliance_accepted"] = False
+        self.engine.state["rocket_reputation"] = 0
+
+        ok, msg = self.engine.initialize_rocket_process()
+        self.assertTrue(ok)
+        self.assertIn("initialized", msg.lower())
+
+        self.assertTrue(self.engine.state["rocket_story_unlocked"])
+        self.assertFalse(self.engine.state["rocket_story_viewed"])
+        self.assertFalse(self.engine.state["rocket_alliance_accepted"])
+        self.assertEqual(self.engine.state["rocket_transmission_state"], "intro")
+        self.assertEqual(self.engine.state["rocket_rank"], "Informant")
+        self.assertEqual(self.engine.state["rocket_reputation"], 0)
+        self.assertEqual(self.engine.state["rocket_ops"]["op_1"]["status"], "available")
+        self.assertEqual(self.engine.state["rocket_ops"]["op_2"]["status"], "locked")
+        self.assertEqual(self.engine.state["rocket_intel_unlocked"], ["intel_001"])
+        self.assertFalse(self.engine.state["permanent_black_market"])
+        self.assertFalse(self.engine.state["has_exp_splitter"])
+        self.assertEqual(self.engine.state["rocket_battle_state"], {})
+        self.assertTrue(any("Team Rocket frequency initialized" in a for a in self.engine.state["unread_alerts"]))
+
+        # Re-initialize when in-progress
+        self.engine.state["rocket_ops"]["op_1"]["claimed"] = True
+        self.engine.state["rocket_ops"]["op_2"]["status"] = "active"
+        self.engine.state["rocket_reputation"] = 1
+        self.engine.state["rocket_rank"] = "Operative"
+
+        ok2, msg2 = self.engine.initialize_rocket_process()
+        self.assertTrue(ok2)
+        self.assertEqual(self.engine.state["rocket_ops"]["op_1"]["status"], "available")
+        self.assertFalse(self.engine.state["rocket_ops"]["op_1"]["claimed"])
+        self.assertEqual(self.engine.state["rocket_ops"]["op_2"]["status"], "locked")
+        self.assertEqual(self.engine.state["rocket_reputation"], 0)
+        self.assertEqual(self.engine.state["rocket_rank"], "Informant")
+
+        # Preserves purchased permanent equipment across campaign resets
+        self.engine.state["permanent_black_market"] = True
+        self.engine.state["has_exp_splitter"] = True
+        ok3, _ = self.engine.initialize_rocket_process()
+        self.assertTrue(ok3)
+        self.assertTrue(self.engine.state["permanent_black_market"])
+        self.assertTrue(self.engine.state["has_exp_splitter"])
+
+    def test_rocket_armory_buy_from_any_subview_and_fuzzy_code(self):
+        """Verify armory purchases work from any subview with fuzzy codes."""
+        from poketokenbar.tui_tabs.rocket import (
+            handle_rocket_command, _resolve_armory_tech_code
+        )
+        self.assertEqual(_resolve_armory_tech_code("pass"), "pass")
+        self.assertEqual(_resolve_armory_tech_code("black pass"), "pass")
+        self.assertEqual(
+            _resolve_armory_tech_code("syndicate black pass"), "pass"
+        )
+        self.assertEqual(_resolve_armory_tech_code("mist"), "spray")
+        self.assertEqual(
+            _resolve_armory_tech_code("chrono accelerator"), "chrono"
+        )
+
+        app = MagicMock()
+        app.engine = self.engine
+        app.rocket_subview = "ops"
+        self.engine.state["rocket_alliance_accepted"] = True
+        self.engine.state["rocket_rank"] = "Informant"
+        self.engine.state["permanent_black_market"] = False
+        self.engine.state["used_since_install"] = 100_000_000
+        self.engine.state["spent_tokens"] = 0
+
+        # Buy pass from ops view with 'buy black pass'
+        handle_rocket_command(app, "buy black pass")
+        self.assertTrue(self.engine.state["permanent_black_market"])
+        self.assertIn("Syndicate Black Pass", app.message)
+
+    def test_render_settings_tab_and_rocket_init_option(self):
+        """Verify Option 8 displays correctly in Settings tab and complies with 72-column limit."""
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.settings import render_settings_tab
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+        app = MagicMock()
+        app.engine = self.engine
+
+        # Case 1: Uninitialized (Option 8 is on Page 2)
+        app.settings_page = 2
+        self.engine.state["rocket_story_unlocked"] = False
+        trap = io.StringIO()
+        with patch("sys.stdout", trap):
+            render_settings_tab(app)
+        output = trap.getvalue()
+        self.assertIn("[8] Team Rocket Process:", output)
+        self.assertIn("UNINITIALIZED", output)
+        self.assertIn("rocket init", output)
+        for line in output.split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Settings (uninitialized) exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+        # Case 2: Active
+        app.settings_page = 2
+        self.engine.state["rocket_story_unlocked"] = True
+        self.engine.state["rocket_rank"] = "Informant"
+        self.engine.state["rocket_reputation"] = 3
+        trap2 = io.StringIO()
+        with patch("sys.stdout", trap2):
+            render_settings_tab(app)
+        output2 = trap2.getvalue()
+        self.assertIn("[8] Team Rocket Process:", output2)
+        self.assertIn("ACTIVE", output2)
+        self.assertNotIn("Rep:", output2)
+        self.assertNotIn("Informant", output2)
+        for line in output2.split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Settings (active) exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+    def test_cli_settings_init_rocket(self):
+        """Verify CLI settings --init-rocket executes initialization."""
+        from unittest.mock import MagicMock
+        from poketokenbar.cli import cmd_settings
+
+        self.engine.state["rocket_story_unlocked"] = False
+        args = MagicMock()
+        args.init_rocket = True
+        args.auto_track = None
+        args.interval = None
+
+        cmd_settings(self.engine, args)
+        self.assertTrue(self.engine.state["rocket_story_unlocked"])
+        self.assertEqual(self.engine.state["rocket_ops"]["op_1"]["status"], "available")
+
+    def test_settings_tab_paging_navigation_and_clamping(self):
+        """Verify settings tab renders correct items per page and clamps page bounds."""
+        import io
+        from poketokenbar.tui_tabs.settings import render_settings_tab
+
+        app = MagicMock()
+        app.engine = self.engine
+        self.engine.state["page_size_settings"] = 6
+
+        # Page 1: Items 1-6
+        app.settings_page = 1
+        trap1 = io.StringIO()
+        with patch("sys.stdout", trap1):
+            render_settings_tab(app)
+        out1 = trap1.getvalue()
+        self.assertIn("Page 1/2", out1)
+        self.assertIn("[1] Sprite Resolution:", out1)
+        self.assertIn("[6] Mega Evo Page Size:", out1)
+        self.assertNotIn("[7] Reset Game Progress:", out1)
+        self.assertNotIn("[12] Settings Tab Page Size:", out1)
+
+        # Page 2: Items 7-12
+        app.settings_page = 2
+        trap2 = io.StringIO()
+        with patch("sys.stdout", trap2):
+            render_settings_tab(app)
+        out2 = trap2.getvalue()
+        self.assertIn("Page 2/2", out2)
+        self.assertNotIn("[1] Sprite Resolution:", out2)
+        self.assertNotIn("[6] Mega Evo Page Size:", out2)
+        self.assertIn("[7] Reset Game Progress:", out2)
+        self.assertIn("[11] Term Deposits Page Size:", out2)
+        self.assertIn("[12] Settings Tab Page Size:", out2)
+
+        # Out-of-bounds upper clamping (page 99 -> 2)
+        app.settings_page = 99
+        trap3 = io.StringIO()
+        with patch("sys.stdout", trap3):
+            render_settings_tab(app)
+        self.assertEqual(app.settings_page, 2)
+
+        # Out-of-bounds lower clamping (page -5 -> 1)
+        app.settings_page = -5
+        trap4 = io.StringIO()
+        with patch("sys.stdout", trap4):
+            render_settings_tab(app)
+        self.assertEqual(app.settings_page, 1)
+
+    def test_settings_tab_custom_page_sizes(self):
+        """Verify settings tab adapts dynamically to custom page_size_settings values."""
+        import io
+        from poketokenbar.tui_tabs.settings import render_settings_tab
+
+        app = MagicMock()
+        app.engine = self.engine
+
+        # 4 items per page = 3 pages total
+        self.engine.state["page_size_settings"] = 4
+        app.settings_page = 3
+        trap = io.StringIO()
+        with patch("sys.stdout", trap):
+            render_settings_tab(app)
+        out = trap.getvalue()
+        self.assertIn("Page 3/3", out)
+        self.assertIn("[9] Monthly Billing Cycle Day:", out)
+        self.assertIn("[12] Settings Tab Page Size:", out)
+        self.assertNotIn("[1] Sprite Resolution:", out)
+
+        # 12 items per page = 1 page total (no page tag)
+        self.engine.state["page_size_settings"] = 12
+        app.settings_page = 1
+        trap_all = io.StringIO()
+        with patch("sys.stdout", trap_all):
+            render_settings_tab(app)
+        out_all = trap_all.getvalue()
+        self.assertNotIn("Page 1/1", out_all)
+        self.assertIn("[1] Sprite Resolution:", out_all)
+        self.assertIn("[12] Settings Tab Page Size:", out_all)
+
+    def test_tui_settings_page_and_pagesize_commands(self):
+        """Verify TUI event loop handling for n/p/page and pagesize settings commands on tab 11."""
+        from poketokenbar.tui import PokeTokenBarTUI
+
+        app = PokeTokenBarTUI()
+        app.current_tab = 11
+        app.settings_page = 1
+        app.engine = self.engine
+
+        # Mock readline for "n"
+        with patch("sys.stdin.readline", side_effect=["n", "q"]):
+            with patch("sys.stdout"):
+                app.run()
+        self.assertEqual(app.settings_page, 2)
+
+        # Mock readline for "p"
+        with patch("sys.stdin.readline", side_effect=["p", "q"]):
+            with patch("sys.stdout"):
+                app.run()
+        self.assertEqual(app.settings_page, 1)
+
+        # Mock readline for "page 2"
+        with patch("sys.stdin.readline", side_effect=["page 2", "q"]):
+            with patch("sys.stdout"):
+                app.run()
+        self.assertEqual(app.settings_page, 2)
+
+        # Mock readline for "pagesize settings 5"
+        trap = io.StringIO()
+        with patch("sys.stdin.readline", side_effect=["pagesize settings 5", "q"]):
+            with patch("sys.stdout", trap):
+                app.run()
+        self.assertEqual(self.engine.state["page_size_settings"], 5)
+        self.assertIn("Settings page size set to 5", trap.getvalue())
+
+        # Mock readline for "pagesize settings 0" (invalid)
+        trap_err = io.StringIO()
+        with patch("sys.stdin.readline", side_effect=["pagesize settings 0", "q"]):
+            with patch("sys.stdout", trap_err):
+                app.run()
+        self.assertIn("must be at least 1", trap_err.getvalue())
+
+        # Mock readline for "pagesize cd 7"
+        trap_cd = io.StringIO()
+        with patch("sys.stdin.readline", side_effect=["pagesize cd 7", "q"]):
+            with patch("sys.stdout", trap_cd):
+                app.run()
+        self.assertEqual(self.engine.state["page_size_cd"], 7)
+        self.assertIn("Term Deposits page size set to 7", trap_cd.getvalue())
+
+    def test_prototype_chimera_custom_sprite_resolution(self):
+        """Test that Prototype Chimera-001 (species 2012) resolves to its individual custom sprite."""
+        from poketokenbar.sprite_renderer import SpriteRenderer
+        import re
+
+        sprite_path = self.engine.api.download_sprite(2012)
+        self.assertIsNotNone(sprite_path)
+        self.assertTrue(sprite_path.exists())
+        self.assertTrue(sprite_path.name.endswith("2012.png"))
+
+        # Verify ANSI render works cleanly
+        ansi = SpriteRenderer.render_png_to_ansi(sprite_path, 24)
+        self.assertIn("▀", ansi)
+        ansi_clean = re.compile(r'\x1b\[[0-9;]*[mK]')
+        for line in ansi.split("\n"):
+            clean_line = ansi_clean.sub("", line)
+            self.assertLessEqual(len(clean_line), 24)
+
+        # Verify is_back=True fallback resolves to front sprite if back not present
+        back_sprite = self.engine.api.download_sprite(2012, is_back=True)
+        self.assertIsNotNone(back_sprite)
+        self.assertTrue(back_sprite.exists())
+
+    def test_companion_tab_metrics_date_display(self):
+        """Verify date information is rendered for Monthly Tokens and Total Tokens in Tab 1, obeying 72 columns."""
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.companion import render as render_companion_tab
+        from poketokenbar.game.models import MonState, Rarity
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+        app = MagicMock()
+        app.engine = self.engine
+
+        pikachu = MonState(
+            base_id=25,
+            path_ids=[25, 26],
+            planned_path_ids=[25, 26],
+            stage_index=0,
+            used_at_stage=1000,
+            rarity=Rarity.COMMON,
+            total_forms=2
+        )
+        self.engine.set_active_mon(pikachu)
+
+        # Case 1: Standard cycle Day 1, lifetime total tokens
+        self.engine.state["billing_cycle_day"] = 1
+        self.engine.state["baseline_total_tokens"] = 0
+        self.engine.state.pop("baseline_date", None)
+        summary1 = {
+            "today_tokens": 50_000,
+            "antigravity_today": 40_000,
+            "week_tokens": 200_000,
+            "month_tokens": 1_200_000,
+            "total_tokens": 5_000_000,
+            "burn_rate_tpm": 1500,
+            "billing_cycle_start": "2026-09-01",
+            "billing_cycle_day": 1,
+            "earliest_date": "2026-08-10",
+        }
+
+        trap1 = io.StringIO()
+        with patch("sys.stdout", trap1):
+            render_companion_tab(app, summary1)
+        out1 = trap1.getvalue()
+        self.assertIn("Monthly Tokens: 1.2M  (since 2026-09-01)", out1)
+        self.assertIn("Total Tokens:   5.0M  (since 2026-08-10)", out1)
+        for line in out1.split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Companion Tab 1 exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+        # Case 2: Custom cycle Day 15, re-baselined total tokens
+        self.engine.state["billing_cycle_day"] = 15
+        self.engine.initialize_total_tokens(5_000_000, date_str="2026-09-17")
+        self.assertEqual(self.engine.state["baseline_date"], "2026-09-17")
+        summary2 = {
+            "today_tokens": 50_000,
+            "antigravity_today": 40_000,
+            "week_tokens": 200_000,
+            "month_tokens": 1_200_000,
+            "total_tokens": 300_000,
+            "baseline_total_tokens": 5_000_000,
+            "baseline_date": "2026-09-17",
+            "burn_rate_tpm": 1500,
+            "billing_cycle_start": "2026-08-15",
+            "billing_cycle_day": 15,
+        }
+
+        trap2 = io.StringIO()
+        with patch("sys.stdout", trap2):
+            render_companion_tab(app, summary2)
+        out2 = trap2.getvalue()
+        self.assertIn("Monthly Tokens: 1.2M  (since 2026-08-15 | Cycle: Day 15)", out2)
+        self.assertIn("Total Tokens:   300.0K  (since 2026-09-17 | re-baselined)", out2)
+        for line in out2.split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Companion Tab 1 exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+        # Case 3: Clear baseline removes baseline_date
+        self.engine.clear_total_tokens_baseline()
+        self.assertNotIn("baseline_date", self.engine.state)
+        self.assertEqual(self.engine.state["baseline_total_tokens"], 0)
+
+    def test_rocket_op1_tracks_expeditions_only_after_operation_starts(self):
+        """Verify that Operation 1 only tracks scout expeditions completed after starting the operation."""
+        # 1. Initialize rocket process
+        self.engine.initialize_rocket_process()
+        op1 = self.engine.state["rocket_ops"]["op_1"]
+        self.assertEqual(op1["status"], "available")
+        self.assertEqual(op1["expeditions_done"], 0)
+        self.assertFalse(op1["objective_done"])
+
+        # 2. Existing historical logs from past sessions must NOT auto-satisfy the quest
+        self.engine.state["expedition_logs"] = [
+            "[10:00:00] Pikachu: Berry | +50K 🪙 | +50K XP",
+            "[11:00:00] Charmander: Nugget | +100K 🪙 | +100K XP",
+            "[12:00:00] Squirtle: Herb | +75K 🪙 | +75K XP",
+        ]
+        ok_obj, msg_obj = self.engine.check_operation_objective("op_1")
+        self.assertFalse(ok_obj)
+        self.assertIn("Need 2 scout expeditions (Completed: 0/2)", msg_obj)
+        self.assertFalse(self.engine.state["rocket_ops"]["op_1"]["objective_done"])
+
+        reqs = self.engine.get_operation_requirements("1")
+        self.assertEqual(reqs[1]["name"], "Scout Expeditions")
+        self.assertEqual(reqs[1]["current"], 0)
+        self.assertFalse(reqs[1]["is_met"])
+
+        # 3. Expeditions finished while merely 'available' must NOT increment expeditions_done
+        self.engine.state["expeditions"] = [{
+            "area": "viridian",
+            "target": 100,
+            "progress": 90,
+            "sp_id": 25,
+            "reward": "berry",
+        }]
+        events = []
+        self.engine._update_expeditions(100, events)
+        self.assertEqual(self.engine.state["rocket_ops"]["op_1"]["expeditions_done"], 0)
+
+        # 4. Activate operation via start_rocket_operation
+        ok_start, _ = self.engine.start_rocket_operation("1")
+        self.assertTrue(ok_start)
+        self.assertEqual(self.engine.state["rocket_ops"]["op_1"]["status"], "active")
+        self.assertEqual(self.engine.state["rocket_ops"]["op_1"]["expeditions_done"], 0)
+
+        # 5. Complete 1st expedition after operation start
+        self.engine.state["expeditions"] = [{
+            "area": "viridian",
+            "target": 100,
+            "progress": 90,
+            "sp_id": 25,
+            "reward": "berry",
+        }]
+        events = []
+        self.engine._update_expeditions(100, events)
+        self.assertEqual(self.engine.state["rocket_ops"]["op_1"]["expeditions_done"], 1)
+        ok_obj1, _ = self.engine.check_operation_objective("op_1")
+        self.assertFalse(ok_obj1)
+        reqs1 = self.engine.get_operation_requirements("1")
+        self.assertEqual(reqs1[1]["current"], 1)
+        self.assertFalse(reqs1[1]["is_met"])
+
+        # 6. Complete 2nd expedition after operation start
+        self.engine.state["expeditions"] = [{
+            "area": "viridian",
+            "target": 100,
+            "progress": 90,
+            "sp_id": 25,
+            "reward": "berry",
+        }]
+        events = []
+        self.engine._update_expeditions(100, events)
+        self.assertEqual(self.engine.state["rocket_ops"]["op_1"]["expeditions_done"], 2)
+        ok_obj2, _ = self.engine.check_operation_objective("op_1")
+        self.assertTrue(ok_obj2)
+        self.assertTrue(self.engine.state["rocket_ops"]["op_1"]["objective_done"])
+        reqs2 = self.engine.get_operation_requirements("1")
+        self.assertEqual(reqs2[1]["current"], 2)
+        self.assertTrue(reqs2[1]["is_met"])
+
 if __name__ == "__main__":
     unittest.main()
+
 
 

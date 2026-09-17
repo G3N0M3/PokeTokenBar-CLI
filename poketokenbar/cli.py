@@ -12,7 +12,7 @@ from poketokenbar.tui import PokeTokenBarTUI
 
 def cmd_status(tracker: UsageManager, engine: CompanionEngine):
     summary = tracker.get_summary()
-    events = engine.process_usage(summary["total_tokens"], summary.get("active_days"))
+    events = engine.process_usage(summary.get("raw_total_tokens", summary["total_tokens"]), summary.get("active_days"))
 
     # Print any evolution, hatch, or graduation milestone events
     alerts = engine.state.get("unread_alerts", [])
@@ -100,19 +100,44 @@ def cmd_watch(tracker: UsageManager, engine: CompanionEngine, interval: float = 
     except KeyboardInterrupt:
         print("\nMonitor stopped.")
 
-def cmd_settings(engine: CompanionEngine, args):
-    if args.auto_track is not None:
+def cmd_settings(engine: CompanionEngine, args, tracker: Optional[UsageManager] = None):
+    if tracker is None:
+        tracker = UsageManager()
+    if getattr(args, "init_rocket", False):
+        ok, msg = engine.initialize_rocket_process()
+        print(f"🚀 {msg}")
+    if getattr(args, "billing_day", None) is not None:
+        ok, msg = engine.set_billing_cycle_day(args.billing_day)
+        print(f"📅 {msg}")
+    if getattr(args, "init_tokens", False):
+        summary = tracker.get_summary(force=True)
+        raw_total = summary.get("raw_total_tokens", summary.get("total_tokens", 0))
+        ok, msg = engine.initialize_total_tokens(raw_total)
+        print(f"📊 {msg}")
+    if getattr(args, "clear_tokens_baseline", False):
+        ok, msg = engine.clear_total_tokens_baseline()
+        print(f"📊 {msg}")
+    if getattr(args, "auto_track", None) is not None:
         val = (args.auto_track.lower() in ["on", "true", "1", "yes"])
         engine.update_settings(auto_tracking_enabled=val)
         print(f"Automatic tracking set to: {'ON' if val else 'OFF'}")
-    if args.interval is not None:
+    if getattr(args, "interval", None) is not None:
         ok, msg = engine.update_settings(refresh_interval=args.interval)
         print(msg)
 
-    s = engine.get_settings()
+    is_unlocked = engine.state.get("rocket_story_unlocked", False)
+    rocket_str = "ACTIVE" if is_unlocked else "UNINITIALIZED"
+    b_day = engine.get_billing_cycle_day()
+    base_tok = engine.state.get("baseline_total_tokens", 0)
+    base_str = f"Active baseline ({format_tokens(base_tok)})" if base_tok > 0 else "Unset (showing lifetime total)"
+
+    date_hour_str = datetime.datetime.now().strftime("%Y-%m-%d %H")
+
     print("\n⚙️ Current PokeTokenBar Settings:")
-    print(f"  • Automatic Tracking: {'ON' if s['auto_tracking_enabled'] else 'OFF'}")
-    print(f"  • Refresh Interval:   {s['refresh_interval']} seconds\n")
+    print(f"  • System Date & Hour:   {date_hour_str}")
+    print(f"  • Monthly Billing Day:  Day {b_day} of each month")
+    print(f"  • Total Tokens Status:  {base_str}")
+    print(f"  • Team Rocket:          {rocket_str}\n")
 
 def main():
     parser = argparse.ArgumentParser(prog="ptb", description="PokeTokenBar CLI - AI Token Pokémon Companion for Linux CLI")
@@ -129,6 +154,10 @@ def main():
     settings_parser = subparsers.add_parser("settings", help="View or update tracking settings")
     settings_parser.add_argument("--auto-track", choices=["on", "off"], help="Toggle automatic tracking system ON or OFF")
     settings_parser.add_argument("--interval", "-i", type=float, help="Configure update interval in seconds")
+    settings_parser.add_argument("--init-rocket", action="store_true", help="Initialize or reset the Team Rocket campaign and operations")
+    settings_parser.add_argument("--billing-day", type=int, help="Configure monthly billing cycle start day (1-31)")
+    settings_parser.add_argument("--init-tokens", action="store_true", help="Initialize/re-baseline displayed Total Tokens metric so it starts from 0")
+    settings_parser.add_argument("--clear-tokens-baseline", action="store_true", help="Clear Total Tokens baseline to show lifetime total tokens")
 
     args = parser.parse_args()
     tracker = UsageManager()
@@ -147,7 +176,7 @@ def main():
         tui = PokeTokenBarTUI()
         tui.render_shop_tab()
     elif args.command == "settings":
-        cmd_settings(engine, args)
+        cmd_settings(engine, args, tracker=tracker)
     else:
         # Default: Launch full interactive TUI
         tui = PokeTokenBarTUI()

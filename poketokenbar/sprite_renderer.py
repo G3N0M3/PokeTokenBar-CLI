@@ -4,7 +4,9 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 
 class PNGDecoder:
-    """Pure Python lightweight PNG decoder for RGBA pixel array extraction."""
+    """Pure Python lightweight PNG decoder for RGBA pixel array extraction.
+    Supports 8-bit RGBA (6), 8-bit RGB (2), 4-bit & 8-bit Indexed (3) with PLTE/tRNS, and 8-bit Grayscale (0).
+    """
 
     @staticmethod
     def decode_png(file_path: Path) -> Optional[Tuple[int, int, List[List[Tuple[int, int, int, int]]]]]:
@@ -18,7 +20,11 @@ class PNGDecoder:
             idx = 8
             width = 0
             height = 0
+            bit_depth = 0
+            color_type = 0
             idat_data = b""
+            palette = []
+            trns = b""
 
             while idx < len(data):
                 chunk_len = struct.unpack(">I", data[idx:idx+4])[0]
@@ -28,9 +34,10 @@ class PNGDecoder:
 
                 if chunk_type == b"IHDR":
                     width, height, bit_depth, color_type = struct.unpack(">IIBB", chunk_body[:10])
-                    # Expecting 8-bit RGBA (6) or RGB (2)
-                    if bit_depth != 8:
-                        return None
+                elif chunk_type == b"PLTE":
+                    palette = [(chunk_body[i], chunk_body[i+1], chunk_body[i+2]) for i in range(0, len(chunk_body), 3)]
+                elif chunk_type == b"tRNS":
+                    trns = chunk_body
                 elif chunk_type == b"IDAT":
                     idat_data += chunk_body
                 elif chunk_type == b"IEND":
@@ -39,24 +46,47 @@ class PNGDecoder:
             if not idat_data or width == 0 or height == 0:
                 return None
 
-            decompressed = zlib.decompress(idat_data)
-            bytes_per_pixel = 4  # Assuming RGBA
-            stride = width * bytes_per_pixel + 1
+            try:
+                decompressed = zlib.decompress(idat_data)
+            except Exception:
+                return None
+
+            if color_type == 6 and bit_depth == 8:
+                line_bytes = width * 4
+                bpp = 4
+            elif color_type == 2 and bit_depth == 8:
+                line_bytes = width * 3
+                bpp = 3
+            elif color_type == 3 and bit_depth == 8:
+                line_bytes = width
+                bpp = 1
+            elif color_type == 3 and bit_depth == 4:
+                line_bytes = (width + 1) // 2
+                bpp = 1
+            elif color_type == 0 and bit_depth == 8:
+                line_bytes = width
+                bpp = 1
+            else:
+                return None
+
+            stride = line_bytes + 1
+            if len(decompressed) < height * stride:
+                return None
 
             pixels = []
-            prev_row = [0] * (width * bytes_per_pixel)
+            prev_row = [0] * line_bytes
 
             for y in range(height):
                 row_bytes = decompressed[y * stride : (y + 1) * stride]
                 filter_type = row_bytes[0]
                 raw_pixels = list(row_bytes[1:])
-                recon_row = []
+                recon_row = [0] * line_bytes
 
-                for i in range(width * bytes_per_pixel):
+                for i in range(line_bytes):
                     x = raw_pixels[i]
-                    a = recon_row[i - bytes_per_pixel] if i >= bytes_per_pixel else 0
+                    a = recon_row[i - bpp] if i >= bpp else 0
                     b = prev_row[i]
-                    c = prev_row[i - bytes_per_pixel] if i >= bytes_per_pixel else 0
+                    c = prev_row[i - bpp] if i >= bpp else 0
 
                     if filter_type == 0:  # None
                         val = x
@@ -65,7 +95,7 @@ class PNGDecoder:
                     elif filter_type == 2:  # Up
                         val = (x + b) & 0xFF
                     elif filter_type == 3:  # Average
-                        val = (x + (a + b) // 2) & 0xFF
+                        val = (x + ((a + b) // 2)) & 0xFF
                     elif filter_type == 4:  # Paeth
                         p = a + b - c
                         pa = abs(p - a)
@@ -80,16 +110,38 @@ class PNGDecoder:
                         val = (x + pr) & 0xFF
                     else:
                         val = x
-                    recon_row.append(val)
+                    recon_row[i] = val
 
                 prev_row = recon_row
+
                 row_pixels = []
-                for x_idx in range(width):
-                    base = x_idx * 4
-                    if base + 3 < len(recon_row):
+                for x in range(width):
+                    if color_type == 6:
+                        base = x * 4
                         row_pixels.append((recon_row[base], recon_row[base+1], recon_row[base+2], recon_row[base+3]))
-                    else:
-                        row_pixels.append((0, 0, 0, 0))
+                    elif color_type == 2:
+                        base = x * 3
+                        row_pixels.append((recon_row[base], recon_row[base+1], recon_row[base+2], 255))
+                    elif color_type == 3 and bit_depth == 8:
+                        pal_idx = recon_row[x]
+                        if pal_idx < len(palette):
+                            r, g, b = palette[pal_idx]
+                            a = trns[pal_idx] if pal_idx < len(trns) else 255
+                            row_pixels.append((r, g, b, a))
+                        else:
+                            row_pixels.append((0, 0, 0, 0))
+                    elif color_type == 3 and bit_depth == 4:
+                        byte_val = recon_row[x // 2]
+                        pal_idx = (byte_val >> 4) & 0x0F if x % 2 == 0 else (byte_val & 0x0F)
+                        if pal_idx < len(palette):
+                            r, g, b = palette[pal_idx]
+                            a = trns[pal_idx] if pal_idx < len(trns) else 255
+                            row_pixels.append((r, g, b, a))
+                        else:
+                            row_pixels.append((0, 0, 0, 0))
+                    elif color_type == 0 and bit_depth == 8:
+                        val = recon_row[x]
+                        row_pixels.append((val, val, val, 255))
                 pixels.append(row_pixels)
 
             return width, height, pixels

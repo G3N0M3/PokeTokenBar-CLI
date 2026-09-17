@@ -1,4 +1,5 @@
 import sys
+import datetime
 from poketokenbar.game.models import PokemonBalance
 from poketokenbar.sprite_renderer import SpriteRenderer
 from poketokenbar.utils.formatting import format_tokens, format_progress_bar
@@ -24,7 +25,7 @@ def render(app, summary: dict):
             bar = format_progress_bar(egg_usage, threshold)
 
             sys.stdout.write(f"\n  {YELLOW}🥚 Pokémon Egg Incubating...{RESET}\n")
-            sys.stdout.write(f"  Incubation Progress: {bar} ({format_tokens(egg_usage)} / {format_tokens(threshold)} tokens)\n")
+            sys.stdout.write(f"  Incubation: {bar} ({format_tokens(egg_usage)} / {format_tokens(threshold)} tokens)\n")
             sys.stdout.write("  Keep spending tokens in Antigravity CLI to hatch your egg!\n\n")
         else:
             sys.stdout.write(f"\n  {BOLD}{RED}No active companion selected!{RESET}\n")
@@ -54,9 +55,21 @@ def render(app, summary: dict):
         hap_boost = f" {GREEN}(+20% XP){RESET}" if happiness >= 100 else ""
         sys.stdout.write(f"  Happiness: {RED}💖 {happiness}%{RESET}{hap_boost}  |  Streak: {YELLOW}🔥 {streak}d{RESET}  |  Held: {BOLD}{CYAN}{held_str}{RESET}\n")
         
-        last_evo = app.engine.state.get("last_evolution")
-        if last_evo:
-            sys.stdout.write(f"  {BOLD}{CYAN}Milestone:{RESET} 🎉 {last_evo}\n")
+        last_milestone = app.engine.state.get("last_milestone") or app.engine.state.get("last_evolution")
+        if last_milestone:
+            if "hatched" in last_milestone.lower():
+                icon = "🐣"
+            elif "graduated" in last_milestone.lower():
+                icon = "🎓"
+            else:
+                icon = "🎉"
+            prefix = "" if any(last_milestone.startswith(e) for e in ["🐣", "🎉", "🎓", "✨"]) else f"{icon} "
+            clean_text = f"{prefix}{last_milestone}"
+            import re
+            visible_len = len(re.sub(r'\033\[[0-9;]*m', '', clean_text))
+            if visible_len > 59:
+                clean_text = clean_text[:56] + "..."
+            sys.stdout.write(f"  {BOLD}{CYAN}Milestone:{RESET} {clean_text}\n")
 
         # Try rendering sprite
         render_id = sp_id
@@ -88,25 +101,61 @@ def render(app, summary: dict):
         target_xp = PokemonBalance.phase_threshold(active.rarity, active.total_forms, active.stage_index, app.engine.current_difficulty)
 
         if active.stage_index < len(active.path_ids) - 1:
-            bar = format_progress_bar(active.used_at_stage, target_xp, width=12)
-            next_id = active.path_ids[active.stage_index + 1]
+            next_id = app.engine.get_next_evolution_id(active)
+            if not next_id:
+                next_id = active.path_ids[active.stage_index + 1]
             next_name = app.engine.api.get_species_name(next_id)
+            time_tag = ""
+            if app.engine.is_time_based_evolution(active):
+                tod = app.engine.get_current_time_of_day()
+                time_tag = " (☀️ Day)" if tod == "day" else " (🌙 Night)"
+            bar = format_progress_bar(active.used_at_stage, target_xp, width=12)
             dex = app.engine.state.get("dex", [])
             discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
+
+            evo_label = f"  Evo -> {next_name}{time_tag}: "
+            status_tag = ""
+            status_clean = ""
             if active.held_item == "everstone":
-                sys.stdout.write(f"  Evo -> {next_name}: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)}) {YELLOW}[EVERSTONE]{RESET}\n")
+                status_tag = f" {YELLOW}[EVERSTONE]{RESET}"
+                status_clean = " [EVERSTONE]"
             elif next_id in discovered_sp_ids:
-                sys.stdout.write(f"  Evo -> {next_name}: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)}) {YELLOW}[OWNED]{RESET}\n")
-            else:
-                sys.stdout.write(f"  Evo -> {next_name}: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)})\n")
+                status_tag = f" {YELLOW}[OWNED]{RESET}"
+                status_clean = " [OWNED]"
+
+            base_str = f"{evo_label}{bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)})"
+            if len(base_str) + len(status_clean) > 72:
+                compact_tag = " (☀️)" if app.engine.get_current_time_of_day() == "day" else " (🌙)" if time_tag else ""
+                evo_label = f"  Evo -> {next_name}{compact_tag}: "
+                base_str = f"{evo_label}{bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)})"
+                if len(base_str) + len(status_clean) > 72:
+                    evo_label = f"  Evo -> {next_name}: "
+
+            sys.stdout.write(f"{evo_label}{bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)}){status_tag}\n")
         else:
             bar = format_progress_bar(active.used_at_stage, target_xp, width=12)
             sys.stdout.write(f"  Graduation: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)})\n")
 
     sys.stdout.write("\n" + "-" * 72 + "\n")
     sys.stdout.write(f" {BOLD}📊 Token Usage Metrics:{RESET}\n")
-    sys.stdout.write(f"  • Today's Tokens: {BOLD}{CYAN}{format_tokens(summary['today_tokens'])}{RESET}  (Antigravity: {format_tokens(summary['antigravity_today'])})\n")
-    sys.stdout.write(f"  • 7-Day Tokens:   {format_tokens(summary['week_tokens'])}\n")
-    sys.stdout.write(f"  • Monthly Tokens: {format_tokens(summary['month_tokens'])}\n")
-    sys.stdout.write(f"  • Total Tokens:   {format_tokens(summary['total_tokens'])}\n")
-    sys.stdout.write(f"  • Active Burn:    {format_tokens(summary['burn_rate_tpm'])} tokens/min\n")
+    sys.stdout.write(f"  • Today's Tokens: {BOLD}{CYAN}{format_tokens(summary.get('today_tokens', 0))}{RESET}  (Antigravity: {format_tokens(summary.get('antigravity_today', 0))})\n")
+    sys.stdout.write(f"  • 7-Day Tokens:   {format_tokens(summary.get('week_tokens', 0))}\n")
+
+    b_day = summary.get("billing_cycle_day", app.engine.state.get("billing_cycle_day", 1))
+    cycle_start = summary.get("billing_cycle_start")
+    if not cycle_start:
+        from poketokenbar.tracker.manager import get_billing_cycle_start
+        cycle_start = get_billing_cycle_start(datetime.datetime.now().astimezone(), b_day).strftime("%Y-%m-%d")
+    cycle_extra = f" | Cycle: Day {b_day}" if b_day != 1 else ""
+    month_tag = f"  (since {cycle_start}{cycle_extra})"
+    sys.stdout.write(f"  • Monthly Tokens: {format_tokens(summary.get('month_tokens', 0))}{month_tag}\n")
+
+    base_tok = summary.get("baseline_total_tokens", app.engine.state.get("baseline_total_tokens", 0))
+    if base_tok > 0:
+        base_date = summary.get("baseline_date") or app.engine.state.get("baseline_date") or app.engine.state.get("last_active_date") or datetime.datetime.now().strftime("%Y-%m-%d")
+        total_tag = f"  (since {base_date} | re-baselined)"
+    else:
+        earliest_date = summary.get("earliest_date") or (summary.get("active_days") and summary.get("active_days")[0]) or app.engine.state.get("last_active_date") or datetime.datetime.now().strftime("%Y-%m-%d")
+        total_tag = f"  (since {earliest_date})"
+    sys.stdout.write(f"  • Total Tokens:   {format_tokens(summary.get('total_tokens', 0))}{total_tag}\n")
+    sys.stdout.write(f"  • Active Burn:    {format_tokens(summary.get('burn_rate_tpm', 0))} tokens/min\n")

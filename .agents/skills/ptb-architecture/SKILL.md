@@ -79,3 +79,15 @@ When adding or extending features:
 5. **Input**: Wire command parsing in `tui.py`.
 6. **Constraints**: Verify strict $\le 72$-column formatting (`len(strip_ansi(line)) <= 72`).
 7. **Test**: Write isolated unit tests in `tests/test_companion.py`.
+
+---
+
+## 4. Development Environment & Tooling
+
+The repository uses the dedicated `PTB` Conda environment:
+- **Environment Path**: `/home/ejchoi/.conda/envs/PTB`
+- **Python Binary**: `/home/ejchoi/.conda/envs/PTB/bin/python`
+- **Pytest Binary**: `/home/ejchoi/.conda/envs/PTB/bin/pytest`
+- **CLI Executable**: `/home/ejchoi/.conda/envs/PTB/bin/ptb` (installed via `pip install -e .`)
+
+Always execute development scripts, tests, and CLI invocations with this environment.

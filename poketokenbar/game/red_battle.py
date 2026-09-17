@@ -115,10 +115,19 @@ class RedBattleHandler:
                 # If not, fallback to normal. We can fix this in UI.
                 pass
             
+        # If any of the assembled Pokémon is currently the active companion, disengage it
+        active = self.engine.active_mon
+        if active:
+            active_id = active.current_id
+            if active_id in team_ids or active.base_id in team_ids:
+                prev_status = "graduated" if (getattr(active, "is_graduated", False) or f"{active.base_id}_{active.current_id}" in self.engine.state.get("collected_finals", [])) else "inactive"
+                self.engine._register_to_dex(active, status=prev_status)
+                self.engine.set_active_mon(None)
+
         st = {
             "player_team": team_ids,
-            "player_hps": hps,
-            "player_max_hps": hps,
+            "player_hps": list(hps),
+            "player_max_hps": list(hps),
             "player_active_index": 0,
             
             "red_team": [dict(r) for r in RED_TEAM],
@@ -305,9 +314,30 @@ class RedBattleHandler:
                     else:
                         logs.append("You defeated PKMN Trainer Red! You are a Pokémon Master!")
                         if self.engine.state.get("red_wins", 0) == 0:
-                            self.engine.state["egg_tier"] = "mysterious fetal form"
-                            self.engine.state["egg_usage"] = 0
-                            logs.append("You found a Mysterious Fetal Form of Mew!")
+                            dex = self.engine.state.get("dex", [])
+                            owns_mew = any(
+                                (d.get("species_id") == 151 or d.get("base_id") == 151 or 151 in d.get("chain_order", []))
+                                for d in dex
+                            ) or (self.engine.active_mon and self.engine.active_mon.base_id == 151)
+
+                            if not owns_mew:
+                                from poketokenbar.game.models import MonState, PokemonNature, Rarity
+                                mew_mon = MonState(
+                                    base_id=151,
+                                    path_ids=[151],
+                                    planned_path_ids=[151],
+                                    stage_index=0,
+                                    used_at_stage=0,
+                                    rarity=Rarity.LEGENDARY,
+                                    total_forms=1,
+                                    is_shiny=False,
+                                    nature=PokemonNature.TIMID,
+                                    happiness=100
+                                )
+                                self.engine._register_to_dex(mew_mon, status="inactive")
+                                logs.append("Mew was touched by your bond on Mt. Silver and joined your roster!")
+                            else:
+                                logs.append("Red nods in silent respect of your victory! (Mew already registered in Pokédex)")
                         else:
                             logs.append("Red nods in silent respect of your continued mastery.")
                         

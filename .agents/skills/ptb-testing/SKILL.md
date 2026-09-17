@@ -15,11 +15,14 @@ This guide outlines the testing philosophy, automated test execution, layout com
 All unit tests must run with state isolation to prevent reading or mutating the user's real `~/.poketokenbar/state.json`.
 
 ```bash
-# Recommended pytest execution:
-/opt/anaconda3/bin/pytest tests/
+# Recommended pytest execution (using PTB conda environment):
+/home/ejchoi/.conda/envs/PTB/bin/pytest tests/
+
+# Or with PTB environment activated:
+# pytest tests/
 
 # Standard unittest execution with isolated state file:
-PTB_STATE_FILE=/tmp/ptb_test.json python3 -m unittest discover tests
+PTB_STATE_FILE=/tmp/ptb_test.json /home/ejchoi/.conda/envs/PTB/bin/python -m unittest discover tests
 ```
 
 ### State Isolation Best Practices:

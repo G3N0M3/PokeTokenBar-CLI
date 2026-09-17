@@ -49,10 +49,12 @@ def _render_checking_view(app, avail: int):
         else:
             sys.stdout.write(f"  {BOLD}{RED}🚨 Loan Deadline:{RESET} {loan_days}/7 days until repossession!\n")
         sys.stdout.write(f"  {BOLD}{RED}Repossession Protocol:{RESET}\n")
-        sys.stdout.write(f"   {RED}1. Confiscation of Bank Deposits (up to loan amount){RESET}\n")
-        sys.stdout.write(f"   {RED}2. Confiscation of Spendable Tokens (if debt remains){RESET}\n")
-        sys.stdout.write(f"   {RED}3. Liquidation of Inventory Items (if debt remains){RESET}\n")
-        sys.stdout.write(f"   {RED}4. Happiness of ALL companions drops by 50!{RESET}\n")
+        sys.stdout.write(f"   {RED}1. Confiscation of Bank Checking Deposits{RESET}\n")
+        sys.stdout.write(f"   {RED}2. Confiscation of Spendable Tokens{RESET}\n")
+        sys.stdout.write(f"   {RED}3. Liquidation of Term Deposits (CDs){RESET}\n")
+        sys.stdout.write(f"   {RED}4. Liquidation of Corporate Stock Shares{RESET}\n")
+        sys.stdout.write(f"   {RED}5. Liquidation of Inventory Items{RESET}\n")
+        sys.stdout.write(f"   {RED}6. Happiness of ALL companions drops by 50!{RESET}\n")
         
     sys.stdout.write(f"\n  {BOLD}Interest Rates (Daily Compounding):{RESET}\n")
     sys.stdout.write(f"  • {GREEN}Deposits:{RESET} +5% interest daily\n")
@@ -63,7 +65,7 @@ def _render_checking_view(app, avail: int):
     sys.stdout.write(f"  ➔ Type '{BOLD}loan <amount>{RESET}' / '{BOLD}payoff <amount>{RESET}' (e.g. 'payoff all')\n\n")
 
 def _render_cd_view(app, avail: int):
-    cds = app.engine.state.get("term_deposits", [])
+    cds = sorted(app.engine.state.get("term_deposits", []), key=lambda c: c.get("id", 0))
     sys.stdout.write(f"  {BOLD}{YELLOW}📜 Certificates of Deposit (CD){RESET}  (Spendable: {BOLD}{CYAN}{format_tokens(avail)}{RESET})\n")
     sys.stdout.write(f"  {CYAN}Locked fixed-term savings accounts with high compound yields.{RESET}\n\n")
     sys.stdout.write(f"  {BOLD}Available CD Terms & Daily Yields:{RESET}\n")
@@ -75,7 +77,16 @@ def _render_cd_view(app, avail: int):
     if not cds:
         sys.stdout.write("  (No active Term Deposits. Open one with 'cd open <amount> <days>')\n\n")
     else:
-        for cd in cds:
+        page_size = app.engine.state.get("page_size_cd", 5)
+        total_pages = max(1, (len(cds) - 1) // page_size + 1)
+        if not hasattr(app, 'cd_page') or not isinstance(app.cd_page, int):
+            app.cd_page = 1
+        app.cd_page = max(1, min(app.cd_page, total_pages))
+
+        start_idx = (app.cd_page - 1) * page_size
+        end_idx = start_idx + page_size
+
+        for cd in cds[start_idx:end_idx]:
             c_id = cd.get("id", 1)
             principal = format_tokens(cd.get("principal", 0))
             term = cd.get("term_days", 3)
@@ -86,7 +97,10 @@ def _render_cd_view(app, avail: int):
             else:
                 days_left = max(0, term - elapsed)
                 status_str = f"{YELLOW}[LOCKED] ({days_left}d left){RESET}"
-            sys.stdout.write(f"  #{c_id:<2} {principal:<7} ({term}d term, {elapsed}/{term}d) -> {BOLD}{CYAN}{cur_val:<7}{RESET} | {status_str}\n")
+            sys.stdout.write(f"  [{c_id}] {principal:<7} ({term}d term, {elapsed}/{term}d) -> {BOLD}{CYAN}{cur_val:<7}{RESET} | {status_str}\n")
+
+        if total_pages > 1:
+            sys.stdout.write(f"\n  ➔ Page {app.cd_page}/{total_pages} - Type '{BOLD}n{RESET}', '{BOLD}p{RESET}', or '{BOLD}page <N>{RESET}' to navigate deposits!\n")
         sys.stdout.write("\n")
 
     sys.stdout.write(f"  {BOLD}Commands:{RESET}\n")

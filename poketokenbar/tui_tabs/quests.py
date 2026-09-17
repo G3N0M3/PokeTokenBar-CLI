@@ -49,18 +49,18 @@ def render_quests_tab(app):
     # 3. Achievements Unlocked
     sys.stdout.write(f"\n  {BOLD}🎖️ Achievements ({len(achievements)} Unlocked):{RESET}\n")
     all_achievements = [
-        ("shiny_hunter", "🌟 Shiny Hunter", "Hatch a rare Shiny Pokémon"),
-        ("token_tycoon", "💎 Token Tycoon", "Burn 100M+ lifetime tokens"),
-        ("dex_collector", "📖 Dex Collector", "Register 5+ species in Pokédex"),
-        ("gym_champion", "🏆 Gym Champion", "Defeat your first Gym Boss Raid"),
-        ("streak_master", "⚡ Streak Master", "Maintain a 3+ day coding streak")
+        ("shiny_hunter", "🌟 Shiny Hunter", "Hatch a Shiny Pokémon"),
+        ("token_tycoon", "💎 Token Tycoon", "Burn 100M+ tokens"),
+        ("dex_collector", "📖 Dex Collector", "Register 5+ in Pokédex"),
+        ("gym_champion", "🏆 Gym Champion", "Defeat a Gym Boss Raid"),
+        ("streak_master", "⚡ Streak Master", "Maintain 3+ day streak")
     ]
     unlocked_set = set(achievements)
     for code, title, desc in all_achievements:
         if code in unlocked_set:
             badge = f"{BOLD}{GREEN}[UNLOCKED]{RESET}"
-            sys.stdout.write(f"   • {BOLD}{title:<18}{RESET} - {desc:<36} {badge}\n")
+            sys.stdout.write(f"  • {BOLD}{title}{RESET} - {desc} {badge}\n")
         else:
             badge = f"{BOLD}{YELLOW}[LOCKED]{RESET}"
-            sys.stdout.write(f"   • {title:<18} - {desc:<36} {badge}\n")
+            sys.stdout.write(f"  • {title} - {desc} {badge}\n")
     sys.stdout.write("\n")

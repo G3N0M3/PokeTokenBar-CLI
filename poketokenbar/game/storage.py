@@ -72,12 +72,17 @@ class StorageManager:
             "install_baseline_set": False,
             "used_since_install": 0,
             "spent_tokens": 0,
+            "billing_cycle_day": 1,
+            "baseline_total_tokens": 0,
+            "baseline_date": None,
             "egg_usage": 0,
             "egg_tier": None,
             "pending_hatch_id": None,
             "active_mon": None,
             "dex": [],
             "collected_finals": [],
+            "last_milestone": None,
+            "last_evolution": None,
             "inventory": {
                 "rare_candy": 0,
                 "mint": 0,
@@ -155,11 +160,25 @@ class StorageManager:
             "rocket_rank": "Informant",
             "rocket_reputation": 0,
             "rocket_ops": {
-                f"op_{i}": {"status": "available" if i == 1 else "locked", "progress": 0, "claimed": False, "objective_done": False, "boss_hp_remaining": 0}
+                f"op_{i}": {
+                    "status": "available" if i == 1 else "locked",
+                    "progress": 0,
+                    "claimed": False,
+                    "objective_done": False,
+                    "boss_hp_remaining": 0,
+                    "briefing_viewed": False,
+                    "expeditions_done": 0,
+                    "battle_wins": 0,
+                    "black_market_trades": 0
+                }
                 for i in range(1, 11)
             },
             "rocket_intel_unlocked": ["intel_001"],
-            "permanent_black_market": False
+            "permanent_black_market": False,
+            "has_exp_splitter": False,
+            "last_authority_date": None,
+            "pending_authority_delivery": None,
+            "rocket_battle_state": {}
         }
 
     @staticmethod

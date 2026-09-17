@@ -14,6 +14,7 @@ def render_red_tab(app):
     st = handler._get_state()
     
     if st.get("status") == "win":
+        sys.stdout.write(f"  {'='*68}\n")
         sys.stdout.write(f"  {BOLD}{YELLOW}🏆 HALL OF FAME 🏆{RESET}\n\n")
         sys.stdout.write(f"  You defeated PKMN Trainer Red!\n")
         sys.stdout.write(f"  Total Wins: {app.engine.state.get('red_wins', 0)}\n\n")
@@ -22,18 +23,38 @@ def render_red_tab(app):
         if hof:
             last_team = hof[-1]
             names = [app.engine.api.get_species_name(pid) for pid in last_team]
-            sys.stdout.write(f"  {CYAN}Winning Team:{RESET} {', '.join(names)}\n\n")
+            team_str = ", ".join(names)
+            if len(team_str) > 50:
+                half = len(names) // 2
+                sys.stdout.write(f"  {CYAN}Winning Team:{RESET} {', '.join(names[:half])},\n                {', '.join(names[half:])}\n\n")
+            else:
+                sys.stdout.write(f"  {CYAN}Winning Team:{RESET} {team_str}\n\n")
             
         sys.stdout.write(f"  Type '{BOLD}restart{RESET}' to challenge him again!\n")
         return
 
     if st.get("status") == "loss":
+        sys.stdout.write(f"  {'='*68}\n")
         sys.stdout.write(f"  {BOLD}{RED}You blacked out...{RESET}\n\n")
         sys.stdout.write(f"  Red's team was too strong this time.\n\n")
         sys.stdout.write(f"  Type '{BOLD}restart{RESET}' to assemble a new team and try again!\n")
         return
     
     if not st.get("player_team"):
+        sys.stdout.write(f"  {'='*68}\n")
+        wins = app.engine.state.get("red_wins", 0)
+        hof = app.engine.state.get("red_hof", [])
+        if wins > 0 and hof:
+            sys.stdout.write(f"  {BOLD}{YELLOW}🏆 HALL OF FAME (Total Wins: {wins}) 🏆{RESET}\n")
+            last_team = hof[-1]
+            names = [app.engine.api.get_species_name(pid) for pid in last_team]
+            team_str = ", ".join(names)
+            if len(team_str) > 48:
+                half = len(names) // 2
+                sys.stdout.write(f"  {CYAN}Champion Team:{RESET} {', '.join(names[:half])},\n                 {', '.join(names[half:])}\n\n")
+            else:
+                sys.stdout.write(f"  {CYAN}Champion Team:{RESET} {team_str}\n\n")
+
         sys.stdout.write(f"  {BOLD}Red silently stares at you from the snowy peak...{RESET}\n")
         sys.stdout.write(f"  {YELLOW}You must assemble a party of 6 Pokémon to challenge him!{RESET}\n\n")
         sys.stdout.write(f"  Type '{BOLD}assemble <dex_1> ... <dex_6>{RESET}' (use Pokédex IDs).\n")

@@ -72,9 +72,41 @@ class PokeAPIClient:
 
     def download_sprite(self, species_id: int, is_shiny: bool = False, is_back: bool = False) -> Optional[Path]:
         from poketokenbar.game.models import SPECIAL_SPECIES
-        target_id = SPECIAL_SPECIES[species_id]["base_id"] if species_id in SPECIAL_SPECIES else species_id
         prefix = "shiny_" if is_shiny else "normal_"
         prefix += "back_" if is_back else "front_"
+        filename = f"{prefix}{species_id}.png"
+
+        # 1. Check bundled package assets for direct species_id
+        bundled_asset = Path(__file__).resolve().parent.parent / "assets" / "sprites" / filename
+        if bundled_asset.exists():
+            return bundled_asset
+
+        # 2. Check user cache directory for direct species_id
+        direct_cache = SPRITE_DIR / filename
+        if direct_cache.exists():
+            return direct_cache
+
+        # 3. If back sprite requested for custom species but missing, check front sprite
+        if is_back:
+            front_filename = f"{'shiny_' if is_shiny else 'normal_'}front_{species_id}.png"
+            bundled_front = Path(__file__).resolve().parent.parent / "assets" / "sprites" / front_filename
+            if bundled_front.exists():
+                return bundled_front
+            cached_front = SPRITE_DIR / front_filename
+            if cached_front.exists():
+                return cached_front
+
+        # 4. Resolve base_id fallback if special species
+        target_id = SPECIAL_SPECIES[species_id]["base_id"] if species_id in SPECIAL_SPECIES else species_id
+        if target_id != species_id:
+            fallback_filename = f"{prefix}{target_id}.png"
+            bundled_fallback = Path(__file__).resolve().parent.parent / "assets" / "sprites" / fallback_filename
+            if bundled_fallback.exists():
+                return bundled_fallback
+            fallback_cached = SPRITE_DIR / fallback_filename
+            if fallback_cached.exists():
+                return fallback_cached
+
         target_path = SPRITE_DIR / f"{prefix}{target_id}.png"
         if target_path.exists():
             return target_path

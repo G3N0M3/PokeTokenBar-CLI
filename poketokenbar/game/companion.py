@@ -1,6 +1,6 @@
 import random
 import datetime
-from typing import Dict, List, Optional, Tuple, Any, Union
+from typing import Dict, List, Optional, Tuple, Any, Union, Set
 
 from poketokenbar.game.models import (
     MonState, DexEntry, Rarity, PokemonNature, PokemonBalance, ItemKind,
@@ -21,7 +21,7 @@ BASE_SPECIES_STARTERS = [
     # === LEGENDARY & MYTHICAL POKÉMON (Generations 1 - 7) ===
     # Gen 1
     (144, "Articuno", 3, True), (145, "Zapdos", 3, True), (146, "Moltres", 3, True),
-    (150, "Mewtwo", 3, True), (151, "Mew", 45, True),
+    (150, "Mewtwo", 3, True),
     # Gen 2
     (243, "Raikou", 3, True), (244, "Entei", 3, True), (245, "Suicune", 3, True),
     (249, "Lugia", 3, True), (250, "Ho-Oh", 3, True), (251, "Celebi", 45, True),
@@ -102,6 +102,202 @@ BASE_SPECIES_STARTERS = [
     (744, "Rockruff", 190, False), (747, "Mareanie", 190, False), (759, "Stufful", 140, False)
 ]
 
+ROCKET_OPERATION_DIALOGUES: Dict[str, Dict[str, Any]] = {
+    "1": {
+        "title": "Operation Genesis: Subterranean Pallet Wiretap",
+        "location": "Route 1 Subterranean Relay // Pallet Outskirts",
+        "speaker": "Commander Petrel",
+        "dialogue": [
+            "\"Welcome to the real fight, Operative. You're looking at Pallet Town—the peaceful, idyllic hometown of Pokémon researchers. That's the public facade.",
+            "",
+            "Buried eight meters beneath the Route 1 dirt track lies a high-speed fiber-optic data trunk. It connects Oak's laboratory directly to the Indigo League mainframe and clandestine bio-silos.",
+            "",
+            "Every time an innocent rookie trainer logs a wild encounter, Oak siphons that telemetry down this wire. Our field teams need you to tap into that trunk.",
+            "",
+            "Deploy expeditions to locate the surface junction boxes, and channel your coding power to decrypt his encrypted carrier wave. Once that line is open, our underground Black Market frequencies and syndicate transmissions go live. Move out!\""
+        ],
+        "tactical_orders": [
+            "• Complete 2+ completed expeditions to scout the physical junction boxes.",
+            "• Accumulate 5.0M coding tokens to decrypt the encrypted trunk carrier wave."
+        ]
+    },
+    "2": {
+        "title": "Operation Chimera: Celadon Reagent & Chrono Intercept",
+        "location": "Celadon Transit Tunnels // West Kanto Corridor",
+        "speaker": "Commander Petrel",
+        "dialogue": [
+            "\"Intercept confirmed, Operative. Oak's automated logistics convoy has just departed Celadon City under heavy armored escort.",
+            "",
+            "Our scouts report two critical cargo consignments: pressurized canisters of 'Morale Mist'—a chemical reagent Oak synthesized to induce artificial obedience—and Silph Co's experimental Chrono Accelerator prototypes, which compress developmental timelines.",
+            "",
+            "Oak is using these chronometers to accelerate his clone maturation cycles. If those prototypes reach Pallet Deep Lab, his bio-vats will double their production.",
+            "",
+            "Prove your combat supremacy by dominating the Trainer Battle arena, and intercept that convoy. Seize those canisters and chronometers for our Skunkworks Armory. Successful recovery will approve your promotion to Operative rank. Petrel out!\""
+        ],
+        "tactical_orders": [
+            "• Win 2+ Trainer Battles in Tab [6] Arena to establish combat dominance.",
+            "• Generate 10.0M coding tokens to breach the armored transport convoy."
+        ]
+    },
+    "3": {
+        "title": "[BOSS 1] Silph Sub-Vault: Prototype Chimera-001",
+        "location": "Silph Co. Sub-Basement B4 // Saffron City Core",
+        "speaker": "Commander Petrel",
+        "dialogue": [
+            "\"Red alert, Operative! When Team Rocket stormed Silph Co years ago, the media claimed we wanted Master Balls. A total fabrication. We were trying to breach Sub-Basement 4.",
+            "",
+            "Deep below the corporate executive suites lies Oak's first biological abomination: Prototype Chimera-001. Synthesized by fusing multi-elemental gene drives, it proved too volatile even for Oak, so he sealed it behind automated cryo-containment.",
+            "",
+            "With Red's defeat, the lockdown failsafes have deactivated. Chimera-001 is awake, drawing power from Silph's auxiliary reactors.",
+            "",
+            "Take your vanguard companion into the sub-vault. It's a bio-weapon with no empathy, no restraint. Unleash standard strikes or burn coding tokens for burst discharges. Terminate the prototype!\""
+        ],
+        "tactical_orders": [
+            "• Infiltrate Sub-Basement B4 and engage Prototype Chimera-001.",
+            "• Neutralize the 15,000 HP construct using 'attack' or 'burst' commands."
+        ]
+    },
+    "4": {
+        "title": "Operation Blackout: Cerulean Power Disruption",
+        "location": "Cerulean Cape Sub-Aquatic Pipeline // North Kanto",
+        "speaker": "Commander Petrel",
+        "dialogue": [
+            "\"Congratulations on crushing Chimera-001, Operative. But Oak's network is vast. Our telemetry has pinpointed the primary power source keeping his subterranean cloning vats alive.",
+            "",
+            "Massive liquid nitrogen conduits run sub-aquatically from Cerulean Cape, pumping heavy water directly into Pallet's bio-chambers. Oak conceals the staggering power draw under municipal grid allocations.",
+            "",
+            "To freeze those conduits, we need to deploy high-frequency Chrono disruptors. Those devices require immense financial backing—you must anchor capital in high-yield Bank term CDs (Tab [10]) to fund the temporal pulse emitter.",
+            "",
+            "Synchronize your coding output with the grid's resonance frequency. Cut Cerulean's flow, and Oak's incubators will stall. Execute!\""
+        ],
+        "tactical_orders": [
+            "• Hold at least 1 active Bank Term CD deposit in Tab [10] to fund disruptors.",
+            "• Accumulate 15.0M coding tokens to synchronize grid overload frequencies."
+        ]
+    },
+    "5": {
+        "title": "Operation Leviathan: Telemetry Cargo & Neural Tap",
+        "location": "Vermilion Deep Anchorage // Bay Berth 09",
+        "speaker": "Commander Petrel",
+        "dialogue": [
+            "\"Operative, look out across the harbor. The automated freight vessel S.S. Dreadnought has just docked at Vermilion Deep Anchorage under an encrypted League transponder.",
+            "",
+            "Its cargo hold isn't carrying consumer goods. It is laden with neural broadcast antennas and quantum telemetry splitters designed to siphon combat battle data from every trainer across Kanto.",
+            "",
+            "Oak is using this global tap to feed training XP directly into his slumbering battle-constructs. We are going to hijack that network.",
+            "",
+            "Deploy covert expeditions to infiltrate the docks, and make contact with our Black Market operatives in the shadows. We will reverse-engineer Oak's neural tap into our Corrupted EXP Splitter, allowing you to mirror XP across your entire roster. Pull this off, and you earn Special Agent clearance!\""
+        ],
+        "tactical_orders": [
+            "• Deploy 2+ active expeditions simultaneously to flank the harbor docks.",
+            "• Complete a transaction on the Black Market to secure covert extraction gear."
+        ]
+    },
+    "6": {
+        "title": "[BOSS 2] Power Plant: Cyber-Enforcer Core",
+        "location": "Abandoned Power Plant Core // Route 10 Sub-Station",
+        "speaker": "Commander Petrel",
+        "dialogue": [
+            "\"Special Agent, emergency transmission! The abandoned Power Plant on Route 10 just spiked off the charts.",
+            "",
+            "Oak's automated contingency enforcer has boots on the ground. It's a cybernetic titan—a mechanized skeletal construct grafted with regenerative cellular tissue, designed to defend the grid against resistance strikes.",
+            "",
+            "It has locked itself into the plant's main transformer core, feeding hundreds of thousands of volts into Oak's regional defense shield.",
+            "",
+            "If we don't sever its core, our comms and satellite links will be completely fried. Breach the facility, Agent. Strike with precision or burn token bursts. Shut down the Cyber-Enforcer!\""
+        ],
+        "tactical_orders": [
+            "• Infiltrate the high-voltage reactor chamber of the Route 10 Power Plant.",
+            "• Neutralize the Cyber-Enforcer Unit (35,000 HP) using 'attack' or 'burst'."
+        ]
+    },
+    "7": {
+        "title": "Operation Squad Harmony: Lavender Crypt Decryption",
+        "location": "Pokémon Tower Crypt Basement // Lavender Sub-Levels",
+        "speaker": "Commander Petrel",
+        "dialogue": [
+            "\"You took down the Cyber-Enforcer, Agent. Now comes an operation that requires more than brute force.",
+            "",
+            "Beneath the somber tombstones of Lavender Tower lies an ancient crypt where Oak conducted his earliest neural frequency experiments. He was trying to decode how Pokémon spirits resonate with organic trainers.",
+            "",
+            "The cipher is locked behind a biocentric resonance lock. It will only open if approached by a trainer and Pokémon whose bond is unbroken—your companion must be at absolute peak morale (100% Happiness). Use the Syndicate Morale Mist we seized in Celadon if you need to synchronize cellular affinity instantly.",
+            "",
+            "Generate the required cryptographic tokens and attune your companion's frequency to the crypt. Recover the neural cipher—we need it to crack Oak's personal command codes!\""
+        ],
+        "tactical_orders": [
+            "• Bring your active companion to 100% Happiness (via interaction or Morale Mist).",
+            "• Accumulate 20.0M coding tokens to solve the biomorphic frequency cipher."
+        ]
+    },
+    "8": {
+        "title": "Operation Gene-Lock: Fuchsia Mutagen Vault Extraction",
+        "location": "Safari Zone Subterranean Vault // Fuchsia Bio-Sanctuary",
+        "speaker": "Commander Petrel",
+        "dialogue": [
+            "\"Agent, this is the turning point of our war. Before Giovanni walked away from Oak in 1982, Oak synthesized a terrifying compound: the Dark Gene Catalyst.",
+            "",
+            "It bypasses natural evolution completely, forcing instantaneous cellular metamorphosis. Giovanni locked the formula in a deep vault beneath Fuchsia's Safari Zone, refusing to corrupt organic biology.",
+            "",
+            "Oak's automated drones have begun drilling into the vault to reclaim it. We must strike first and extract the master drive.",
+            "",
+            "Deploying such mutagenic power requires proven command—you must demonstrate mastery by fielding at least 2 evolved Pokémon in your roster. Secure that formula, Agent. It will unlock Executive clearance and place instant cellular evolution in your hands!\""
+        ],
+        "tactical_orders": [
+            "• Command 2+ evolved Pokémon in your roster (or hold 10+ VRDN shares).",
+            "• Accumulate 25.0M coding tokens to breach the heavy vault locks."
+        ]
+    },
+    "9": {
+        "title": "[BOSS 3] Cinnabar Caldera: Apex Vanguard Mon-Omega",
+        "location": "Volcanic Caldera Bio-Foundry // Deep Cinnabar Sub-Level 7",
+        "speaker": "Commander Petrel",
+        "dialogue": [
+            "\"Executive, all satellite channels are clear. The path to Oak's inner sanctum is almost open—save for one final guardian.",
+            "",
+            "Deep within the volcanic caldera of Cinnabar Island, Oak's subterranean bio-foundry has awakened Mon-Omega. It is his apex bodyguard construct: a bio-synthetic apex combatant calibrated to withstand multi-elemental bombardment.",
+            "",
+            "Mon-Omega is fitted with a telepathic override matrix. It doesn't flinch, it doesn't tire, and it wields devastating psionic and physical destruction.",
+            "",
+            "This is the supreme test of your battle companion's resolve. Breach the caldera facility. Pour every ounce of tactical discipline and token energy into this assault. Break Mon-Omega, and the doors to Oak's Citadel will swing wide open!\""
+        ],
+        "tactical_orders": [
+            "• Breach the volcanic sub-foundry on Cinnabar Island.",
+            "• Neutralize Apex Vanguard: Mon-Omega (75,000 HP) using 'attack' or 'burst'."
+        ]
+    },
+    "10": {
+        "title": "[FINAL BOSS] The Oak Citadel: Arch-Director Samuel Oak",
+        "location": "Himalayan Mountain Citadel // Fortress Inner Sanctum",
+        "speaker": "Commander Petrel",
+        "dialogue": [
+            "\"Executive... no, Comrade. This is it. The culmination of everything Giovanni started, everything we sacrificed for.",
+            "",
+            "Our full Rocket fleet has breached the Himalayan airspace. Ahead of us looms The Citadel—Oak's central command fortress, concealed above the snowline for thirty years.",
+            "",
+            "Inside, Arch-Director Samuel Oak awaits you. He has shed his grandfatherly persona. Flanking him is the Augmented Legion: Venusaur, Charizard, Blastoise, Tauros, Dragonite, Alakazam—all fitted with neural cybernetic collars and synthetic stimulants.",
+            "",
+            "He believes artificial subjugation is the only path to peace. Show him that the authentic bond between trainer and Pokémon is unbreakable. Conquer the Augmented Legion, shatter his throne, and take supreme Commander Authority over Team Rocket! For the truth!\""
+        ],
+        "tactical_orders": [
+            "• Storm the inner sanctum of the Himalayan Citadel.",
+            "• Conquer Arch-Director Samuel Oak & The Augmented Legion (120,000 HP)."
+        ]
+    }
+}
+
+TIME_BASED_BRANCH_OVERRIDES: Dict[int, Dict[str, int]] = {
+    790: {"day": 791, "night": 792},  # Cosmoem -> Solgaleo (Day) / Lunala (Night)
+    133: {"day": 196, "night": 197},  # Eevee -> Espeon (Day) / Umbreon (Night)
+}
+
+
+def get_current_time_of_day(now: Optional[datetime.datetime] = None) -> str:
+    """Returns 'day' (06:00 - 17:59) or 'night' (18:00 - 05:59)."""
+    if now is None:
+        now = datetime.datetime.now()
+    return "day" if 6 <= now.hour < 18 else "night"
+
+
 class CompanionEngine:
     """Manages active Pokémon companion, hatching, evolution, Pokédex, and inventory."""
 
@@ -138,11 +334,22 @@ class CompanionEngine:
                     "progress": 0,
                     "claimed": False,
                     "objective_done": False,
-                    "boss_hp_remaining": 0
+                    "boss_hp_remaining": 0,
+                    "briefing_viewed": False,
+                    "expeditions_done": 0,
+                    "battle_wins": 0,
+                    "black_market_trades": 0
                 }
             else:
                 ops_state[key].setdefault("objective_done", False)
                 ops_state[key].setdefault("boss_hp_remaining", 0)
+                ops_state[key].setdefault("expeditions_done", 0)
+                ops_state[key].setdefault("battle_wins", 0)
+                ops_state[key].setdefault("black_market_trades", 0)
+                if ops_state[key].get("claimed", False):
+                    ops_state[key].setdefault("briefing_viewed", True)
+                else:
+                    ops_state[key].setdefault("briefing_viewed", False)
 
         # Unlock ops sequentially if preceding is claimed
         for i in range(1, 10):
@@ -212,6 +419,21 @@ class CompanionEngine:
                 mega_clamped = True
         if mega_clamped:
             self.save()
+
+        # Migrate last_milestone and sync desynced freshly hatched active companion
+        if "last_milestone" not in self.state and self.state.get("last_evolution"):
+            self.state["last_milestone"] = self.state["last_evolution"]
+
+        act = self.active_mon
+        if act and act.stage_index == 0:
+            act_name = self.api.get_species_name(act.current_id)
+            curr_last = self.state.get("last_evolution", "")
+            if curr_last and act_name not in curr_last and "hatched" not in curr_last.lower():
+                shiny_str = "✨ Shiny " if act.is_shiny else ""
+                hatch_msg = f"Egg Hatched! You got a {shiny_str}{act_name} (#{act.base_id})!"
+                self.state["last_evolution"] = hatch_msg
+                self.state["last_milestone"] = hatch_msg
+                self.save()
 
     def save(self):
         import json
@@ -381,20 +603,17 @@ class CompanionEngine:
 
         if active is None:
             egg_tier = self.state.get("egg_tier")
-            if egg_tier is None:
-                # Active mon is None, but no egg either (should be impossible in normal flow but fail gracefully)
-                return events
+            if egg_tier is not None:
+                egg_usage = self.state.get("egg_usage", 0) + effective_xp
+                self.state["egg_usage"] = egg_usage
 
-            egg_usage = self.state.get("egg_usage", 0) + effective_xp
-            self.state["egg_usage"] = egg_usage
-
-            threshold = PokemonBalance.EGG_HATCH_THRESHOLD
-            if egg_usage >= threshold:
-                mon, hatch_events = self.hatch_egg(initial_xp=egg_usage - threshold)
-                events.extend(hatch_events)
-                evo_events = self._check_growth(mon)
-                events.extend(evo_events)
-            self.save()
+                threshold = PokemonBalance.EGG_HATCH_THRESHOLD
+                if egg_usage >= threshold:
+                    mon, hatch_events = self.hatch_egg(initial_xp=egg_usage - threshold)
+                    events.extend(hatch_events)
+                    evo_events = self._check_growth(mon)
+                    events.extend(evo_events)
+                self.save()
         else:
             active.used_at_stage += effective_xp
 
@@ -414,13 +633,29 @@ class CompanionEngine:
                             sub_mon = StorageManager.dict_to_mon(m_data)
                             if sub_mon and sub_mon.base_id != active.base_id and sub_mon.stage_index < len(sub_mon.path_ids) - 1:
                                 sub_mon.used_at_stage += shared_xp
-                                sub_evos = self._check_growth(sub_mon)
+                                sub_evos = self._check_growth(sub_mon, is_active=False)
                                 events.extend(sub_evos)
                                 d["mon_state"] = StorageManager.mon_to_dict(sub_mon)
 
-        # Update active Rocket Operation progress
-        if effective_xp > 0 and self.state.get("rocket_story_unlocked", False):
-            self._update_rocket_operations(effective_xp, events)
+        # Check Corrupted EXP Splitter armory item
+        if self.state.get("has_exp_splitter", False) and effective_xp > 0:
+            splitter_xp = int(effective_xp * 0.25)
+            active_base = active.base_id if active else None
+            dex = self.state.get("dex", [])
+            for d in dex:
+                if d.get("status") not in ["graduated", "evolved"]:
+                    m_data = d.get("mon_state")
+                    if m_data:
+                        sub_mon = StorageManager.dict_to_mon(m_data)
+                        if sub_mon and (active_base is None or sub_mon.base_id != active_base):
+                            sub_mon.used_at_stage += splitter_xp
+                            sub_evos = self._check_growth(sub_mon, is_active=False)
+                            events.extend(sub_evos)
+                            d["mon_state"] = StorageManager.mon_to_dict(sub_mon)
+
+        # Update active Rocket Operation progress (tracks raw coding tokens delta)
+        if delta > 0 and self.state.get("rocket_story_unlocked", False):
+            self._update_rocket_operations(delta, events)
 
         # Check for Rocket story unlock
         unlocked, alert_msg = self.check_rocket_story_unlock()
@@ -437,6 +672,8 @@ class CompanionEngine:
                 if e not in alerts:  # basic deduplication for safety
                     alerts.append(e)
             self.state["unread_alerts"] = alerts
+            self.save()
+        elif delta > 0:
             self.save()
 
         return events
@@ -499,7 +736,7 @@ class CompanionEngine:
                                 cd["days_elapsed"] = cd.get("days_elapsed", 0) + days_to_advance
                                 if cd["days_elapsed"] >= cd["term_days"]:
                                     cd["matured"] = True
-                                    events.append(f"🏦 Certificate of Deposit #{cd['id']} ({cd['term_days']}d) has MATURED! Total Value: {format_tokens(cd['current_value'])} tokens (Type 'cd claim {cd['id']}')")
+                                    events.append(f"🏦 Certificate of Deposit [{cd['id']}] ({cd['term_days']}d) has MATURED! Total Value: {format_tokens(cd['current_value'])} tokens (Type 'cd claim {cd['id']}')")
 
                         # Process Corporate Stock Market Rollover & Dynamic Dividends
                         self._rollover_stock_market(days_to_apply, diff, current_streak, events)
@@ -557,8 +794,94 @@ class CompanionEngine:
                                         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + take_from_avail
                                         remaining_loan -= take_from_avail
                                         events.append(f"🚨 REPOSSESSION: Confiscated {format_tokens(take_from_avail)} spendable tokens.")
-                                
-                                # 3. Liquidate Bag
+
+                                # 3. Liquidate Term Deposits (CDs)
+                                if remaining_loan > 0:
+                                    cds = self.state.get("term_deposits", [])
+                                    if cds:
+                                        matured_cds = [c for c in cds if c.get("matured")]
+                                        unmatured_cds = [c for c in cds if not c.get("matured")]
+                                        ordered_cds = matured_cds + unmatured_cds
+
+                                        repossessed_cds = []
+                                        total_cd_seized = 0
+
+                                        for cd in ordered_cds:
+                                            if remaining_loan <= 0:
+                                                break
+
+                                            if cd.get("matured"):
+                                                cd_val = cd.get("current_value", cd.get("principal", 0))
+                                            else:
+                                                # Early break: 10% penalty, forfeits accrued interest
+                                                cd_val = int(cd.get("principal", 0) * 0.90)
+
+                                            if cd_val <= 0:
+                                                repossessed_cds.append(cd)
+                                                continue
+
+                                            take = min(remaining_loan, cd_val)
+                                            remaining_loan -= take
+                                            total_cd_seized += take
+                                            repossessed_cds.append(cd)
+
+                                            if cd_val > take:
+                                                surplus = cd_val - take
+                                                self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - surplus
+                                                events.append(f"🏦 Repossession refund: {format_tokens(surplus)} excess CD proceeds returned.")
+
+                                        self.state["term_deposits"] = [c for c in cds if c not in repossessed_cds]
+                                        if total_cd_seized > 0:
+                                            events.append(f"🚨 REPOSSESSION: Liquidated {len(repossessed_cds)} CD(s) for {format_tokens(total_cd_seized)} tokens.")
+
+                                # 4. Liquidate Corporate Stocks
+                                if remaining_loan > 0:
+                                    invs = self.state.get("investments", {})
+                                    sm = self.get_or_init_stock_market()
+                                    sm_prices = sm.get("prices", {})
+                                    cost_basis = sm.setdefault("cost_basis", {})
+
+                                    total_stock_seized = 0
+                                    stock_liquidated_notes = []
+
+                                    for corp_key in list(invs.keys()):
+                                        if remaining_loan <= 0:
+                                            break
+                                        shares_owned = invs.get(corp_key, 0)
+                                        if shares_owned <= 0:
+                                            continue
+
+                                        corp_info = CORPORATIONS.get(corp_key)
+                                        curr_price = sm_prices.get(corp_key, corp_info.share_price if corp_info else 10_000_000)
+                                        # 10% liquidation fee / market spread (standard divest payout)
+                                        per_share_val = int(curr_price * 0.90)
+                                        if per_share_val <= 0:
+                                            continue
+
+                                        needed_shares = min(shares_owned, (remaining_loan + per_share_val - 1) // per_share_val)
+                                        gross_payout = needed_shares * per_share_val
+                                        take = min(remaining_loan, gross_payout)
+
+                                        avg_cost = cost_basis.get(corp_key, 0) // shares_owned if shares_owned > 0 else 0
+                                        cost_basis[corp_key] = max(0, cost_basis.get(corp_key, 0) - (needed_shares * avg_cost))
+                                        invs[corp_key] -= needed_shares
+
+                                        remaining_loan -= take
+                                        total_stock_seized += take
+
+                                        ticker = corp_info.ticker if corp_info else corp_key.upper()
+                                        stock_liquidated_notes.append(f"{needed_shares} {ticker}")
+
+                                        if gross_payout > take:
+                                            surplus = gross_payout - take
+                                            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - surplus
+                                            events.append(f"🏦 Repossession refund: {format_tokens(surplus)} excess stock proceeds returned.")
+
+                                    self.state["investments"] = invs
+                                    if total_stock_seized > 0:
+                                        events.append(f"🚨 REPOSSESSION: Liquidated {', '.join(stock_liquidated_notes)} for {format_tokens(total_stock_seized)} tokens.")
+
+                                # 5. Liquidate Bag
                                 if remaining_loan > 0:
                                     inv = self.state.get("inventory", {})
                                     items_to_sell = list(inv.keys())
@@ -584,18 +907,28 @@ class CompanionEngine:
                                         if inv[item_key] <= 0:
                                             del inv[item_key]
                                             
-                                        remaining_loan -= (sell_qty * sell_val)
-                                        liquidated_value += (sell_qty * sell_val)
+                                        take = min(remaining_loan, sell_qty * sell_val)
+                                        surplus = (sell_qty * sell_val) - take
+                                        remaining_loan -= take
+                                        liquidated_value += take
+
+                                        if surplus > 0:
+                                            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - surplus
+                                            events.append(f"🏦 Repossession refund: {format_tokens(surplus)} excess item proceeds returned.")
                                         
                                     if liquidated_value > 0:
                                         events.append(f"🚨 REPOSSESSION: Liquidated inventory items for {format_tokens(liquidated_value)} tokens.")
                                     self.state["inventory"] = inv
                                 
-                                # 4. Forgive remaining debt
+                                # 6. Forgive remaining debt
+                                if remaining_loan > 0:
+                                    events.append(f"🏦 REPOSSESSION: {format_tokens(remaining_loan)} in unrecoverable loan debt was discharged.")
+                                else:
+                                    events.append("🏦 REPOSSESSION: Outstanding loan debt was fully settled through asset liquidation.")
                                 self.state["bank_loan"] = 0
                                 self.state["loan_days_active"] = 0
                                 
-                                # 5. Distressed Companion(s)
+                                # 7. Distressed Companion(s)
                                 dex = self.state.get("dex", [])
                                 for d in dex:
                                     if d.get("status") != "evolved":
@@ -875,7 +1208,7 @@ class CompanionEngine:
         self.save()
         return events
 
-    def _check_growth(self, mon: MonState) -> List[str]:
+    def _check_growth(self, mon: MonState, is_active: bool = True, now: Optional[datetime.datetime] = None) -> List[str]:
         events = []
         diff = self.current_difficulty
         dex = self.state.get("dex", [])
@@ -886,19 +1219,28 @@ class CompanionEngine:
         # If holding Everstone, cap XP at threshold and halt evolution
         if mon.stage_index < len(mon.path_ids) - 1 and mon.held_item == "everstone":
             mon.used_at_stage = min(mon.used_at_stage, target_xp)
-            self.set_active_mon(mon)
+            if is_active:
+                self.set_active_mon(mon)
             return events
 
         # If next evolution stage already exists in Pokédex, automatically halt evolution
         if mon.stage_index < len(mon.path_ids) - 1:
-            next_sp_id = mon.path_ids[mon.stage_index + 1]
+            next_sp_id = self.get_next_evolution_id(mon, now=now)
             if next_sp_id in discovered_sp_ids:
                 mon.used_at_stage = min(mon.used_at_stage, target_xp)
-                self.set_active_mon(mon)
+                if is_active:
+                    self.set_active_mon(mon)
                 return events
 
         while mon.used_at_stage >= target_xp:
             if mon.stage_index < len(mon.path_ids) - 1:
+                next_sp_id = self.get_next_evolution_id(mon, now=now)
+                if next_sp_id in discovered_sp_ids:
+                    mon.used_at_stage = min(mon.used_at_stage, target_xp)
+                    if is_active:
+                        self.set_active_mon(mon)
+                    return events
+
                 # Evolve to next stage!
                 prev_name = self.api.get_species_name(mon.current_id)
                 mon.used_at_stage -= target_xp
@@ -922,8 +1264,9 @@ class CompanionEngine:
                 evo_str = f"🎉 Evolution! {shiny_str}{prev_name} evolved into {shiny_str}{mon_name} (#{new_id})!"
                 events.append(evo_str)
                 self.state["last_evolution"] = f"{shiny_str}{prev_name} evolved into {shiny_str}{mon_name} (#{new_id})!"
+                self.state["last_milestone"] = self.state["last_evolution"]
                 events.extend(self._progress_quest_by_type("progression"))
-                self._register_to_dex(mon, status="active")
+                self._register_to_dex(mon, status="active" if is_active else "inactive")
                 target_xp = PokemonBalance.phase_threshold(mon.rarity, mon.total_forms, mon.stage_index, diff)
             else:
                 # Final form check
@@ -932,7 +1275,8 @@ class CompanionEngine:
                 if is_already_grad:
                     mon.is_graduated = True
                     mon.used_at_stage = min(mon.used_at_stage, target_xp)
-                    self.set_active_mon(mon)
+                    if is_active:
+                        self.set_active_mon(mon)
                     return events
 
                 # Final form + reached graduation threshold for the first time!
@@ -941,26 +1285,29 @@ class CompanionEngine:
                 grad_str = f"🎓 Graduation! {shiny_str}{mon_name} has graduated to your Pokédex!"
                 events.append(grad_str)
                 self.state["last_evolution"] = f"{shiny_str}{mon_name} graduated to Pokédex!"
+                self.state["last_milestone"] = self.state["last_evolution"]
 
                 # Add to Pokédex as graduated
                 mon.is_graduated = True
                 self._register_to_dex(mon, status="graduated")
                 
-                # Reset to new egg
-                self.set_active_mon(None)
-                pending = self.state.get("pending_eggs", [])
-                if pending:
-                    next_egg = pending.pop(0)
-                    self.state["egg_tier"] = next_egg
-                    self.state["pending_eggs"] = pending
-                    events.append(f"🥚 Next in queue: Now incubating your {next_egg.replace('_', ' ').title()} Egg!")
-                else:
-                    self.state["egg_tier"] = None
-                self.state["egg_usage"] = 0
-                self.save()
+                if is_active:
+                    # Reset to new egg
+                    self.set_active_mon(None)
+                    pending = self.state.get("pending_eggs", [])
+                    if pending:
+                        next_egg = pending.pop(0)
+                        self.state["egg_tier"] = next_egg
+                        self.state["pending_eggs"] = pending
+                        events.append(f"🥚 Next in queue: Now incubating your {next_egg.replace('_', ' ').title()} Egg!")
+                    else:
+                        self.state["egg_tier"] = None
+                    self.state["egg_usage"] = 0
+                    self.save()
                 return events
 
-        self.set_active_mon(mon)
+        if is_active:
+            self.set_active_mon(mon)
         return events
 
     def _register_to_dex(self, mon: MonState, status: str = "active"):
@@ -1087,6 +1434,15 @@ class CompanionEngine:
             self.state["collected_finals"] = list(collected)
 
         self.save()
+ 
+    def get_red_battle_active_pokemon_ids(self) -> Set[int]:
+        """Returns the set of Pokémon species IDs currently fighting Red on Mt. Silver."""
+        st = self.state.get("red_battle_state", {})
+        if not st:
+            return set()
+        if st.get("status") in ["win", "loss"]:
+            return set()
+        return set(st.get("player_team", []))
 
     def select_active_from_dex(self, selection_input: str) -> Tuple[bool, str]:
         # Handle 'select egg' or 'select 0'
@@ -1156,6 +1512,11 @@ class CompanionEngine:
         if any(e.get("sp_id") == sp_id for e in expeditions):
             return False, f"Cannot select {sp_name}! They are currently on an expedition."
 
+        # Prevent selecting a companion currently in battle with Red
+        red_team_ids = self.get_red_battle_active_pokemon_ids()
+        if sp_id in red_team_ids:
+            return False, f"Cannot select {sp_name}! They are currently in battle with Red on Mt. Silver."
+
         # Prevent selecting a companion that has already evolved into a higher form
         entry_status = target_entry.get("status", "")
         chain = target_entry.get("chain_order", [])
@@ -1211,8 +1572,9 @@ class CompanionEngine:
         # Check if this species is an already-evolved pre-evolution stage
         target_xp = PokemonBalance.phase_threshold(mon.rarity, mon.total_forms, mon.stage_index, diff)
         discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
+        next_evo_id = self.get_next_evolution_id(mon)
         is_already_evolved = is_already_grad or (target_entry.get("status") in ["evolved", "graduated"]) or \
-                            (mon.stage_index < len(mon.path_ids) - 1 and mon.path_ids[mon.stage_index + 1] in discovered_sp_ids)
+                            (next_evo_id is not None and next_evo_id in discovered_sp_ids)
 
         if is_already_evolved:
             mon.used_at_stage = target_xp
@@ -1236,14 +1598,8 @@ class CompanionEngine:
         self.state.pop("incubating_eggs", None)
         self.state.pop("current_egg_tier", None)
         
-        if used_tier == "mysterious fetal form":
-            base_id = 151
-            rarity = Rarity.LEGENDARY
-            chain_ids = [151]
-            is_legendary = True
-        else:
-            # Select base species
-            base_id, rarity, chain_ids, is_legendary = self._pick_species(used_tier)
+        # Select base species
+        base_id, rarity, chain_ids, is_legendary = self._pick_species(used_tier)
 
         # Roll Shiny odds (1/64 base, 1/32 for paradox, or 1/24 with Golden Razz Berry)
         denom = 32 if used_tier == "paradox" else 64
@@ -1286,12 +1642,16 @@ class CompanionEngine:
         self.set_active_mon(mon)
         self._register_to_dex(mon, status="active")
 
+        hatch_milestone = f"Egg Hatched! You got a {shiny_str}{species_name} (#{base_id})!"
+        self.state["last_evolution"] = hatch_milestone
+        self.state["last_milestone"] = hatch_milestone
+
         events.append(f"🐣 Egg Hatched! You got a {shiny_str}{species_name} (#{base_id})! Nature: {nature_str}, Rarity: {rarity.value.upper()}")
         events.extend(self._progress_quest_by_type("progression"))
         return mon, events
 
     def _pick_species(self, tier_guarantee: Optional[str] = None) -> Tuple[int, Rarity, List[int], bool]:
-        # 1. Collect all owned species IDs, base IDs, and chain IDs across Pokédex and Active Companion
+        # 1. Collect all owned species IDs, base IDs, and chain IDs across Pokédex, Active Companion, and Roster
         owned_ids = set()
         dex = self.state.get("dex", [])
         for d in dex:
@@ -1319,17 +1679,57 @@ class CompanionEngine:
                 for p_id in mon_st.get("path_ids", []):
                     try: owned_ids.add(int(p_id))
                     except (ValueError, TypeError): pass
+                for pl_id in mon_st.get("planned_path_ids", []):
+                    try: owned_ids.add(int(pl_id))
+                    except (ValueError, TypeError): pass
 
         active = self.active_mon
         if active:
             try: owned_ids.add(int(active.base_id))
             except (ValueError, TypeError): pass
-            for p_id in active.path_ids:
+            try: owned_ids.add(int(active.current_id))
+            except (ValueError, TypeError): pass
+            for p_id in getattr(active, "path_ids", []):
+                try: owned_ids.add(int(p_id))
+                except (ValueError, TypeError): pass
+            for pl_id in getattr(active, "planned_path_ids", []):
+                try: owned_ids.add(int(pl_id))
+                except (ValueError, TypeError): pass
+
+        act_st = self.state.get("active_mon")
+        if isinstance(act_st, dict):
+            if act_st.get("base_id"):
+                try: owned_ids.add(int(act_st["base_id"]))
+                except (ValueError, TypeError): pass
+            if act_st.get("current_id"):
+                try: owned_ids.add(int(act_st["current_id"]))
+                except (ValueError, TypeError): pass
+            for p_id in act_st.get("path_ids", []):
+                try: owned_ids.add(int(p_id))
+                except (ValueError, TypeError): pass
+            for pl_id in act_st.get("planned_path_ids", []):
+                try: owned_ids.add(int(pl_id))
+                except (ValueError, TypeError): pass
+
+        for item in self.state.get("collected_finals", []):
+            if isinstance(item, str) and "_" in item:
+                parts = item.split("_")
+                for p in parts:
+                    try: owned_ids.add(int(p))
+                    except (ValueError, TypeError): pass
+
+        for exp in self.state.get("expeditions", []):
+            p_id = exp.get("pokemon_id") or exp.get("species_id") or exp.get("base_id")
+            if p_id:
                 try: owned_ids.add(int(p_id))
                 except (ValueError, TypeError): pass
 
         # 2. Select candidate pool based on tier guarantee
-        if tier_guarantee == "legendary":
+        if tier_guarantee == "mysterious fetal form":
+            if 151 not in owned_ids:
+                return 151, Rarity.LEGENDARY, [151], True
+            candidates = [c for c in BASE_SPECIES_STARTERS if c[3]]
+        elif tier_guarantee == "legendary":
             candidates = [c for c in BASE_SPECIES_STARTERS if c[3]]
         elif tier_guarantee == "fossil":
             fossil_ids = {138, 140, 142, 345, 347, 408, 410, 564, 566, 696, 698}
@@ -1338,7 +1738,7 @@ class CompanionEngine:
             dragon_ids = {147, 371, 443, 610, 633, 704, 782}
             candidates = [c for c in BASE_SPECIES_STARTERS if c[0] in dragon_ids]
         elif tier_guarantee == "shadow_fetal":
-            candidates = [c for c in BASE_SPECIES_STARTERS if c[0] in {151, 251}]
+            candidates = [c for c in BASE_SPECIES_STARTERS if c[0] == 251]
         elif tier_guarantee == "starter":
             starter_ids = {1, 4, 7, 152, 155, 158, 252, 255, 258, 387, 390, 393, 495, 498, 501, 650, 653, 656, 722, 725, 728}
             candidates = [c for c in BASE_SPECIES_STARTERS if c[0] in starter_ids]
@@ -1366,57 +1766,194 @@ class CompanionEngine:
 
         # 4. Fallback if requested tier is exhausted: search unowned species from broader pool
         if not filtered_candidates:
-            if tier_guarantee == "legendary":
-                # If all legendaries are owned, find any unowned rare/pseudo-legendary species
-                filtered_candidates = [c for c in BASE_SPECIES_STARTERS if c[0] not in owned_ids]
+            if tier_guarantee in ("legendary", "mysterious fetal form", "shadow_fetal"):
+                # If requested legendary/mythical pool is exhausted, search any unowned legendary
+                filtered_candidates = [c for c in BASE_SPECIES_STARTERS if c[3] and c[0] not in owned_ids]
+                # If all legendaries are owned, find any unowned species
+                if not filtered_candidates:
+                    filtered_candidates = [c for c in BASE_SPECIES_STARTERS if c[0] not in owned_ids]
             else:
                 # If tier pool is exhausted, search any unowned non-legendary species
                 filtered_candidates = [c for c in BASE_SPECIES_STARTERS if not c[3] and c[0] not in owned_ids]
+                # If all non-legendaries are owned, search any unowned species (including legendaries)
+                if not filtered_candidates:
+                    filtered_candidates = [c for c in BASE_SPECIES_STARTERS if c[0] not in owned_ids]
 
         # 5. True 100% full-game completion fallback (only occurs if player literally owns all 150+ species)
         if not filtered_candidates:
             filtered_candidates = candidates
 
-        # Use capture rate as weight for random selection
-        weights = [c[2] for c in filtered_candidates]
-        chosen = random.choices(filtered_candidates, weights=weights, k=1)[0]
+        # Select species and verify evolutionary family has no overlap with owned_ids
+        while filtered_candidates:
+            weights = [c[2] for c in filtered_candidates]
+            chosen = random.choices(filtered_candidates, weights=weights, k=1)[0]
+            sp_id, name, cap_rate, is_leg = chosen
+            rarity = Rarity.from_capture_rate(cap_rate, is_leg)
 
-        sp_id, name, cap_rate, is_leg = chosen
-        rarity = Rarity.from_capture_rate(cap_rate, is_leg)
+            # Try to query evolution chain from API
+            chain_ids = [sp_id]
+            sp_data = self.api.get_pokemon_species(sp_id)
+            if sp_data and "evolution_chain" in sp_data:
+                chain_url = sp_data["evolution_chain"]["url"]
+                try:
+                    chain_id = int(chain_url.rstrip("/").split("/")[-1])
+                    evo_data = self.api.get_evolution_chain(chain_id)
+                    if evo_data:
+                        chain_ids = self._parse_evo_tree(evo_data["chain"])
+                except Exception:
+                    pass
 
-        # Try to query evolution chain from API
-        chain_ids = [sp_id]
-        sp_data = self.api.get_pokemon_species(sp_id)
+            if not chain_ids:
+                chain_ids = [sp_id]
+
+            # If there's any overlap with owned_ids and we have alternative candidates, skip this candidate
+            if any(cid in owned_ids for cid in chain_ids) and len(filtered_candidates) > 1:
+                filtered_candidates.remove(chosen)
+                continue
+
+            return sp_id, rarity, chain_ids, is_leg
+
+        return chosen[0], rarity, chain_ids, chosen[3]
+
+    def get_current_time_of_day(self, now: Optional[datetime.datetime] = None) -> str:
+        return get_current_time_of_day(now)
+
+    def is_time_based_evolution(self, mon: MonState) -> bool:
+        """Returns True if the Pokémon has a time-based branching or conditional evolution at current stage."""
+        if not mon or mon.stage_index >= len(mon.path_ids) - 1:
+            return False
+        if mon.current_id in TIME_BASED_BRANCH_OVERRIDES:
+            return True
+        sp_data = self.api.get_pokemon_species(mon.current_id)
         if sp_data and "evolution_chain" in sp_data:
-            chain_url = sp_data["evolution_chain"]["url"]
             try:
+                chain_url = sp_data["evolution_chain"]["url"]
                 chain_id = int(chain_url.rstrip("/").split("/")[-1])
                 evo_data = self.api.get_evolution_chain(chain_id)
                 if evo_data:
-                    chain_ids = self._parse_evo_tree(evo_data["chain"])
+                    def check_chain_tod(node, target_id):
+                        nid = int(node["species"]["url"].rstrip("/").split("/")[-1])
+                        if nid == target_id:
+                            for b in node.get("evolves_to", []):
+                                for det in b.get("evolution_details", []):
+                                    if det.get("time_of_day"):
+                                        return True
+                            return False
+                        for b in node.get("evolves_to", []):
+                            if check_chain_tod(b, target_id):
+                                return True
+                        return False
+                    return check_chain_tod(evo_data["chain"], mon.current_id)
             except Exception:
                 pass
+        return False
 
-        if not chain_ids:
-            chain_ids = [sp_id]
+    def _resolve_dynamic_evolution(self, mon: MonState, now: Optional[datetime.datetime] = None) -> Optional[int]:
+        """Resolves target evolution ID based on current time of day ('day' or 'night')."""
+        if not mon:
+            return None
+        tod = self.get_current_time_of_day(now)
+        # 1. Canonical time branch overrides (e.g. Cosmoem -> Solgaleo/Lunala, Eevee -> Espeon/Umbreon)
+        if mon.current_id in TIME_BASED_BRANCH_OVERRIDES:
+            return TIME_BASED_BRANCH_OVERRIDES[mon.current_id].get(tod)
 
-        return sp_id, rarity, chain_ids, is_leg
+        # 2. Generic PokeAPI evolution chain time_of_day inspection
+        sp_data = self.api.get_pokemon_species(mon.current_id)
+        if sp_data and "evolution_chain" in sp_data:
+            try:
+                chain_url = sp_data["evolution_chain"]["url"]
+                chain_id = int(chain_url.rstrip("/").split("/")[-1])
+                evo_data = self.api.get_evolution_chain(chain_id)
+                if evo_data:
+                    def find_tod_target(node, target_id):
+                        nid = int(node["species"]["url"].rstrip("/").split("/")[-1])
+                        if nid == target_id:
+                            for b in node.get("evolves_to", []):
+                                for det in b.get("evolution_details", []):
+                                    if det.get("time_of_day") == tod:
+                                        return int(b["species"]["url"].rstrip("/").split("/")[-1])
+                            return None
+                        for b in node.get("evolves_to", []):
+                            res = find_tod_target(b, target_id)
+                            if res is not None:
+                                return res
+                        return None
+                    return find_tod_target(evo_data["chain"], mon.current_id)
+            except Exception:
+                pass
+        return None
 
-    def _parse_evo_tree(self, chain_node: Dict[str, Any]) -> List[int]:
+    def get_next_evolution_id(self, mon: MonState, now: Optional[datetime.datetime] = None) -> Optional[int]:
+        """Resolves the next evolution ID for mon, updating path_ids dynamically if time-based."""
+        if not mon or mon.stage_index >= len(mon.path_ids) - 1:
+            return None
+
+        dynamic_target = self._resolve_dynamic_evolution(mon, now)
+        if dynamic_target is not None:
+            next_idx = mon.stage_index + 1
+            if next_idx < len(mon.path_ids):
+                mon.path_ids[next_idx] = dynamic_target
+            else:
+                mon.path_ids.append(dynamic_target)
+            if hasattr(mon, "planned_path_ids") and isinstance(mon.planned_path_ids, list):
+                if next_idx < len(mon.planned_path_ids):
+                    mon.planned_path_ids[next_idx] = dynamic_target
+                else:
+                    mon.planned_path_ids.append(dynamic_target)
+            return dynamic_target
+
+        if mon.stage_index < len(mon.path_ids) - 1:
+            return mon.path_ids[mon.stage_index + 1]
+        return None
+
+    def _parse_evo_tree(self, chain_node: Dict[str, Any], now: Optional[datetime.datetime] = None) -> List[int]:
         ids = []
         try:
             sp_url = chain_node["species"]["url"]
             sp_id = int(sp_url.rstrip("/").split("/")[-1])
             ids.append(sp_id)
             if chain_node.get("evolves_to"):
-                # Pick first evolution branch
-                next_node = chain_node["evolves_to"][0]
-                ids.extend(self._parse_evo_tree(next_node))
+                tod = self.get_current_time_of_day(now)
+                next_node = None
+                # Check canonical time branch override first
+                if sp_id in TIME_BASED_BRANCH_OVERRIDES:
+                    target_id = TIME_BASED_BRANCH_OVERRIDES[sp_id].get(tod)
+                    for b in chain_node["evolves_to"]:
+                        b_id = int(b["species"]["url"].rstrip("/").split("/")[-1])
+                        if b_id == target_id:
+                            next_node = b
+                            break
+
+                # Check generic PokeAPI time_of_day if no override match
+                if next_node is None:
+                    for b in chain_node["evolves_to"]:
+                        for det in b.get("evolution_details", []):
+                            if det.get("time_of_day") == tod:
+                                next_node = b
+                                break
+                        if next_node is not None:
+                            break
+
+                # Fallback to first branch
+                if next_node is None:
+                    next_node = chain_node["evolves_to"][0]
+
+                ids.extend(self._parse_evo_tree(next_node, now))
         except Exception:
             pass
         return ids
 
     def _find_stone_evolution(self, current_id: int, api_item_name: str) -> Optional[int]:
+        # Thematic stone overrides (e.g. Sun Stone -> Solgaleo, Moon Stone -> Lunala for Cosmoem)
+        stone_overrides = {
+            790: {
+                "sun-stone": 791,
+                "moon-stone": 792,
+            }
+        }
+        if current_id in stone_overrides and api_item_name in stone_overrides[current_id]:
+            return stone_overrides[current_id][api_item_name]
+
         sp_data = self.api.get_pokemon_species(current_id)
         if not sp_data or "evolution_chain" not in sp_data:
             return None
@@ -1657,6 +2194,94 @@ class CompanionEngine:
                 msg += f"\n{quests_msg}"
             return True, msg
 
+        # Special Rocket Consumable: Dark Gene Catalyst
+        elif item_val == "dark_gene_catalyst":
+            if not active:
+                return False, "You need an active Pokémon companion to use Dark Gene Catalyst!"
+            if active.held_item == "everstone":
+                return False, "Your companion is holding an Everstone! It cannot evolve."
+
+            target_evo_id = None
+            if active.stage_index < len(active.path_ids) - 1:
+                target_evo_id = self.get_next_evolution_id(active)
+            else:
+                # Check for branching evolutions in PokeAPI evolution chain
+                sp_data = self.api.get_pokemon_species(active.current_id)
+                if sp_data and "evolution_chain" in sp_data:
+                    try:
+                        chain_url = sp_data["evolution_chain"]["url"]
+                        chain_id = int(chain_url.rstrip("/").split("/")[-1])
+                        evo_data = self.api.get_evolution_chain(chain_id)
+                        if evo_data:
+                            tod = self.get_current_time_of_day()
+                            def find_next(node, tid):
+                                nid = int(node["species"]["url"].rstrip("/").split("/")[-1])
+                                if nid == tid:
+                                    if tid in TIME_BASED_BRANCH_OVERRIDES:
+                                        target_tod = TIME_BASED_BRANCH_OVERRIDES[tid].get(tod)
+                                        for b in node.get("evolves_to", []):
+                                            if int(b["species"]["url"].rstrip("/").split("/")[-1]) == target_tod:
+                                                return target_tod
+                                    for b in node.get("evolves_to", []):
+                                        for det in b.get("evolution_details", []):
+                                            if det.get("time_of_day") == tod:
+                                                return int(b["species"]["url"].rstrip("/").split("/")[-1])
+                                    for b in node.get("evolves_to", []):
+                                        return int(b["species"]["url"].rstrip("/").split("/")[-1])
+                                    return None
+                                for b in node.get("evolves_to", []):
+                                    res = find_next(b, tid)
+                                    if res: return res
+                                return None
+                            target_evo_id = find_next(evo_data["chain"], active.current_id)
+                    except Exception:
+                        pass
+
+            if not target_evo_id:
+                return False, f"{self.api.get_species_name(active.current_id)} has already reached its final evolutionary stage!"
+
+            # Block evolution if target form already exists in Pokédex
+            dex = self.state.get("dex", [])
+            discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
+            if target_evo_id in discovered_sp_ids:
+                next_name = self.api.get_species_name(target_evo_id)
+                return False, f"Cannot evolve into {next_name}! {next_name} (#{target_evo_id}) already exists in your Pokédex."
+
+            inv[item_val] -= 1
+            if inv[item_val] <= 0:
+                del inv[item_val]
+
+            prev_name = self.api.get_species_name(active.current_id)
+            active.stage_index += 1
+
+            if active.stage_index >= len(active.path_ids):
+                active.path_ids.append(target_evo_id)
+            else:
+                active.path_ids[active.stage_index] = target_evo_id
+                active.path_ids = active.path_ids[:active.stage_index + 1]
+
+            active.total_forms = len(active.path_ids)
+            new_name = self.api.get_species_name(target_evo_id)
+
+            sp_data = self.api.get_pokemon_species(target_evo_id)
+            if sp_data:
+                cap_rate = sp_data.get("capture_rate", 255)
+                is_leg = sp_data.get("is_legendary", False) or sp_data.get("is_mythical", False)
+                active.rarity = Rarity.from_capture_rate(cap_rate, is_leg)
+
+            active.used_at_stage = 0
+            self._register_to_dex(active, status="active")
+            self.set_active_mon(active)
+            self.state["inventory"] = inv
+            self.save()
+
+            shiny_str = "✨ Shiny " if active.is_shiny else ""
+            quests_msg = "\n".join(self._progress_quest_by_type("progression"))
+            msg = f"🧬 Dark Gene Catalyst triggered cellular mutation! {shiny_str}{prev_name} evolved into {shiny_str}{new_name} (#{target_evo_id})!"
+            if quests_msg:
+                msg += f"\n{quests_msg}"
+            return True, msg
+
         # 3. Consumables (Tonics, Ash, Whistle, Radar, Insurance)
         elif item_val == "revitalizing_tonic":
             if not active:
@@ -1672,11 +2297,10 @@ class CompanionEngine:
         elif item_val == "sacred_ash":
             inv[item_val] -= 1
             if inv[item_val] <= 0: del inv[item_val]
-            red_state = self.state.get("red_battle", {})
-            if red_state and "player_team_hps" in red_state:
-                for i in range(len(red_state.get("player_team_hps", []))):
-                    red_state["player_team_hps"][i] = 100_000
-                self.state["red_battle"] = red_state
+            red_state = self.state.get("red_battle_state", {})
+            if red_state and "player_hps" in red_state and "player_max_hps" in red_state:
+                red_state["player_hps"] = list(red_state["player_max_hps"])
+                self.state["red_battle_state"] = red_state
             self.state["inventory"] = inv
             self.save()
             return True, "🏺 Sacred Ash sprinkled! All Pokémon on your Mt. Silver roster have been fully restored and revived to peak strength!"
@@ -2263,6 +2887,18 @@ class CompanionEngine:
                 logs.append(f"[{now_str}] {sp_name}: {reward_str} | +{format_tokens(tokens_gain)} 🪙 | +{format_tokens(xp_gain)} XP")
                 self.state["expedition_logs"] = logs[-3:]
                 self._record_catalyst("expeditions_completed", 1)
+
+                # Progress active Rocket Operation #1 ONLY if status is active
+                ops = self.state.get("rocket_ops", {})
+                if ops.get("op_1", {}).get("status") == "active" and not ops.get("op_1", {}).get("claimed", False):
+                    ops["op_1"]["expeditions_done"] = ops["op_1"].get("expeditions_done", 0) + 1
+                    done_count = ops["op_1"]["expeditions_done"]
+                    if done_count >= 2:
+                        ops["op_1"]["objective_done"] = True
+                        events.append("🎯 Rocket Operation Directive complete: 2 scout expeditions logged!")
+                    else:
+                        events.append(f"🎯 Rocket Operation Directive: Scout expedition logged ({done_count}/2)!")
+
                 events.append(f"🗺️ {sp_name} finished {area}: {reward_str} | +{format_tokens(tokens_gain)} 🪙 | +{format_tokens(xp_gain)} XP")
             else:
                 remaining.append(exp)
@@ -2444,6 +3080,10 @@ class CompanionEngine:
             if any(e.get("sp_id") == sp_id for e in expeditions):
                 return False, f"{sp_name} is already on an expedition!"
 
+            red_team_ids = self.get_red_battle_active_pokemon_ids()
+            if sp_id in red_team_ids:
+                return False, f"Cannot dispatch {sp_name}! They are currently in battle with Red on Mt. Silver."
+
             mon_state_dict = target_entry.get("mon_state", {})
             if isinstance(mon_state_dict, dict) and "happiness" in mon_state_dict:
                 current_hap = mon_state_dict["happiness"]
@@ -2522,6 +3162,11 @@ class CompanionEngine:
 
             if any(e.get("sp_id") == sp_id for e in expeditions):
                 skipped_notes.append(f"{sp_name} (already deployed)")
+                continue
+
+            red_team_ids = self.get_red_battle_active_pokemon_ids()
+            if sp_id in red_team_ids:
+                skipped_notes.append(f"{sp_name} (in Red battle)")
                 continue
 
             mon_state_dict = entry.get("mon_state", {})
@@ -2609,6 +3254,17 @@ class CompanionEngine:
             if player_stage >= req_stage or random.randint(1, 3) != 1:
                 battles["wins"] += 1
                 
+                # Progress active Rocket Operation #2 ONLY if status is active
+                ops = self.state.get("rocket_ops", {})
+                if ops.get("op_2", {}).get("status") == "active" and not ops.get("op_2", {}).get("claimed", False):
+                    ops["op_2"]["battle_wins"] = ops["op_2"].get("battle_wins", 0) + 1
+                    win_count = ops["op_2"]["battle_wins"]
+                    if win_count >= 2:
+                        ops["op_2"]["objective_done"] = True
+                        events.append("🎯 Rocket Operation Directive complete: 2 Trainer Battle wins secured!")
+                    else:
+                        events.append(f"🎯 Rocket Operation Directive: Trainer Battle win logged ({win_count}/2)!")
+
                 if active and active.is_mega:
                     token_reward = 3_000_000
                     reward_str = "3.0M"
@@ -2805,7 +3461,10 @@ class CompanionEngine:
             return False, f"Not enough tokens! You only have {format_tokens(self.available_tokens)} available."
 
         cds = self.state.setdefault("term_deposits", [])
-        next_id = max([c.get("id", 0) for c in cds], default=0) + 1
+        used_ids = {c.get("id", 0) for c in cds}
+        next_id = 1
+        while next_id in used_ids:
+            next_id += 1
         today_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
         cd_entry = {
@@ -2820,13 +3479,14 @@ class CompanionEngine:
         }
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + amount
         cds.append(cd_entry)
+        cds.sort(key=lambda c: c.get("id", 0))
         self.state["term_deposits"] = cds
         self.save()
-        return True, f"🏦 Opened {term_days}-Day CD #{next_id} for {format_tokens(amount)} tokens at {int(rate*100)}%/day interest! (Early break: 10% penalty, forfeits interest)"
+        return True, f"🏦 Opened {term_days}-Day CD [{next_id}] for {format_tokens(amount)} tokens at {int(rate*100)}%/day interest! (Early break: 10% penalty, forfeits interest)"
 
     def claim_cd(self, cd_id_str: str) -> Tuple[bool, str]:
         cds = self.state.get("term_deposits", [])
-        clean_str = cd_id_str.lower().strip()
+        clean_str = cd_id_str.lower().strip().lstrip("#[").rstrip("]")
         if clean_str == "all":
             matured_cds = [c for c in cds if c.get("matured")]
             if not matured_cds:
@@ -2850,12 +3510,16 @@ class CompanionEngine:
                 found = c
                 break
 
-        if not found:
-            return False, f"Certificate of Deposit #{target_id} not found."
+        if not found and 1 <= target_id <= len(cds):
+            found = cds[target_id - 1]
 
+        if not found:
+            return False, f"Certificate of Deposit [{target_id}] not found."
+
+        cd_id = found.get("id", target_id)
         if not found.get("matured"):
             days_left = max(0, found["term_days"] - found.get("days_elapsed", 0))
-            return False, f"CD #{target_id} has not matured yet ({days_left} day(s) remaining)! Type 'cd break {target_id}' for early withdrawal (forfeits interest + 10% penalty)."
+            return False, f"CD [{cd_id}] has not matured yet ({days_left} day(s) remaining)! Type 'cd break {cd_id}' for early withdrawal (forfeits interest + 10% penalty)."
 
         principal = found["principal"]
         val = found["current_value"]
@@ -2864,12 +3528,13 @@ class CompanionEngine:
         cds.remove(found)
         self.state["term_deposits"] = cds
         self.save()
-        return True, f"🏦 Claimed CD #{target_id}! Principal: {format_tokens(principal)} + Interest: {format_tokens(interest)} = {format_tokens(val)} tokens credited to your spendable balance!"
+        return True, f"🏦 Claimed CD [{cd_id}]! Principal: {format_tokens(principal)} + Interest: {format_tokens(interest)} = {format_tokens(val)} tokens credited to your spendable balance!"
 
     def break_cd(self, cd_id_str: str) -> Tuple[bool, str]:
         cds = self.state.get("term_deposits", [])
+        clean_str = cd_id_str.strip().lstrip("#[").rstrip("]")
         try:
-            target_id = int(cd_id_str.strip())
+            target_id = int(clean_str)
         except ValueError:
             return False, "Invalid CD ID. Example: 'cd break 1'."
 
@@ -2879,9 +3544,13 @@ class CompanionEngine:
                 found = c
                 break
 
-        if not found:
-            return False, f"Certificate of Deposit #{target_id} not found."
+        if not found and 1 <= target_id <= len(cds):
+            found = cds[target_id - 1]
 
+        if not found:
+            return False, f"Certificate of Deposit [{target_id}] not found."
+
+        cd_id = found.get("id", target_id)
         principal = found["principal"]
         refund = int(principal * 0.90)
         penalty = principal - refund
@@ -2889,7 +3558,7 @@ class CompanionEngine:
         cds.remove(found)
         self.state["term_deposits"] = cds
         self.save()
-        return True, f"⚠️ Early withdrawal of CD #{target_id}: Forfeited all interest and paid 10% penalty ({format_tokens(penalty)}). Refunded {format_tokens(refund)} tokens to your spendable balance."
+        return True, f"⚠️ Early withdrawal of CD [{cd_id}]: Forfeited all interest and paid 10% penalty ({format_tokens(penalty)}). Refunded {format_tokens(refund)} tokens to your spendable balance."
 
     @staticmethod
     def _resolve_corp_key(code_or_name: str) -> Optional[str]:
@@ -3287,6 +3956,13 @@ class CompanionEngine:
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + total_cost
         deal["stock"] -= qty
 
+        # Progress active Rocket Operation #5 ONLY if status is active
+        ops = self.state.get("rocket_ops", {})
+        if ops.get("op_5", {}).get("status") == "active" and not ops.get("op_5", {}).get("claimed", False):
+            ops["op_5"]["black_market_trades"] = ops["op_5"].get("black_market_trades", 0) + qty
+            if ops["op_5"]["black_market_trades"] >= 1 and len(self.state.get("expeditions", [])) >= 2:
+                ops["op_5"]["objective_done"] = True
+
         if deal_type == "item":
             k = deal["item_key"]
             item_qty = deal.get("qty", 1) * qty
@@ -3353,6 +4029,14 @@ class CompanionEngine:
         return bribe
 
     def bribe_grunt_for_black_market(self) -> Tuple[bool, str]:
+        if self.state.get("permanent_black_market", False):
+            bm = self.get_or_init_black_market(force_open=True)
+            bm["is_open"] = True
+            bm["natural_open"] = True
+            self.state["black_market"] = bm
+            self.save()
+            return True, "📯 Syndicate Black Pass recognized! The Grunt snaps to attention and lets you through free of charge!"
+
         bribe = self.get_daily_grunt_bribe()
         if self.available_tokens < bribe:
             return False, f"You don't have enough tokens to bribe the Grunt! (Required: {format_tokens(bribe)}, Available: {format_tokens(self.available_tokens)})"
@@ -3669,18 +4353,121 @@ class CompanionEngine:
         self.save()
         return True, alert_msg
 
-    def _update_rocket_operations(self, delta_xp: int, events: List[str]):
-        """Accumulates progress toward the active Rocket Operation."""
+    def get_settings(self) -> dict:
+        st = self.state.setdefault("settings", {})
+        st.setdefault("auto_tracking_enabled", True)
+        st.setdefault("refresh_interval", 3.0)
+        return st
+
+    def update_settings(self, auto_tracking_enabled: Optional[bool] = None, refresh_interval: Optional[float] = None) -> Tuple[bool, str]:
+        st = self.get_settings()
+        if auto_tracking_enabled is not None:
+            st["auto_tracking_enabled"] = bool(auto_tracking_enabled)
+        if refresh_interval is not None:
+            try:
+                val = float(refresh_interval)
+                if val < 0.5:
+                    return False, "Refresh interval must be at least 0.5 seconds."
+                st["refresh_interval"] = val
+            except (ValueError, TypeError):
+                return False, "Invalid refresh interval number."
+        self.save()
+        return True, f"Refresh interval set to {st['refresh_interval']} seconds."
+
+    def set_billing_cycle_day(self, day: int) -> Tuple[bool, str]:
+        """Sets the day of the month (1-31) when the monthly token cycle starts."""
+        try:
+            val = int(day)
+            if not (1 <= val <= 31):
+                return False, "Billing cycle day must be between 1 and 31."
+            self.state["billing_cycle_day"] = val
+            self.save()
+            return True, f"Monthly billing cycle anchor set to Day {val} of each month."
+        except (ValueError, TypeError):
+            return False, "Invalid day. Please specify a number between 1 and 31."
+
+    def get_billing_cycle_day(self) -> int:
+        return self.state.get("billing_cycle_day", 1)
+
+    def initialize_total_tokens(self, raw_total: int, date_str: Optional[str] = None) -> Tuple[bool, str]:
+        """Sets the baseline for displayed Total Tokens so it starts from 0, preserving game progression."""
+        self.state["baseline_total_tokens"] = raw_total
+        if date_str is None:
+            date_str = datetime.datetime.now().strftime("%Y-%m-%d")
+        self.state["baseline_date"] = date_str
+        self.save()
+        return True, f"Total tokens usage initialized! Displayed total reset to 0 (baseline: {format_tokens(raw_total)})."
+
+    def clear_total_tokens_baseline(self) -> Tuple[bool, str]:
+        """Clears the baseline offset so displayed Total Tokens shows absolute lifetime tokens."""
+        self.state["baseline_total_tokens"] = 0
+        self.state.pop("baseline_date", None)
+        self.save()
+        return True, "Total tokens baseline cleared. Now displaying lifetime total tokens."
+
+    def initialize_rocket_process(self) -> Tuple[bool, str]:
+        """Initializes or resets the Team Rocket campaign, unlocking Tab 12 and resetting operations."""
+        self.state["rocket_story_unlocked"] = True
+        self.state["rocket_story_viewed"] = False
+        self.state["rocket_alliance_accepted"] = False
+        self.state["rocket_transmission_state"] = "intro"
+        self.state["rocket_rank"] = "Informant"
+        self.state["rocket_reputation"] = 0
+        self.state["rocket_ops"] = {
+            f"op_{i}": {
+                "status": "available" if i == 1 else "locked",
+                "progress": 0,
+                "claimed": False,
+                "objective_done": False,
+                "boss_hp_remaining": 0,
+                "briefing_viewed": False,
+                "expeditions_done": 0,
+                "battle_wins": 0,
+                "black_market_trades": 0
+            }
+            for i in range(1, 11)
+        }
+        self.state["rocket_intel_unlocked"] = ["intel_001"]
+        # Preserve purchased permanent armory tech across campaign resets
+        self.state["permanent_black_market"] = self.state.get(
+            "permanent_black_market", False
+        )
+        self.state["has_exp_splitter"] = self.state.get(
+            "has_exp_splitter", False
+        )
+        self.state["last_authority_date"] = None
+        self.state["pending_authority_delivery"] = None
+        self.state["rocket_battle_state"] = {}
+        self.state["daily_grunt_bribe"] = 2_000_000
+
+        alert_msg = "🚨 [ENCRYPTED TRANSMISSION] Team Rocket frequency initialized! Press '12' to connect with Commander Petrel."
+        alerts = self.state.get("unread_alerts", [])
+        if alert_msg not in alerts:
+            alerts.append(alert_msg)
+        self.state["unread_alerts"] = alerts
+        self.save()
+        return True, "Team Rocket process initialized! Tab [12] unlocked with fresh Operation #1."
+
+    def _update_rocket_operations(self, delta_tokens: int, events: List[str]):
+        """Accumulates progress toward the active or available Rocket Operation."""
         ops_state = self.state.setdefault("rocket_ops", {})
         for op_id, op_info in ops_state.items():
-            if op_info.get("status") == "active" and not op_info.get("claimed", False):
+            if op_info.get("status") in ["active", "available"] and not op_info.get("claimed", False):
+                # Auto-activate if currently available
+                if op_info.get("status") == "available":
+                    op_info["status"] = "active"
+                    for op_def in self.get_rocket_operations():
+                        if op_def["id"] == op_id and op_def["is_boss"] and op_info.get("boss_hp_remaining", 0) <= 0:
+                            op_info["boss_hp_remaining"] = op_def["boss_hp"]
+
                 for op_def in self.get_rocket_operations():
                     if op_def["id"] == op_id and op_def["target"] > 0:
                         old_prog = op_info.get("progress", 0)
-                        new_prog = old_prog + delta_xp
+                        new_prog = old_prog + delta_tokens
                         op_info["progress"] = new_prog
                         if old_prog < op_def["target"] <= new_prog:
                             events.append(f"🚀 Rocket Operation Ready! Coding target reached for {op_id.upper()}. Type '12' to inspect!")
+                break
 
     def get_rocket_operations(self) -> List[Dict[str, Any]]:
         """Returns the list of 10 Rocket operations with current state."""
@@ -3691,7 +4478,7 @@ class CompanionEngine:
                 "id": "op_1",
                 "code": "1",
                 "name": "Operation Genesis: Subterranean Pallet Wiretap",
-                "briefing": "Oak's high-speed fiber relay runs secretly under Route 1. Decrypt his data line to access syndicate transmissions.",
+                "briefing": "Oak's high-speed fiber relay runs secretly under Route 1. Decrypt his data line to access syndicate transmissions & Black Market networks.",
                 "target": 5_000_000,
                 "target_desc": "5.0M coding tokens & 2+ completed expeditions",
                 "reward_tokens": 15_000_000,
@@ -3704,12 +4491,12 @@ class CompanionEngine:
             {
                 "id": "op_2",
                 "code": "2",
-                "name": "Operation Chimera: Celadon Reagent Intercept",
-                "briefing": "Hijack Oak's automated convoy smuggling mutagen canisters through Celadon City.",
+                "name": "Operation Chimera: Celadon Reagent & Chrono Intercept",
+                "briefing": "Hijack Oak's automated convoy smuggling Morale Mist chemical canisters and Silph Chrono Accelerator prototypes through Celadon.",
                 "target": 10_000_000,
                 "target_desc": "10.0M coding tokens & 2+ Trainer Battle arena wins",
                 "reward_tokens": 25_000_000,
-                "reward_rank": "Informant",
+                "reward_rank": "Operative",
                 "intel_id": "intel_002",
                 "is_boss": False,
                 "boss_name": None,
@@ -3721,7 +4508,7 @@ class CompanionEngine:
                 "name": "[BOSS 1] Silph Sub-Vault: Prototype Chimera-001",
                 "briefing": "Infiltrate Silph Co's sealed sub-basement and neutralize Oak's early bio-weapon prototype.",
                 "target": 0,
-                "target_desc": "Neutralize Prototype Chimera-001 in tactical combat ('attack' / 'burst')",
+                "target_desc": "Neutralize Sub-Vault bio-aberrations in tactical combat ('engage' / 'fight')",
                 "reward_tokens": 40_000_000,
                 "reward_rank": "Operative",
                 "intel_id": "intel_003",
@@ -3733,7 +4520,7 @@ class CompanionEngine:
                 "id": "op_4",
                 "code": "4",
                 "name": "Operation Blackout: Cerulean Power Disruption",
-                "briefing": "Disrupt the high-output cooling conduits supplying Oak's subterranean bio-vats.",
+                "briefing": "Disrupt the cooling conduits supplying Oak's subterranean bio-vats. Bank CD reserves required to power high-frequency Chrono disruptors.",
                 "target": 15_000_000,
                 "target_desc": "15.0M coding tokens & hold at least 1 Bank CD deposit",
                 "reward_tokens": 50_000_000,
@@ -3746,8 +4533,8 @@ class CompanionEngine:
             {
                 "id": "op_5",
                 "code": "5",
-                "name": "Operation Leviathan: Vermilion Dark Cargo Sabotage",
-                "briefing": "Sabotage the automated freighter S.S. Dreadnought carrying heavy titanium cybernetic armor.",
+                "name": "Operation Leviathan: Telemetry Cargo & Neural Tap",
+                "briefing": "Sabotage freighter S.S. Dreadnought in Vermilion to seize Oak's neural telemetry splitters and reverse-engineer the Corrupted EXP Splitter.",
                 "target": 0,
                 "target_desc": "Deploy 2+ simultaneous expeditions & trade on the Black Market",
                 "reward_tokens": 65_000_000,
@@ -3763,7 +4550,7 @@ class CompanionEngine:
                 "name": "[BOSS 2] Power Plant: Cyber-Enforcer Core",
                 "briefing": "Oak's automated enforcer construct has occupied the abandoned Power Plant to supercharge the grid.",
                 "target": 0,
-                "target_desc": "Neutralize Cyber-Enforcer Unit in tactical combat ('attack' / 'burst')",
+                "target_desc": "Neutralize Cyber-Enforcer Unit in tactical combat ('engage' / 'fight')",
                 "reward_tokens": 80_000_000,
                 "reward_rank": "Special Agent",
                 "intel_id": "intel_006",
@@ -3774,8 +4561,8 @@ class CompanionEngine:
             {
                 "id": "op_7",
                 "code": "7",
-                "name": "Operation Necropolis: Lavender Crypt Decryption",
-                "briefing": "Recover the lost neural-frequency cipher Oak used to interface organic brains with cybernetics.",
+                "name": "Operation Squad Harmony: Lavender Crypt Decryption",
+                "briefing": "Attune to the biological frequency cipher in Lavender Crypt. Requires maximum squad morale (100% Happiness via Syndicate Morale Mist).",
                 "target": 20_000_000,
                 "target_desc": "20.0M coding tokens & companion at 100% Happiness",
                 "reward_tokens": 100_000_000,
@@ -3788,10 +4575,10 @@ class CompanionEngine:
             {
                 "id": "op_8",
                 "code": "8",
-                "name": "Operation Gene-Lock: Fuchsia Gene-Vault Extraction",
-                "briefing": "Infiltrate the deep genetics lab concealed within the Safari Zone and extract Oak's master drive.",
+                "name": "Operation Gene-Lock: Fuchsia Mutagen Vault Extraction",
+                "briefing": "Infiltrate the deep genetics lab beneath Fuchsia to extract Oak's master formula for the Dark Gene Catalyst.",
                 "target": 25_000_000,
-                "target_desc": "25.0M coding tokens & hold at least 10 VRDN shares",
+                "target_desc": "25.0M coding tokens & command 2+ evolved Pokémon in Roster",
                 "reward_tokens": 120_000_000,
                 "reward_rank": "Executive",
                 "intel_id": "intel_008",
@@ -3805,7 +4592,7 @@ class CompanionEngine:
                 "name": "[BOSS 3] Cinnabar Caldera: Apex Vanguard Mon-Omega",
                 "briefing": "Storm the volcanic caldera facility where Oak's supreme tactical combat unit is being awakened.",
                 "target": 0,
-                "target_desc": "Neutralize Apex Vanguard: Mon-Omega in tactical combat ('attack' / 'burst')",
+                "target_desc": "Neutralize Apex Vanguard: Mon-Omega in tactical combat ('engage' / 'fight')",
                 "reward_tokens": 150_000_000,
                 "reward_rank": "Executive",
                 "intel_id": "intel_009",
@@ -3817,9 +4604,9 @@ class CompanionEngine:
                 "id": "op_10",
                 "code": "10",
                 "name": "[FINAL BOSS] The Oak Citadel: Arch-Director Samuel Oak",
-                "briefing": "Full Rocket assault on Oak's Himalayan mountain fortress. Defeat Oak & his Augmented Legion!",
+                "briefing": "Full assault on Oak's Himalayan Citadel. Neutralize Oak to claim supreme Commander Authority and global courier control!",
                 "target": 0,
-                "target_desc": "Conquer Arch-Director Oak & The Augmented Legion in final combat ('attack' / 'burst')",
+                "target_desc": "Conquer Arch-Director Oak & The Augmented Legion in final combat ('engage' / 'fight')",
                 "reward_tokens": 200_000_000,
                 "reward_rank": "Commander",
                 "intel_id": "intel_010",
@@ -3831,7 +4618,7 @@ class CompanionEngine:
 
         result = []
         for d in op_defs:
-            op_st = ops_state.get(d["id"], {"status": "locked", "progress": 0, "claimed": False, "objective_done": False, "boss_hp_remaining": 0})
+            op_st = ops_state.get(d["id"], {"status": "locked", "progress": 0, "claimed": False, "objective_done": False, "boss_hp_remaining": 0, "briefing_viewed": False})
             cur_prog = op_st.get("progress", 0)
             if d["target"] > 0:
                 cur_prog = min(cur_prog, d["target"])
@@ -3841,95 +4628,350 @@ class CompanionEngine:
                 "progress": cur_prog,
                 "claimed": op_st.get("claimed", False),
                 "objective_done": op_st.get("objective_done", False),
-                "boss_hp_remaining": op_st.get("boss_hp_remaining", d["boss_hp"])
+                "boss_hp_remaining": op_st.get("boss_hp_remaining", d["boss_hp"]),
+                "briefing_viewed": op_st.get("briefing_viewed", False)
             })
         return result
 
-    def check_operation_objective(self, op_id: str) -> Tuple[bool, str]:
-        """Checks whether the active objective for an operation is met."""
+    def get_operation_dialogue(self, op_code: str) -> Optional[Dict[str, Any]]:
+        """Returns the immersive story dialogue and tactical orders for an operation."""
+        clean_code = str(op_code).replace("op_", "").strip()
+        return ROCKET_OPERATION_DIALOGUES.get(clean_code)
+
+    def get_operation_requirements(self, op_code: str) -> List[Dict[str, Any]]:
+        """Returns a list of tracked requirements for an operation with live progress."""
+        clean_code = str(op_code).replace("op_", "").strip()
+        op_id = f"op_{clean_code}"
+        ops_list = self.get_rocket_operations()
+        op_def = next((op for op in ops_list if op["id"] == op_id), None)
+        if not op_def:
+            return []
+
         ops_state = self.state.setdefault("rocket_ops", {})
         st = ops_state.setdefault(op_id, {})
-        if st.get("objective_done", False):
+        obj_done = st.get("objective_done", False)
+
+        reqs = []
+
+        # 1. Coding Tokens Requirement (if target > 0)
+        target = op_def.get("target", 0)
+        if target > 0:
+            prog = min(st.get("progress", 0), target)
+            is_met = prog >= target
+            pct = 100 if is_met else ((prog * 100) // target if target > 0 else 100)
+            reqs.append({
+                "name": "Coding Tokens",
+                "current": prog,
+                "target": target,
+                "current_str": f"{format_tokens(prog)}/{format_tokens(target)}",
+                "target_str": format_tokens(target),
+                "pct": pct,
+                "is_met": is_met
+            })
+
+        # 2. Objective Requirement
+        if op_def.get("is_boss", False):
+            max_hp = op_def.get("boss_hp", 1000)
+            hp_rem = max(0, st.get("boss_hp_remaining", max_hp))
+            dmg_dealt = max_hp - hp_rem
+            is_met = (hp_rem <= 0 or obj_done)
+            pct = 100 if is_met else ((dmg_dealt * 100) // max_hp if max_hp > 0 else 0)
+            b_name = op_def.get("boss_name", "Boss")
+            short_bname = "Defeat " + b_name.split(":")[0].replace("Arch-Director ", "").strip()
+            if len(short_bname) > 19:
+                short_bname = short_bname[:19]
+            reqs.append({
+                "name": short_bname,
+                "current": dmg_dealt,
+                "target": max_hp,
+                "current_str": f"{hp_rem:,} HP" if not is_met else "Defeated",
+                "target_str": f"{max_hp:,} HP",
+                "pct": pct,
+                "is_met": is_met
+            })
+        elif op_id == "op_1":
+            cur_exp = min(st.get("expeditions_done", 0), 2)
+            is_met = (cur_exp >= 2) or st.get("claimed", False)
+            pct = 100 if is_met else (cur_exp * 100) // 2
+            reqs.append({
+                "name": "Scout Expeditions",
+                "current": cur_exp,
+                "target": 2,
+                "current_str": f"{cur_exp}/2",
+                "target_str": "2",
+                "pct": pct,
+                "is_met": is_met
+            })
+        elif op_id == "op_2":
+            cur_wins = min(st.get("battle_wins", 0), 2)
+            is_met = (cur_wins >= 2) or st.get("claimed", False)
+            if is_met:
+                cur_wins = 2
+            pct = 100 if is_met else (cur_wins * 100) // 2
+            reqs.append({
+                "name": "Battle Arena Wins",
+                "current": cur_wins,
+                "target": 2,
+                "current_str": f"{cur_wins}/2",
+                "target_str": "2",
+                "pct": pct,
+                "is_met": is_met
+            })
+        elif op_id == "op_4":
+            cds = len(self.state.get("term_deposits", []))
+            is_met = (cds >= 1) or st.get("claimed", False)
+            cur_cds = 1 if is_met else min(cds, 1)
+            pct = 100 if is_met else 0
+            reqs.append({
+                "name": "Active Bank CD",
+                "current": cur_cds,
+                "target": 1,
+                "current_str": f"{cur_cds}/1 CD",
+                "target_str": "1 CD",
+                "pct": pct,
+                "is_met": is_met
+            })
+        elif op_id == "op_5":
+            exp_active = len(self.state.get("expeditions", []))
+            cur_trade = min(st.get("black_market_trades", 0), 1)
+            is_met_exp = (exp_active >= 2) or st.get("claimed", False)
+            is_met_trade = (cur_trade >= 1) or st.get("claimed", False)
+            cur_exp = 2 if is_met_exp else min(exp_active, 2)
+            reqs.append({
+                "name": "Active Expeditions",
+                "current": cur_exp,
+                "target": 2,
+                "current_str": f"{cur_exp}/2",
+                "target_str": "2",
+                "pct": 100 if is_met_exp else (cur_exp * 100) // 2,
+                "is_met": is_met_exp
+            })
+            reqs.append({
+                "name": "Black Market Trade",
+                "current": cur_trade,
+                "target": 1,
+                "current_str": f"{cur_trade}/1",
+                "target_str": "1",
+                "pct": 100 if is_met_trade else 0,
+                "is_met": is_met_trade
+            })
+        elif op_id == "op_7":
+            hap = self.active_mon.happiness if self.active_mon else self.state.get("happiness", 0)
+            is_met = (hap >= 100) or st.get("claimed", False)
+            cur_hap = 100 if is_met else min(hap, 100)
+            pct = 100 if is_met else cur_hap
+            reqs.append({
+                "name": "Companion Happiness",
+                "current": cur_hap,
+                "target": 100,
+                "current_str": f"{cur_hap}%/100%",
+                "target_str": "100%",
+                "pct": pct,
+                "is_met": is_met
+            })
+        elif op_id == "op_8":
+            dex = self.state.get("dex", [])
+            roster = [d for d in dex if d.get("status") != "evolved"]
+            evolved_count = 0
+            if self.active_mon and getattr(self.active_mon, "stage_index", 0) > 0:
+                evolved_count += 1
+            for d in roster:
+                if d.get("status") == "active":
+                    continue
+                stage = d.get("stage_index") or d.get("mon_state", {}).get("stage_index", 0)
+                if stage > 0:
+                    evolved_count += 1
+            shares = self.state.get("investments", {}).get("viridian", 0)
+            is_met = (evolved_count >= 2 or shares >= 10) or st.get("claimed", False)
+            cur_ev = 2 if is_met else min(evolved_count, 2)
+            pct = 100 if is_met else (cur_ev * 100) // 2
+            reqs.append({
+                "name": "Evolved Pokémon",
+                "current": cur_ev,
+                "target": 2,
+                "current_str": f"{cur_ev}/2",
+                "target_str": "2",
+                "pct": pct,
+                "is_met": is_met
+            })
+
+        return reqs
+
+    def check_operation_objective(self, op_id: str) -> Tuple[bool, str]:
+        """Checks whether active objective for an operation is met."""
+        ops_state = self.state.setdefault("rocket_ops", {})
+        st = ops_state.setdefault(op_id, {})
+        if st.get("claimed", False):
             return True, "Objective verified!"
 
+        old_done = st.get("objective_done", False)
+        ok = False
+        msg = ""
+
         if op_id == "op_1":
-            exp_count = len(self.state.get("expedition_logs", [])) + self.state.get("daily_catalysts", {}).get("expeditions_completed", 0) + len(self.state.get("expeditions", []))
-            if exp_count >= 2:
-                st["objective_done"] = True
-                return True, "Completed 2+ expeditions!"
-            return False, f"Need 2 completed expeditions (Current: {exp_count}/2)."
+            cur_exp = st.get("expeditions_done", 0)
+            if cur_exp >= 2:
+                ok = True
+                msg = "Completed 2+ scout expeditions!"
+            else:
+                ok = False
+                msg = (
+                    f"Need 2 scout expeditions (Completed: {cur_exp}/2)."
+                )
 
         elif op_id == "op_2":
-            wins = self.state.get("trainer_battles", {}).get("wins", 0)
-            if wins >= 2:
-                st["objective_done"] = True
-                return True, "Won 2+ Trainer Battles!"
-            return False, f"Need 2 Trainer Battle wins in Tab [6] (Current: {wins}/2)."
+            cur_wins = st.get("battle_wins", 0)
+            if cur_wins >= 2:
+                ok = True
+                msg = "Won 2+ Trainer Battles!"
+            else:
+                ok = False
+                msg = (
+                    f"Need 2 Trainer Battle wins in Tab [6] "
+                    f"(Current: {cur_wins}/2)."
+                )
 
         elif op_id == "op_3":
             hp_rem = st.get("boss_hp_remaining", 15_000)
             if hp_rem <= 0:
-                st["objective_done"] = True
-                return True, "Prototype Chimera-001 neutralized!"
-            return False, f"Boss remaining HP: {hp_rem}/15,000. Use 'attack' or 'burst'!"
+                ok = True
+                msg = "Prototype Chimera-001 neutralized!"
+            else:
+                ok = False
+                msg = (
+                    f"Boss remaining HP: {hp_rem:,}. "
+                    "Use 'engage' or 'fight'!"
+                )
 
         elif op_id == "op_4":
             cds = len(self.state.get("term_deposits", []))
             if cds >= 1:
-                st["objective_done"] = True
-                return True, "Active Bank CD verified!"
-            return False, "Requires at least 1 active Bank CD in Tab [10]."
+                ok = True
+                msg = "Active Bank CD verified!"
+            else:
+                ok = False
+                msg = "Requires at least 1 active Bank CD in Tab [10]."
 
         elif op_id == "op_5":
             exp_active = len(self.state.get("expeditions", []))
-            spent = self.state.get("daily_catalysts", {}).get("shop_tokens_spent", 0) + self.state.get("spent_tokens", 0)
-            if exp_active >= 2 and spent > 0:
-                st["objective_done"] = True
-                return True, "2 expeditions deployed & Black Market transaction verified!"
-            return False, f"Requires 2 active expeditions ({exp_active}/2) and trading on the Black Market."
+            trades = st.get("black_market_trades", 0)
+            if exp_active >= 2 and trades >= 1:
+                ok = True
+                msg = (
+                    "2 expeditions deployed & Black Market transaction "
+                    "verified!"
+                )
+            else:
+                ok = False
+                msg = (
+                    f"Requires 2 active expeditions ({exp_active}/2) "
+                    f"and trading on Black Market ({trades}/1)."
+                )
 
         elif op_id == "op_6":
             hp_rem = st.get("boss_hp_remaining", 35_000)
             if hp_rem <= 0:
-                st["objective_done"] = True
-                return True, "Cyber-Enforcer Unit neutralized!"
-            return False, f"Boss remaining HP: {hp_rem}/35,000. Use 'attack' or 'burst'!"
+                ok = True
+                msg = "Cyber-Enforcer Unit neutralized!"
+            else:
+                ok = False
+                msg = (
+                    f"Boss remaining HP: {hp_rem:,}. "
+                    "Use 'engage' or 'fight'!"
+                )
 
         elif op_id == "op_7":
-            hap = self.active_mon.happiness if self.active_mon else self.state.get("happiness", 0)
+            hap = (
+                self.active_mon.happiness
+                if self.active_mon
+                else self.state.get("happiness", 0)
+            )
             if hap >= 100:
-                st["objective_done"] = True
-                return True, "Companion at 100% Happiness!"
-            return False, f"Companion Happiness must be 100% (Current: {hap}%)."
+                ok = True
+                msg = "Companion at 100% Happiness!"
+            else:
+                ok = False
+                msg = (
+                    f"Companion Happiness must be 100% (Current: {hap}%)."
+                )
 
         elif op_id == "op_8":
+            dex = self.state.get("dex", [])
+            roster = [d for d in dex if d.get("status") != "evolved"]
+            evolved_count = 0
+            if (
+                self.active_mon
+                and getattr(self.active_mon, "stage_index", 0) > 0
+            ):
+                evolved_count += 1
+            for d in roster:
+                if d.get("status") == "active":
+                    continue
+                stage = (
+                    d.get("stage_index")
+                    or d.get("mon_state", {}).get("stage_index", 0)
+                )
+                if stage > 0:
+                    evolved_count += 1
             shares = self.state.get("investments", {}).get("viridian", 0)
-            if shares >= 10:
-                st["objective_done"] = True
-                return True, "Holding 10+ VRDN shares!"
-            return False, f"Must hold at least 10 VRDN shares in Tab [10] (Current: {shares}/10)."
+            if evolved_count >= 2 or shares >= 10:
+                ok = True
+                msg = "Evolved Pokémon command clearance verified!"
+            else:
+                ok = False
+                msg = (
+                    "Requires 2+ evolved Pokémon in roster "
+                    f"(Current: {evolved_count}/2) or 10 VRDN shares."
+                )
 
         elif op_id == "op_9":
             hp_rem = st.get("boss_hp_remaining", 75_000)
             if hp_rem <= 0:
-                st["objective_done"] = True
-                return True, "Apex Vanguard: Mon-Omega neutralized!"
-            return False, f"Boss remaining HP: {hp_rem}/75,000. Use 'attack' or 'burst'!"
+                ok = True
+                msg = "Apex Vanguard: Mon-Omega neutralized!"
+            else:
+                ok = False
+                msg = (
+                    f"Boss remaining HP: {hp_rem:,}. "
+                    "Use 'engage' or 'fight'!"
+                )
 
         elif op_id == "op_10":
             hp_rem = st.get("boss_hp_remaining", 120_000)
             if hp_rem <= 0:
-                st["objective_done"] = True
-                return True, "Arch-Director Samuel Oak & The Augmented Legion conquered!"
-            return False, f"Boss remaining HP: {hp_rem}/120,000. Use 'attack' or 'burst'!"
+                ok = True
+                msg = (
+                    "Arch-Director Samuel Oak & The Augmented "
+                    "Legion conquered!"
+                )
+            else:
+                ok = False
+                msg = (
+                    f"Boss remaining HP: {hp_rem:,}. "
+                    "Use 'engage' or 'fight'!"
+                )
 
-        return True, "Objective verified!"
+        else:
+            ok = True
+            msg = "Objective verified!"
+
+        st["objective_done"] = ok
+        if ok != old_done:
+            self.save()
+        return ok, msg
 
     def start_rocket_operation(self, op_code: str) -> Tuple[bool, str]:
         """Activates a specific Rocket operation."""
-        op_id = f"op_{op_code}" if not op_code.startswith("op_") else op_code
-        ops_list = self.get_rocket_operations()
-        selected = next((op for op in ops_list if op["id"] == op_id), None)
+        if op_code == "operation":
+            ops_list = self.get_rocket_operations()
+            selected = next((op for op in ops_list if op["status"] == "available" and not op["claimed"]), None)
+            if not selected:
+                return False, "No available operation to start."
+            op_id = selected["id"]
+        else:
+            op_id = f"op_{op_code}" if not op_code.startswith("op_") else op_code
+            ops_list = self.get_rocket_operations()
+            selected = next((op for op in ops_list if op["id"] == op_id), None)
 
         if not selected:
             return False, f"Unknown operation '{op_code}'! Valid codes are 1 through 10."
@@ -3942,20 +4984,23 @@ class CompanionEngine:
         if st.get("status") == "locked":
             return False, f"Operation {op_code} is locked! Complete preceding operations first."
         if st.get("status") == "active":
-            return False, f"Operation {op_code} is already active!"
+            return True, f"🚀 Operation {op_code} ({selected['name']}) is already active and underway!"
 
         for k, v in ops_state.items():
             if v.get("status") == "active" and not v.get("claimed", False):
                 v["status"] = "available"
 
         st["status"] = "active"
+        st.setdefault("expeditions_done", 0)
+        st.setdefault("battle_wins", 0)
+        st.setdefault("black_market_trades", 0)
         if selected["is_boss"] and st.get("boss_hp_remaining", 0) <= 0 and not st.get("objective_done", False):
             st["boss_hp_remaining"] = selected["boss_hp"]
 
         self.save()
         msg = f"🚀 Operation {selected['code']} activated: {selected['name']}!"
         if selected["is_boss"]:
-            msg += f" Target Boss: {selected['boss_name']} ({selected['boss_hp']:,} HP). Type 'attack' to engage!"
+            msg += f" Target: {selected['boss_name']}. Type 'engage' or 'fight' to enter the Vault Arena!"
         return True, msg
 
     def attack_rocket_boss(self, burst: bool = False) -> Tuple[bool, str]:
@@ -3965,40 +5010,16 @@ class CompanionEngine:
         if not active_op or not active_op["is_boss"]:
             return False, "No active Syndicate Boss encounter! Select an active boss operation first (Op 3, 6, 9, 10)."
 
-        op_id = active_op["id"]
-        ops_state = self.state.setdefault("rocket_ops", {})
-        st = ops_state.setdefault(op_id, {})
-        cur_hp = st.get("boss_hp_remaining", active_op["boss_hp"])
+        from poketokenbar.game.rocket_battle import RocketBattleHandler
+        handler = RocketBattleHandler(self)
+        b_st = handler._get_state()
+        if not b_st.get("player_team") or b_st.get("status") in ["win", "loss"] or b_st.get("op_code") != active_op["code"]:
+            ok, msg = handler.start_boss_battle(active_op["code"])
+            if not ok:
+                return False, msg
 
-        if cur_hp <= 0:
-            st["objective_done"] = True
-            return False, f"{active_op['boss_name']} is already neutralized! Type 'claim {active_op['code']}' to claim victory!"
-
-        # Determine damage
-        base_dmg = random.randint(1800, 3200)
-        if self.active_mon and getattr(self.active_mon, "is_mega", False):
-            base_dmg = int(base_dmg * 1.5)
-
-        burst_cost = 5_000_000
-        burst_text = ""
-        if burst:
-            if self.available_tokens < burst_cost:
-                return False, f"Not enough tokens for Burst Strike! Requires {format_tokens(burst_cost)} tokens (You have {format_tokens(self.available_tokens)})."
-            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + burst_cost
-            base_dmg += 5000
-            burst_text = " [ROCKET OVERCLOCK BURST (+5,000 DMG)]"
-
-        new_hp = max(0, cur_hp - base_dmg)
-        st["boss_hp_remaining"] = new_hp
-
-        mon_name = self.api.get_species_name(self.active_mon.current_id) if self.active_mon else "Companion"
-        if new_hp <= 0:
-            st["objective_done"] = True
-            self.save()
-            return True, f"💥 CRITICAL IMPACT! {mon_name} struck {active_op['boss_name']} for {base_dmg:,} damage{burst_text}! BOSS NEUTRALIZED! Type 'claim {active_op['code']}' to finalize!"
-
-        self.save()
-        return True, f"⚔️ {mon_name} attacked {active_op['boss_name']} for {base_dmg:,} damage{burst_text}! (Boss HP: {new_hp:,}/{active_op['boss_hp']:,})"
+        move_idx = 3 if burst else 0
+        return handler.execute_turn(move_idx)
 
     def _recruit_rocket_companion(self, species_id: int):
         """Helper to recruit unique rocket rewards into dex roster."""
@@ -4073,6 +5094,7 @@ class CompanionEngine:
                 next_key = f"op_{curr_num + 1}"
                 if next_key in ops_state and not ops_state[next_key].get("claimed", False):
                     ops_state[next_key]["status"] = "available"
+                    ops_state[next_key]["briefing_viewed"] = False
         except ValueError:
             pass
 
@@ -4127,19 +5149,20 @@ class CompanionEngine:
             {
                 "id": 2,
                 "key": "intel_002",
-                "title": "Dossier #002: The Oak Syndicate Network",
+                "title": "Dossier #002: Celadon Convoy & Chrono R&D",
                 "date": "1999-11-21",
                 "unlocked": "intel_002" in unlocked_set,
                 "content": [
-                    "LOG DATE: 1999-11-21 | INTERCEPTED TRANSMISSION: Pallet -> League Council",
-                    "DIRECTIVE: Regional Oversight Realignment",
+                    "LOG DATE: 1999-11-21 | INTERCEPTED SUPPLY MANIFEST",
+                    "ORIGIN: Celadon Dept. Synthesis Wing -> Pallet Deep Lab",
                     "",
-                    "With Gym Leaders serving as regional overseers, resource allocation",
-                    "to the Pallet Deep Lab has increased by 400%. Automated supply drones",
-                    "now transit from Cerulean Cave and Saffron unhindered.",
+                    "Convoy cargo seized: pressurized Morale Mist chemical canisters",
+                    "and Silph Co quantum Chrono Accelerator prototypes. Oak utilized",
+                    "these chronometers to compress developmental cycle times.",
                     "",
-                    "Commander Petrel note: 'The entire League system was designed as a",
-                    "filtration network to harvest top battle data for Oak's bio-constructs.'"
+                    "Commander Petrel note: 'Our Skunkworks has reverse-engineered",
+                    "both prototypes. Operatives may now requisition Morale Mist and",
+                    "Chrono Accelerators directly from the Covert Armory.'"
                 ]
             },
             {
@@ -4181,18 +5204,19 @@ class CompanionEngine:
             {
                 "id": 5,
                 "key": "intel_005",
-                "title": "Dossier #005: S.S. Dreadnought Cargo Manifest",
+                "title": "Dossier #005: S.S. Dreadnought Telemetry Manifest",
                 "date": "2002-02-18",
                 "unlocked": "intel_005" in unlocked_set,
                 "content": [
                     "LOG DATE: 2002-02-18 | FREIGHT CARGO MANIFEST: S.S. DREADNOUGHT",
                     "SHIPPED TO: Vermilion Deep Anchorage // Oak Syndicate Logistics",
                     "",
-                    "Consignment: 80 metric tons of reinforced titanium-weave exoskeleton",
-                    "housings, designed to encase bio-engineered apex Pokémon.",
+                    "Consignment seized: Neural telemetry splitters and quantum broadcast",
+                    "relays designed to siphon trainer battle experience across Kanto.",
                     "",
-                    "Commander Petrel note: 'These hulls were intended for Oak's Augmented",
-                    "Legion. Intercepting this shipment dealt a critical blow to their armor.'"
+                    "Commander Petrel note: 'We reverse-engineered Oak's broadcast tap",
+                    "into our Corrupted EXP Splitter. Special Agents can now mirror",
+                    "combat data passively across reserve roster Pokémon.'"
                 ]
             },
             {
@@ -4234,23 +5258,20 @@ class CompanionEngine:
             {
                 "id": 8,
                 "key": "intel_008",
-                "title": "Dossier #008: The Ideological Schism",
+                "title": "Dossier #008: Fuchsia Vault & Mutagen Protocol",
                 "date": "1982-04-09",
                 "unlocked": "intel_008" in unlocked_set,
                 "content": [
-                    "LOG DATE: 1982-04-09 | DECLASSIFIED DEBATE RECORD",
-                    "PHILOSOPHICAL SPLIT: The Limits of Organic Biology",
+                    "LOG DATE: 1982-04-09 | SAFARI ZONE DEEP ARCHIVE",
+                    "RESEARCH PROJECT: Forced Cellular Metamorphosis",
                     "",
-                    "GIOVANNI: 'True strength comes from bonding with nature's creatures,",
-                    "tempering their wild spirits through discipline, respect, and battle.'",
+                    "Oak perfected a synthetic catalyst forcing instant cellular evolution.",
+                    "Giovanni locked the formula away, refusing to corrupt organic biology.",
+                    "Oak later buried the master drive inside the Fuchsia gene-vault.",
                     "",
-                    "OAK: 'Nature is flawed. Biological limits are a failure of evolution.",
-                    "True order requires engineered perfection—Pokémon stripped of fear,",
-                    "unbound by empathy, synthesized for absolute obedience.'",
-                    "",
-                    "Commander Petrel note: 'When Giovanni discovered Oak's mutagen vats,",
-                    "he walked away and founded Team Rocket to resist him. Oak used his League",
-                    "influence to paint Giovanni as a criminal mastermind to silence him.'"
+                    "Commander Petrel note: 'With the formula secured, Executives are",
+                    "cleared to deploy the Dark Gene Catalyst to instantly evolve team",
+                    "members at will.'"
                 ]
             },
             {
@@ -4273,7 +5294,7 @@ class CompanionEngine:
             {
                 "id": 10,
                 "key": "intel_010",
-                "title": "Dossier #010: Fall of the Shadow Architect",
+                "title": "Dossier #010: Fall of Oak & Supreme Authority",
                 "date": "CURRENT",
                 "unlocked": "intel_010" in unlocked_set,
                 "content": [
@@ -4282,25 +5303,25 @@ class CompanionEngine:
                     "",
                     "The Himalayan Citadel has fallen. Arch-Director Samuel Oak's secret",
                     "syndicate operations across Kanto and Johto are completely offline.",
-                    "His Augmented Pokémon have been cleansed of cybernetic overrides.",
                     "",
-                    "Commander Petrel note: 'You achieved what Giovanni and all of Team Rocket",
-                    "could not. You broke the architect's empire and saved the world from",
-                    "artificial subjugation. You are the true Seeker of Truth.'"
+                    "Commander Petrel note: 'By unanimous decree of the Executive Council,",
+                    "supreme command of Team Rocket is conferred upon you. Your Team Rocket",
+                    "Authority grants daily courier requisitions across all regional outposts.'"
                 ]
             }
         ]
 
     def buy_rocket_armory_item(self, item_code: str) -> Tuple[bool, str]:
         """Purchases covert tech from the Rocket Armory with rank clearance checks."""
+        import datetime
         item_code = item_code.lower().strip()
         catalog = {
-            "elixir": ("Shadow Elixir", 20_000_000, "Informant"),
-            "chip": ("Overclock Chip", 35_000_000, "Operative"),
-            "scanner": ("Syndicate Scanner", 45_000_000, "Operative"),
-            "radar": ("Rocket Decryptor", 50_000_000, "Special Agent"),
+            "pass": ("Syndicate Black Pass", 20_000_000, "Informant"),
+            "spray": ("Syndicate Morale Mist", 35_000_000, "Operative"),
+            "chrono": ("Chrono Accelerator", 45_000_000, "Operative"),
+            "splitter": ("Corrupted EXP Splitter", 50_000_000, "Special Agent"),
             "catalyst": ("Dark Gene Catalyst", 75_000_000, "Executive"),
-            "ball": ("Rocket Master Ball", 150_000_000, "Commander"),
+            "authority": ("Team Rocket Authority", 100, "Commander"),
         }
 
         if item_code not in catalog:
@@ -4313,39 +5334,169 @@ class CompanionEngine:
         if rank_order.get(user_rank, 1) < rank_order.get(min_rank, 1):
             return False, f"Clearance Denied! {name} requires rank '{min_rank}' (Your Rank: {user_rank})."
 
+        # Clearance and prerequisite validations before deducting tokens
+        if item_code == "pass":
+            if self.state.get("permanent_black_market", False):
+                return False, "You already possess the Syndicate Black Pass!"
+        elif item_code == "splitter":
+            if self.state.get("has_exp_splitter", False):
+                return False, "You already possess the Corrupted EXP Splitter!"
+        elif item_code == "authority":
+            if self.state.get("pending_authority_delivery"):
+                return False, "A courier delivery is already waiting at HQ! Type 'keep' or 'dismiss' first."
+            today_str = datetime.date.today().isoformat()
+            if self.state.get("last_authority_date") == today_str:
+                return False, "Authority requisition already dispatched today! Field logistics reset tomorrow."
+            # Check available non-duplicate candidates
+            roster_ids = set()
+            if self.active_mon:
+                roster_ids.add(self.active_mon.current_id)
+                roster_ids.add(self.active_mon.base_id)
+            for d in self.state.get("dex", []):
+                if d.get("status") != "evolved":
+                    sp_id = d.get("species_id", d.get("base_id"))
+                    if sp_id:
+                        roster_ids.add(int(sp_id))
+                    base_id = d.get("base_id")
+                    if base_id:
+                        roster_ids.add(int(base_id))
+                    m_st = d.get("mon_state")
+                    if isinstance(m_st, dict):
+                        if m_st.get("base_id"):
+                            roster_ids.add(int(m_st["base_id"]))
+                        if m_st.get("current_id"):
+                            roster_ids.add(int(m_st["current_id"]))
+            candidates = [i for i in range(1, 152) if i not in roster_ids]
+            if not candidates:
+                return False, "Your Roster already commands every Gen 1 Pokémon species in the region!"
+
         if cost > self.available_tokens:
             return False, f"Not enough tokens! {name} costs {format_tokens(cost)} (You have {format_tokens(self.available_tokens)})."
 
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + cost
-        if item_code == "elixir":
+
+        if item_code == "pass":
+            self.state["permanent_black_market"] = True
+            bm = self.get_or_init_black_market(force_open=True)
+            bm["is_open"] = True
+            bm["natural_open"] = True
+            self.state["black_market"] = bm
+            msg = "📯 Acquired Syndicate Black Pass! 24/7 Black Market unlocked & all Grunt tolls waived!"
+
+        elif item_code == "spray":
             if self.active_mon:
-                self.active_mon.happiness = 100
-                self.set_active_mon(self.active_mon)
+                m = self.active_mon
+                m.happiness = 100
+                self.set_active_mon(m)
             self.state["happiness"] = 100
-            msg = f"🧪 Acquired Shadow Elixir! Restored active companion to 100% Happiness!"
-        elif item_code == "chip":
-            expeds = self.state.get("expeditions", [])
-            for ex in expeds:
-                ex["target_tokens"] = max(ex.get("progress_tokens", 0), int(ex.get("target_tokens", 10_000_000) * 0.5))
-            msg = f"💾 Acquired Overclock Chip! Active expedition durations cut in half!"
-        elif item_code == "scanner":
-            self.state["has_syndicate_scanner"] = True
-            msg = f"🔍 Acquired Syndicate Scanner! Covert tracking enabled for expeditions!"
-        elif item_code == "radar":
-            self.state["has_rocket_decryptor"] = True
-            msg = f"📡 Acquired Rocket Decryptor! High-yield insider market frequencies enabled!"
+            for d in self.state.get("dex", []):
+                if d.get("status") != "evolved":
+                    d["happiness"] = 100
+                    m_st = d.get("mon_state")
+                    if isinstance(m_st, dict):
+                        m_st["happiness"] = 100
+            msg = "🌫️ Deployed Syndicate Morale Mist! Restored 100% Happiness to all Pokémon across your squad!"
+
+        elif item_code == "chrono":
+            cds = self.state.get("term_deposits", [])
+            active_cds = [c for c in cds if not c.get("matured")]
+            matured_count = 0
+            for cd in active_cds:
+                rate = cd.get("daily_rate", 0.08)
+                cd["current_value"] = int(cd["current_value"] * (1 + rate))
+                cd["days_elapsed"] = cd.get("days_elapsed", 0) + 1
+                if cd["days_elapsed"] >= cd["term_days"]:
+                    cd["matured"] = True
+                    matured_count += 1
+            self.state["term_deposits"] = cds
+            if active_cds:
+                msg = f"⏱️ Activated Chrono Accelerator! Advanced {len(active_cds)} active CD(s) by +1 day ({matured_count} matured)!"
+            else:
+                msg = "⏱️ Activated Chrono Accelerator! Localized timeline warped (+1 day), but no active CDs were locked."
+
+        elif item_code == "splitter":
+            self.state["has_exp_splitter"] = True
+            msg = "⚡ Acquired Corrupted EXP Splitter! 25% of coding XP is now mirrored to all inactive roster Pokémon!"
+
         elif item_code == "catalyst":
             inv = self.state.setdefault("inventory", {})
             inv["dark_gene_catalyst"] = inv.get("dark_gene_catalyst", 0) + 1
             if isinstance(inv.get("items"), dict):
                 inv["items"]["dark_gene_catalyst"] = inv["dark_gene_catalyst"]
-            msg = f"🧬 Acquired Dark Gene Catalyst! Stored in Bag inventory."
-        elif item_code == "ball":
-            inv = self.state.setdefault("inventory", {})
-            inv["rocket_master_ball"] = inv.get("rocket_master_ball", 0) + 1
-            if isinstance(inv.get("items"), dict):
-                inv["items"]["rocket_master_ball"] = inv["rocket_master_ball"]
-            msg = f"🔮 Acquired Rocket Master Ball! Ultra-high capture matrix stored in Bag."
+            msg = "🧬 Acquired Dark Gene Catalyst! Stored in Bag inventory (Slot 65)."
+
+        elif item_code == "authority":
+            chosen_id = random.choice(candidates)
+            species_name = self.api.get_species_name(chosen_id)
+            self.state["last_authority_date"] = datetime.date.today().isoformat()
+            self.state["pending_authority_delivery"] = chosen_id
+            msg = (
+                f"👑 Dispatched Team Rocket Authority! Field agents intercepted a wild {species_name} (#{chosen_id})!\n"
+                f"  📦 Courier delivery pending at HQ. Type 'keep' to register into Roster, or 'dismiss' to release."
+            )
 
         self.save()
         return True, msg
+
+    def handle_authority_delivery(self, choice: str) -> Tuple[bool, str]:
+        """Handles user choice ('keep' or 'dismiss') for pending Rocket Authority delivery."""
+        pending = self.state.get("pending_authority_delivery")
+        if not pending:
+            return False, "No syndicate delivery pending at HQ."
+
+        choice = choice.lower().strip()
+        if choice not in ["keep", "dismiss"]:
+            return False, "Invalid command. Type 'keep' to register into Roster, or 'dismiss' to release."
+
+        sp_id = pending if isinstance(pending, int) else pending.get("species_id")
+        sp_name = self.api.get_species_name(sp_id)
+        self.state["pending_authority_delivery"] = None
+
+        if choice == "dismiss":
+            self.save()
+            return True, f"📦 Requisitioned {sp_name} (#{sp_id}) was dismissed back into the wild."
+
+        # choice == "keep"
+        chain_ids = [sp_id]
+        rarity = Rarity.RARE
+        sp_data = self.api.get_pokemon_species(sp_id)
+        if sp_data:
+            cap_rate = sp_data.get("capture_rate", 255)
+            is_leg = sp_data.get("is_legendary", False) or sp_data.get("is_mythical", False)
+            rarity = Rarity.from_capture_rate(cap_rate, is_leg)
+            if "evolution_chain" in sp_data:
+                try:
+                    chain_url = sp_data["evolution_chain"]["url"]
+                    chain_id = int(chain_url.rstrip("/").split("/")[-1])
+                    evo_data = self.api.get_evolution_chain(chain_id)
+                    if evo_data:
+                        chain_ids = self._parse_evo_tree(evo_data["chain"])
+                except Exception:
+                    pass
+
+        if not chain_ids:
+            chain_ids = [sp_id]
+
+        if sp_id in chain_ids:
+            stage_idx = chain_ids.index(sp_id)
+            base_id = chain_ids[0]
+        else:
+            base_id = sp_id
+            chain_ids = [sp_id]
+            stage_idx = 0
+
+        mon = MonState(
+            base_id=base_id,
+            path_ids=chain_ids,
+            planned_path_ids=chain_ids,
+            stage_index=stage_idx,
+            used_at_stage=0,
+            rarity=rarity,
+            total_forms=len(chain_ids),
+            is_shiny=False,
+            nature=random.choice(list(PokemonNature)),
+            happiness=100
+        )
+        self._register_to_dex(mon, status="inactive")
+        self.save()
+        return True, f"👑 Registered {sp_name} (#{sp_id}) into your Roster! Mon is rested at 100% Happiness."

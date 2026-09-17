@@ -44,3 +44,6 @@ ENV/
 .idea/
 .DS_Store
 *.swp
+
+# Local guides & notes
+TOKEN_EARNING_GUIDE.md

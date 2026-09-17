@@ -418,8 +418,8 @@ CORPORATIONS: Dict[str, CorporateInfo] = {
         share_price=20_000_000,
         base_dividend=0.030,
         perk_name="Dynamax Energy",
-        perk_desc="+20% Tokens from Boss raids & Red battle",
-        catalyst_desc="Defeating Gym Bosses & Red validates energy tech"
+        perk_desc="+20% Tokens from Boss raids",
+        catalyst_desc="Defeating Gym Bosses validates energy tech"
     ),
     "viridian": CorporateInfo(
         id="viridian",
@@ -512,6 +512,11 @@ SPECIAL_SPECIES: Dict[int, Dict[str, Any]] = {
     2006: {"name": "Augmented Tauros", "rarity": Rarity.UNCOMMON, "base_id": 128},
     2007: {"name": "Augmented Dragonite", "rarity": Rarity.RARE, "base_id": 149},
     2008: {"name": "Augmented Alakazam", "rarity": Rarity.RARE, "base_id": 65},
+    2010: {"name": "MissingNo.", "rarity": Rarity.RARE, "base_id": 137},
+    2011: {"name": "Venustoise", "rarity": Rarity.RARE, "base_id": 3},
+    2012: {"name": "Prototype Chimera-001", "rarity": Rarity.LEGENDARY, "base_id": 150},
+    2013: {"name": "Cyber-Zapdos", "rarity": Rarity.LEGENDARY, "base_id": 145},
+    2014: {"name": "Apex Vanguard Mon-Omega", "rarity": Rarity.LEGENDARY, "base_id": 150},
 }
 
 @dataclass

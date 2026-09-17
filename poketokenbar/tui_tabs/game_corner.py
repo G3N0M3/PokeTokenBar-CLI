@@ -63,27 +63,38 @@ def render_slot_tab(app):
         else:
             sys.stdout.write(f"\n  {BOLD}{RED}No payout.{RESET}\n\n")
     
-    if random.random() < 0.10:
+    has_pass = app.engine.state.get("permanent_black_market", False)
+    if has_pass:
+        sys.stdout.write(f"  📯 {YELLOW}Note: The Team Rocket poster conceals your secret switch ('poster').{RESET}\n")
+    elif random.random() < 0.10:
         sys.stdout.write(f"  👀 {YELLOW}Note: A Team Rocket poster hangs crookedly on the wall...{RESET}\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}spin <amount>{RESET}' to play (e.g. 'spin 500k', 'spin 1m').\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return to the Game Corner Menu.\n\n")
 
 def render_grunt_bribe_tab(app):
     avail = app.engine.available_tokens
-    bribe_amt = app.engine.get_daily_grunt_bribe()
-    bribe_str = format_tokens(bribe_amt)
+    has_pass = app.engine.state.get("permanent_black_market", False)
+    bribe_amt = 0 if has_pass else app.engine.get_daily_grunt_bribe()
 
     sys.stdout.write(f"\n  {BOLD}{RED}🏢 Team Rocket Secret Switch{RESET}\n\n")
     sys.stdout.write(f"  You slide the crooked poster aside to inspect the wall...\n")
     sys.stdout.write(f"  {BOLD}Click!{RESET} A hidden switch is exposed!\n\n")
     sys.stdout.write(f"  Suddenly, a shady {BOLD}{RED}Team Rocket Grunt{RESET} steps out from the shadows!\n\n")
-    sys.stdout.write(f"  {YELLOW}\"Hey kid! What are you doing snooping back here? Looking for the{RESET}\n")
-    sys.stdout.write(f"  {YELLOW}underground Black Market? It'll cost you {BOLD}{CYAN}{bribe_str}{RESET}{YELLOW} tokens for me{RESET}\n")
-    sys.stdout.write(f"  {YELLOW}to look the other way!\"{RESET}\n\n")
-    sys.stdout.write(f"  Available Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n")
-    sys.stdout.write(f"  Bribe Demanded:   {BOLD}{YELLOW}{bribe_str} tokens{RESET}\n\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}bribe{RESET}' to pay the Grunt and enter the Black Market.\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to decline and return to the Slot Machine.\n\n")
+    if has_pass:
+        sys.stdout.write(f"  {YELLOW}\"Hold it right th— Wait! That's a Syndicate Black Pass!\"{RESET}\n")
+        sys.stdout.write(f"  {YELLOW}The Grunt snaps to attention and salutes respectfully.{RESET}\n")
+        sys.stdout.write(f"  {YELLOW}\"Pardon the intrusion, Commander! Right this way!\"{RESET}\n\n")
+        sys.stdout.write(f"  Available Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n")
+        sys.stdout.write(f"  Access Clearance: {BOLD}{GREEN}Syndicate Black Pass VIP (Toll: WAIVED){RESET}\n\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}enter{RESET}' to proceed into the Black Market.\n")
+    else:
+        sys.stdout.write(f"  {YELLOW}\"Hey kid! What are you doing snooping back here? Looking for the{RESET}\n")
+        sys.stdout.write(f"  {YELLOW}underground Black Market? It'll cost you {BOLD}{CYAN}{format_tokens(bribe_amt)}{RESET}{YELLOW} tokens for me{RESET}\n")
+        sys.stdout.write(f"  {YELLOW}to look the other way!\"{RESET}\n\n")
+        sys.stdout.write(f"  Available Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n")
+        sys.stdout.write(f"  Bribe Demanded:   {BOLD}{YELLOW}{format_tokens(bribe_amt)} tokens{RESET}\n\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}bribe{RESET}' to pay the Grunt and enter the Black Market.\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return to the Slot Machine.\n\n")
     
 def render_blackjack_tab(app):
     avail = app.engine.available_tokens

@@ -82,6 +82,7 @@ def render_expedition_picker(app):
     expeditions = app.engine.state.get("expeditions", [])
     slot_limit = app.engine.state.get("expedition_slots", 10)
     deployed_ids = {e.get("sp_id") for e in expeditions if "sp_id" in e}
+    red_team_ids = app.engine.get_red_battle_active_pokemon_ids()
     avail_slots = max(0, slot_limit - len(expeditions))
 
     selected = getattr(app, "selected_expedition_targets", set())
@@ -116,12 +117,16 @@ def render_expedition_picker(app):
         hap = mon_data.get("happiness", 100) if isinstance(mon_data, dict) else 100
 
         is_deployed = sp_id in deployed_ids
+        is_in_red_battle = sp_id in red_team_ids
         is_exhausted = hap <= 0
         is_sel = idx in selected
 
         if is_deployed:
             checkbox = f"{BLUE}[-]{RESET}"
             status_str = f"{BLUE}Deployed{RESET}"
+        elif is_in_red_battle:
+            checkbox = f"{RED}[-]{RESET}"
+            status_str = f"{RED}Btl w/Red{RESET}"
         elif is_exhausted:
             checkbox = f"{RED}[x]{RESET}"
             status_str = f"{RED}0% Hap{RESET}"

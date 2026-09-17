@@ -34,6 +34,7 @@ def render(app):
 
     expeditions = app.engine.state.get("expeditions", [])
     exp_map = {e.get("sp_id"): e for e in expeditions if "sp_id" in e}
+    red_team_ids = app.engine.get_red_battle_active_pokemon_ids()
     # Filter dex to active roster (excluding pre-evolutions marked as 'evolved')
     roster = [d for d in dex if d.get("status") != "evolved"]
 
@@ -64,6 +65,8 @@ def render(app):
                 pct = min(100.0, (prog / target) * 100 if target > 0 else 100.0)
                 area_str = str(exp_info.get("area", "Unknown")).capitalize()
                 status_badge = f"{BOLD}{CYAN}[EXP: {area_str} {pct:.0f}%]{RESET}"
+            elif sp_id in red_team_ids:
+                status_badge = f"{BOLD}{RED}[BATTLE w/RED]{RESET}"
             elif status == "active" and active is not None:
                 status_badge = f"{BOLD}{GREEN}[ACTIVE]{RESET}"
             elif status == "inactive":

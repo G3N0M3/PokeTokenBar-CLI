@@ -1,6 +1,9 @@
 import sys
 import textwrap
+import re
 from poketokenbar.utils.formatting import format_tokens, format_progress_bar
+from poketokenbar.sprite_renderer import SpriteRenderer
+from poketokenbar.game.rocket_battle import RocketBattleHandler, generate_player_moves
 
 HEADER = "\033[95m\033[1m"
 BLUE = "\033[94m"
@@ -66,18 +69,143 @@ def _render_secure_comm_channel(app):
         sys.stdout.write(f"  {YELLOW}{line}{RESET}\n")
 
     sys.stdout.write("\n  " + "-" * 68 + "\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}accept{RESET}' or '{BOLD}1{RESET}' to initiate the Rocket Alliance.\n")
-    sys.stdout.write(f"  ➔ Switch to any other tab ('1' through '11') at any time.\n\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}accept{RESET}' to initiate the Rocket Alliance.\n\n")
+
+def _render_rocket_battle_screen(app, handler, st):
+    """Renders the full-screen dynamic combat arena against Oak's Weird Pokémon."""
+    p_idx = st["player_active_index"]
+    r_idx = st["boss_active_index"]
+    p_id = st["player_team"][p_idx]
+    r_mon = st["boss_team"][r_idx]
+
+    p_name = app.engine.api.get_species_name(p_id)
+    r_name = r_mon["name"]
+
+    p_hp = st["player_hps"][p_idx]
+    p_max_hp = st["player_max_hps"][p_idx]
+    p_perc = max(0, min(100, int((p_hp / max(1, p_max_hp)) * 100)))
+
+    r_hp = st["boss_hps"][r_idx]
+    r_max_hp = r_mon["max_hp"]
+    r_perc = max(0, min(100, int((r_hp / max(1, r_max_hp)) * 100)))
+
+    sys.stdout.write(f"  {BOLD}{RED}🚨 TACTICAL COMBAT // {st.get('title', 'SYNDICATE BOSS')[:44]}{RESET}\n")
+    sys.stdout.write("  " + "-" * 68 + "\n\n")
+
+    p_sprite_path = app.engine.api.download_sprite(p_id, is_back=True)
+    r_sprite_path = app.engine.api.download_sprite(r_mon["id"])
+
+    p_sprite_lines = SpriteRenderer.render_png_to_ansi(p_sprite_path, 24).split("\n") if p_sprite_path else [f"[{p_name:^22}]"]
+    r_sprite_lines = SpriteRenderer.render_png_to_ansi(r_sprite_path, 24).split("\n") if r_sprite_path else [f"[{r_name:^22}]"]
+
+    ansi_clean = re.compile(r'\x1b\[[0-9;]*[mK]')
+    p_visual_width = len(ansi_clean.sub("", p_sprite_lines[0])) if p_sprite_lines else 24
+    r_visual_width = len(ansi_clean.sub("", r_sprite_lines[0])) if r_sprite_lines else 24
+    if p_visual_width > 30:
+        p_visual_width = 24
+    if r_visual_width > 30:
+        r_visual_width = 24
+
+    spacer_len = max(2, min(22, 70 - p_visual_width - r_visual_width))
+    spacer = " " * spacer_len
+
+    max_h = max(len(p_sprite_lines), len(r_sprite_lines))
+    while len(p_sprite_lines) < max_h:
+        p_sprite_lines.insert(0, " " * p_visual_width)
+    while len(r_sprite_lines) < max_h:
+        r_sprite_lines.insert(0, " " * r_visual_width)
+
+    for p_line, r_line in zip(p_sprite_lines, r_sprite_lines):
+        sys.stdout.write(f"  {p_line}{spacer}{r_line}\n")
+
+    # Name and HP row (26 + 18 + 26 = 70 cols + 2 indent = 72)
+    sys.stdout.write(f"  {GREEN}{BOLD}{p_name[:26]:<26}{RESET}{' ' * 18}{RED}{BOLD}{r_name[:26]:>26}{RESET}\n")
+    p_bar = '█' * (p_perc // 5) + '░' * (20 - (p_perc // 5))
+    r_bar = '█' * (r_perc // 5) + '░' * (20 - (r_perc // 5))
+    sys.stdout.write(f"  HP: [{p_bar}]{' ' * 18}HP: [{r_bar}]\n")
+    p_hp_str = f"{p_hp:,} / {p_max_hp:,}"
+    r_hp_str = f"{r_hp:,} / {r_max_hp:,}"
+    sys.stdout.write(f"  {p_hp_str:<26}{' ' * 18}{r_hp_str:>26}\n")
+
+    sp = app.engine.api.get_pokemon_info(p_id)
+    p_type = sp["types"][0]["type"]["name"] if sp and "types" in sp else "normal"
+    b_type_core = f"{r_mon['type'].upper()} CORE" if "stances" in r_mon else r_mon["type"].upper()
+    sys.stdout.write(f"  {CYAN}Type: {p_type.upper():<20}{RESET}{' ' * 18}{YELLOW}Type: {b_type_core:>20}{RESET}\n\n")
+
+    # Turn telemetry log
+    sys.stdout.write(f"  {BOLD}Tactical Battle Log:{RESET}\n")
+    logs = st.get("turn_log", [])[-3:]
+    for log in logs:
+        for wline in textwrap.wrap(log, width=64):
+            sys.stdout.write(f"  > {wline}\n")
+    sys.stdout.write("  " + "-" * 68 + "\n")
+
+    # Squad status (split into 2 lines for guaranteed <= 72 column compliance)
+    team_names = []
+    for i, pid in enumerate(st["player_team"]):
+        n = app.engine.api.get_species_name(pid)
+        if st["player_hps"][i] <= 0:
+            team_names.append(f"{RED}~~{n}~~{RESET}")
+        elif i == p_idx:
+            team_names.append(f"{BOLD}{GREEN}>{n}<{RESET}")
+        else:
+            team_names.append(n)
+    t1 = team_names[:3]
+    t2 = team_names[3:]
+    sys.stdout.write(f"  {BOLD}Squad (1-3):{RESET} " + " | ".join(t1) + "\n")
+    if t2:
+        sys.stdout.write(f"  {BOLD}Squad (4-6):{RESET} " + " | ".join(t2) + "\n")
+
+    def format_short_tokens(val: int) -> str:
+        if val >= 1_000_000:
+            return f"{val/1_000_000:.1f}M".replace(".0M", "M")
+        if val >= 1_000:
+            return f"{val/1_000:.1f}K".replace(".0K", "K")
+        return str(val)
+
+    budget = handler.get_rocket_tokens()
+    sys.stdout.write(f"  {BOLD}What will {p_name} do?{RESET} (Tactical Tokens: {format_short_tokens(budget)})\n")
+    moves = generate_player_moves(p_type)
+    for i, m in enumerate(moves):
+        sys.stdout.write(f"  [fight {i+1}] {m['name']:<16} - Cost: {format_short_tokens(m['cost']):>5} ({m['desc']})\n")
+    sys.stdout.write(f"\n  ➔ Commands: [fight 1-4] | [swap 1-{len(st['player_team'])}] | [run]\n\n")
 
 def _render_ops_subtab(app):
-    sys.stdout.write(f"  {BOLD}🎯 Covert Operations (Campaign vs. Oak's Syndicate){RESET}\n")
-    sys.stdout.write(f"  Complete 10 operations to dismantle Oak's secret facilities.\n\n")
+    sys.stdout.write(f"  {BOLD}🎯 Covert Operations (Campaign vs. Oak's Syndicate){RESET}\n\n")
 
     operations = app.engine.get_rocket_operations()
-    active_op = next((op for op in operations if op["status"] == "active"), None)
+    # Find active operation first; fallback to next available operation
+    active_op = next((op for op in operations if op["status"] == "active" and not op["claimed"]), None)
+    if not active_op:
+        active_op = next((op for op in operations if op["status"] == "available" and not op["claimed"]), None)
 
-    # If an active op is a boss op, display tactical boss chamber banner
-    if active_op and active_op["is_boss"] and active_op["boss_hp_remaining"] > 0:
+    if not active_op:
+        sys.stdout.write(f"  {BOLD}{GREEN}🏆 ALL 10 COVERT OPERATIONS COMPLETED!{RESET}\n")
+        sys.stdout.write(f"  {YELLOW}The Oak Syndicate has been dismantled and Kanto is secured.{RESET}\n\n")
+        sys.stdout.write(f"  ➔ Clearance: {BOLD}{RED}Commander{RESET} | Reputation: {BOLD}{YELLOW}10/10{RESET}\n\n")
+        return
+
+    battle_handler = RocketBattleHandler(app.engine)
+    b_st = battle_handler._get_state()
+    in_combat = bool(b_st.get("player_team")) and b_st.get("status") not in ["win", "loss"]
+
+    if in_combat:
+        _render_rocket_battle_screen(app, battle_handler, b_st)
+        return
+
+    # If active op is a boss op, display tactical boss chamber banner
+    if b_st.get("status") == "win" and active_op["is_boss"] and str(b_st.get("op_code")) == str(active_op["code"]) and not active_op["claimed"]:
+        sys.stdout.write(f"  {BOLD}{YELLOW}🏆 TACTICAL SECTOR CLEARED! 🏆{RESET}\n")
+        sys.stdout.write(f"  {GREEN}All bio-aberrations and synthetic constructs neutralized!{RESET}\n\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}claim{RESET}' to finalize mission and collect your reward!\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}restart{RESET}' to replay this tactical encounter.\n")
+        sys.stdout.write("  " + "-" * 68 + "\n\n")
+    elif b_st.get("status") == "loss" and active_op["is_boss"] and str(b_st.get("op_code")) == str(active_op["code"]):
+        sys.stdout.write(f"  {BOLD}{RED}💀 STRIKE SQUAD BLACKED OUT 💀{RESET}\n")
+        sys.stdout.write(f"  {YELLOW}The Sub-Vault bio-aberrations overwhelmed your strike squad.{RESET}\n\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}engage{RESET}' or '{BOLD}fight{RESET}' to deploy a fresh squad!\n")
+        sys.stdout.write("  " + "-" * 68 + "\n\n")
+    elif active_op["is_boss"] and active_op["boss_hp_remaining"] > 0 and not active_op["objective_done"]:
         b_name = active_op["boss_name"]
         rem_hp = active_op["boss_hp_remaining"]
         max_hp = active_op["boss_hp"]
@@ -86,68 +214,103 @@ def _render_ops_subtab(app):
         sys.stdout.write(f"  {BOLD}{RED}⚠️ ACTIVE BOSS CONFRONTATION:{RESET} {BOLD}{b_name}{RESET}\n")
         sys.stdout.write(f"  HP: {BOLD}{YELLOW}{rem_hp:,}/{max_hp:,}{RESET} | {bar} ({pct}% left)\n")
         mon_str = app.engine.api.get_species_name(app.engine.active_mon.current_id) if app.engine.active_mon else "None"
-        sys.stdout.write(f"  Vanguard Companion: {BOLD}{CYAN}{mon_str}{RESET}\n")
-        sys.stdout.write(f"  ➔ Tactical Commands: '{BOLD}attack{RESET}' | '{BOLD}burst{RESET}' (5M tokens: +5,000 DMG)\n")
+        sys.stdout.write(f"  Strike Squad Leader: {BOLD}{CYAN}{mon_str}{RESET} (Squad ready)\n")
+        sys.stdout.write(f"  ➔ Tactical Commands: '{BOLD}engage{RESET}' or '{BOLD}fight{RESET}' to enter combat arena!\n")
         sys.stdout.write("  " + "-" * 68 + "\n\n")
 
-    for op in operations:
-        code = op["code"]
-        name = op["name"]
-        status = op["status"]
-        prog = op["progress"]
-        target = op["target"]
-        claimed = op["claimed"]
-        obj_done = op["objective_done"]
-        is_boss = op["is_boss"]
+    code = active_op["code"]
+    name = active_op["name"]
+    status = active_op["status"]
+    prog = active_op["progress"]
+    target = active_op["target"]
+    claimed = active_op["claimed"]
+    obj_done = active_op["objective_done"]
+    is_boss = active_op["is_boss"]
 
-        if claimed:
-            badge = f"{BOLD}{GREEN}[COMPLETED]{RESET}"
-        elif is_boss and obj_done:
-            badge = f"{BOLD}{YELLOW}[BOSS DEFEATED - 'claim {code}']{RESET}"
-        elif not is_boss and target > 0 and prog >= target and obj_done:
-            badge = f"{BOLD}{YELLOW}[READY - 'claim {code}']{RESET}"
-        elif status == "active":
-            badge = f"{BOLD}{CYAN}[ACTIVE]{RESET}"
-        elif status == "available":
-            badge = f"{BOLD}{YELLOW}[AVAILABLE - 'start {code}']{RESET}"
-        else:
-            badge = f"{BOLD}[LOCKED]{RESET}"
+    # Dynamic objective verification
+    if status in ["active", "available"] and not claimed:
+        is_ok, _ = app.engine.check_operation_objective(active_op["id"])
+        obj_done = is_ok
+        active_op["objective_done"] = is_ok
 
-        sys.stdout.write(f"  [{BOLD}{code:>2}{RESET}] {BOLD}{name[:38]:<38}{RESET} {badge}\n")
-        if target > 0:
-            bar = format_progress_bar(prog, target, width=8)
-            pct = (prog * 100) // target if target > 0 else 100
-            sys.stdout.write(f"       Tokens: {format_tokens(prog)}/{format_tokens(target)} | {bar} ({pct}%)\n")
-        for tline in textwrap.wrap(f"Task: {op['target_desc']}", width=64):
-            sys.stdout.write(f"       {tline}\n")
-        for bline in textwrap.wrap(op['briefing'], width=64):
-            sys.stdout.write(f"       {CYAN}{bline}{RESET}\n")
-        sys.stdout.write(f"       Reward: {format_tokens(op['reward_tokens'])} tokens, Clearance: {op['reward_rank']}\n\n")
+    if claimed:
+        badge = f"{BOLD}{GREEN}[COMPLETED]{RESET}"
+    elif is_boss and obj_done:
+        badge = f"{BOLD}{YELLOW}[BOSS DEFEATED - 'claim']{RESET}"
+    elif not is_boss and target > 0 and prog >= target and obj_done:
+        badge = f"{BOLD}{YELLOW}[READY - 'claim']{RESET}"
+    elif not is_boss and target == 0 and obj_done:
+        badge = f"{BOLD}{YELLOW}[READY - 'claim']{RESET}"
+    elif status == "active":
+        badge = f"{BOLD}{CYAN}[ACTIVE]{RESET}"
+    elif status == "available":
+        badge = f"{BOLD}{YELLOW}[AVAILABLE - 'start operation']{RESET}"
+    else:
+        badge = f"{BOLD}[LOCKED]{RESET}"
 
-    sys.stdout.write(f"  ➔ Commands: '{BOLD}start <id>{RESET}' (e.g. 'start 1') | '{BOLD}claim <id>{RESET}'\n")
-    sys.stdout.write(f"  ➔ Boss Combat: '{BOLD}attack{RESET}' | '{BOLD}burst{RESET}' (Op 3, 6, 9, 10)\n")
-    sys.stdout.write(f"  ➔ Switch view: '{BOLD}i{RESET}' for Intel Dossier | '{BOLD}a{RESET}' for Armory\n\n")
+    sys.stdout.write(f"  {BOLD}{name[:36]:<36}{RESET} {badge}\n")
+    
+    # Trace each individual requirement on its own line
+    reqs = app.engine.get_operation_requirements(code)
+    if reqs:
+        sys.stdout.write(f"       Requirements:\n")
+        for req in reqs:
+            r_name = req["name"]
+            cur_str = req["current_str"]
+            bar = format_progress_bar(req["current"], req["target"], width=8)
+            pct = req["pct"]
+            tag = f" {BOLD}{GREEN}[DONE]{RESET}" if req["is_met"] else ""
+            sys.stdout.write(f"       • {r_name:<18} {cur_str:<9} | {bar}{tag}\n")
+
+    for bline in textwrap.wrap(active_op['briefing'], width=62):
+        sys.stdout.write(f"       {CYAN}{bline}{RESET}\n")
+    sys.stdout.write(f"       Reward: {format_tokens(active_op['reward_tokens'])} tokens, Clearance: {active_op['reward_rank']}\n\n")
+
+    # Command hints: briefing first, operational action second
+    if status == "available":
+        sys.stdout.write(f"  ➔ Type '{BOLD}briefing{RESET}' to preview tactical briefing\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}start operation{RESET}' to activate operation!\n\n")
+    elif (not is_boss and target > 0 and prog >= target and obj_done) or (not is_boss and target == 0 and obj_done) or (is_boss and obj_done):
+        sys.stdout.write(f"  ➔ Type '{BOLD}briefing{RESET}' to review tactical briefing\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}claim{RESET}' to collect your reward!\n\n")
+    elif is_boss:
+        sys.stdout.write(f"  ➔ Type '{BOLD}briefing{RESET}' to review tactical dialogue\n")
+        sys.stdout.write(f"  ➔ Boss Combat: '{BOLD}engage{RESET}' / '{BOLD}fight{RESET}' to enter tactical combat\n\n")
+    else:
+        sys.stdout.write(f"  ➔ Type '{BOLD}briefing{RESET}' to review tactical dialogue\n")
+        sys.stdout.write(f"  ➔ Commands: '{BOLD}claim{RESET}' when task objectives are fulfilled\n\n")
 
 def _render_intel_subtab(app):
     sys.stdout.write(f"  {BOLD}📁 Declassified Dossier: The Oak Syndicate Archives{RESET}\n")
     sys.stdout.write(f"  Recovered intelligence on Professor Oak and Red's synthesis.\n\n")
 
     dossier = app.engine.get_rocket_dossier()
-    for item in dossier:
+    unlocked_items = [item for item in dossier if item.get("unlocked", False)]
+
+    if not unlocked_items:
+        sys.stdout.write("  (No dossier files retrieved yet. Complete operations to intercept intel!)\n\n")
+        return
+
+    page_size = 5
+    total_pages = max(1, (len(unlocked_items) - 1) // page_size + 1)
+    if not hasattr(app, "intel_page") or not isinstance(app.intel_page, int):
+        app.intel_page = 1
+    app.intel_page = max(1, min(app.intel_page, total_pages))
+
+    start_idx = (app.intel_page - 1) * page_size
+    end_idx = start_idx + page_size
+
+    for item in unlocked_items[start_idx:end_idx]:
         idx = item["id"]
         title = item["title"]
-        unlocked = item["unlocked"]
-        if unlocked:
-            badge = f"{BOLD}{GREEN}[DECRYPTED - 'read {idx}']{RESET}"
-            sys.stdout.write(f"  [{BOLD}{idx:>2}{RESET}] {BOLD}{title[:36]:<36}{RESET} {badge}\n")
-            sys.stdout.write(f"       Date: {item['date']} | Status: Declassified\n")
-        else:
-            badge = f"{BOLD}{YELLOW}[LOCKED - CLEAR OP {idx}]{RESET}"
-            sys.stdout.write(f"  [{idx:>2}] {title[:36]:<36} {badge}\n")
-            sys.stdout.write(f"       Clearance: Requires Operation {idx} completion\n")
+        badge = f"{BOLD}{GREEN}[DECRYPTED - 'read {idx}']{RESET}"
+        sys.stdout.write(f"  [{BOLD}{idx:>2}{RESET}] {BOLD}{title[:36]:<36}{RESET} {badge}\n")
+        sys.stdout.write(f"       Date: {item['date']} | Status: Declassified\n")
 
-    sys.stdout.write(f"\n  ➔ Type '{BOLD}read <1-10>{RESET}' to decrypt a dossier (e.g. 'read 1')\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}o{RESET}' to return to Operations menu\n\n")
+    if total_pages > 1:
+        sys.stdout.write(f"\n  ➔ Page {app.intel_page}/{total_pages} - Type '{BOLD}n{RESET}', '{BOLD}p{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")
+
+    sys.stdout.write(f"\n  ➔ Type '{BOLD}read <id>{RESET}' to view decrypted dossier\n\n")
 
 def _render_read_intel(app):
     file_id = getattr(app, "rocket_reading_file", 1)
@@ -155,7 +318,7 @@ def _render_read_intel(app):
     selected = next((item for item in dossier if item["id"] == file_id), None)
 
     if not selected or not selected["unlocked"]:
-        sys.stdout.write(f"  {BOLD}{RED}⚠️ Clearance Denied: File #{file_id} is encrypted!{RESET}\n\n")
+        sys.stdout.write(f"  {BOLD}{RED}⚠️ Clearance Denied: File #{file_id} has not been retrieved yet!{RESET}\n\n")
         sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return to Intel index.\n\n")
         return
 
@@ -171,23 +334,32 @@ def _render_read_intel(app):
                 sys.stdout.write(f"  {wline}\n")
 
     sys.stdout.write("\n  " + "-" * 68 + "\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' or '{BOLD}i{RESET}' to return to Dossier index.\n\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return to Dossier index.\n\n")
 
 def _render_armory_subtab(app):
     sys.stdout.write(f"  {BOLD}🛡️ Team Rocket Covert Tech Armory{RESET}\n")
     sys.stdout.write(f"  Skunkworks experimental equipment gated by operative clearance.\n\n")
+
+    pending = app.engine.state.get("pending_authority_delivery")
+    if pending:
+        sp_id = pending if isinstance(pending, int) else pending.get("species_id")
+        sp_name = app.engine.api.get_species_name(sp_id)
+        sys.stdout.write(f"  {BOLD}{YELLOW}📦 SYNDICATE COURIER WAITING AT HQ:{RESET}\n")
+        sys.stdout.write(f"  A wild {BOLD}{CYAN}{sp_name}{RESET} (#{sp_id}) was requisitioned by field agents!\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}keep{RESET}' to register into Roster, or '{BOLD}dismiss{RESET}' to release.\n")
+        sys.stdout.write("  " + "-" * 68 + "\n\n")
 
     user_rank = app.engine.state.get("rocket_rank", "Informant")
     rank_order = {"Informant": 1, "Operative": 2, "Special Agent": 3, "Executive": 4, "Commander": 5}
     user_lvl = rank_order.get(user_rank, 1)
 
     armory_items = [
-        ("elixir", "Shadow Elixir", 20_000_000, "Informant", "🧪", "Sets Happiness to 100% & grants 2h token rate boost"),
-        ("chip", "Overclock Chip", 35_000_000, "Operative", "💾", "Cuts all active expedition durations in half"),
-        ("scanner", "Syndicate Scanner", 45_000_000, "Operative", "🔍", "Reveals hidden bonus rewards & extra expedition drops"),
-        ("radar", "Rocket Decryptor", 50_000_000, "Special Agent", "📡", "+2.0% Bank CD daily interest & insider market tips"),
-        ("catalyst", "Dark Gene Catalyst", 75_000_000, "Executive", "🧬", "Stored in bag: Instantly evolves eligible companion"),
-        ("ball", "Rocket Master Ball", 150_000_000, "Commander", "🔮", "Guaranteed 100% capture & highest shiny probability"),
+        ("pass", "Syndicate Black Pass", 20_000_000, "Informant", "📯", "24/7 access to Black Market; bypasses Grunt toll fees"),
+        ("spray", "Syndicate Morale Mist", 35_000_000, "Operative", "🌫️", "Instantly boosts happiness of all squad Pokémon to 100%"),
+        ("chrono", "Chrono Accelerator", 45_000_000, "Operative", "⏱️", "Fast-forwards active Bank CDs, advancing maturity by +1 day"),
+        ("splitter", "Corrupted EXP Splitter", 50_000_000, "Special Agent", "⚡", "Mirrors 25% of coding XP to all inactive roster Pokémon"),
+        ("catalyst", "Dark Gene Catalyst", 75_000_000, "Executive", "🧬", "Stored in Bag (Slot 65): Instantly evolves companion"),
+        ("authority", "Team Rocket Authority", 100, "Commander", "👑", "Daily requisition of a random non-duplicate Gen 1 Pokémon"),
     ]
 
     for code, name, price, min_rank, icon, desc in armory_items:
@@ -195,16 +367,34 @@ def _render_armory_subtab(app):
         pr_str = format_tokens(price)
         if user_lvl >= req_lvl:
             badge = f"{BOLD}{GREEN}[CLEARANCE GRANTED]{RESET}"
+            sys.stdout.write(f"  {icon} {BOLD}{name:<22}{RESET} [{BOLD}{CYAN}{pr_str}{RESET}] ('{BOLD}{code}{RESET}') {badge}\n")
+            for dline in textwrap.wrap(f"➔ {desc}", width=64):
+                sys.stdout.write(f"     {dline}\n")
         else:
-            badge = f"{BOLD}{RED}[LOCKED - REQ: {min_rank.upper()}]{RESET}"
-
-        sys.stdout.write(f"  {icon} {BOLD}{name:<19}{RESET} [{BOLD}{CYAN}{pr_str}{RESET}] ('{BOLD}{code}{RESET}') {badge}\n")
-        for dline in textwrap.wrap(f"➔ {desc}", width=66):
-            sys.stdout.write(f"     {dline}\n")
+            badge = f"{BOLD}{RED}[LOCKED - HIGHER RANK REQUIRED]{RESET}"
+            sys.stdout.write(f"  ❓ {BOLD}{'??? ???':<19}{RESET} [{BOLD}{CYAN}???{RESET}] ('???') {badge}\n")
+            lock_msg = f"➔ You need a higher rank ({min_rank}) for this purchase."
+            for dline in textwrap.wrap(lock_msg, width=64):
+                sys.stdout.write(f"     {YELLOW}{dline}{RESET}\n")
         sys.stdout.write("\n")
 
-    sys.stdout.write(f"  ➔ Type '{BOLD}buy <code>{RESET}' to acquire tech (e.g. 'buy elixir')\n")
-    sys.stdout.write(f"  ➔ Switch view: '{BOLD}o{RESET}' for Operations | '{BOLD}i{RESET}' for Intel\n\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}buy <code>{RESET}' to acquire tech (e.g. 'buy pass')\n\n")
+
+def _resolve_armory_tech_code(raw: str) -> str:
+    raw = raw.lower().strip()
+    if "pass" in raw:
+        return "pass"
+    if "spray" in raw or "mist" in raw or "morale" in raw:
+        return "spray"
+    if "chrono" in raw or "accelerator" in raw:
+        return "chrono"
+    if "splitter" in raw:
+        return "splitter"
+    if "catalyst" in raw or "gene" in raw:
+        return "catalyst"
+    if "authority" in raw:
+        return "authority"
+    return raw.split()[0] if raw.split() else raw
 
 def handle_rocket_command(app, cmd: str):
     """Processes user input while inside Tab [12]."""
@@ -212,7 +402,7 @@ def handle_rocket_command(app, cmd: str):
 
     # If dormant channel, handle alliance acceptance
     if not app.engine.state.get("rocket_alliance_accepted", False):
-        if cmd.lower() in ["accept", "1", "yes", "y"]:
+        if cmd.lower() == "accept":
             app.engine.state["rocket_alliance_accepted"] = True
             app.engine.save()
             app.message = "🚀 Alliance initiated! Welcome to Team Rocket Covert HQ, Operative."
@@ -221,6 +411,90 @@ def handle_rocket_command(app, cmd: str):
         return
 
     subview = getattr(app, "rocket_subview", "ops")
+
+    battle_handler = RocketBattleHandler(app.engine)
+    b_st = battle_handler._get_state()
+    in_combat = bool(b_st.get("player_team")) and b_st.get("status") not in ["win", "loss"]
+
+    if in_combat:
+        if cmd in ["run", "retreat", "flee"]:
+            ok, msg = battle_handler.run_away()
+            app.message = msg
+            return
+        elif cmd.startswith("swap ") or cmd.startswith("s "):
+            parts = cmd.split()
+            if len(parts) >= 2 and parts[1].isdigit():
+                slot = int(parts[1]) - 1
+                ok, msg = battle_handler.swap_pokemon(slot)
+                app.message = msg.split("\n")[0]
+            else:
+                app.message = "Usage: swap <1-6>"
+            return
+        elif cmd.startswith("fight ") or cmd.startswith("f "):
+            parts = cmd.split()
+            if len(parts) >= 2 and parts[1].isdigit():
+                m_idx = int(parts[1]) - 1
+                ok, msg = battle_handler.execute_turn(m_idx)
+                app.message = msg.split("\n")[0]
+            else:
+                app.message = "Usage: fight <1-4>"
+            return
+        elif cmd in ["1", "2", "3", "4"]:
+            m_idx = int(cmd) - 1
+            ok, msg = battle_handler.execute_turn(m_idx)
+            app.message = msg.split("\n")[0]
+            return
+        elif cmd in ["attack", "strike", "a"]:
+            ok, msg = battle_handler.execute_turn(0)
+            app.message = msg.split("\n")[0]
+            return
+        elif cmd in ["burst", "overclock"]:
+            ok, msg = battle_handler.execute_turn(3)
+            app.message = msg.split("\n")[0]
+            return
+
+    if cmd == "restart" and subview == "ops":
+        if b_st.get("status") in ["win", "loss"]:
+            battle_handler.run_away()
+            app.message = "Reset tactical boss encounter."
+            return
+
+    if (cmd in ["engage", "fight", "battle", "breach"] or cmd.startswith("engage ") or cmd.startswith("fight ") or cmd.startswith("battle ")) and subview == "ops":
+        parts = cmd.split()
+        target_code = None
+        if len(parts) >= 2 and parts[1].isdigit():
+            target_code = parts[1]
+        if not target_code:
+            operations = app.engine.get_rocket_operations()
+            curr = next((op for op in operations if op["status"] in ["available", "active"] and not op["claimed"] and op["is_boss"]), None)
+            if curr:
+                target_code = curr["code"]
+            else:
+                target_code = "3"
+
+        if target_code:
+            ok, msg = battle_handler.start_boss_battle(target_code)
+            app.message = msg
+        else:
+            app.message = "No Syndicate Boss encounter to engage."
+        return
+
+    if cmd.startswith("squad ") and subview == "ops":
+        parts = cmd.split()[1:]
+        ids = [int(p) for p in parts if p.isdigit()]
+        if len(ids) >= 1:
+            operations = app.engine.get_rocket_operations()
+            curr = next((op for op in operations if op["status"] in ["available", "active"] and not op["claimed"] and op["is_boss"]), None)
+            if curr:
+                if curr["status"] == "available":
+                    app.engine.start_rocket_operation(curr["code"])
+                ok, msg = battle_handler.start_boss_battle(curr["code"], custom_squad=ids)
+                app.message = msg
+            else:
+                app.message = "No active Syndicate Boss encounter to assemble squad for."
+        else:
+            app.message = "Usage: squad <id1> <id2> ... (e.g. 'squad 6 3 9 25')"
+        return
 
     if cmd in ["o", "ops", "operations"]:
         app.rocket_subview = "ops"
@@ -234,6 +508,21 @@ def handle_rocket_command(app, cmd: str):
     elif subview == "read_intel" and cmd in ["back", "b"]:
         app.rocket_subview = "intel"
         app.message = "Returned to Intel index."
+    elif subview == "intel" and cmd in ["n", "next"]:
+        if not hasattr(app, "intel_page"): app.intel_page = 1
+        app.intel_page += 1
+        app.message = ""
+    elif subview == "intel" and cmd in ["p", "prev"]:
+        if not hasattr(app, "intel_page"): app.intel_page = 1
+        app.intel_page = max(1, app.intel_page - 1)
+        app.message = ""
+    elif subview == "intel" and cmd.startswith("page "):
+        try:
+            p = int(cmd.split()[1])
+            app.intel_page = max(1, p)
+            app.message = ""
+        except ValueError:
+            app.message = "Usage: page <number>"
     elif cmd.startswith("read "):
         parts = cmd.split()
         if len(parts) >= 2 and parts[1].isdigit():
@@ -245,40 +534,121 @@ def handle_rocket_command(app, cmd: str):
                 app.rocket_reading_file = idx
                 app.message = f"Opened Dossier #{idx}."
             elif selected:
-                app.message = f"File #{idx} is encrypted. Complete Operation {idx} to unlock."
+                app.message = f"File #{idx} has not been retrieved yet. Complete operations to intercept this intel."
             else:
-                app.message = "Invalid file number. Use 'read 1' through 'read 10'."
+                app.message = "Invalid file number. Use 'read <id>' for an unlocked dossier."
         else:
-            app.message = "Usage: read <1-10> (e.g. 'read 1')"
-    elif cmd.startswith("start "):
-        parts = cmd.split()
-        if len(parts) >= 2:
-            ok, msg = app.engine.start_rocket_operation(parts[1])
+            app.message = "Usage: read <id> (e.g. 'read 1')"
+    elif cmd == "start operation":
+        operations = app.engine.get_rocket_operations()
+        curr = next((op for op in operations if op["status"] in ["available", "active"] and not op["claimed"]), None)
+        if curr:
+            op_st = app.engine.state.get("rocket_ops", {}).get(curr["id"], {})
+            if not op_st.get("briefing_viewed", False):
+                render_operation_dialogue(app, curr["code"])
+                op_st["briefing_viewed"] = True
+            ok, msg = app.engine.start_rocket_operation(curr["code"])
+            if curr.get("is_boss", False):
+                battle_handler.start_boss_battle(curr["code"])
             app.message = msg
         else:
-            app.message = "Usage: start <id> (e.g. 'start 1')"
-    elif cmd.startswith("claim "):
+            app.message = "No available operation to start."
+    elif cmd in ["briefing", "dialogue", "story"] and subview == "ops":
+        operations = app.engine.get_rocket_operations()
+        curr = next((op for op in operations if (op["status"] == "active" or op["status"] == "available") and not op["claimed"]), None)
+        if curr:
+            render_operation_dialogue(app, curr["code"])
+            app.message = f"Replayed Operation {curr['code']} tactical briefing."
+        else:
+            app.message = "No active operation to review briefing."
+    elif cmd.startswith("start"):
+        app.message = "Unknown command. Use 'start operation' to begin."
+    elif cmd.startswith("claim"):
         parts = cmd.split()
         if len(parts) >= 2:
             ok, msg = app.engine.claim_rocket_operation(parts[1])
             app.message = msg
         else:
-            app.message = "Usage: claim <id> (e.g. 'claim 1')"
+            operations = app.engine.get_rocket_operations()
+            curr = next((op for op in operations if (op["status"] == "active" or op["objective_done"]) and not op["claimed"]), None)
+            if curr:
+                ok, msg = app.engine.claim_rocket_operation(curr["code"])
+                app.message = msg
+            else:
+                app.message = "No active operation ready to claim."
     elif cmd in ["attack", "strike", "a"] and subview == "ops":
         ok, msg = app.engine.attack_rocket_boss(burst=False)
         app.message = msg
     elif cmd in ["burst", "overclock"] and subview == "ops":
         ok, msg = app.engine.attack_rocket_boss(burst=True)
         app.message = msg
-    elif cmd.startswith("buy ") and subview == "armory":
-        parts = cmd.split()
-        if len(parts) >= 2:
-            ok, msg = app.engine.buy_rocket_armory_item(parts[1])
+    elif cmd in ["keep", "dismiss"]:
+        ok, msg = app.engine.handle_authority_delivery(cmd)
+        app.message = msg
+    elif cmd.startswith("buy "):
+        raw_tech = cmd[4:].strip()
+        if raw_tech:
+            tech_code = _resolve_armory_tech_code(raw_tech)
+            ok, msg = app.engine.buy_rocket_armory_item(tech_code)
             app.message = msg
         else:
-            app.message = "Usage: buy <elixir|chip|scanner|radar|catalyst|ball>"
+            app.message = (
+                "Usage: buy <pass|spray|chrono|splitter|catalyst|authority>"
+            )
+    elif subview == "armory" and cmd in [
+        "pass", "spray", "chrono", "splitter", "catalyst", "authority"
+    ]:
+        ok, msg = app.engine.buy_rocket_armory_item(cmd)
+        app.message = msg
     else:
-        app.message = "Rocket command options: 'o', 'i', 'a', 'start <id>', 'claim <id>', 'attack', 'burst', 'buy <code>'."
+        app.message = "Rocket command options: 'start operation', 'engage', 'briefing', 'claim', 'attack', 'burst', 'read <id>', 'buy <code>', 'keep', 'dismiss'."
+
+def render_operation_dialogue(app, op_code: str):
+    """Renders a full-screen, atmospheric mission briefing dialogue when starting an operation."""
+    dialogue_info = app.engine.get_operation_dialogue(op_code)
+    if not dialogue_info:
+        return
+
+    # Clear terminal screen
+    sys.stdout.write("\033[H\033[2J")
+    sys.stdout.write(f"\n{BOLD}{RED}{'='*72}{RESET}\n")
+    title_line = f"🚨 TACTICAL COMM-LINK // FREQUENCY: 131.55 // OP #{op_code} BRIEFING"
+    sys.stdout.write(f"  {BOLD}{RED}{title_line:<68}{RESET}\n")
+    sys.stdout.write(f"{BOLD}{RED}{'='*72}{RESET}\n\n")
+
+    sys.stdout.write(f"  {BOLD}{RED}██████╗ {RESET}   {BOLD}{YELLOW}[TEAM ROCKET TACTICAL BRIEFING]{RESET}\n")
+    sys.stdout.write(f"  {BOLD}{RED}██╔══██╗{RESET}   Target: {dialogue_info['title'][:50]}\n")
+    sys.stdout.write(f"  {BOLD}{RED}██████╔╝{RESET}   Sector: {dialogue_info['location'][:50]}\n")
+    sys.stdout.write(f"  {BOLD}{RED}██╔══██╗{RESET}   Sender: {dialogue_info['speaker']}\n")
+    sys.stdout.write(f"  {BOLD}{RED}██║  ██║{RESET}\n")
+    sys.stdout.write(f"  {BOLD}{RED}╚═╝  ╚═╝{RESET}\n\n")
+
+    for line in dialogue_info["dialogue"]:
+        if not line:
+            sys.stdout.write("\n")
+        else:
+            for wline in textwrap.wrap(line, width=68):
+                sys.stdout.write(f"  {CYAN}{wline}{RESET}\n")
+
+    sys.stdout.write(f"\n  {BOLD}{YELLOW}📋 TACTICAL MISSION DIRECTIVES:{RESET}\n")
+    for order in dialogue_info["tactical_orders"]:
+        for wline in textwrap.wrap(order, width=68):
+            sys.stdout.write(f"  {wline}\n")
+
+    sys.stdout.write(f"\n{BOLD}{RED}{'-'*72}{RESET}\n")
+    sys.stdout.write(f"  {BOLD}{GREEN}➔ Press [Enter] to deploy into the operation...{RESET} ")
+    sys.stdout.flush()
+
+    if hasattr(sys.stdin, "isatty") and sys.stdin.isatty():
+        sys.stdin.readline()
+    elif hasattr(sys.stdin, "readline"):
+        if (getattr(sys.stdin.readline, "_mock_return_value", None) is not None or
+            getattr(sys.stdin.readline, "side_effect", None) is not None or
+            getattr(sys.stdin.readline, "_mock_side_effect", None) is not None):
+            try:
+                sys.stdin.readline()
+            except Exception:
+                pass
 
 def render_rocket_transmission(app):
     """Full-screen interactive cinematic transmission with branching dialog."""

@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name="poketokenbar",
     version="1.10.0",
-    packages=find_packages(),
+    packages=find_packages(exclude=["tests*", "tests"]),
     entry_points={
         "console_scripts": [
             "poketokenbar = poketokenbar.cli:main",
@@ -11,7 +11,12 @@ setup(
         ],
     },
     python_requires=">=3.8",
-    install_requires=[
-        "Pillow>=9.0.0",
-    ],
+    install_requires=[],
+    package_data={
+        "poketokenbar": ["assets/sprites/*.png"],
+    },
+    include_package_data=True,
+    extras_require={
+        "graphics": ["Pillow>=9.0.0"],
+    },
 )
