@@ -1,5 +1,6 @@
 import random
 import sys
+import textwrap
 from typing import Optional, Tuple, Dict, List, Any
 from poketokenbar.game.models import ItemKind, Rarity
 from poketokenbar.utils.formatting import format_tokens
@@ -90,6 +91,464 @@ BAG_CATALOG = [
 BAG_CATALOG_MAP = {cid: key for cid, key, _ in BAG_CATALOG}
 BAG_KEY_TO_ID = {key: cid for cid, key, _ in BAG_CATALOG}
 
+ITEM_DESCRIPTIONS: Dict[str, Dict[str, str]] = {
+    "rare_candy": {
+        "name": "🍬 Rare Candy",
+        "clean_name": "Rare Candy",
+        "category": "Consumable",
+        "desc": "Instantly grants +60% of shop cost in XP to active companion.",
+        "usage": "Type 'use <id> [qty]' to feed to active companion.",
+    },
+    "mint": {
+        "name": "🌿 Mint",
+        "clean_name": "Mint",
+        "category": "Consumable",
+        "desc": "Rerolls active companion's nature, altering stat multipliers.",
+        "usage": "Type 'use <id>' to reroll active companion's nature.",
+    },
+    "berry_oran": {
+        "name": "🫐 Oran Berry",
+        "clean_name": "Oran Berry",
+        "category": "Consumable",
+        "desc": "Restores +25% Happiness per berry to active companion.",
+        "usage": "Type 'use <id> [qty]' to feed to active companion.",
+    },
+    "berry_golden": {
+        "name": "🍇 Golden Razz",
+        "clean_name": "Golden Razz Berry",
+        "category": "Consumable",
+        "desc": "Boosts shiny hatch odds on your NEXT egg hatch to 1/24.",
+        "usage": "Type 'use <id>' to activate shiny hatch boost.",
+    },
+    "poke_flute": {
+        "name": "🪈 Poké Flute",
+        "clean_name": "Poké Flute",
+        "category": "Key Item",
+        "desc": "Awakens and summons an undefeated Gym Boss for battle.",
+        "usage": "Type 'use <id>' to summon a Gym Boss to fight.",
+    },
+    "master_ball": {
+        "name": "🌟 Master Ball",
+        "clean_name": "Master Ball",
+        "category": "Key Item",
+        "desc": "Instantly hatches your incubating egg into a guaranteed SHINY!",
+        "usage": "Type 'use <id>' while incubating an egg.",
+    },
+    "map_fragment": {
+        "name": "📜 Ancient Map",
+        "clean_name": "Ancient Map",
+        "category": "Key Item",
+        "desc": "Unlocks Spear Pillar expedition once 3 fragments are collected.",
+        "usage": "Used automatically when dispatching to Spear Pillar.",
+    },
+    "expedition_license": {
+        "name": "📜 Exped. License",
+        "clean_name": "Expedition License",
+        "category": "Field Tech",
+        "desc": "Permanently increases concurrent expedition slots by +10.",
+        "usage": "Type 'use <id>' to expand expedition capacity.",
+    },
+    "everstone": {
+        "name": "🪨 Everstone",
+        "clean_name": "Everstone",
+        "category": "Held Item",
+        "desc": "Completely halts companion evolution while equipped.",
+        "usage": "Type 'use <id>' to equip to companion.",
+    },
+    "lucky_egg": {
+        "name": "🍀 Lucky Egg",
+        "clean_name": "Lucky Egg",
+        "category": "Held Item",
+        "desc": "Boosts XP gains by +20% from coding and all activities.",
+        "usage": "Type 'use <id>' to equip to companion.",
+    },
+    "amulet_coin": {
+        "name": "🪙 Amulet Coin",
+        "clean_name": "Amulet Coin",
+        "category": "Held Item",
+        "desc": "Boosts spendable token rewards by +50% from all sources.",
+        "usage": "Type 'use <id>' to equip to companion.",
+    },
+    "leftovers": {
+        "name": "🍎 Leftovers",
+        "clean_name": "Leftovers",
+        "category": "Held Item",
+        "desc": "Protects active companion from daily happiness decay.",
+        "usage": "Type 'use <id>' to equip to companion.",
+    },
+    "choice_scarf": {
+        "name": "🥊 Choice Scarf",
+        "clean_name": "Choice Scarf",
+        "category": "Held Item",
+        "desc": "Speeds up expeditions by +20%, but drains happiness faster.",
+        "usage": "Type 'use <id>' to equip to companion.",
+    },
+    "exp_share": {
+        "name": "🎒 Exp. Share",
+        "clean_name": "Exp. Share",
+        "category": "Held Item",
+        "desc": "Shares 25% of earned XP with inactive roster companions.",
+        "usage": "Type 'use <id>' to equip to companion.",
+    },
+    "soothe_bell": {
+        "name": "🔔 Soothe Bell",
+        "clean_name": "Soothe Bell",
+        "category": "Held Item",
+        "desc": "Doubles happiness gains and halts daily happiness decay.",
+        "usage": "Type 'use <id>' to equip to companion.",
+    },
+    "scope_lens": {
+        "name": "🔍 Scope Lens",
+        "clean_name": "Scope Lens",
+        "category": "Held Item",
+        "desc": "Doubles shiny hatching and encounter chances (2x odds).",
+        "usage": "Type 'use <id>' to equip to companion.",
+    },
+    "life_orb": {
+        "name": "🔮 Life Orb",
+        "clean_name": "Life Orb",
+        "category": "Held Item",
+        "desc": "Channels +10% bonus token power from your coding activity.",
+        "usage": "Type 'use <id>' to equip to companion.",
+    },
+    "choice_band": {
+        "name": "🥊 Choice Band",
+        "clean_name": "Choice Band",
+        "category": "Held Item",
+        "desc": "Deals +50% more physical attack damage in battles.",
+        "usage": "Type 'use <id>' to equip to companion.",
+    },
+    "choice_specs": {
+        "name": "👓 Choice Specs",
+        "clean_name": "Choice Specs",
+        "category": "Held Item",
+        "desc": "Deals +50% more special attack damage in battles.",
+        "usage": "Type 'use <id>' to equip to companion.",
+    },
+    "focus_sash": {
+        "name": "🎗️ Focus Sash",
+        "clean_name": "Focus Sash",
+        "category": "Held Item",
+        "desc": "Allows companion to endure a lethal blow with 1 HP remaining.",
+        "usage": "Type 'use <id>' to equip to companion.",
+    },
+    "rocky_helmet": {
+        "name": "⛑️ Rocky Helmet",
+        "clean_name": "Rocky Helmet",
+        "category": "Held Item",
+        "desc": "Deals recoil damage to attackers when struck in combat.",
+        "usage": "Type 'use <id>' to equip to companion.",
+    },
+    "assault_vest": {
+        "name": "🦺 Assault Vest",
+        "clean_name": "Assault Vest",
+        "category": "Held Item",
+        "desc": "Reduces incoming combat damage taken by 30%.",
+        "usage": "Type 'use <id>' to equip to companion.",
+    },
+    "heavy_boots": {
+        "name": "🥾 Heavy Boots",
+        "clean_name": "Heavy Boots",
+        "category": "Held Item",
+        "desc": "Grants full immunity against environmental hazards.",
+        "usage": "Type 'use <id>' to equip to companion.",
+    },
+    "compass_of_deep": {
+        "name": "🧭 Compass of Deep",
+        "clean_name": "Compass of Deep",
+        "category": "Held Item",
+        "desc": "Speeds up all expeditions by +25% while equipped.",
+        "usage": "Type 'use <id>' to equip to companion.",
+    },
+    "revitalizing_tonic": {
+        "name": "⚗️ Revitalizing Tonic",
+        "clean_name": "Revitalizing Tonic",
+        "category": "Consumable",
+        "desc": "Instantly restores active companion's Happiness to 100%.",
+        "usage": "Type 'use <id>' to revitalize active companion.",
+    },
+    "sacred_ash": {
+        "name": "🏺 Sacred Ash",
+        "clean_name": "Sacred Ash",
+        "category": "Consumable",
+        "desc": "Fully revives and heals all Pokémon on your Mt. Silver roster.",
+        "usage": "Type 'use <id>' to fully restore battle roster.",
+    },
+    "warp_whistle": {
+        "name": "🌬️ Warp Whistle",
+        "clean_name": "Warp Whistle",
+        "category": "Field Tech",
+        "desc": "Summons a whirlwind that instantly completes all expeditions.",
+        "usage": "Type 'use <id>' to finish all active expeditions.",
+    },
+    "expedition_pass": {
+        "name": "🎫 Expedition Pass",
+        "clean_name": "Expedition Pass",
+        "category": "Field Tech",
+        "desc": "Instantly completes the first active expedition.",
+        "usage": "Type 'use <id>' to finish first active expedition.",
+    },
+    "expedition_energy_tonic": {
+        "name": "⚡ Energy Tonic",
+        "clean_name": "Expedition Energy Tonic",
+        "category": "Consumable",
+        "desc": "Restores +50% happiness to all companions in party and roster.",
+        "usage": "Type 'use <id>' to energize all companions.",
+    },
+    "expedition_insurance": {
+        "name": "📜 Exped. Insurance Policy",
+        "clean_name": "Expedition Insurance Policy",
+        "category": "Field Tech",
+        "desc": "Protects companions from happiness decay for next 3 expeditions.",
+        "usage": "Type 'use <id>' to apply 3 insurance charges.",
+    },
+    "rocket_radar": {
+        "name": "📡 Rocket Radar",
+        "clean_name": "Rocket Radar",
+        "category": "Field Tech",
+        "desc": "Grants +50% bonus token yields for your next 3 expeditions.",
+        "usage": "Type 'use <id>' to activate 3 radar charges.",
+    },
+    "metal_coat": {
+        "name": "⚙️ Metal Coat",
+        "clean_name": "Metal Coat",
+        "category": "Syndicate Artifact",
+        "desc": "Evolves Onix->Steelix, Scyther->Scizor; or gives +15% Steel dmg.",
+        "usage": "Type 'use <id>' to evolve companion or equip for dmg bonus.",
+    },
+    "kings_rock": {
+        "name": "👑 King's Rock",
+        "clean_name": "King's Rock",
+        "category": "Syndicate Artifact",
+        "desc": "Evolves Poliwhirl into Politoed or Slowpoke into Slowking.",
+        "usage": "Type 'use <id>' with compatible companion to evolve.",
+    },
+    "dragon_scale": {
+        "name": "🐉 Dragon Scale",
+        "clean_name": "Dragon Scale",
+        "category": "Syndicate Artifact",
+        "desc": "Evolves Seadra into Kingdra.",
+        "usage": "Type 'use <id>' with Seadra companion to evolve.",
+    },
+    "upgrade": {
+        "name": "💾 Upgrade",
+        "clean_name": "Upgrade",
+        "category": "Syndicate Artifact",
+        "desc": "Evolves Porygon into Porygon2.",
+        "usage": "Type 'use <id>' with Porygon companion to evolve.",
+    },
+    "dubious_disc": {
+        "name": "💿 Dubious Disc",
+        "clean_name": "Dubious Disc",
+        "category": "Syndicate Artifact",
+        "desc": "Evolves Porygon2 into Porygon-Z.",
+        "usage": "Type 'use <id>' with Porygon2 companion to evolve.",
+    },
+    "protector": {
+        "name": "🛡️ Protector",
+        "clean_name": "Protector",
+        "category": "Syndicate Artifact",
+        "desc": "Evolves Rhydon into Rhyperior.",
+        "usage": "Type 'use <id>' with Rhydon companion to evolve.",
+    },
+    "electirizer": {
+        "name": "🔌 Electirizer",
+        "clean_name": "Electirizer",
+        "category": "Syndicate Artifact",
+        "desc": "Evolves Electabuzz into Electivire.",
+        "usage": "Type 'use <id>' with Electabuzz companion to evolve.",
+    },
+    "magmarizer": {
+        "name": "🌋 Magmarizer",
+        "clean_name": "Magmarizer",
+        "category": "Syndicate Artifact",
+        "desc": "Evolves Magmar into Magmortar.",
+        "usage": "Type 'use <id>' with Magmar companion to evolve.",
+    },
+    "reaper_cloth": {
+        "name": "👻 Reaper Cloth",
+        "clean_name": "Reaper Cloth",
+        "category": "Syndicate Artifact",
+        "desc": "Evolves Dusclops into Dusknoir.",
+        "usage": "Type 'use <id>' with Dusclops companion to evolve.",
+    },
+    "prism_scale": {
+        "name": "✨ Prism Scale",
+        "clean_name": "Prism Scale",
+        "category": "Syndicate Artifact",
+        "desc": "Evolves Feebas into Milotic.",
+        "usage": "Type 'use <id>' with Feebas companion to evolve.",
+    },
+    "water_stone": {
+        "name": "💎 Water Stone",
+        "clean_name": "Water Stone",
+        "category": "Evolution Stone",
+        "desc": "Evolves compatible Water species (Eevee, Poliwhirl, Shellder).",
+        "usage": "Type 'use <id>' with companion active to evolve.",
+    },
+    "fire_stone": {
+        "name": "💎 Fire Stone",
+        "clean_name": "Fire Stone",
+        "category": "Evolution Stone",
+        "desc": "Evolves compatible Fire species (Eevee, Vulpix, Growlithe).",
+        "usage": "Type 'use <id>' with companion active to evolve.",
+    },
+    "thunder_stone": {
+        "name": "💎 Thunder Stone",
+        "clean_name": "Thunder Stone",
+        "category": "Evolution Stone",
+        "desc": "Evolves compatible Electric species (Pikachu, Eevee, Eelektrik).",
+        "usage": "Type 'use <id>' with companion active to evolve.",
+    },
+    "leaf_stone": {
+        "name": "💎 Leaf Stone",
+        "clean_name": "Leaf Stone",
+        "category": "Evolution Stone",
+        "desc": "Evolves compatible Grass species (Gloom, Weepinbell, Exeggcute).",
+        "usage": "Type 'use <id>' with companion active to evolve.",
+    },
+    "moon_stone": {
+        "name": "💎 Moon Stone",
+        "clean_name": "Moon Stone",
+        "category": "Evolution Stone",
+        "desc": "Evolves compatible species (Nidorina, Nidorino, Clefairy).",
+        "usage": "Type 'use <id>' with companion active to evolve.",
+    },
+    "sun_stone": {
+        "name": "💎 Sun Stone",
+        "clean_name": "Sun Stone",
+        "category": "Evolution Stone",
+        "desc": "Evolves compatible species (Gloom, Sunkern, Cottonee, Petilil).",
+        "usage": "Type 'use <id>' with companion active to evolve.",
+    },
+    "ice_stone": {
+        "name": "💎 Ice Stone",
+        "clean_name": "Ice Stone",
+        "category": "Evolution Stone",
+        "desc": "Evolves compatible Ice species (Alolan Vulpix, Alolan Sandshrew).",
+        "usage": "Type 'use <id>' with companion active to evolve.",
+    },
+    "shiny_stone": {
+        "name": "💎 Shiny Stone",
+        "clean_name": "Shiny Stone",
+        "category": "Evolution Stone",
+        "desc": "Evolves compatible species (Togetic, Roselia, Minccino, Floette).",
+        "usage": "Type 'use <id>' with companion active to evolve.",
+    },
+    "dusk_stone": {
+        "name": "💎 Dusk Stone",
+        "clean_name": "Dusk Stone",
+        "category": "Evolution Stone",
+        "desc": "Evolves compatible species (Murkrow, Misdreavus, Lampent).",
+        "usage": "Type 'use <id>' with companion active to evolve.",
+    },
+    "dawn_stone": {
+        "name": "💎 Dawn Stone",
+        "clean_name": "Dawn Stone",
+        "category": "Evolution Stone",
+        "desc": "Evolves compatible species (Kirlia male, Snorunt female).",
+        "usage": "Type 'use <id>' with companion active to evolve.",
+    },
+    "fake_rare_candy": {
+        "name": "🍬 \"Rare Candy\"",
+        "clean_name": "\"Rare Candy\"",
+        "category": "Contraband / Fake",
+        "desc": "Chalk candy manufactured by Team Rocket grunts. Useless!",
+        "usage": "Type 'sell <id>' to dispose for 1 token.",
+    },
+    "fake_master_ball": {
+        "name": "🌟 \"Master Ball\"",
+        "clean_name": "\"Master Ball\"",
+        "category": "Contraband / Fake",
+        "desc": "Painted ping pong ball sold as a Master Ball. Complete fraud!",
+        "usage": "Type 'sell <id>' to dispose for 1 token.",
+    },
+    "fake_thunder_stone": {
+        "name": "⚡ \"Thunder Stone\"",
+        "clean_name": "\"Thunder Stone\"",
+        "category": "Contraband / Fake",
+        "desc": "Yellow plastic rock with zero evolutionary energy.",
+        "usage": "Type 'sell <id>' to dispose for 1 token.",
+    },
+    "fake_water_stone": {
+        "name": "💧 \"Water Stone\"",
+        "clean_name": "\"Water Stone\"",
+        "category": "Contraband / Fake",
+        "desc": "Blue glass marble sold as a genuine Water Stone.",
+        "usage": "Type 'sell <id>' to dispose for 1 token.",
+    },
+    "fake_fire_stone": {
+        "name": "🔥 \"Fire Stone\"",
+        "clean_name": "\"Fire Stone\"",
+        "category": "Contraband / Fake",
+        "desc": "Red painted pebble with zero heat or evolutionary energy.",
+        "usage": "Type 'sell <id>' to dispose for 1 token.",
+    },
+    "fake_ancient_map": {
+        "name": "📜 \"Ancient Map\"",
+        "clean_name": "\"Ancient Map\"",
+        "category": "Contraband / Fake",
+        "desc": "Crude crayon drawing on aged parchment leading nowhere.",
+        "usage": "Type 'sell <id>' to dispose for 1 token.",
+    },
+    "fake_gold_nugget": {
+        "name": "🪙 \"Gold Nugget\"",
+        "clean_name": "\"Gold Nugget\"",
+        "category": "Contraband / Fake",
+        "desc": "Pyrite fool's gold that sells for 1 token.",
+        "usage": "Type 'sell <id>' to dispose for 1 token.",
+    },
+    "fake_exp_share": {
+        "name": "🎒 \"Exp. Share\"",
+        "clean_name": "\"Exp. Share\"",
+        "category": "Contraband / Fake",
+        "desc": "Empty child's backpack. Shares no experience whatsoever.",
+        "usage": "Type 'sell <id>' to dispose for 1 token.",
+    },
+    "fake_soothe_bell": {
+        "name": "🔔 \"Soothe Bell\"",
+        "clean_name": "\"Soothe Bell\"",
+        "category": "Contraband / Fake",
+        "desc": "Harsh grating cowbell. Actually lowers companion happiness!",
+        "usage": "Type 'sell <id>' to dispose for 1 token.",
+    },
+    "fake_scope_lens": {
+        "name": "🔍 \"Scope Lens\"",
+        "clean_name": "\"Scope Lens\"",
+        "category": "Contraband / Fake",
+        "desc": "Cracked magnifying glass with no shiny-boosting properties.",
+        "usage": "Type 'sell <id>' to dispose for 1 token.",
+    },
+    "fake_focus_sash": {
+        "name": "🎗️ \"Focus Sash\"",
+        "clean_name": "\"Focus Sash\"",
+        "category": "Contraband / Fake",
+        "desc": "Frayed ribbon that snaps immediately on first impact.",
+        "usage": "Type 'sell <id>' to dispose for 1 token.",
+    },
+    "fake_mega_stone": {
+        "name": "🔮 \"Charizardite\"",
+        "clean_name": "\"Charizardite\"",
+        "category": "Contraband / Fake",
+        "desc": "Cheap resin replica. Does not trigger Mega Evolution.",
+        "usage": "Type 'sell <id>' to dispose for 1 token.",
+    },
+    "dark_gene_catalyst": {
+        "name": "🧬 Dark Gene Catalyst",
+        "clean_name": "Dark Gene Catalyst",
+        "category": "Rocket Tech",
+        "desc": "Mutates active companion into its next evolutionary stage.",
+        "usage": "Type 'use <id>' with active companion to force evolution.",
+    },
+    "rocket_master_ball": {
+        "name": "🔮 Rocket Master Ball",
+        "clean_name": "Rocket Master Ball",
+        "category": "Rocket Tech",
+        "desc": "Experimental capture device crafted by Team Rocket scientists.",
+        "usage": "Rare syndicate prototype item.",
+    },
+}
+
 def resolve_bag_item(app, choice: str) -> Optional[str]:
     choice = choice.strip().lower()
     if not choice:
@@ -101,12 +560,23 @@ def resolve_bag_item(app, choice: str) -> Optional[str]:
         return BAG_CATALOG_MAP[choice]
     if choice in BAG_KEY_TO_ID:
         return choice
+    choice_norm = choice.replace(" ", "_").replace("-", "_")
+    if choice_norm in BAG_KEY_TO_ID:
+        return choice_norm
+    if choice_norm in BAG_CATALOG_MAP:
+        return BAG_CATALOG_MAP[choice_norm]
     for s in ItemKind:
-        if choice == s.value or choice == s.value.replace("_", ""):
+        if choice == s.value or choice == s.value.replace("_", "") or choice_norm == s.value:
             return s.value
     inv = app.engine.state.get("inventory", {}) if hasattr(app, "engine") else {}
     if choice in inv:
         return choice
+    if choice_norm in inv:
+        return choice_norm
+    for cid, k, name in BAG_CATALOG:
+        c_name = "".join(ch for ch in name.lower() if ch.isalnum() or ch.isspace()).strip()
+        if choice == c_name or choice in c_name:
+            return k
     return None
 
 def render_shop_tab(app):
@@ -150,7 +620,7 @@ def render_shop_tab(app):
     sys.stdout.write(f"  [11] 🍎 Leftovers     - Cost: {format_tokens(int(2_000_000 * disc)):<6} tokens  (Protects happiness)\n")
     sys.stdout.write(f"  [12] 🥊 Choice Scarf  - Cost: {format_tokens(int(2_000_000 * disc)):<6} tokens  (+20% exp spd, hap-)\n\n")
 
-    sys.stdout.write(f"  {BOLD}Your Bag (Type 'use <id>', 'sell <id> [qty]', or 'unequip'):{RESET}\n")
+    sys.stdout.write(f"  {BOLD}Your Bag (Type 'use <id>', 'sell <id>', 'help <id>', or 'unequip'):{RESET}\n")
     
     bag_items = []
     seen_keys = set()
@@ -417,3 +887,116 @@ def handle_bag_sell(app, cmd: str):
         app.message = msg
     else:
         app.message = f"Canceled selling {qty}x {item_name}."
+
+def handle_bag_help(app, cmd: str):
+    parts = cmd.strip().split(maxsplit=1)
+    if len(parts) < 2:
+        app.message = "Usage: help <id> (e.g. 'help 16' or 'help life_orb')"
+        return
+
+    choice = parts[1].strip()
+    target_key = resolve_bag_item(app, choice)
+    if not target_key:
+        app.message = f"Unknown item '{choice}'. Check your Bag item number."
+        return
+
+    info = ITEM_DESCRIPTIONS.get(target_key)
+    if info:
+        name = info["name"]
+        clean_name = info["clean_name"]
+        category = info["category"]
+        desc = info["desc"]
+        usage_tpl = info["usage"]
+    elif target_key.startswith("mega_stone"):
+        clean_name = target_key.replace("_", " ").title()
+        name = f"🔮 {clean_name}"
+        category = "Mega Stone"
+        desc = "Key artifact used to trigger Mega Evolution."
+        usage_tpl = "Navigate to Tab [8] Mega Evolution to activate."
+    else:
+        clean_name = target_key.replace("_", " ").title()
+        name = f"📦 {clean_name}"
+        category = "Item"
+        desc = "An item stored in your Bag."
+        usage_tpl = "Type 'use <id>' or 'sell <id>'."
+
+    # Determine ownership: item must be in inventory, held by active companion, or held in roster
+    inv = app.engine.state.get("inventory", {}) if hasattr(app, "engine") else {}
+    count = inv.get(target_key, 0)
+    if count <= 0 and isinstance(inv.get("items"), dict):
+        count = inv["items"].get(target_key, 0)
+
+    # Check mega stones if applicable
+    if target_key.startswith("mega_stone") and hasattr(app, "engine"):
+        owned_megas = app.engine.state.get("mega_stones", [])
+        if target_key in owned_megas:
+            count = max(count, 1)
+
+    active = getattr(app.engine, "active_mon", None) if hasattr(app, "engine") else None
+    companion_name = ""
+    if active and hasattr(app.engine, "api"):
+        try:
+            companion_name = app.engine.api.get_species_name(active.current_id)
+        except Exception:
+            companion_name = "companion"
+
+    is_held = (active is not None and getattr(active, "held_item", None) == target_key)
+
+    # Check roster in dex
+    held_by_roster = False
+    roster_holder = ""
+    if not is_held and hasattr(app, "engine"):
+        dex = app.engine.state.get("dex", [])
+        for d in dex:
+            mst = d.get("mon_state")
+            if isinstance(mst, dict) and mst.get("held_item") == target_key:
+                held_by_roster = True
+                sp_id = d.get("species_id", d.get("base_id"))
+                if hasattr(app.engine, "api"):
+                    try:
+                        roster_holder = app.engine.api.get_species_name(sp_id)
+                    except Exception:
+                        roster_holder = "roster Pokémon"
+                else:
+                    roster_holder = "roster Pokémon"
+                break
+
+    if count <= 0 and not is_held and not held_by_roster:
+        app.message = f"You do not own {clean_name} in your Bag!"
+        return
+
+    # Determine displayed ID for usage prompt
+    display_id = BAG_KEY_TO_ID.get(target_key, target_key)
+    bag_id_map = getattr(app, "bag_id_map", {})
+    if choice.isdigit() and bag_id_map.get(choice) == target_key:
+        display_id = choice
+    else:
+        for k_id, k_val in bag_id_map.items():
+            if k_val == target_key and k_id.isdigit():
+                display_id = k_id
+                break
+
+    usage = usage_tpl.replace("<id>", display_id)
+
+    # Ownership status
+    if is_held and count > 0:
+        status = f"({count} in Bag, held by {companion_name})"
+    elif is_held:
+        status = f"(Held by {companion_name})"
+        if category == "Held Item":
+            usage = "Type 'unequip' to remove from companion."
+    elif held_by_roster:
+        if count > 0:
+            status = f"({count} in Bag, held by {roster_holder})"
+        else:
+            status = f"(Held by {roster_holder})"
+    else:
+        status = f"(Owned: {count})"
+
+    lines = [f"{name}  [{category}]  {status}"]
+    for sub in textwrap.wrap(f"Effect: {desc}", width=62):
+        lines.append(f"  {sub}")
+    for sub in textwrap.wrap(f"Action: {usage}", width=62):
+        lines.append(f"  {sub}")
+
+    app.message = "\n".join(lines)

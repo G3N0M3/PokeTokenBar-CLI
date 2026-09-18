@@ -2891,6 +2891,111 @@ class TestCompanionEngine(unittest.TestCase):
             clean = ansi_regex.sub("", line)
             self.assertLessEqual(len(clean), 72, f"Mega Evo line exceeds 72 cols: '{clean}'")
 
+    def test_bag_help_command(self):
+        """Verify the 'help <id>' command on Tab 4 shop and bag tab."""
+        import io
+        import re
+        from unittest.mock import MagicMock
+        from poketokenbar.tui_tabs.shop import handle_bag_help, render_shop_tab
+        from poketokenbar.game.models import MonState, Rarity
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+
+        app = MagicMock()
+        app.engine = self.engine
+        app.shop_view = "normal"
+        app.shop_page = 1
+        app.message = ""
+
+        # 1. Clear inventory and active mon
+        self.engine.state["inventory"] = {}
+        pikachu = MonState(
+            base_id=25,
+            path_ids=[25],
+            planned_path_ids=[25],
+            stage_index=0,
+            used_at_stage=0,
+            rarity=Rarity.COMMON,
+            total_forms=1,
+            happiness=100
+        )
+        self.engine.set_active_mon(pikachu)
+
+        # 2. Test missing argument -> Usage message
+        handle_bag_help(app, "help")
+        self.assertIn("Usage: help <id>", app.message)
+
+        # 3. Test unowned items -> Rejected with clear 'You do not own' message
+        handle_bag_help(app, "help 18")  # Life Orb
+        self.assertEqual(app.message, "You do not own Life Orb in your Bag!")
+
+        handle_bag_help(app, "help 16")  # Soothe Bell
+        self.assertEqual(app.message, "You do not own Soothe Bell in your Bag!")
+
+        handle_bag_help(app, "help life_orb")
+        self.assertEqual(app.message, "You do not own Life Orb in your Bag!")
+
+        handle_bag_help(app, "help 999")
+        self.assertIn("Unknown item '999'", app.message)
+
+        # 4. Give player 1x Life Orb
+        self.engine.state["inventory"]["life_orb"] = 1
+        handle_bag_help(app, "help 18")
+        self.assertIn("Life Orb", app.message)
+        self.assertIn("[Held Item]", app.message)
+        self.assertIn("(Owned: 1)", app.message)
+        self.assertIn("Channels +10% bonus token power", app.message)
+        self.assertIn("use 18", app.message)
+
+        # 5. Verify layout compliance (<= 72 columns)
+        for line in app.message.split("\n"):
+            rendered_len = 4 + len(line.lstrip()) if not line.startswith("  ") else 2 + len(line)
+            self.assertLessEqual(rendered_len, 72, f"Help message line exceeds 72 cols: '{line}' ({rendered_len})")
+
+        # 6. Test item name variants (with underscores and spaces)
+        handle_bag_help(app, "help life_orb")
+        self.assertIn("Life Orb", app.message)
+        handle_bag_help(app, "help life orb")
+        self.assertIn("Life Orb", app.message)
+
+        # 7. Test equipped held item (count 0 in Bag, but held by active companion)
+        self.engine.state["inventory"]["life_orb"] = 0
+        pikachu.held_item = "life_orb"
+        self.engine.set_active_mon(pikachu)
+        handle_bag_help(app, "help 18")
+        self.assertIn("Life Orb", app.message)
+        self.assertIn("Held by", app.message)
+        self.assertIn("unequip", app.message)
+
+        # 8. Test consumable (Rare Candy)
+        self.engine.state["inventory"]["rare_candy"] = 3
+        handle_bag_help(app, "help 1")
+        self.assertIn("Rare Candy", app.message)
+        self.assertIn("[Consumable]", app.message)
+        self.assertIn("(Owned: 3)", app.message)
+
+        # 9. Test Evolution Stone (Water Stone)
+        self.engine.state["inventory"]["water_stone"] = 2
+        handle_bag_help(app, "help 43")
+        self.assertIn("Water Stone", app.message)
+        self.assertIn("[Evolution Stone]", app.message)
+
+        # 10. Test Contraband Fake item (fake_rare_candy)
+        self.engine.state["inventory"]["fake_rare_candy"] = 1
+        handle_bag_help(app, "help 53")
+        self.assertIn("Rare Candy", app.message)
+        self.assertIn("[Contraband / Fake]", app.message)
+
+        # 11. Test Tab 4 prompt rendering contains 'help <id>'
+        trap = io.StringIO()
+        with unittest.mock.patch("sys.stdout", trap):
+            render_shop_tab(app)
+        shop_output = ansi_regex.sub("", trap.getvalue())
+        self.assertIn("help <id>", shop_output)
+        for line in trap.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Shop tab line exceeds 72 cols: '{clean}'")
+
     def test_term_deposit_paging_and_bracket_indexing(self):
         """Verify Active Term Deposits list uses [NUM] indexing format, supports paging, and adheres to 72 cols."""
         import io

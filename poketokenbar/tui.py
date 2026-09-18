@@ -737,6 +737,8 @@ class PokeTokenBarTUI:
                     self.handle_bag_use(cmd)
                 elif self.current_tab == 4 and cmd.startswith("sell"):
                     self.handle_bag_sell(cmd)
+                elif self.current_tab == 4 and (cmd == "help" or cmd.startswith("help ") or cmd == "info" or cmd.startswith("info ") or cmd == "desc" or cmd.startswith("desc ")):
+                    self.handle_bag_help(cmd)
                 elif self.current_tab == 8 and cmd.startswith("use"):
                     parts = cmd.split()
                     if len(parts) > 1:
@@ -1005,6 +1007,10 @@ class PokeTokenBarTUI:
     def handle_bag_sell(self, cmd: str):
         from poketokenbar.tui_tabs.shop import handle_bag_sell
         handle_bag_sell(self, cmd)
+
+    def handle_bag_help(self, cmd: str):
+        from poketokenbar.tui_tabs.shop import handle_bag_help
+        handle_bag_help(self, cmd)
 
     def render_quests_tab(self):
         from poketokenbar.tui_tabs.quests import render_quests_tab
