@@ -537,10 +537,10 @@ class CompanionEngine:
     def get_silph_multipliers(self) -> Tuple[float, float]:
         """Returns (speed_multiplier, token_multiplier) for Silph Co. shareholders.
         Rank 0 (None): (1.0, 1.0)
-        Rank 1 (Bronze, 1-4 sh): (1.10, 1.10)
-        Rank 2 (Silver, 5-14 sh): (1.15, 1.15)
-        Rank 3 (Gold, 15-29 sh): (1.20, 1.20)
-        Rank 4 (Platinum, 30+ sh): (1.25, 1.25)
+        Rank 1 (Retail, 1-4 sh): (1.10, 1.10)
+        Rank 2 (Preferred, 5-14 sh): (1.15, 1.15)
+        Rank 3 (Strategic, 15-29 sh): (1.20, 1.20)
+        Rank 4 (Majority, 30+ sh): (1.25, 1.25)
         """
         rank, _ = self.get_corp_rank("silph")
         mult_map = {0: 1.0, 1: 1.10, 2: 1.15, 3: 1.20, 4: 1.25}
@@ -550,10 +550,10 @@ class CompanionEngine:
     def get_devon_multiplier(self) -> float:
         """Returns price multiplier for Devon Corporation shareholders (shop items, eggs, black market).
         Rank 0 (None): 1.0 (0% discount)
-        Rank 1 (Bronze, 1-4 sh): 0.95 (5% discount)
-        Rank 2 (Silver, 5-14 sh): 0.90 (10% discount)
-        Rank 3 (Gold, 15-29 sh): 0.85 (15% discount)
-        Rank 4 (Platinum, 30+ sh): 0.80 (20% discount)
+        Rank 1 (Retail, 1-4 sh): 0.95 (5% discount)
+        Rank 2 (Preferred, 5-14 sh): 0.90 (10% discount)
+        Rank 3 (Strategic, 15-29 sh): 0.85 (15% discount)
+        Rank 4 (Majority, 30+ sh): 0.80 (20% discount)
         """
         rank, _ = self.get_corp_rank("devon")
         disc_map = {0: 1.0, 1: 0.95, 2: 0.90, 3: 0.85, 4: 0.80}
@@ -566,10 +566,10 @@ class CompanionEngine:
     def get_aether_perks(self) -> Tuple[float, int]:
         """Returns (decay_shield_multiplier, daily_happiness_bonus) for Aether Foundation shareholders.
         Rank 0 (None): (1.0, 0)
-        Rank 1 (Bronze, 1-4 sh): (1.5, 3)
-        Rank 2 (Silver, 5-14 sh): (2.0, 5)
-        Rank 3 (Gold, 15-29 sh): (2.5, 8)
-        Rank 4 (Platinum, 30+ sh): (3.0, 12)
+        Rank 1 (Retail, 1-4 sh): (1.5, 3)
+        Rank 2 (Preferred, 5-14 sh): (2.0, 5)
+        Rank 3 (Strategic, 15-29 sh): (2.5, 8)
+        Rank 4 (Majority, 30+ sh): (3.0, 12)
         """
         rank, _ = self.get_corp_rank("aether")
         perk_map = {
@@ -584,10 +584,10 @@ class CompanionEngine:
     def get_mauville_multiplier(self) -> float:
         """Returns payout bonus multiplier for Greater Mauville Holdings shareholders across all minigames.
         Rank 0 (None): 1.0 (+0% bonus)
-        Rank 1 (Bronze, 1-4 sh): 1.05 (+5% bonus)
-        Rank 2 (Silver, 5-14 sh): 1.10 (+10% bonus)
-        Rank 3 (Gold, 15-29 sh): 1.15 (+15% bonus)
-        Rank 4 (Platinum, 30+ sh): 1.20 (+20% bonus)
+        Rank 1 (Retail, 1-4 sh): 1.05 (+5% bonus)
+        Rank 2 (Preferred, 5-14 sh): 1.10 (+10% bonus)
+        Rank 3 (Strategic, 15-29 sh): 1.15 (+15% bonus)
+        Rank 4 (Majority, 30+ sh): 1.20 (+20% bonus)
         """
         rank, _ = self.get_corp_rank("mauville")
         mult_map = {0: 1.0, 1: 1.05, 2: 1.10, 3: 1.15, 4: 1.20}
@@ -596,10 +596,10 @@ class CompanionEngine:
     def get_macro_multiplier(self) -> float:
         """Returns token reward multiplier for Macro Cosmos shareholders across Gym boss raids and auto-battles.
         Rank 0 (None): 1.0 (+0% bonus)
-        Rank 1 (Bronze, 1-4 sh): 1.10 (+10% bonus)
-        Rank 2 (Silver, 5-14 sh): 1.20 (+20% bonus)
-        Rank 3 (Gold, 15-29 sh): 1.30 (+30% bonus)
-        Rank 4 (Platinum, 30+ sh): 1.40 (+40% bonus)
+        Rank 1 (Retail, 1-4 sh): 1.10 (+10% bonus)
+        Rank 2 (Preferred, 5-14 sh): 1.20 (+20% bonus)
+        Rank 3 (Strategic, 15-29 sh): 1.30 (+30% bonus)
+        Rank 4 (Majority, 30+ sh): 1.40 (+40% bonus)
         """
         rank, _ = self.get_corp_rank("macro")
         mult_map = {0: 1.0, 1: 1.10, 2: 1.20, 3: 1.30, 4: 1.40}
@@ -608,10 +608,10 @@ class CompanionEngine:
     def get_viridian_dividend_bonus(self) -> float:
         """Returns extra dividend yield bonus for Viridian Global Logistics shareholders.
         Rank 0 (None): 0.0 (+0.0%)
-        Rank 1 (Bronze, 1-4 sh): 0.005 (+0.5%)
-        Rank 2 (Silver, 5-14 sh): 0.010 (+1.0%)
-        Rank 3 (Gold, 15-29 sh): 0.015 (+1.5%)
-        Rank 4 (Platinum, 30+ sh): 0.020 (+2.0%)
+        Rank 1 (Retail, 1-4 sh): 0.005 (+0.5%)
+        Rank 2 (Preferred, 5-14 sh): 0.010 (+1.0%)
+        Rank 3 (Strategic, 15-29 sh): 0.015 (+1.5%)
+        Rank 4 (Majority, 30+ sh): 0.020 (+2.0%)
         """
         rank, _ = self.get_corp_rank("viridian")
         bonus_map = {0: 0.0, 1: 0.005, 2: 0.010, 3: 0.015, 4: 0.020}

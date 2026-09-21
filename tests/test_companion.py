@@ -1189,8 +1189,8 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertIn("Boss raids", CORPORATIONS["macro"].perk_desc)
 
         # Test Devon perk: dynamic tiered discount on Shop Rare Candy
-        # With 2 shares owned (Bronze tier: 1-4 shares), discount is 5%
-        self.assertEqual(self.engine.get_corp_rank("devon")[1], "Bronze")
+        # With 2 shares owned (Retail tier: 1-4 shares), discount is 5%
+        self.assertEqual(self.engine.get_corp_rank("devon")[1], "Retail")
         rc_base = ItemKind.RARE_CANDY.price_for(self.engine.current_difficulty)
         expected_cost_bronze = int(rc_base * 0.95)
         tokens_before_rc = self.engine.available_tokens
@@ -1523,14 +1523,14 @@ class TestCompanionEngine(unittest.TestCase):
         from poketokenbar.game.models import get_shareholder_rank, SHAREHOLDER_TIERS
         # Boundary tests
         self.assertEqual(get_shareholder_rank(0), (0, "None"))
-        self.assertEqual(get_shareholder_rank(1), (1, "Bronze"))
-        self.assertEqual(get_shareholder_rank(4), (1, "Bronze"))
-        self.assertEqual(get_shareholder_rank(5), (2, "Silver"))
-        self.assertEqual(get_shareholder_rank(14), (2, "Silver"))
-        self.assertEqual(get_shareholder_rank(15), (3, "Gold"))
-        self.assertEqual(get_shareholder_rank(29), (3, "Gold"))
-        self.assertEqual(get_shareholder_rank(30), (4, "Platinum"))
-        self.assertEqual(get_shareholder_rank(100), (4, "Platinum"))
+        self.assertEqual(get_shareholder_rank(1), (1, "Retail"))
+        self.assertEqual(get_shareholder_rank(4), (1, "Retail"))
+        self.assertEqual(get_shareholder_rank(5), (2, "Preferred"))
+        self.assertEqual(get_shareholder_rank(14), (2, "Preferred"))
+        self.assertEqual(get_shareholder_rank(15), (3, "Strategic"))
+        self.assertEqual(get_shareholder_rank(29), (3, "Strategic"))
+        self.assertEqual(get_shareholder_rank(30), (4, "Majority"))
+        self.assertEqual(get_shareholder_rank(100), (4, "Majority"))
         self.assertEqual(len(SHAREHOLDER_TIERS), 5)
 
     def test_shareholder_perk_multipliers(self):
@@ -1546,7 +1546,7 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertEqual(self.engine.get_macro_multiplier(), 1.0)
         self.assertEqual(self.engine.get_viridian_dividend_bonus(), 0.0)
 
-        # Rank 1 (Bronze: 1-4 shares)
+        # Rank 1 (Retail: 1-4 shares)
         self.engine.state["investments"]["silph"] = 2
         self.engine.state["investments"]["devon"] = 4
         self.engine.state["investments"]["aether"] = 1
@@ -1561,7 +1561,7 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertEqual(self.engine.get_macro_multiplier(), 1.10)
         self.assertEqual(self.engine.get_viridian_dividend_bonus(), 0.005)
 
-        # Rank 2 (Silver: 5-14 shares)
+        # Rank 2 (Preferred: 5-14 shares)
         self.engine.state["investments"] = {k: 5 for k in self.engine.state["investments"]}
         self.assertEqual(self.engine.get_silph_multipliers(), (1.15, 1.15))
         self.assertEqual(self.engine.get_devon_multiplier(), 0.90)
@@ -1571,7 +1571,7 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertEqual(self.engine.get_macro_multiplier(), 1.20)
         self.assertEqual(self.engine.get_viridian_dividend_bonus(), 0.010)
 
-        # Rank 3 (Gold: 15-29 shares)
+        # Rank 3 (Strategic: 15-29 shares)
         self.engine.state["investments"] = {k: 20 for k in self.engine.state["investments"]}
         self.assertEqual(self.engine.get_silph_multipliers(), (1.20, 1.20))
         self.assertEqual(self.engine.get_devon_multiplier(), 0.85)
@@ -1581,7 +1581,7 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertEqual(self.engine.get_macro_multiplier(), 1.30)
         self.assertEqual(self.engine.get_viridian_dividend_bonus(), 0.015)
 
-        # Rank 4 (Platinum: 30+ shares)
+        # Rank 4 (Majority: 30+ shares)
         self.engine.state["investments"] = {k: 35 for k in self.engine.state["investments"]}
         self.assertEqual(self.engine.get_silph_multipliers(), (1.25, 1.25))
         self.assertEqual(self.engine.get_devon_multiplier(), 0.80)

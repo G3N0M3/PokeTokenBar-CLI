@@ -204,12 +204,21 @@ def _render_stocks_view(app, avail: int):
 
         rank, rank_name = get_shareholder_rank(owned)
         if rank > 0:
-            rank_col = {1: YELLOW, 2: CYAN, 3: YELLOW, 4: MAGENTA}.get(rank, GREEN)
+            rank_col = {1: CYAN, 2: GREEN, 3: YELLOW, 4: MAGENTA}.get(rank, GREEN)
             status_badge = f"{BOLD}{rank_col}[{rank_name.upper()}]{RESET}"
         else:
             status_badge = f"{RED}[INACTIVE]{RESET}"
 
-        sys.stdout.write(f"  [{idx}] [{BOLD}{CYAN}{corp.ticker}{RESET}] {BOLD}{corp.name}{RESET} — {format_tokens(c_price)}/sh ({chg_str}) {status_badge}\n")
+        c_name = corp.name
+        # Keep total visual line strictly <= 72 columns
+        raw_chg = f"▲+{chg:.1f}%" if chg > 0 else (f"▼{chg:.1f}%" if chg < 0 else "— 0.0%")
+        suffix_len = len(f" — {format_tokens(c_price)}/sh ({raw_chg}) [{rank_name}]")
+        prefix_len = len(f"  [{idx}] [{corp.ticker}] ")
+        max_name_len = 72 - (prefix_len + suffix_len)
+        if len(c_name) > max_name_len:
+            c_name = c_name[:max_name_len - 1] + "…"
+
+        sys.stdout.write(f"  [{idx}] [{BOLD}{CYAN}{corp.ticker}{RESET}] {BOLD}{c_name}{RESET} — {format_tokens(c_price)}/sh ({chg_str}) {status_badge}\n")
         bonus_rate = eff_rate - corp.base_dividend
         sys.stdout.write(f"      7d: {spark} | Div: {corp.base_dividend*100:.1f}% (+{bonus_rate*100:.1f}% = {eff_rate*100:.1f}%/d)\n")
 
@@ -270,39 +279,39 @@ def _render_stock_terminal(app, avail: int, corp_key: str):
     active_perk_desc = tier_perks.get(rank, "None (Buy shares to unlock perks)")
 
     if rank > 0:
-        rank_col = {1: YELLOW, 2: CYAN, 3: YELLOW, 4: MAGENTA}.get(rank, GREEN)
+        rank_col = {1: CYAN, 2: GREEN, 3: YELLOW, 4: MAGENTA}.get(rank, GREEN)
         rank_badge = f"{BOLD}{rank_col}[{rank_name.upper()}]{RESET}"
     else:
         rank_badge = f"{RED}[INACTIVE]{RESET}"
 
-    sys.stdout.write(f"  {BOLD}{CYAN}🏢 TRADE TERMINAL: [{corp.ticker}] {corp.name}{RESET}\n")
-    sys.stdout.write(f"  Price: {BOLD}{GREEN}{format_tokens(c_price)}{RESET}/sh ({chg_str}) | 7d: {spark}\n")
-    sys.stdout.write("  " + "-" * 68 + "\n\n")
+    c_name = corp.name
+    raw_chg = f"▲+{chg:.1f}%" if chg > 0 else (f"▼{chg:.1f}%" if chg < 0 else "— 0.0%")
+    # Ensure header line strictly <= 72 visible columns
+    max_c_name = 72 - len(f"  🏢 [{corp.ticker}]  — {format_tokens(c_price)}/sh ({raw_chg}) | 7d: {spark}")
+    if len(c_name) > max_c_name:
+        c_name = c_name.replace("Greater ", "").replace(" Global", "")
+    if len(c_name) > max_c_name:
+        c_name = c_name[:max_c_name - 1] + "…"
 
-    sys.stdout.write(f"  {BOLD}Your Position & Analytics:{RESET}\n")
-    sys.stdout.write(f"  • Shares Owned:       {BOLD}{CYAN}{owned} share(s){RESET} {rank_badge}\n")
-    sys.stdout.write(f"  • Weighted Cost:      {format_tokens(avg_cost)}/sh (Total: {format_tokens(cost_basis)})\n")
-    sys.stdout.write(f"  • Market Value:       {format_tokens(market_val)} tokens\n")
-    sys.stdout.write(f"  • Liquidation Value:  {format_tokens(liq_val)} tokens (10% spread applied)\n")
-    pnl_str = f"{pnl_col}{pnl_sign}{format_tokens(unreal_pnl)} ({pnl_sign}{unreal_pct:.1f}%){RESET}"
-    sys.stdout.write(f"  • Unrealized P&L:     {pnl_str}\n")
-    sys.stdout.write(f"  • Daily Dividend:     {BOLD}{GREEN}+{format_tokens(daily_div)}{RESET}/day ({eff_rate*100:.1f}% yield)\n\n")
+    sys.stdout.write(f"  {BOLD}{CYAN}🏢 [{corp.ticker}] {c_name}{RESET} — {BOLD}{GREEN}{format_tokens(c_price)}{RESET}/sh ({chg_str}) | 7d: {spark}\n")
+    sys.stdout.write("  " + "-" * 68 + "\n")
 
-    sys.stdout.write(f"  {BOLD}Corporate Profile & Catalysts:{RESET}\n")
-    sys.stdout.write(f"  • Perk:     {BOLD}{corp.perk_name}{RESET} — {corp.perk_desc}\n")
-    cat_desc = corp.catalyst_desc if len(corp.catalyst_desc) <= 52 else corp.catalyst_desc[:49] + "..."
-    sys.stdout.write(f"  • Catalyst: {cat_desc}\n")
-    if len(news) > 52:
-        news = news[:49] + "..."
-    sys.stdout.write(f"  • Headline: \"{CYAN}{news}{RESET}\"\n\n")
+    sys.stdout.write(f"  • Position:  {BOLD}{CYAN}{owned} sh{RESET} {rank_badge} | Cost: {format_tokens(avg_cost)}/sh (Tot: {format_tokens(cost_basis)})\n")
+    sys.stdout.write(f"  • Valuation: {format_tokens(market_val)} (Liq: {format_tokens(liq_val)}) | P&L: {pnl_str}\n")
+    sys.stdout.write(f"  • Dividend:  {BOLD}{GREEN}+{format_tokens(daily_div)}{RESET}/day ({eff_rate*100:.1f}% yield)\n")
+
+    cat_desc = corp.catalyst_desc if len(corp.catalyst_desc) <= 54 else corp.catalyst_desc[:51] + "..."
+    if len(news) > 54:
+        news = news[:51] + "..."
+    sys.stdout.write(f"  • Catalyst:  {cat_desc}\n")
+    sys.stdout.write(f"  • News:      \"{CYAN}{news}{RESET}\"\n")
 
     sys.stdout.write(f"  {BOLD}Shareholder Rank & Perk Progression:{RESET}\n")
     if rank > 0:
-        status_line = f"  • Current Status: {rank_badge} ({owned} shares)\n"
+        status_line = f"  • Status: {rank_badge} ({owned} sh) | {BOLD}{CYAN}{active_perk_desc}{RESET}\n"
     else:
         status_line = f"  • Current Status: {RED}None{RESET} (0 shares)\n"
     sys.stdout.write(status_line)
-    sys.stdout.write(f"  • Active Benefit: {BOLD}{CYAN}{active_perk_desc}{RESET}\n")
     sys.stdout.write(f"  • Rank Tiers:\n")
     for t in SHAREHOLDER_TIERS:
         if t.rank == 0:
@@ -311,9 +320,7 @@ def _render_stock_terminal(app, avail: int, corp_key: str):
         is_active = (t.rank == rank)
         active_tag = f" {BOLD}{GREEN}◄ ACTIVE{RESET}" if is_active else ""
         tier_col = BOLD if is_active else ""
-        sys.stdout.write(f"    - {tier_col}{t.name:<8} ({t.range_label:<8}): {p_desc}{active_tag}{RESET}\n")
-    sys.stdout.write("\n")
+        sys.stdout.write(f"    - {tier_col}{t.name:<10} ({t.range_label:<8}): {p_desc}{active_tag}{RESET}\n")
 
     sys.stdout.write("  " + "-" * 68 + "\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}buy <qty|all>{RESET}' or '{BOLD}sell <qty|all>{RESET}' to trade\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return to Exchange Board (Spendable: {CYAN}{format_tokens(avail)}{RESET})\n\n")
+    sys.stdout.write(f"  ➔ '{BOLD}buy <qty|all>{RESET}' / '{BOLD}sell <qty|all>{RESET}' | '{BOLD}back{RESET}' (Spendable: {CYAN}{format_tokens(avail)}{RESET})\n\n")
