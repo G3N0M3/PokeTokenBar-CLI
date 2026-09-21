@@ -34,6 +34,7 @@ def render(app, summary: dict):
         # Active Pokémon
         sp_id = active.current_id
         name = app.engine.api.get_species_name(sp_id)
+        shiny_str = f"{YELLOW}✨ SHINY {RESET}" if active.is_shiny else ""
         mega_badge = f" {BOLD}{HEADER}[✨ MEGA EVOLVED +50% XP]{RESET}" if active.is_mega else ""
 
         sys.stdout.write(f"\n  {BOLD}{GREEN}Active Companion: {shiny_str}{name} (#{sp_id}){mega_badge}{RESET}\n")
