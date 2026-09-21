@@ -91,8 +91,7 @@ class PokeTokenBarTUI:
                 if active:
                     stage_str = f"Form {active.stage_index+1}/{active.total_forms}"
                     rarity_str = active.rarity.value.upper()
-                    nature_str = active.nature.display_name if active.nature else "Unknown"
-                    sys.stdout.write(f"  Stage: {stage_str}  |  Rarity: {YELLOW}{rarity_str}{RESET}  |  Nature: {CYAN}{nature_str}{RESET}\n\n")
+                    sys.stdout.write(f"  Stage: {stage_str}  |  Rarity: {YELLOW}{rarity_str}{RESET}\n\n")
 
                 sys.stdout.write(f"  {BOLD}{CYAN}Press [Enter] to continue...{RESET} ")
                 sys.stdout.flush()

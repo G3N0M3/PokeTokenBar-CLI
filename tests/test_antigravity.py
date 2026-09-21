@@ -1,7 +1,7 @@
 import unittest
 import datetime
 from poketokenbar.tracker.antigravity import AntigravityProtoDecoder, parse_generation_metadata
-from poketokenbar.game.models import Rarity, PokemonBalance, MonState, PokemonNature
+from poketokenbar.game.models import Rarity, PokemonBalance
 
 class TestAntigravityTracker(unittest.TestCase):
 

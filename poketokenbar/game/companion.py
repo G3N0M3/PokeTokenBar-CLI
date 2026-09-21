@@ -3,7 +3,7 @@ import datetime
 from typing import Dict, List, Optional, Tuple, Any, Union, Set
 
 from poketokenbar.game.models import (
-    MonState, DexEntry, Rarity, PokemonNature, PokemonBalance, ItemKind,
+    MonState, DexEntry, Rarity, PokemonBalance, ItemKind,
     CORPORATIONS, CorporateInfo, CORPORATE_LORE_EVENTS, MARKET_HEADLINES,
     get_shareholder_rank, SHAREHOLDER_TIERS, CORPORATE_TIER_PERKS
 )
@@ -478,6 +478,24 @@ class CompanionEngine:
                 self.state["last_evolution"] = hatch_msg
                 self.state["last_milestone"] = hatch_msg
                 self.save()
+
+        # Purge legacy 'nature' fields from state if present
+        cleaned_nature = False
+        act_dict = self.state.get("active_mon")
+        if isinstance(act_dict, dict) and "nature" in act_dict:
+            act_dict.pop("nature", None)
+            cleaned_nature = True
+        for d in self.state.get("dex", []):
+            if isinstance(d, dict):
+                if "nature" in d:
+                    d.pop("nature", None)
+                    cleaned_nature = True
+                m_st = d.get("mon_state")
+                if isinstance(m_st, dict) and "nature" in m_st:
+                    m_st.pop("nature", None)
+                    cleaned_nature = True
+        if cleaned_nature:
+            self.save()
 
     def save(self):
         import json
@@ -1486,7 +1504,6 @@ class CompanionEngine:
                 rarity=stage_rarity,
                 total_forms=mon.total_forms,
                 is_shiny=mon.is_shiny,
-                nature=mon.nature,
                 happiness=mon.happiness,
                 ditto_disguise=mon.ditto_disguise,
                 ditto_revealed=mon.ditto_revealed,
@@ -1504,8 +1521,6 @@ class CompanionEngine:
                 entry["happiness"] = mon.happiness
                 if mon.is_shiny:
                     entry["is_shiny"] = True
-                if mon.nature:
-                    entry["nature"] = mon.nature.value
             else:
                 entry = {
                     "id": f"sp_{sp_id}",
@@ -1515,7 +1530,6 @@ class CompanionEngine:
                     "rarity": mon.rarity.value,
                     "caught_at": datetime.datetime.now().isoformat(),
                     "is_shiny": mon.is_shiny,
-                    "nature": mon.nature.value if mon.nature else None,
                     "status": sp_status,
                     "mon_state": sub_dict,
                     "happiness": mon.happiness
@@ -1547,7 +1561,6 @@ class CompanionEngine:
                             "rarity": d.get("rarity", "common"),
                             "caught_at": d.get("caught_at", datetime.datetime.now().isoformat()),
                             "is_shiny": d.get("is_shiny", False),
-                            "nature": d.get("nature"),
                             "status": "evolved",
                         })
                         seen.add(pre_id)
@@ -1695,8 +1708,7 @@ class CompanionEngine:
                 used_at_stage=init_xp,
                 rarity=Rarity(rarity_val),
                 total_forms=len(chain),
-                is_shiny=target_entry.get("is_shiny", False),
-                nature=PokemonNature(target_entry["nature"]) if target_entry.get("nature") else None
+                is_shiny=target_entry.get("is_shiny", False)
             )
 
         # Check if target companion is already graduated
@@ -1748,9 +1760,6 @@ class CompanionEngine:
         is_shiny = force_shiny or (random.randint(1, denom) == 1)
         self.state["golden_razz_active"] = False
 
-        # Roll Nature
-        nature = random.choice(list(PokemonNature))
-
         # Roll Ditto disguise (1 in 128 for 2+ form commons)
         ditto_disguise = None
         if rarity == Rarity.COMMON and len(chain_ids) >= 2:
@@ -1767,13 +1776,11 @@ class CompanionEngine:
             rarity=rarity,
             total_forms=total_forms,
             is_shiny=is_shiny,
-            nature=nature,
             ditto_disguise=ditto_disguise
         )
 
         species_name = self.api.get_species_name(base_id)
         shiny_str = "✨ Shiny " if is_shiny else ""
-        nature_str = nature.display_name
 
         self.state["egg_usage"] = 0
         self.set_active_mon(mon)
@@ -1783,7 +1790,7 @@ class CompanionEngine:
         self.state["last_evolution"] = hatch_milestone
         self.state["last_milestone"] = hatch_milestone
 
-        events.append(f"🐣 Egg Hatched! You got a {shiny_str}{species_name} (#{base_id})! Nature: {nature_str}, Rarity: {rarity.value.upper()}")
+        events.append(f"🐣 Egg Hatched! You got a {shiny_str}{species_name} (#{base_id})! Rarity: {rarity.value.upper()}")
         events.extend(self._progress_quest_by_type("progression"))
         return mon, events
 
@@ -5185,7 +5192,7 @@ class CompanionEngine:
 
     def _recruit_rocket_companion(self, species_id: int):
         """Helper to recruit unique rocket rewards into dex roster."""
-        from poketokenbar.game.models import SPECIAL_SPECIES, Rarity, PokemonNature
+        from poketokenbar.game.models import SPECIAL_SPECIES, Rarity
         spec_info = SPECIAL_SPECIES.get(species_id, {})
         rarity = spec_info.get("rarity", Rarity.RARE)
         mon = MonState(
@@ -5197,7 +5204,6 @@ class CompanionEngine:
             rarity=rarity,
             total_forms=1,
             is_shiny=False,
-            nature=PokemonNature.ADAMANT,
             happiness=100
         )
         self._register_to_dex(mon, status="inactive")
@@ -5677,7 +5683,6 @@ class CompanionEngine:
             rarity=rarity,
             total_forms=len(chain_ids),
             is_shiny=False,
-            nature=random.choice(list(PokemonNature)),
             happiness=100
         )
         self._register_to_dex(mon, status="inactive")

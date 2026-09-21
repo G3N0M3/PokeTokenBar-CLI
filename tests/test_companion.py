@@ -204,7 +204,7 @@ class TestCompanionEngine(unittest.TestCase):
         from poketokenbar.tui_tabs import companion as companion_tab
         import io
         import sys
-        from poketokenbar.game.models import MonState, Rarity, PokemonNature
+        from poketokenbar.game.models import MonState, Rarity
 
         self.engine.state["last_milestone"] = "Egg Hatched! You got a Bulbasaur (#1)!"
         mon = MonState(
@@ -214,8 +214,7 @@ class TestCompanionEngine(unittest.TestCase):
             stage_index=0,
             used_at_stage=0,
             rarity=Rarity.COMMON,
-            total_forms=3,
-            nature=PokemonNature.HARDY
+            total_forms=3
         )
         self.engine.set_active_mon(mon)
 

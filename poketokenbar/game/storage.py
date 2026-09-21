@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
-from poketokenbar.game.models import MonState, DexEntry, Rarity, PokemonNature
+from poketokenbar.game.models import MonState, DexEntry, Rarity
 
 def get_state_file() -> Path:
     override = os.environ.get("PTB_STATE_FILE")
@@ -196,7 +196,6 @@ class StorageManager:
             "rarity": mon.rarity.value,
             "total_forms": mon.total_forms,
             "is_shiny": mon.is_shiny,
-            "nature": mon.nature.value if mon.nature else None,
             "ditto_disguise": mon.ditto_disguise,
             "ditto_revealed": mon.ditto_revealed,
             "is_mega": mon.is_mega,
@@ -220,7 +219,6 @@ class StorageManager:
                 rarity=Rarity(data["rarity"]),
                 total_forms=data["total_forms"],
                 is_shiny=data.get("is_shiny", False),
-                nature=PokemonNature(data["nature"]) if data.get("nature") else None,
                 ditto_disguise=data.get("ditto_disguise"),
                 ditto_revealed=data.get("ditto_revealed", False),
                 is_mega=data.get("is_mega", False),

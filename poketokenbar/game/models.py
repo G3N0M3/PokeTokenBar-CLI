@@ -51,37 +51,6 @@ class PokemonBalance:
         denom = float(k * (k + 1)) / 2.0
         return int(round(total * float(i) / denom))
 
-class PokemonNature(str, Enum):
-    HARDY = "hardy"
-    LONELY = "lonely"
-    BRAVE = "brave"
-    ADAMANT = "adamant"
-    NAUGHTY = "naughty"
-    BOLD = "bold"
-    DOCILE = "docile"
-    RELAXED = "relaxed"
-    IMPISH = "impish"
-    LAX = "lax"
-    TIMID = "timid"
-    HASTY = "hasty"
-    SERIOUS = "serious"
-    JOLLY = "jolly"
-    NAIVE = "naive"
-    MODEST = "modest"
-    MILD = "mild"
-    QUIET = "quiet"
-    BASHFUL = "bashful"
-    RASH = "rash"
-    CALM = "calm"
-    GENTLE = "gentle"
-    SASSY = "sassy"
-    CAREFUL = "careful"
-    QUIRKY = "quirky"
-
-    @property
-    def display_name(self) -> str:
-        return self.value.capitalize()
-
 class ItemKind(str, Enum):
     RARE_CANDY = "rare_candy"
     BERRY_ORAN = "berry_oran"
@@ -626,7 +595,6 @@ class MonState:
     rarity: Rarity
     total_forms: int
     is_shiny: bool = False
-    nature: Optional[PokemonNature] = None
     ditto_disguise: Optional[int] = None
     ditto_revealed: bool = False
     is_mega: bool = False
@@ -651,7 +619,6 @@ class DexEntry:
     rarity: Rarity
     caught_at: str
     is_shiny: bool = False
-    nature: Optional[PokemonNature] = None
     names: Dict[int, Dict[str, str]] = field(default_factory=dict)
 
 MEGA_STONES = {

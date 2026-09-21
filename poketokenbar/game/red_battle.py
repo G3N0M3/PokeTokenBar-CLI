@@ -321,7 +321,7 @@ class RedBattleHandler:
                             ) or (self.engine.active_mon and self.engine.active_mon.base_id == 151)
 
                             if not owns_mew:
-                                from poketokenbar.game.models import MonState, PokemonNature, Rarity
+                                from poketokenbar.game.models import MonState, Rarity
                                 mew_mon = MonState(
                                     base_id=151,
                                     path_ids=[151],
@@ -331,7 +331,6 @@ class RedBattleHandler:
                                     rarity=Rarity.LEGENDARY,
                                     total_forms=1,
                                     is_shiny=False,
-                                    nature=PokemonNature.TIMID,
                                     happiness=100
                                 )
                                 self.engine._register_to_dex(mew_mon, status="inactive")

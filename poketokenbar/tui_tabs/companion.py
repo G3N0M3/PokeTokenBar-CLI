@@ -34,12 +34,10 @@ def render(app, summary: dict):
         # Active Pokémon
         sp_id = active.current_id
         name = app.engine.api.get_species_name(sp_id)
-        shiny_str = f"{YELLOW}✨ SHINY {RESET}" if active.is_shiny else ""
-        nature_name = active.nature.display_name if active.nature else "Unknown"
         mega_badge = f" {BOLD}{HEADER}[✨ MEGA EVOLVED +50% XP]{RESET}" if active.is_mega else ""
 
         sys.stdout.write(f"\n  {BOLD}{GREEN}Active Companion: {shiny_str}{name} (#{sp_id}){mega_badge}{RESET}\n")
-        sys.stdout.write(f"  Rarity: {YELLOW}{active.rarity.value.upper()}{RESET}  |  Nature: {CYAN}{nature_name}{RESET}  |  Form: {active.stage_index+1}/{active.total_forms}\n")
+        sys.stdout.write(f"  Rarity: {YELLOW}{active.rarity.value.upper()}{RESET}  |  Form: {active.stage_index+1}/{active.total_forms}\n")
 
         held_str = "None"
         if active.held_item:
