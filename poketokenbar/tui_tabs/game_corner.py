@@ -187,4 +187,4 @@ def render_gacha_tab(app):
     sys.stdout.write(f"   • ✨ Epic (8%):       Shiny Charm ✨, Rare Egg 🥚 Tier\n")
     sys.stdout.write(f"   • 🔮 Rare (15%):      Standard/Uncommon Eggs 🥚, Mega Stone 🔮\n")
     sys.stdout.write(f"   • 🍬 Uncommon (30%):  Rare Candy 🍬, Golden Razz Berry 🍇, +3M Tokens\n")
-    sys.stdout.write(f"   • 🫐 Common (45%):    Oran Berry 🫐, Mint 🌿, +1M Tokens\n\n")
+    sys.stdout.write(f"   • 🫐 Common (45%):    Oran Berry 🫐, +1.0M Tokens\n\n")

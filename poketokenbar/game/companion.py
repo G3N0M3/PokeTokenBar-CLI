@@ -4,7 +4,8 @@ from typing import Dict, List, Optional, Tuple, Any, Union, Set
 
 from poketokenbar.game.models import (
     MonState, DexEntry, Rarity, PokemonNature, PokemonBalance, ItemKind,
-    CORPORATIONS, CorporateInfo, CORPORATE_LORE_EVENTS, MARKET_HEADLINES
+    CORPORATIONS, CorporateInfo, CORPORATE_LORE_EVENTS, MARKET_HEADLINES,
+    get_shareholder_rank, SHAREHOLDER_TIERS, CORPORATE_TIER_PERKS
 )
 from poketokenbar.game.pokeapi import PokeAPIClient
 from poketokenbar.game.storage import StorageManager
@@ -310,6 +311,23 @@ class CompanionEngine:
             self.state["gym_badges"] = [b.replace("👑 Earth Badge", "🌍 Earth Badge") for b in self.state["gym_badges"]]
         if "active_boss" in self.state and self.state["active_boss"] and "badge" in self.state["active_boss"]:
             self.state["active_boss"]["badge"] = self.state["active_boss"]["badge"].replace("👑 Earth Badge", "🌍 Earth Badge")
+
+        # Prune obsolete mint from inventory and migrate active expeditions / bosses / quests
+        inv = self.state.get("inventory", {})
+        if "mint" in inv:
+            del inv["mint"]
+        if isinstance(inv.get("items"), dict) and "mint" in inv["items"]:
+            del inv["items"]["mint"]
+        for exp in self.state.get("expeditions", []):
+            if exp.get("reward") == "mint":
+                exp["reward"] = "rare_candy"
+        if "active_boss" in self.state and self.state["active_boss"]:
+            if self.state["active_boss"].get("reward") == "mint":
+                self.state["active_boss"]["reward"] = "rare_candy"
+        if "daily_quests" in self.state and isinstance(self.state["daily_quests"], dict):
+            for q in self.state["daily_quests"].get("quests", []):
+                if q.get("reward") == "mint":
+                    q["reward"] = "rare_candy"
             
         self.poker = TexasHoldemEngine()
         self.blackjack = BlackjackEngine()
@@ -326,15 +344,18 @@ class CompanionEngine:
 
         # Migrate Rocket expansion state
         ops_state = self.state.setdefault("rocket_ops", {})
+        boss_hps = {3: 150_000, 6: 200_000, 9: 300_000, 10: 350_000}
+        b_st = self.state.get("rocket_battle_state", {})
         for i in range(1, 11):
             key = f"op_{i}"
+            expected_hp = boss_hps.get(i, 0)
             if key not in ops_state:
                 ops_state[key] = {
                     "status": "available" if i == 1 else "locked",
                     "progress": 0,
                     "claimed": False,
                     "objective_done": False,
-                    "boss_hp_remaining": 0,
+                    "boss_hp_remaining": expected_hp,
                     "briefing_viewed": False,
                     "expeditions_done": 0,
                     "battle_wins": 0,
@@ -342,14 +363,25 @@ class CompanionEngine:
                 }
             else:
                 ops_state[key].setdefault("objective_done", False)
-                ops_state[key].setdefault("boss_hp_remaining", 0)
                 ops_state[key].setdefault("expeditions_done", 0)
                 ops_state[key].setdefault("battle_wins", 0)
                 ops_state[key].setdefault("black_market_trades", 0)
                 if ops_state[key].get("claimed", False):
                     ops_state[key].setdefault("briefing_viewed", True)
+                    ops_state[key].setdefault("boss_hp_remaining", 0)
                 else:
                     ops_state[key].setdefault("briefing_viewed", False)
+                    if i in boss_hps:
+                        has_won = (b_st.get("status") == "win" and str(b_st.get("op_code")) == str(i))
+                        if not has_won:
+                            ops_state[key]["objective_done"] = False
+                            if ops_state[key].get("boss_hp_remaining", 0) <= 0:
+                                ops_state[key]["boss_hp_remaining"] = expected_hp
+                        else:
+                            ops_state[key]["objective_done"] = True
+                            ops_state[key]["boss_hp_remaining"] = 0
+                    else:
+                        ops_state[key].setdefault("boss_hp_remaining", 0)
 
         # Unlock ops sequentially if preceding is claimed
         for i in range(1, 10):
@@ -357,6 +389,10 @@ class CompanionEngine:
                 nxt = f"op_{i+1}"
                 if nxt in ops_state and ops_state[nxt].get("status") == "locked":
                     ops_state[nxt]["status"] = "available"
+                    nxt_num = i + 1
+                    if nxt_num in boss_hps and not ops_state[nxt].get("claimed", False):
+                        ops_state[nxt]["boss_hp_remaining"] = boss_hps[nxt_num]
+                        ops_state[nxt]["objective_done"] = False
 
         rep = sum(1 for v in ops_state.values() if v.get("claimed", False))
         self.state["rocket_reputation"] = rep
@@ -369,6 +405,14 @@ class CompanionEngine:
         elif rep >= 2: rank = "Operative"
         else: rank = "Informant"
         self.state["rocket_rank"] = rank
+
+        # Auto-grant permanent clearance perks based on rank
+        rank_order = {"Informant": 1, "Operative": 2, "Special Agent": 3, "Executive": 4, "Commander": 5}
+        cur_lvl = rank_order.get(rank, 1)
+        if cur_lvl >= 1 and self.state.get("rocket_alliance_accepted", False):
+            self.state["permanent_black_market"] = True
+        if cur_lvl >= 3:
+            self.state["has_exp_splitter"] = True
 
         unlocked_intel = self.state.setdefault("rocket_intel_unlocked", [])
         if "intel_red_autopsy" in unlocked_intel and "intel_001" not in unlocked_intel:
@@ -468,7 +512,7 @@ class CompanionEngine:
     def current_difficulty(self):
         class DefaultBalanceConfig:
             hatch_threshold = 1_500_000
-            shop_prices = {"rare_candy": 5_000_000, "mint": 1_000_000, "egg_normal": 10_000_000, "egg_uncommon": 25_000_000, "egg_rare": 50_000_000}
+            shop_prices = {"rare_candy": 5_000_000, "egg_normal": 10_000_000, "egg_uncommon": 25_000_000, "egg_rare": 50_000_000}
             graduation_totals = {
                 Rarity.COMMON: 50_000_000,
                 Rarity.UNCOMMON: 125_000_000,
@@ -480,6 +524,98 @@ class CompanionEngine:
 
     def has_perk(self, corp_key: str) -> bool:
         return self.state.get("investments", {}).get(corp_key.lower(), 0) > 0
+
+    def get_corp_shares(self, corp_key: str) -> int:
+        """Returns the number of shares owned for a corporation."""
+        return self.state.get("investments", {}).get(corp_key.lower(), 0)
+
+    def get_corp_rank(self, corp_key: str) -> Tuple[int, str]:
+        """Returns (rank_id, rank_name) for a corporation based on owned shares."""
+        shares = self.get_corp_shares(corp_key)
+        return get_shareholder_rank(shares)
+
+    def get_silph_multipliers(self) -> Tuple[float, float]:
+        """Returns (speed_multiplier, token_multiplier) for Silph Co. shareholders.
+        Rank 0 (None): (1.0, 1.0)
+        Rank 1 (Bronze, 1-4 sh): (1.10, 1.10)
+        Rank 2 (Silver, 5-14 sh): (1.15, 1.15)
+        Rank 3 (Gold, 15-29 sh): (1.20, 1.20)
+        Rank 4 (Platinum, 30+ sh): (1.25, 1.25)
+        """
+        rank, _ = self.get_corp_rank("silph")
+        mult_map = {0: 1.0, 1: 1.10, 2: 1.15, 3: 1.20, 4: 1.25}
+        m = mult_map.get(rank, 1.0)
+        return m, m
+
+    def get_devon_multiplier(self) -> float:
+        """Returns price multiplier for Devon Corporation shareholders (shop items, eggs, black market).
+        Rank 0 (None): 1.0 (0% discount)
+        Rank 1 (Bronze, 1-4 sh): 0.95 (5% discount)
+        Rank 2 (Silver, 5-14 sh): 0.90 (10% discount)
+        Rank 3 (Gold, 15-29 sh): 0.85 (15% discount)
+        Rank 4 (Platinum, 30+ sh): 0.80 (20% discount)
+        """
+        rank, _ = self.get_corp_rank("devon")
+        disc_map = {0: 1.0, 1: 0.95, 2: 0.90, 3: 0.85, 4: 0.80}
+        return disc_map.get(rank, 1.0)
+
+    def get_devon_discount_pct(self) -> int:
+        """Returns the integer percentage discount for Devon Corporation (e.g. 5, 10, 15, 20)."""
+        return int(round((1.0 - self.get_devon_multiplier()) * 100))
+
+    def get_aether_perks(self) -> Tuple[float, int]:
+        """Returns (decay_shield_multiplier, daily_happiness_bonus) for Aether Foundation shareholders.
+        Rank 0 (None): (1.0, 0)
+        Rank 1 (Bronze, 1-4 sh): (1.5, 3)
+        Rank 2 (Silver, 5-14 sh): (2.0, 5)
+        Rank 3 (Gold, 15-29 sh): (2.5, 8)
+        Rank 4 (Platinum, 30+ sh): (3.0, 12)
+        """
+        rank, _ = self.get_corp_rank("aether")
+        perk_map = {
+            0: (1.0, 0),
+            1: (1.5, 3),
+            2: (2.0, 5),
+            3: (2.5, 8),
+            4: (3.0, 12),
+        }
+        return perk_map.get(rank, (1.0, 0))
+
+    def get_mauville_multiplier(self) -> float:
+        """Returns payout bonus multiplier for Greater Mauville Holdings shareholders across all minigames.
+        Rank 0 (None): 1.0 (+0% bonus)
+        Rank 1 (Bronze, 1-4 sh): 1.05 (+5% bonus)
+        Rank 2 (Silver, 5-14 sh): 1.10 (+10% bonus)
+        Rank 3 (Gold, 15-29 sh): 1.15 (+15% bonus)
+        Rank 4 (Platinum, 30+ sh): 1.20 (+20% bonus)
+        """
+        rank, _ = self.get_corp_rank("mauville")
+        mult_map = {0: 1.0, 1: 1.05, 2: 1.10, 3: 1.15, 4: 1.20}
+        return mult_map.get(rank, 1.0)
+
+    def get_macro_multiplier(self) -> float:
+        """Returns token reward multiplier for Macro Cosmos shareholders across Gym boss raids and auto-battles.
+        Rank 0 (None): 1.0 (+0% bonus)
+        Rank 1 (Bronze, 1-4 sh): 1.10 (+10% bonus)
+        Rank 2 (Silver, 5-14 sh): 1.20 (+20% bonus)
+        Rank 3 (Gold, 15-29 sh): 1.30 (+30% bonus)
+        Rank 4 (Platinum, 30+ sh): 1.40 (+40% bonus)
+        """
+        rank, _ = self.get_corp_rank("macro")
+        mult_map = {0: 1.0, 1: 1.10, 2: 1.20, 3: 1.30, 4: 1.40}
+        return mult_map.get(rank, 1.0)
+
+    def get_viridian_dividend_bonus(self) -> float:
+        """Returns extra dividend yield bonus for Viridian Global Logistics shareholders.
+        Rank 0 (None): 0.0 (+0.0%)
+        Rank 1 (Bronze, 1-4 sh): 0.005 (+0.5%)
+        Rank 2 (Silver, 5-14 sh): 0.010 (+1.0%)
+        Rank 3 (Gold, 15-29 sh): 0.015 (+1.5%)
+        Rank 4 (Platinum, 30+ sh): 0.020 (+2.0%)
+        """
+        rank, _ = self.get_corp_rank("viridian")
+        bonus_map = {0: 0.0, 1: 0.005, 2: 0.010, 3: 0.015, 4: 0.020}
+        return bonus_map.get(rank, 0.0)
 
     def _calculate_streak_from_active_days(self, active_days: List[str], today_str: str) -> int:
         if not active_days:
@@ -559,7 +695,8 @@ class CompanionEngine:
                 decay_rate = 999_999_999_999
             else:
                 base_decay = 800_000 if active.held_item == "choice_scarf" else 1_000_000
-                decay_rate = base_decay * 2 if self.has_perk("aether") else base_decay
+                decay_shield, _ = self.get_aether_perks()
+                decay_rate = int(base_decay * decay_shield)
             decay_amount = (used_total - last_decay) // decay_rate
             
             if decay_amount > 0:
@@ -947,8 +1084,8 @@ class CompanionEngine:
                             bonus = 15 if active.held_item == "leftovers" else 10
                             if active.held_item == "soothe_bell":
                                 bonus = 25
-                            if self.has_perk("aether"):
-                                bonus += 5
+                            _, aether_bonus = self.get_aether_perks()
+                            bonus += aether_bonus
                             active.happiness = min(100, active.happiness + bonus)
                             self.set_active_mon(active)
                     elif diff > 1:
@@ -957,8 +1094,9 @@ class CompanionEngine:
                             events.append(f"🍎 Your companion missed {diff-1} day(s), but was protected by {protect_item}! Happiness preserved!")
                         else:
                             decay = (diff - 1) * 25
-                            if self.has_perk("aether"):
-                                decay = max(1, decay // 2)
+                            decay_shield, _ = self.get_aether_perks()
+                            if decay_shield > 1.0:
+                                decay = max(1, int(decay / decay_shield))
                             if active:
                                 active.happiness = max(0, active.happiness - decay)
                                 self.set_active_mon(active)
@@ -1015,14 +1153,14 @@ class CompanionEngine:
         rng = random.Random(date_str)
 
         burn_options = [
-            ("q1", "Burn 1.0M tokens today", 1_000_000, "mint", "burn_today"),
+            ("q1", "Burn 1.0M tokens today", 1_000_000, "berry_oran", "burn_today"),
             ("q1", "Burn 2.5M tokens today", 2_500_000, "rare_candy", "burn_today"),
             ("q1", "Burn 5.0M tokens today", 5_000_000, "rare_candy", "burn_today"),
         ]
         comp_options = [
-            ("q2", "Hatch an egg or evolve a companion", 1, "mint", "progression"),
+            ("q2", "Hatch an egg or evolve a companion", 1, "rare_candy", "progression"),
             ("q2", "Reach 100% Companion Happiness", 100, "rare_candy", "happiness"),
-            ("q2", "Maintain a 2+ Day Coding Streak", 2, "mint", "streak"),
+            ("q2", "Maintain a 2+ Day Coding Streak", 2, "berry_oran", "streak"),
         ]
         epic_options = [
             ("q3", "Burn 10.0M tokens today", 10_000_000, "tokens_10m", "burn_today"),
@@ -1057,9 +1195,12 @@ class CompanionEngine:
                 if reward_type == "rare_candy":
                     inv["rare_candy"] = inv.get("rare_candy", 0) + 1
                     msgs.append(f"+1 Rare Candy 🍬 for [{q['text']}]")
+                elif reward_type == "berry_oran":
+                    inv["berry_oran"] = inv.get("berry_oran", 0) + 1
+                    msgs.append(f"+1 Oran Berry 🫐 for [{q['text']}]")
                 elif reward_type == "mint":
-                    inv["mint"] = inv.get("mint", 0) + 1
-                    msgs.append(f"+1 Mint 🌿 for [{q['text']}]")
+                    inv["rare_candy"] = inv.get("rare_candy", 0) + 1
+                    msgs.append(f"+1 Rare Candy 🍬 for [{q['text']}]")
                 elif reward_type == "tokens_10m":
                     self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - 10_000_000
                     msgs.append(f"+10.0M Tokens 💰 for [{q['text']}]")
@@ -1081,10 +1222,10 @@ class CompanionEngine:
         events = []
         bosses = [
             {"id": "boss_1", "name": "Brock & Geodude", "sp_id": 74, "badge": "🪨 Boulder Badge", "threshold": 5_000_000, "hp": 2_000_000, "reward": "rare_candy"},
-            {"id": "boss_2", "name": "Misty & Starmie", "sp_id": 121, "badge": "💧 Cascade Badge", "threshold": 15_000_000, "hp": 5_000_000, "reward": "mint"},
+            {"id": "boss_2", "name": "Misty & Starmie", "sp_id": 121, "badge": "💧 Cascade Badge", "threshold": 15_000_000, "hp": 5_000_000, "reward": "rare_candy"},
             {"id": "boss_3", "name": "Lt. Surge & Raichu", "sp_id": 26, "badge": "⚡ Thunder Badge", "threshold": 30_000_000, "hp": 10_000_000, "reward": "tokens_10m"},
             {"id": "boss_4", "name": "Erika & Vileplume", "sp_id": 45, "badge": "🌸 Rainbow Badge", "threshold": 50_000_000, "hp": 18_000_000, "reward": "rare_candy"},
-            {"id": "boss_5", "name": "Koga & Weezing", "sp_id": 110, "badge": "🟣 Soul Badge", "threshold": 75_000_000, "hp": 25_000_000, "reward": "mint"},
+            {"id": "boss_5", "name": "Koga & Weezing", "sp_id": 110, "badge": "🟣 Soul Badge", "threshold": 75_000_000, "hp": 25_000_000, "reward": "rare_candy"},
             {"id": "boss_6", "name": "Sabrina & Alakazam", "sp_id": 65, "badge": "🔮 Marsh Badge", "threshold": 105_000_000, "hp": 35_000_000, "reward": "tokens_15m"},
             {"id": "boss_7", "name": "Blaine & Arcanine", "sp_id": 59, "badge": "🔥 Volcano Badge", "threshold": 140_000_000, "hp": 45_000_000, "reward": "rare_candy"},
             {"id": "boss_8", "name": "Giovanni & Mewtwo", "sp_id": 150, "badge": "🌍 Earth Badge", "threshold": 180_000_000, "hp": 60_000_000, "reward": "master_ball"},
@@ -1156,14 +1297,10 @@ class CompanionEngine:
                 inv = self.state.get("inventory", {})
                 is_mega = active and active.is_mega
                 multiplier = 1.5 if is_mega else 1.0
-                if self.has_perk("macro"):
-                    multiplier *= 1.20
+                multiplier *= self.get_macro_multiplier()
                 
-                if r_type == "rare_candy":
+                if r_type == "rare_candy" or r_type == "mint":
                     inv["rare_candy"] = inv.get("rare_candy", 0) + 1
-                    self.state["inventory"] = inv
-                elif r_type == "mint":
-                    inv["mint"] = inv.get("mint", 0) + 1
                     self.state["inventory"] = inv
                 elif r_type == "tokens_10m":
                     self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - int(10_000_000 * multiplier)
@@ -1997,8 +2134,7 @@ class CompanionEngine:
             
         diff = self.current_difficulty
         unit_cost = item_kind.price_for(diff)
-        if self.has_perk("devon"):
-            unit_cost = int(unit_cost * 0.90)
+        unit_cost = int(unit_cost * self.get_devon_multiplier())
         cost = unit_cost * qty
         
         if self.available_tokens < cost:
@@ -2426,19 +2562,6 @@ class CompanionEngine:
 
             return True, f"Equipped {item_name} {item_emoji} to {self.api.get_species_name(active.current_id)}! {effect_text}"
 
-        elif item_kind == ItemKind.MINT:
-            if qty > 1:
-                return False, "You can only use one Mint at a time!"
-            if active is None:
-                return False, "You need an active Pokémon companion to use a Mint!"
-            inv[item_kind.value] -= 1
-            new_nature = random.choice(list(PokemonNature))
-            active.nature = new_nature
-            self.set_active_mon(active)
-            self.state["inventory"] = inv
-            self.save()
-            return True, f"Used Mint! Nature changed to {new_nature.display_name}!"
-
         elif item_kind == ItemKind.BERRY_ORAN:
             if active is None:
                 return False, "You need an active Pokémon companion to feed an Oran Berry!"
@@ -2548,10 +2671,10 @@ class CompanionEngine:
             # Find an undefeated boss, or pick a random one if all defeated
             bosses = [
                 {"id": "boss_1", "name": "Brock & Geodude", "sp_id": 74, "badge": "🪨 Boulder Badge", "hp": 2_000_000, "reward": "rare_candy"},
-                {"id": "boss_2", "name": "Misty & Starmie", "sp_id": 121, "badge": "💧 Cascade Badge", "hp": 5_000_000, "reward": "mint"},
+                {"id": "boss_2", "name": "Misty & Starmie", "sp_id": 121, "badge": "💧 Cascade Badge", "hp": 5_000_000, "reward": "rare_candy"},
                 {"id": "boss_3", "name": "Lt. Surge & Raichu", "sp_id": 26, "badge": "⚡ Thunder Badge", "hp": 10_000_000, "reward": "tokens_10m"},
                 {"id": "boss_4", "name": "Erika & Vileplume", "sp_id": 45, "badge": "🌸 Rainbow Badge", "hp": 18_000_000, "reward": "rare_candy"},
-                {"id": "boss_5", "name": "Koga & Weezing", "sp_id": 110, "badge": "🟣 Soul Badge", "hp": 25_000_000, "reward": "mint"},
+                {"id": "boss_5", "name": "Koga & Weezing", "sp_id": 110, "badge": "🟣 Soul Badge", "hp": 25_000_000, "reward": "rare_candy"},
                 {"id": "boss_6", "name": "Sabrina & Alakazam", "sp_id": 65, "badge": "🔮 Marsh Badge", "hp": 35_000_000, "reward": "tokens_15m"},
                 {"id": "boss_7", "name": "Blaine & Arcanine", "sp_id": 59, "badge": "🔥 Volcano Badge", "hp": 45_000_000, "reward": "rare_candy"},
                 {"id": "boss_8", "name": "Giovanni & Mewtwo", "sp_id": 150, "badge": "🌍 Earth Badge", "hp": 60_000_000, "reward": "master_ball"},
@@ -2744,7 +2867,7 @@ class CompanionEngine:
             if not reward:
                 area_l = str(area).lower()
                 if "cerulean" in area_l:
-                    reward = "rare_candy"
+                    reward = "berry_oran"
                 elif "silver" in area_l:
                     reward = "berry_golden"
                 elif "spear" in area_l:
@@ -2752,7 +2875,7 @@ class CompanionEngine:
                 elif "mine" in area_l:
                     reward = "evo_stone"
                 else:
-                    reward = "mint"
+                    reward = "rare_candy"
                 exp["reward"] = reward
 
             if "progress" not in exp:
@@ -2797,8 +2920,8 @@ class CompanionEngine:
                 mult *= 1.20
             if active and active.held_item == "compass_of_deep":
                 mult *= 1.25
-            if self.has_perk("silph"):
-                mult *= 1.15
+            silph_speed_mult, silph_token_mult = self.get_silph_multipliers()
+            mult *= silph_speed_mult
 
             exp["progress"] += int(effective_xp * mult)
             
@@ -2809,12 +2932,15 @@ class CompanionEngine:
                 if reward == "rare_candy":
                     inv["rare_candy"] = inv.get("rare_candy", 0) + 1
                     reward_str = "+1 Rare Candy 🍬"
-                    if random.random() < 0.05:
+                elif reward == "berry_oran":
+                    inv["berry_oran"] = inv.get("berry_oran", 0) + 1
+                    reward_str = "+1 Oran Berry 🫐"
+                    if random.random() < 0.10:
                         inv["map_fragment"] = inv.get("map_fragment", 0) + 1
                         reward_str += " & +1 Map 📜!"
                 elif reward == "mint":
-                    inv["mint"] = inv.get("mint", 0) + 1
-                    reward_str = "+1 Mint 🌿"
+                    inv["rare_candy"] = inv.get("rare_candy", 0) + 1
+                    reward_str = "+1 Rare Candy 🍬"
                 elif reward == "legendary_egg":
                     current_tier = self.state.get("egg_tier")
                     if current_tier is None:
@@ -2851,8 +2977,7 @@ class CompanionEngine:
                 # Check for held item Amulet Coin
                 if active and active.held_item == "amulet_coin":
                     tokens_gain = int(tokens_gain * 1.5)
-                if self.has_perk("silph"):
-                    tokens_gain = int(tokens_gain * 1.15)
+                tokens_gain = int(tokens_gain * silph_token_mult)
                 if self.state.get("rocket_radar_charges", 0) > 0:
                     tokens_gain = int(tokens_gain * 1.5)
                     self.state["rocket_radar_charges"] -= 1
@@ -2980,8 +3105,8 @@ class CompanionEngine:
 
         from poketokenbar.game.models import PokemonBalance
         areas = {
-            "viridian": ("Viridian Forest", PokemonBalance.EXPEDITION_VIRIDIAN, "mint"),
-            "cerulean": ("Cerulean Cave", PokemonBalance.EXPEDITION_CERULEAN, "rare_candy"),
+            "viridian": ("Viridian Forest", PokemonBalance.EXPEDITION_VIRIDIAN, "rare_candy"),
+            "cerulean": ("Cerulean Cave", PokemonBalance.EXPEDITION_CERULEAN, "berry_oran"),
             "silver": ("Mt. Silver", PokemonBalance.EXPEDITION_SILVER, "berry_golden"),
             "spear": ("Spear Pillar (Deep)", PokemonBalance.EXPEDITION_SPEAR_PILLAR, "legendary_egg"),
             "mine": ("Evolution Mine", 10_000_000, "evo_stone")
@@ -3279,8 +3404,9 @@ class CompanionEngine:
                     token_reward = int(token_reward * 1.5)
                     reward_str = f"{token_reward / 1_000_000:.1f}M"
                     bonus_msg += " (🪙 Amulet Coin Bonus!)"
-                if self.has_perk("macro"):
-                    token_reward = int(token_reward * 1.20)
+                macro_mult = self.get_macro_multiplier()
+                if macro_mult > 1.0:
+                    token_reward = int(token_reward * macro_mult)
                     reward_str = f"{token_reward / 1_000_000:.1f}M"
                     bonus_msg += " (⚡ Macro Cosmos Perk!)"
                     
@@ -3349,8 +3475,7 @@ class CompanionEngine:
         costs = diff.shop_prices
         tier_key = tier.value if tier else "normal"
         cost = costs.get("egg_rare" if tier == Rarity.RARE else ("egg_uncommon" if tier == Rarity.UNCOMMON else "egg_normal"), 30_000_000)
-        if self.has_perk("devon"):
-            cost = int(cost * 0.90)
+        cost = int(cost * self.get_devon_multiplier())
 
         current_tier = self.state.get("egg_tier")
         if current_tier is not None:
@@ -3707,6 +3832,8 @@ class CompanionEngine:
                 corp = CORPORATIONS[c_key]
                 dyn_price = sm["prices"].get(c_key, corp.share_price)
                 eff_rate = corp.base_dividend + streak_bonus
+                if c_key == "viridian":
+                    eff_rate += self.get_viridian_dividend_bonus()
                 div_per_day = int(shares * dyn_price * eff_rate)
                 total_dividends += div_per_day * days_to_apply
 
@@ -3739,7 +3866,11 @@ class CompanionEngine:
         streak = self.state.get("streak_days", 1)
         streak_bonus = min(0.05, streak * 0.002)
         eff_rate = corp.base_dividend + streak_bonus
+        if key == "viridian":
+            eff_rate += self.get_viridian_dividend_bonus()
         daily_div = int(owned * current_price * eff_rate)
+        rank, tier_name = get_shareholder_rank(owned)
+        tier_perk_desc = CORPORATE_TIER_PERKS.get(key, {}).get(rank, corp.perk_desc)
 
         return {
             "key": key,
@@ -3757,7 +3888,10 @@ class CompanionEngine:
             "unrealized_pnl_pct": unrealized_pnl_pct,
             "latest_news": latest_news,
             "eff_rate": eff_rate,
-            "daily_div": daily_div
+            "daily_div": daily_div,
+            "rank": rank,
+            "tier_name": tier_name,
+            "tier_perk_desc": tier_perk_desc,
         }
 
     def invest_corporate(self, corp_code: str, shares_str: str) -> Tuple[bool, str]:
@@ -3946,8 +4080,7 @@ class CompanionEngine:
             return False, f"Not enough stock! Deal #{deal_id} only has {deal.get('stock', 0)} in stock."
 
         price = deal["price"]
-        if self.has_perk("devon"):
-            price = int(price * 0.90)
+        price = int(price * self.get_devon_multiplier())
 
         total_cost = price * qty
         if total_cost > self.available_tokens:
@@ -4131,8 +4264,9 @@ class CompanionEngine:
     def _format_poker_showdown(self) -> Tuple[bool, str]:
         outcome, p_rank, d_rank, mult, winnings = self.poker.play_showdown()
         
-        if winnings > 0 and outcome == "WIN" and self.has_perk("mauville"):
-            winnings = int(winnings * 1.10)
+        mauv_mult = self.get_mauville_multiplier()
+        if winnings > 0 and outcome == "WIN" and mauv_mult > 1.0:
+            winnings = int(winnings * mauv_mult)
 
         # Grant winnings by decreasing spent_tokens
         if winnings > 0:
@@ -4262,8 +4396,9 @@ class CompanionEngine:
         
         grid_str = "\n".join([f"🎰 {' | '.join(row)} 🎰" for row in reels])
         if win_amount > 0:
-            if self.has_perk("mauville"):
-                win_amount = int(win_amount * 1.10)
+            mauv_mult = self.get_mauville_multiplier()
+            if mauv_mult > 1.0:
+                win_amount = int(win_amount * mauv_mult)
             self.state["spent_tokens"] = self.state["spent_tokens"] - win_amount
             msg = f"{grid_str}\n\nWINNER! ({mult:.1f}x Total Multiplier)\nYou won {format_tokens(win_amount)} tokens!"
         else:
@@ -4289,9 +4424,9 @@ class CompanionEngine:
         if ok:
             self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + bet
             if self.blackjack.game_state == "finished":
-                winnings = self.blackjack.last_winnings
-                if winnings > 0 and self.has_perk("mauville"):
-                    winnings = int(winnings * 1.10)
+                mauv_mult = self.get_mauville_multiplier()
+                if winnings > 0 and mauv_mult > 1.0:
+                    winnings = int(winnings * mauv_mult)
                 if winnings > 0:
                     self.state["spent_tokens"] = self.state["spent_tokens"] - winnings
                 self._record_catalyst("casino_net_pnl", winnings - bet)
@@ -4312,11 +4447,11 @@ class CompanionEngine:
                 self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + extra
         else:
             return False, "Invalid action."
-            
         if ok and self.blackjack.game_state == "finished":
             winnings = self.blackjack.last_winnings
-            if winnings > 0 and self.has_perk("mauville"):
-                winnings = int(winnings * 1.10)
+            mauv_mult = self.get_mauville_multiplier()
+            if winnings > 0 and mauv_mult > 1.0:
+                winnings = int(winnings * mauv_mult)
             if winnings > 0:
                 self.state["spent_tokens"] = self.state["spent_tokens"] - winnings
             self._record_catalyst("casino_net_pnl", winnings - self.blackjack.current_bet)
@@ -4413,13 +4548,14 @@ class CompanionEngine:
         self.state["rocket_transmission_state"] = "intro"
         self.state["rocket_rank"] = "Informant"
         self.state["rocket_reputation"] = 0
+        boss_hps = {3: 150_000, 6: 200_000, 9: 300_000, 10: 350_000}
         self.state["rocket_ops"] = {
             f"op_{i}": {
                 "status": "available" if i == 1 else "locked",
                 "progress": 0,
                 "claimed": False,
                 "objective_done": False,
-                "boss_hp_remaining": 0,
+                "boss_hp_remaining": boss_hps.get(i, 0),
                 "briefing_viewed": False,
                 "expeditions_done": 0,
                 "battle_wins": 0,
@@ -4428,13 +4564,9 @@ class CompanionEngine:
             for i in range(1, 11)
         }
         self.state["rocket_intel_unlocked"] = ["intel_001"]
-        # Preserve purchased permanent armory tech across campaign resets
-        self.state["permanent_black_market"] = self.state.get(
-            "permanent_black_market", False
-        )
-        self.state["has_exp_splitter"] = self.state.get(
-            "has_exp_splitter", False
-        )
+        # Auto-grant Informant rank permanent clearance perk (Syndicate Black Pass)
+        self.state["permanent_black_market"] = True
+        self.state["has_exp_splitter"] = False
         self.state["last_authority_date"] = None
         self.state["pending_authority_delivery"] = None
         self.state["rocket_battle_state"] = {}
@@ -4457,8 +4589,13 @@ class CompanionEngine:
                 if op_info.get("status") == "available":
                     op_info["status"] = "active"
                     for op_def in self.get_rocket_operations():
-                        if op_def["id"] == op_id and op_def["is_boss"] and op_info.get("boss_hp_remaining", 0) <= 0:
-                            op_info["boss_hp_remaining"] = op_def["boss_hp"]
+                        if op_def["id"] == op_id and op_def["is_boss"]:
+                            b_st = self.state.get("rocket_battle_state", {})
+                            has_won = (b_st.get("status") == "win" and str(b_st.get("op_code")) == str(op_def["code"]))
+                            if not has_won:
+                                op_info["objective_done"] = False
+                                if op_info.get("boss_hp_remaining", 0) <= 0:
+                                    op_info["boss_hp_remaining"] = op_def["boss_hp"]
 
                 for op_def in self.get_rocket_operations():
                     if op_def["id"] == op_id and op_def["target"] > 0:
@@ -4514,7 +4651,7 @@ class CompanionEngine:
                 "intel_id": "intel_003",
                 "is_boss": True,
                 "boss_name": "Prototype Chimera-001",
-                "boss_hp": 15_000
+                "boss_hp": 150_000
             },
             {
                 "id": "op_4",
@@ -4555,8 +4692,8 @@ class CompanionEngine:
                 "reward_rank": "Special Agent",
                 "intel_id": "intel_006",
                 "is_boss": True,
-                "boss_name": "Cyber-Enforcer Unit",
-                "boss_hp": 35_000
+                "boss_name": "Cyber-Zapdos Core",
+                "boss_hp": 200_000
             },
             {
                 "id": "op_7",
@@ -4597,8 +4734,8 @@ class CompanionEngine:
                 "reward_rank": "Executive",
                 "intel_id": "intel_009",
                 "is_boss": True,
-                "boss_name": "Apex Vanguard: Mon-Omega",
-                "boss_hp": 75_000
+                "boss_name": "Apex Vanguard Mon-Omega",
+                "boss_hp": 300_000
             },
             {
                 "id": "op_10",
@@ -4611,14 +4748,14 @@ class CompanionEngine:
                 "reward_rank": "Commander",
                 "intel_id": "intel_010",
                 "is_boss": True,
-                "boss_name": "Arch-Director Samuel Oak & Augmented Legion",
-                "boss_hp": 120_000
+                "boss_name": "Arch-Director Samuel Oak & Master Core",
+                "boss_hp": 350_000
             }
         ]
 
         result = []
         for d in op_defs:
-            op_st = ops_state.get(d["id"], {"status": "locked", "progress": 0, "claimed": False, "objective_done": False, "boss_hp_remaining": 0, "briefing_viewed": False})
+            op_st = ops_state.get(d["id"], {"status": "locked", "progress": 0, "claimed": False, "objective_done": False, "boss_hp_remaining": d["boss_hp"] if d["is_boss"] else 0, "briefing_viewed": False})
             cur_prog = op_st.get("progress", 0)
             if d["target"] > 0:
                 cur_prog = min(cur_prog, d["target"])
@@ -4832,12 +4969,17 @@ class CompanionEngine:
                 )
 
         elif op_id == "op_3":
-            hp_rem = st.get("boss_hp_remaining", 15_000)
-            if hp_rem <= 0:
+            hp_rem = st.get("boss_hp_remaining", 150_000)
+            b_st = self.state.get("rocket_battle_state", {})
+            has_won = (b_st.get("status") == "win" and str(b_st.get("op_code")) == "3")
+            if hp_rem <= 0 and has_won:
                 ok = True
                 msg = "Prototype Chimera-001 neutralized!"
             else:
                 ok = False
+                if not has_won and hp_rem <= 0:
+                    hp_rem = 150_000
+                    st["boss_hp_remaining"] = hp_rem
                 msg = (
                     f"Boss remaining HP: {hp_rem:,}. "
                     "Use 'engage' or 'fight'!"
@@ -4869,12 +5011,17 @@ class CompanionEngine:
                 )
 
         elif op_id == "op_6":
-            hp_rem = st.get("boss_hp_remaining", 35_000)
-            if hp_rem <= 0:
+            hp_rem = st.get("boss_hp_remaining", 200_000)
+            b_st = self.state.get("rocket_battle_state", {})
+            has_won = (b_st.get("status") == "win" and str(b_st.get("op_code")) == "6")
+            if hp_rem <= 0 and has_won:
                 ok = True
-                msg = "Cyber-Enforcer Unit neutralized!"
+                msg = "Cyber-Zapdos Core neutralized!"
             else:
                 ok = False
+                if not has_won and hp_rem <= 0:
+                    hp_rem = 200_000
+                    st["boss_hp_remaining"] = hp_rem
                 msg = (
                     f"Boss remaining HP: {hp_rem:,}. "
                     "Use 'engage' or 'fight'!"
@@ -4925,20 +5072,27 @@ class CompanionEngine:
                 )
 
         elif op_id == "op_9":
-            hp_rem = st.get("boss_hp_remaining", 75_000)
-            if hp_rem <= 0:
+            hp_rem = st.get("boss_hp_remaining", 300_000)
+            b_st = self.state.get("rocket_battle_state", {})
+            has_won = (b_st.get("status") == "win" and str(b_st.get("op_code")) == "9")
+            if hp_rem <= 0 and has_won:
                 ok = True
-                msg = "Apex Vanguard: Mon-Omega neutralized!"
+                msg = "Apex Vanguard Mon-Omega neutralized!"
             else:
                 ok = False
+                if not has_won and hp_rem <= 0:
+                    hp_rem = 300_000
+                    st["boss_hp_remaining"] = hp_rem
                 msg = (
                     f"Boss remaining HP: {hp_rem:,}. "
                     "Use 'engage' or 'fight'!"
                 )
 
         elif op_id == "op_10":
-            hp_rem = st.get("boss_hp_remaining", 120_000)
-            if hp_rem <= 0:
+            hp_rem = st.get("boss_hp_remaining", 350_000)
+            b_st = self.state.get("rocket_battle_state", {})
+            has_won = (b_st.get("status") == "win" and str(b_st.get("op_code")) == "10")
+            if hp_rem <= 0 and has_won:
                 ok = True
                 msg = (
                     "Arch-Director Samuel Oak & The Augmented "
@@ -4946,6 +5100,9 @@ class CompanionEngine:
                 )
             else:
                 ok = False
+                if not has_won and hp_rem <= 0:
+                    hp_rem = 350_000
+                    st["boss_hp_remaining"] = hp_rem
                 msg = (
                     f"Boss remaining HP: {hp_rem:,}. "
                     "Use 'engage' or 'fight'!"
@@ -4994,8 +5151,13 @@ class CompanionEngine:
         st.setdefault("expeditions_done", 0)
         st.setdefault("battle_wins", 0)
         st.setdefault("black_market_trades", 0)
-        if selected["is_boss"] and st.get("boss_hp_remaining", 0) <= 0 and not st.get("objective_done", False):
-            st["boss_hp_remaining"] = selected["boss_hp"]
+        if selected["is_boss"]:
+            b_st = self.state.get("rocket_battle_state", {})
+            has_won = (b_st.get("status") == "win" and str(b_st.get("op_code")) == str(selected["code"]))
+            if not has_won:
+                st["objective_done"] = False
+                if st.get("boss_hp_remaining", 0) <= 0:
+                    st["boss_hp_remaining"] = selected["boss_hp"]
 
         self.save()
         msg = f"🚀 Operation {selected['code']} activated: {selected['name']}!"
@@ -5072,6 +5234,7 @@ class CompanionEngine:
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - reward
 
         # Update Reputation & Rank
+        old_rank = self.state.get("rocket_rank", "Informant")
         rep = sum(1 for v in ops_state.values() if v.get("claimed", False))
         self.state["rocket_reputation"] = rep
         if rep >= 10: new_rank = "Commander"
@@ -5080,6 +5243,25 @@ class CompanionEngine:
         elif rep >= 2: new_rank = "Operative"
         else: new_rank = "Informant"
         self.state["rocket_rank"] = new_rank
+
+        # Auto-grant permanent clearance perks based on rank
+        rank_order = {"Informant": 1, "Operative": 2, "Special Agent": 3, "Executive": 4, "Commander": 5}
+        cur_lvl = rank_order.get(new_rank, 1)
+        if cur_lvl >= 1 and self.state.get("rocket_alliance_accepted", False):
+            self.state["permanent_black_market"] = True
+        if cur_lvl >= 3:
+            self.state["has_exp_splitter"] = True
+
+        perk_msg = ""
+        if rank_order.get(new_rank, 1) > rank_order.get(old_rank, 1):
+            if new_rank == "Operative":
+                perk_msg = "\n  🎖️ PROMOTED TO OPERATIVE! Unlocked Syndicate Morale Mist & Chrono Accelerator in Covert Armory."
+            elif new_rank == "Special Agent":
+                perk_msg = "\n  🎖️ PROMOTED TO SPECIAL AGENT! Auto-activated Corrupted EXP Splitter (25% passive XP mirroring)!"
+            elif new_rank == "Executive":
+                perk_msg = "\n  🎖️ PROMOTED TO EXECUTIVE! Unlocked Dark Gene Catalyst in Covert Armory."
+            elif new_rank == "Commander":
+                perk_msg = "\n  👑 PROMOTED TO COMMANDER! Unlocked Team Rocket Authority daily requisition in Covert Armory."
 
         # Unlock dossier
         intel_id = selected["intel_id"]
@@ -5095,6 +5277,11 @@ class CompanionEngine:
                 if next_key in ops_state and not ops_state[next_key].get("claimed", False):
                     ops_state[next_key]["status"] = "available"
                     ops_state[next_key]["briefing_viewed"] = False
+                    next_num = curr_num + 1
+                    boss_hps = {3: 150_000, 6: 200_000, 9: 300_000, 10: 350_000}
+                    if next_num in boss_hps:
+                        ops_state[next_key]["boss_hp_remaining"] = boss_hps[next_num]
+                        ops_state[next_key]["objective_done"] = False
         except ValueError:
             pass
 
@@ -5119,7 +5306,7 @@ class CompanionEngine:
             climax_msg = "\n  👑 EARNED TITLE: 'Seeker of Truth'!\n  🎁 RECRUITED: Armored Mewtwo, Porygon-Zero, & Oak's Augmented Team into Roster!\n  🔓 UNLOCKED: Permanent 24/7 Black Market Access!"
 
         self.save()
-        return True, f"🎉 Operation {selected['code']} Completed! Claimed {format_tokens(reward)} tokens! Rank: {new_rank} (Rep: {rep}/10)!{climax_msg}"
+        return True, f"🎉 Operation {selected['code']} Completed! Claimed {format_tokens(reward)} tokens! Rank: {new_rank} (Rep: {rep}/10)!{perk_msg}{climax_msg}"
 
     def get_rocket_dossier(self) -> List[Dict[str, Any]]:
         """Returns the 10 classified dossier entries."""
@@ -5312,16 +5499,16 @@ class CompanionEngine:
         ]
 
     def buy_rocket_armory_item(self, item_code: str) -> Tuple[bool, str]:
-        """Purchases covert tech from the Rocket Armory with rank clearance checks."""
+        """Requisitions covert tech from the Rocket Armory with rank clearance checks (Free of charge)."""
         import datetime
         item_code = item_code.lower().strip()
         catalog = {
-            "pass": ("Syndicate Black Pass", 20_000_000, "Informant"),
-            "spray": ("Syndicate Morale Mist", 35_000_000, "Operative"),
-            "chrono": ("Chrono Accelerator", 45_000_000, "Operative"),
-            "splitter": ("Corrupted EXP Splitter", 50_000_000, "Special Agent"),
-            "catalyst": ("Dark Gene Catalyst", 75_000_000, "Executive"),
-            "authority": ("Team Rocket Authority", 100, "Commander"),
+            "pass": ("Syndicate Black Pass", 0, "Informant"),
+            "spray": ("Syndicate Morale Mist", 0, "Operative"),
+            "chrono": ("Chrono Accelerator", 0, "Operative"),
+            "splitter": ("Corrupted EXP Splitter", 0, "Special Agent"),
+            "catalyst": ("Dark Gene Catalyst", 0, "Executive"),
+            "authority": ("Team Rocket Authority", 0, "Commander"),
         }
 
         if item_code not in catalog:
@@ -5334,7 +5521,7 @@ class CompanionEngine:
         if rank_order.get(user_rank, 1) < rank_order.get(min_rank, 1):
             return False, f"Clearance Denied! {name} requires rank '{min_rank}' (Your Rank: {user_rank})."
 
-        # Clearance and prerequisite validations before deducting tokens
+        # Clearance and prerequisite validations
         if item_code == "pass":
             if self.state.get("permanent_black_market", False):
                 return False, "You already possess the Syndicate Black Pass!"
@@ -5370,18 +5557,14 @@ class CompanionEngine:
             if not candidates:
                 return False, "Your Roster already commands every Gen 1 Pokémon species in the region!"
 
-        if cost > self.available_tokens:
-            return False, f"Not enough tokens! {name} costs {format_tokens(cost)} (You have {format_tokens(self.available_tokens)})."
-
-        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + cost
-
+        # Requisition granted for 0 tokens (free of charge)
         if item_code == "pass":
             self.state["permanent_black_market"] = True
             bm = self.get_or_init_black_market(force_open=True)
             bm["is_open"] = True
             bm["natural_open"] = True
             self.state["black_market"] = bm
-            msg = "📯 Acquired Syndicate Black Pass! 24/7 Black Market unlocked & all Grunt tolls waived!"
+            msg = "📯 Clearance Authorized: Syndicate Black Pass active! 24/7 Black Market unlocked & all Grunt tolls waived!"
 
         elif item_code == "spray":
             if self.active_mon:
@@ -5395,7 +5578,7 @@ class CompanionEngine:
                     m_st = d.get("mon_state")
                     if isinstance(m_st, dict):
                         m_st["happiness"] = 100
-            msg = "🌫️ Deployed Syndicate Morale Mist! Restored 100% Happiness to all Pokémon across your squad!"
+            msg = "🌫️ Clearance Authorized: Deployed Syndicate Morale Mist! Restored 100% Happiness to all Pokémon across your squad!"
 
         elif item_code == "chrono":
             cds = self.state.get("term_deposits", [])
@@ -5410,20 +5593,20 @@ class CompanionEngine:
                     matured_count += 1
             self.state["term_deposits"] = cds
             if active_cds:
-                msg = f"⏱️ Activated Chrono Accelerator! Advanced {len(active_cds)} active CD(s) by +1 day ({matured_count} matured)!"
+                msg = f"⏱️ Clearance Authorized: Activated Chrono Accelerator! Advanced {len(active_cds)} active CD(s) by +1 day ({matured_count} matured)!"
             else:
-                msg = "⏱️ Activated Chrono Accelerator! Localized timeline warped (+1 day), but no active CDs were locked."
+                msg = "⏱️ Clearance Authorized: Chrono Accelerator timeline warped (+1 day), but no active CDs were locked."
 
         elif item_code == "splitter":
             self.state["has_exp_splitter"] = True
-            msg = "⚡ Acquired Corrupted EXP Splitter! 25% of coding XP is now mirrored to all inactive roster Pokémon!"
+            msg = "⚡ Clearance Authorized: Corrupted EXP Splitter active! 25% of coding XP is now mirrored to all inactive roster Pokémon!"
 
         elif item_code == "catalyst":
             inv = self.state.setdefault("inventory", {})
             inv["dark_gene_catalyst"] = inv.get("dark_gene_catalyst", 0) + 1
             if isinstance(inv.get("items"), dict):
                 inv["items"]["dark_gene_catalyst"] = inv["dark_gene_catalyst"]
-            msg = "🧬 Acquired Dark Gene Catalyst! Stored in Bag inventory (Slot 65)."
+            msg = "🧬 Clearance Authorized: Requisitioned Dark Gene Catalyst! Stored in Bag inventory (Slot 63)."
 
         elif item_code == "authority":
             chosen_id = random.choice(candidates)
@@ -5431,7 +5614,7 @@ class CompanionEngine:
             self.state["last_authority_date"] = datetime.date.today().isoformat()
             self.state["pending_authority_delivery"] = chosen_id
             msg = (
-                f"👑 Dispatched Team Rocket Authority! Field agents intercepted a wild {species_name} (#{chosen_id})!\n"
+                f"👑 Clearance Authorized: Team Rocket Authority requisition dispatched! Field agents intercepted a wild {species_name} (#{chosen_id})!\n"
                 f"  📦 Courier delivery pending at HQ. Type 'keep' to register into Roster, or 'dismiss' to release."
             )
 

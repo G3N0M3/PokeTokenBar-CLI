@@ -7,8 +7,8 @@ BLACK_MARKET_POOL_100: List[Dict[str, Any]] = [
     {"name": "🍬 Bulk Rare Candies (5x)", "type": "item", "item_key": "rare_candy", "qty": 5, "price": 10_000_000, "stock": 2, "max_stock": 2, "badge": "33% OFF"},
     {"name": "🍬 Bulk Rare Candies (10x)", "type": "item", "item_key": "rare_candy", "qty": 10, "price": 18_000_000, "stock": 1, "max_stock": 1, "badge": "40% OFF"},
     {"name": "🍬 Bulk Rare Candies (25x)", "type": "item", "item_key": "rare_candy", "qty": 25, "price": 40_000_000, "stock": 1, "max_stock": 1, "badge": "BULK DEAL"},
-    {"name": "🌿 Bulk Mints (5x)", "type": "item", "item_key": "mint", "qty": 5, "price": 3_500_000, "stock": 2, "max_stock": 2, "badge": "30% OFF"},
-    {"name": "🌿 Bulk Mints (10x)", "type": "item", "item_key": "mint", "qty": 10, "price": 6_000_000, "stock": 1, "max_stock": 1, "badge": "40% OFF"},
+    {"name": "🫐 Bulk Oran Berries (5x)", "type": "item", "item_key": "berry_oran", "qty": 5, "price": 3_500_000, "stock": 2, "max_stock": 2, "badge": "30% OFF"},
+    {"name": "🍬 Bulk Rare Candies (3x)", "type": "item", "item_key": "rare_candy", "qty": 3, "price": 6_000_000, "stock": 2, "max_stock": 2, "badge": "SPECIAL"},
     {"name": "🫐 Bulk Oran Berries (10x)", "type": "item", "item_key": "berry_oran", "qty": 10, "price": 6_000_000, "stock": 3, "max_stock": 3, "badge": "40% OFF"},
     {"name": "🫐 Bulk Oran Berries (25x)", "type": "item", "item_key": "berry_oran", "qty": 25, "price": 12_500_000, "stock": 2, "max_stock": 2, "badge": "HALF OFF"},
     {"name": "🍇 Bulk Golden Razz (3x)", "type": "item", "item_key": "berry_golden", "qty": 3, "price": 10_000_000, "stock": 2, "max_stock": 2, "badge": "33% OFF"},
@@ -289,8 +289,8 @@ def unpack_mystery_crate(crate_id: str, inv: Optional[Dict[str, int]] = None) ->
             items["berry_golden"] = 5
             desc = "🍇 Nutrient Gel! Unpacked 5x Golden Razz Berries!"
         elif roll < 0.90:
-            items["mint"] = 10
-            desc = "🌿 Genetic Mints! Unpacked 10x Mints!"
+            items["rare_candy"] = 3
+            desc = "🍬 Specimen Growth Booster! Unpacked 3x Rare Candies!"
         else:
             items["berry_oran"] = 2
             desc = "🧪 Dud! The specimen broke into foul-smelling slime and 2x Oran Berries."
@@ -333,9 +333,8 @@ def unpack_mystery_crate(crate_id: str, inv: Optional[Dict[str, int]] = None) ->
             items["map_fragment"] = 1
             desc = "🍬 Shady Loot! Unpacked 5x Rare Candies and 1x Map Fragment!"
         elif roll < 0.50:
-            items["berry_oran"] = 3
-            items["mint"] = 2
-            desc = "🫐 Street Supplies! Unpacked 3x Oran Berries and 2x Mints!"
+            items["berry_oran"] = 5
+            desc = "🫐 Street Supplies! Unpacked 5x Oran Berries!"
         elif roll < 0.80:
             s = random.choice(ALL_STONE_TYPES)
             items[s] = 1

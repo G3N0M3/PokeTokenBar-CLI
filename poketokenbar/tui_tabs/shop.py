@@ -16,76 +16,75 @@ BOLD = "\033[1m"
 
 BAG_CATALOG = [
     ("1", "rare_candy", "🍬 Rare Candy"),
-    ("2", "mint", "🌿 Mint"),
-    ("3", "berry_oran", "🫐 Oran Berry"),
-    ("4", "berry_golden", "🍇 Golden Razz"),
-    ("6", "poke_flute", "🪈 Poké Flute (Summons Boss)"),
-    ("7", "master_ball", "🌟 Master Ball (Hatch Shiny)"),
-    ("8", "map_fragment", "📜 Map"),
-    ("9", "expedition_license", "📜 Exped. License (+10 slots)"),
-    ("10", "everstone", "🪨 Everstone (No evolution)"),
-    ("11", "lucky_egg", "🍀 Lucky Egg (+20% XP)"),
-    ("12", "amulet_coin", "🪙 Amulet Coin (+50% tokens)"),
-    ("13", "leftovers", "🍎 Leftovers (No hap. decay)"),
-    ("14", "choice_scarf", "🥊 Choice Scarf (+20% spd)"),
-    ("15", "exp_share", "🎒 Exp. Share (XP Sharing)"),
-    ("16", "soothe_bell", "🔔 Soothe Bell (Hap. Boost)"),
-    ("17", "scope_lens", "🔍 Scope Lens (2x Shiny)"),
-    ("18", "life_orb", "🔮 Life Orb (+10% Tokens)"),
-    ("19", "choice_band", "🥊 Choice Band (+50% Dmg)"),
+    ("2", "berry_oran", "🫐 Oran Berry"),
+    ("3", "berry_golden", "🍇 Golden Razz"),
+    ("4", "poke_flute", "🪈 Poké Flute (Summons Boss)"),
+    ("5", "master_ball", "🌟 Master Ball (Hatch Shiny)"),
+    ("6", "map_fragment", "📜 Map"),
+    ("7", "expedition_license", "📜 Exped. License (+10 slots)"),
+    ("8", "everstone", "🪨 Everstone (No evolution)"),
+    ("9", "lucky_egg", "🍀 Lucky Egg (+20% XP)"),
+    ("10", "amulet_coin", "🪙 Amulet Coin (+50% tokens)"),
+    ("11", "leftovers", "🍎 Leftovers (No hap. decay)"),
+    ("12", "choice_scarf", "🥊 Choice Scarf (+20% spd)"),
+    ("13", "exp_share", "🎒 Exp. Share (XP Sharing)"),
+    ("14", "soothe_bell", "🔔 Soothe Bell (Hap. Boost)"),
+    ("15", "scope_lens", "🔍 Scope Lens (2x Shiny)"),
+    ("16", "life_orb", "🔮 Life Orb (+10% Tokens)"),
+    ("17", "choice_band", "🥊 Choice Band (+50% Dmg)"),
     # Combat held items
-    ("20", "choice_specs", "👓 Choice Specs (+50% SpAtk)"),
-    ("21", "focus_sash", "🎗️ Focus Sash (Endure 1 HP)"),
-    ("22", "rocky_helmet", "⛑️ Rocky Helmet (Recoil)"),
-    ("23", "assault_vest", "🦺 Assault Vest (-30% SpDef)"),
-    ("24", "heavy_boots", "🥾 Heavy Boots (Hazard Guard)"),
-    ("25", "compass_of_deep", "🧭 Compass of Deep (+25% Spd)"),
+    ("18", "choice_specs", "👓 Choice Specs (+50% SpAtk)"),
+    ("19", "focus_sash", "🎗️ Focus Sash (Endure 1 HP)"),
+    ("20", "rocky_helmet", "⛑️ Rocky Helmet (Recoil)"),
+    ("21", "assault_vest", "🦺 Assault Vest (-30% SpDef)"),
+    ("22", "heavy_boots", "🥾 Heavy Boots (Hazard Guard)"),
+    ("23", "compass_of_deep", "🧭 Compass of Deep (+25% Spd)"),
     # Consumables & Field Tech
-    ("26", "revitalizing_tonic", "⚗️ Revitalizing Tonic (100% Hap)"),
-    ("27", "sacred_ash", "🏺 Sacred Ash (Full Red Revive)"),
-    ("28", "warp_whistle", "🌬️ Warp Whistle (Finish All)"),
-    ("29", "expedition_pass", "🎫 Expedition Pass"),
-    ("30", "expedition_energy_tonic", "⚡ Energy Tonic (+50% Hap All)"),
-    ("31", "expedition_insurance", "📜 Exped. Insurance Policy"),
-    ("32", "rocket_radar", "📡 Rocket Radar (+50% Tokens)"),
+    ("24", "revitalizing_tonic", "⚗️ Revitalizing Tonic (100% Hap)"),
+    ("25", "sacred_ash", "🏺 Sacred Ash (Full Red Revive)"),
+    ("26", "warp_whistle", "🌬️ Warp Whistle (Finish All)"),
+    ("27", "expedition_pass", "🎫 Expedition Pass"),
+    ("28", "expedition_energy_tonic", "⚡ Energy Tonic (+50% Hap All)"),
+    ("29", "expedition_insurance", "📜 Exped. Insurance Policy"),
+    ("30", "rocket_radar", "📡 Rocket Radar (+50% Tokens)"),
     # Syndicate Evolution Artifacts
-    ("33", "metal_coat", "⚙️ Metal Coat"),
-    ("34", "kings_rock", "👑 King's Rock"),
-    ("35", "dragon_scale", "🐉 Dragon Scale"),
-    ("36", "upgrade", "💾 Upgrade"),
-    ("37", "dubious_disc", "💿 Dubious Disc"),
-    ("38", "protector", "🛡️ Protector"),
-    ("39", "electirizer", "🔌 Electirizer"),
-    ("40", "magmarizer", "🌋 Magmarizer"),
-    ("41", "reaper_cloth", "👻 Reaper Cloth"),
-    ("42", "prism_scale", "✨ Prism Scale"),
+    ("31", "metal_coat", "⚙️ Metal Coat"),
+    ("32", "kings_rock", "👑 King's Rock"),
+    ("33", "dragon_scale", "🐉 Dragon Scale"),
+    ("34", "upgrade", "💾 Upgrade"),
+    ("35", "dubious_disc", "💿 Dubious Disc"),
+    ("36", "protector", "🛡️ Protector"),
+    ("37", "electirizer", "🔌 Electirizer"),
+    ("38", "magmarizer", "🌋 Magmarizer"),
+    ("39", "reaper_cloth", "👻 Reaper Cloth"),
+    ("40", "prism_scale", "✨ Prism Scale"),
     # Evolution Stones
-    ("43", "water_stone", "💎 Water Stone"),
-    ("44", "fire_stone", "💎 Fire Stone"),
-    ("45", "thunder_stone", "💎 Thunder Stone"),
-    ("46", "leaf_stone", "💎 Leaf Stone"),
-    ("47", "moon_stone", "💎 Moon Stone"),
-    ("48", "sun_stone", "💎 Sun Stone"),
-    ("49", "ice_stone", "💎 Ice Stone"),
-    ("50", "shiny_stone", "💎 Shiny Stone"),
-    ("51", "dusk_stone", "💎 Dusk Stone"),
-    ("52", "dawn_stone", "💎 Dawn Stone"),
+    ("41", "water_stone", "💎 Water Stone"),
+    ("42", "fire_stone", "💎 Fire Stone"),
+    ("43", "thunder_stone", "💎 Thunder Stone"),
+    ("44", "leaf_stone", "💎 Leaf Stone"),
+    ("45", "moon_stone", "💎 Moon Stone"),
+    ("46", "sun_stone", "💎 Sun Stone"),
+    ("47", "ice_stone", "💎 Ice Stone"),
+    ("48", "shiny_stone", "💎 Shiny Stone"),
+    ("49", "dusk_stone", "💎 Dusk Stone"),
+    ("50", "dawn_stone", "💎 Dawn Stone"),
     # Fake Contraband items
-    ("53", "fake_rare_candy", "🍬 \"Rare Candy\""),
-    ("54", "fake_master_ball", "🌟 \"Master Ball\""),
-    ("55", "fake_thunder_stone", "⚡ \"Thunder Stone\""),
-    ("56", "fake_water_stone", "💧 \"Water Stone\""),
-    ("57", "fake_fire_stone", "🔥 \"Fire Stone\""),
-    ("58", "fake_ancient_map", "📜 \"Ancient Map\""),
-    ("59", "fake_gold_nugget", "🪙 \"Gold Nugget\""),
-    ("60", "fake_exp_share", "🎒 \"Exp. Share\""),
-    ("61", "fake_soothe_bell", "🔔 \"Soothe Bell\""),
-    ("62", "fake_scope_lens", "🔍 \"Scope Lens\""),
-    ("63", "fake_focus_sash", "🎗️ \"Focus Sash\""),
-    ("64", "fake_mega_stone", "🔮 \"Charizardite\""),
+    ("51", "fake_rare_candy", "🍬 \"Rare Candy\""),
+    ("52", "fake_master_ball", "🌟 \"Master Ball\""),
+    ("53", "fake_thunder_stone", "⚡ \"Thunder Stone\""),
+    ("54", "fake_water_stone", "💧 \"Water Stone\""),
+    ("55", "fake_fire_stone", "🔥 \"Fire Stone\""),
+    ("56", "fake_ancient_map", "📜 \"Ancient Map\""),
+    ("57", "fake_gold_nugget", "🪙 \"Gold Nugget\""),
+    ("58", "fake_exp_share", "🎒 \"Exp. Share\""),
+    ("59", "fake_soothe_bell", "🔔 \"Soothe Bell\""),
+    ("60", "fake_scope_lens", "🔍 \"Scope Lens\""),
+    ("61", "fake_focus_sash", "🎗️ \"Focus Sash\""),
+    ("62", "fake_mega_stone", "🔮 \"Charizardite\""),
     # Special Rocket Bag items
-    ("65", "dark_gene_catalyst", "🧬 Dark Gene Catalyst"),
-    ("66", "rocket_master_ball", "🔮 Rocket Master Ball"),
+    ("63", "dark_gene_catalyst", "🧬 Dark Gene Catalyst"),
+    ("64", "rocket_master_ball", "🔮 Rocket Master Ball"),
 ]
 
 BAG_CATALOG_MAP = {cid: key for cid, key, _ in BAG_CATALOG}
@@ -98,13 +97,6 @@ ITEM_DESCRIPTIONS: Dict[str, Dict[str, str]] = {
         "category": "Consumable",
         "desc": "Instantly grants +60% of shop cost in XP to active companion.",
         "usage": "Type 'use <id> [qty]' to feed to active companion.",
-    },
-    "mint": {
-        "name": "🌿 Mint",
-        "clean_name": "Mint",
-        "category": "Consumable",
-        "desc": "Rerolls active companion's nature, altering stat multipliers.",
-        "usage": "Type 'use <id>' to reroll active companion's nature.",
     },
     "berry_oran": {
         "name": "🫐 Oran Berry",
@@ -550,7 +542,7 @@ ITEM_DESCRIPTIONS: Dict[str, Dict[str, str]] = {
 }
 
 def resolve_bag_item(app, choice: str) -> Optional[str]:
-    choice = choice.strip().lower()
+    choice = choice.strip().strip("[]").lower()
     if not choice:
         return None
     bag_id_map = getattr(app, "bag_id_map", {})
@@ -560,6 +552,12 @@ def resolve_bag_item(app, choice: str) -> Optional[str]:
         return BAG_CATALOG_MAP[choice]
     if choice in BAG_KEY_TO_ID:
         return choice
+
+    # Numeric choices must only resolve via bag_id_map or BAG_CATALOG_MAP.
+    # Never do substring or name matching on numbers (e.g. '5' must not match '50% tokens' in Amulet Coin).
+    if choice.isdigit():
+        return None
+
     choice_norm = choice.replace(" ", "_").replace("-", "_")
     if choice_norm in BAG_KEY_TO_ID:
         return choice_norm
@@ -575,7 +573,9 @@ def resolve_bag_item(app, choice: str) -> Optional[str]:
         return choice_norm
     for cid, k, name in BAG_CATALOG:
         c_name = "".join(ch for ch in name.lower() if ch.isalnum() or ch.isspace()).strip()
-        if choice == c_name or choice in c_name:
+        if choice == c_name or choice == c_name.replace(" ", "_"):
+            return k
+        if choice in c_name.split():
             return k
     return None
 
@@ -588,18 +588,19 @@ def render_shop_tab(app):
     inv = app.engine.state.get("inventory", {})
     diff = app.engine.current_difficulty
     prices = diff.shop_prices
-    has_devon = app.engine.has_perk("devon")
-    disc = 0.90 if has_devon else 1.0
+    devon_mult = app.engine.get_devon_multiplier()
+    disc = devon_mult
+    devon_rank, devon_tier = app.engine.get_corp_rank("devon")
+    devon_disc_pct = app.engine.get_devon_discount_pct()
 
     p_rc = format_tokens(int(prices["rare_candy"] * disc))
     p_rc_xp = format_tokens(int(prices["rare_candy"] * 0.6))
-    p_mint = format_tokens(int(prices["mint"] * disc))
     p_egg1 = format_tokens(int(prices["egg_normal"] * disc))
     p_egg2 = format_tokens(int(prices["egg_uncommon"] * disc))
 
     sys.stdout.write(f"\n  {BOLD}{YELLOW}🛒 Token Shop & Bag{RESET}  (Available Spendable Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET})\n")
-    if has_devon:
-        sys.stdout.write(f"  {BOLD}{GREEN}💼 Devon Corp Active: -10% discount applied to all shop items!{RESET}\n")
+    if devon_rank > 0:
+        sys.stdout.write(f"  {BOLD}{GREEN}💼 Devon Corp [{devon_tier.upper()}]: -{devon_disc_pct}% discount applied to shop items!{RESET}\n")
 
     bm = app.engine.get_or_init_black_market()
     if bm.get("natural_open"):
@@ -608,17 +609,16 @@ def render_shop_tab(app):
 
     sys.stdout.write(f"  {BOLD}Shop Items (Type 'buy <number> [qty]' to purchase):{RESET}\n")
     sys.stdout.write(f"  [1] 🍬 Rare Candy     - Cost: {p_rc:<6} tokens  (Grants +{p_rc_xp} XP)\n")
-    sys.stdout.write(f"  [2] 🌿 Mint           - Cost: {p_mint:<6} tokens  (Rerolls nature)\n")
-    sys.stdout.write(f"  [3] 🥚 Pokémon Egg    - Cost: {p_egg1:<6} tokens  (Incubate new egg)\n")
-    sys.stdout.write(f"  [4] 🥚 Uncommon Egg   - Cost: {p_egg2:<6} tokens  (Guarantees Uncommon+ egg)\n")
-    sys.stdout.write(f"  [5] 🫐 Oran Berry     - Cost: {format_tokens(int(1_000_000 * disc)):<6} tokens  (+25% Happiness)\n")
-    sys.stdout.write(f"  [6] 🍇 Golden Razz    - Cost: {format_tokens(int(5_000_000 * disc)):<6} tokens  (Shiny egg odds 1/24)\n")
-    sys.stdout.write(f"  [7] 📜 Exped. License - Cost: {format_tokens(int(200_000_000 * disc)):<6} tokens  (+10 expedition slots)\n")
-    sys.stdout.write(f"  [8] 🪨 Everstone      - Cost: {format_tokens(int(500_000 * disc)):<6} tokens  (Prevents evolution)\n")
-    sys.stdout.write(f"  [9] 🍀 Lucky Egg      - Cost: {format_tokens(int(5_000_000 * disc)):<6} tokens  (+20% XP gain)\n")
-    sys.stdout.write(f"  [10] 🪙 Amulet Coin   - Cost: {format_tokens(int(2_000_000 * disc)):<6} tokens  (+50% token rewards)\n")
-    sys.stdout.write(f"  [11] 🍎 Leftovers     - Cost: {format_tokens(int(2_000_000 * disc)):<6} tokens  (Protects happiness)\n")
-    sys.stdout.write(f"  [12] 🥊 Choice Scarf  - Cost: {format_tokens(int(2_000_000 * disc)):<6} tokens  (+20% exp spd, hap-)\n\n")
+    sys.stdout.write(f"  [2] 🥚 Pokémon Egg    - Cost: {p_egg1:<6} tokens  (Incubate new egg)\n")
+    sys.stdout.write(f"  [3] 🥚 Uncommon Egg   - Cost: {p_egg2:<6} tokens  (Guarantees Uncommon+ egg)\n")
+    sys.stdout.write(f"  [4] 🫐 Oran Berry     - Cost: {format_tokens(int(1_000_000 * disc)):<6} tokens  (+25% Happiness)\n")
+    sys.stdout.write(f"  [5] 🍇 Golden Razz    - Cost: {format_tokens(int(5_000_000 * disc)):<6} tokens  (Shiny egg odds 1/24)\n")
+    sys.stdout.write(f"  [6] 📜 Exped. License - Cost: {format_tokens(int(200_000_000 * disc)):<6} tokens  (+10 expedition slots)\n")
+    sys.stdout.write(f"  [7] 🪨 Everstone      - Cost: {format_tokens(int(500_000 * disc)):<6} tokens  (Prevents evolution)\n")
+    sys.stdout.write(f"  [8] 🍀 Lucky Egg      - Cost: {format_tokens(int(5_000_000 * disc)):<6} tokens  (+20% XP gain)\n")
+    sys.stdout.write(f"  [9] 🪙 Amulet Coin   - Cost: {format_tokens(int(2_000_000 * disc)):<6} tokens  (+50% token rewards)\n")
+    sys.stdout.write(f"  [10] 🍎 Leftovers     - Cost: {format_tokens(int(2_000_000 * disc)):<6} tokens  (Protects happiness)\n")
+    sys.stdout.write(f"  [11] 🥊 Choice Scarf  - Cost: {format_tokens(int(2_000_000 * disc)):<6} tokens  (+20% exp spd, hap-)\n\n")
 
     sys.stdout.write(f"  {BOLD}Your Bag (Type 'use <id>', 'sell <id>', 'help <id>', or 'unequip'):{RESET}\n")
     
@@ -636,10 +636,10 @@ def render_shop_tab(app):
             app.bag_id_map[k] = k
             seen_keys.add(k)
 
-    # Dynamic fallback for uncataloged items (excluding mega stones)
-    next_dyn_id = 67
+    # Dynamic fallback for uncataloged items (excluding mega stones and legacy mint)
+    next_dyn_id = 65
     for k, v in inv.items():
-        if k in seen_keys or k == "items":
+        if k in seen_keys or k == "items" or k == "mint":
             continue
         if k == "mega_stone" or k.startswith("mega_stone_"):
             continue
@@ -670,13 +670,15 @@ def render_shop_tab(app):
 
 def _render_black_market_view(app):
     avail = app.engine.available_tokens
-    has_devon = app.engine.has_perk("devon")
-    disc = 0.90 if has_devon else 1.0
+    devon_mult = app.engine.get_devon_multiplier()
+    disc = devon_mult
+    devon_rank, devon_tier = app.engine.get_corp_rank("devon")
+    devon_disc_pct = app.engine.get_devon_discount_pct()
 
     sys.stdout.write(f"\n  {BOLD}{YELLOW}🕶️ Rocket Syndicate — Underground Black Market{RESET}\n")
     sys.stdout.write(f"  Available Spendable Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n")
-    if has_devon:
-        sys.stdout.write(f"  {BOLD}{GREEN}💼 Devon Corp Active: -10% discount applied to deals!{RESET}\n")
+    if devon_rank > 0:
+        sys.stdout.write(f"  {BOLD}{GREEN}💼 Devon Corp [{devon_tier.upper()}]: -{devon_disc_pct}% discount applied to deals!{RESET}\n")
 
     bm = app.engine.get_or_init_black_market()
     is_open = bm.get("natural_open", False) or getattr(app, "black_market_session", False) or bm.get("is_open", False)
@@ -747,32 +749,30 @@ def handle_shop_buy(app, cmd: str):
     if choice == "1":
         ok, msg = app.engine.buy_item(ItemKind.RARE_CANDY, qty)
     elif choice == "2":
-        ok, msg = app.engine.buy_item(ItemKind.MINT, qty)
-    elif choice == "3":
         if qty > 1:
             app.message = "You can only hold one egg!"
             return
         ok, msg = app.engine.buy_egg(None)
-    elif choice == "4":
+    elif choice == "3":
         if qty > 1:
             app.message = "You can only hold one egg!"
             return
         ok, msg = app.engine.buy_egg(Rarity.UNCOMMON)
-    elif choice == "5":
+    elif choice == "4":
         ok, msg = app.engine.buy_item(ItemKind.BERRY_ORAN, qty)
-    elif choice == "6":
+    elif choice == "5":
         ok, msg = app.engine.buy_item(ItemKind.BERRY_GOLDEN, qty)
-    elif choice == "7":
+    elif choice == "6":
         ok, msg = app.engine.buy_item(ItemKind.EXPEDITION_LICENSE, qty)
-    elif choice == "8":
+    elif choice == "7":
         ok, msg = app.engine.buy_item(ItemKind.EVERSTONE, qty)
-    elif choice == "9":
+    elif choice == "8":
         ok, msg = app.engine.buy_item(ItemKind.LUCKY_EGG, qty)
-    elif choice == "10":
+    elif choice == "9":
         ok, msg = app.engine.buy_item(ItemKind.AMULET_COIN, qty)
-    elif choice == "11":
+    elif choice == "10":
         ok, msg = app.engine.buy_item(ItemKind.LEFTOVERS, qty)
-    elif choice == "12":
+    elif choice == "11":
         ok, msg = app.engine.buy_item(ItemKind.CHOICE_SCARF, qty)
     else:
         ok, msg = False, "Invalid shop selection."
@@ -894,10 +894,14 @@ def handle_bag_help(app, cmd: str):
         app.message = "Usage: help <id> (e.g. 'help 16' or 'help life_orb')"
         return
 
-    choice = parts[1].strip()
+    raw_choice = parts[1].strip()
+    choice = raw_choice.strip("[]").lower()
     target_key = resolve_bag_item(app, choice)
     if not target_key:
-        app.message = f"Unknown item '{choice}'. Check your Bag item number."
+        if choice.isdigit():
+            app.message = f"You do not have item [{choice}] in your Bag!"
+        else:
+            app.message = f"You do not have '{raw_choice}' in your Bag!"
         return
 
     info = ITEM_DESCRIPTIONS.get(target_key)
@@ -962,7 +966,7 @@ def handle_bag_help(app, cmd: str):
                 break
 
     if count <= 0 and not is_held and not held_by_roster:
-        app.message = f"You do not own {clean_name} in your Bag!"
+        app.message = f"You do not have {clean_name} in your Bag!"
         return
 
     # Determine displayed ID for usage prompt

@@ -157,7 +157,7 @@ def render_settings_tab(app):
     page_tag = f" {BOLD}(Page {curr_page}/{total_pages}){RESET}" if total_pages > 1 else ""
     now = datetime.datetime.now()
     date_hour_str = now.strftime("%Y-%m-%d %H")
-    tod_str = "☀️ Day" if 6 <= now.hour < 18 else "🌙 Night"
+    tod_str = "Day" if 6 <= now.hour < 18 else "Night"
     sys.stdout.write(f"\n  {BOLD}{CYAN}⚙️ Tracking & Application Settings{RESET}{page_tag}\n")
     sys.stdout.write(f"  🕒 System Date & Hour:         {BOLD}{date_hour_str}{RESET} ({tod_str})\n\n")
 

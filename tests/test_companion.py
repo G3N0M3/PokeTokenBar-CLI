@@ -30,7 +30,7 @@ class TestCompanionEngine(unittest.TestCase):
         self.engine = CompanionEngine()
 
     def test_item_prices(self):
-        self.assertEqual(ItemKind.MINT.price, 1_000_000)
+        self.assertEqual(ItemKind.BERRY_ORAN.price, 1_000_000)
         self.assertEqual(ItemKind.SHINY_STONE.price, 50_000_000)
 
     def test_hatch(self):
@@ -822,6 +822,8 @@ class TestCompanionEngine(unittest.TestCase):
         out1 = trap1.getvalue()
         self.assertIn("System Date & Hour:", out1)
         self.assertRegex(out1, r'\d{4}-\d{2}-\d{2} \d{2}')
+        self.assertTrue("(Day)" in out1 or "(Night)" in out1)
+        self.assertNotIn("☀️", out1)
         for line in out1.split("\n"):
             clean = ansi_regex.sub("", line)
             self.assertLessEqual(len(clean), 72, f"Settings tab page 1 line exceeds 72 cols: '{clean}' (len={len(clean)})")
@@ -1186,13 +1188,25 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertNotIn("Red", CORPORATIONS["macro"].catalyst_desc)
         self.assertIn("Boss raids", CORPORATIONS["macro"].perk_desc)
 
-        # Test Devon perk: 10% discount on Shop Rare Candy
+        # Test Devon perk: dynamic tiered discount on Shop Rare Candy
+        # With 2 shares owned (Bronze tier: 1-4 shares), discount is 5%
+        self.assertEqual(self.engine.get_corp_rank("devon")[1], "Bronze")
         rc_base = ItemKind.RARE_CANDY.price_for(self.engine.current_difficulty)
-        expected_cost = int(rc_base * 0.90)
+        expected_cost_bronze = int(rc_base * 0.95)
         tokens_before_rc = self.engine.available_tokens
         ok_buy, msg_buy = self.engine.buy_item(ItemKind.RARE_CANDY, 1)
         self.assertTrue(ok_buy)
-        self.assertEqual(tokens_before_rc - self.engine.available_tokens, expected_cost)
+        self.assertEqual(tokens_before_rc - self.engine.available_tokens, expected_cost_bronze)
+
+        # Reach Silver tier (5+ shares) for 10% discount
+        ok_silver, _ = self.engine.invest_corporate("DEVON", "3")
+        self.assertTrue(ok_silver)
+        self.assertEqual(self.engine.get_corp_rank("devon")[1], "Silver")
+        expected_cost_silver = int(rc_base * 0.90)
+        tokens_before_rc2 = self.engine.available_tokens
+        ok_buy2, _ = self.engine.buy_item(ItemKind.RARE_CANDY, 1)
+        self.assertTrue(ok_buy2)
+        self.assertEqual(tokens_before_rc2 - self.engine.available_tokens, expected_cost_silver)
 
         # Test Day rollover dividend payout with streak bonus
         self.engine.state["streak_days"] = 5
@@ -1492,7 +1506,7 @@ class TestCompanionEngine(unittest.TestCase):
         app.engine = self.engine
         app.bank_subtab = "stocks"
 
-        for corp_key in ["silph", "devon", "aether", "mauville", "macro"]:
+        for corp_key in ["silph", "devon", "aether", "mauville", "macro", "viridian"]:
             app.stock_terminal = corp_key
             trap = io.StringIO()
             with unittest.mock.patch("sys.stdout", trap):
@@ -1500,9 +1514,110 @@ class TestCompanionEngine(unittest.TestCase):
             out = trap.getvalue()
             self.assertIn("TRADE TERMINAL", out)
             self.assertIn("Your Position & Analytics", out)
+            self.assertIn("Shareholder Rank & Perk Progression:", out)
             for line in out.split("\n"):
                 clean = ansi_regex.sub("", line)
                 self.assertLessEqual(len(clean), 72, f"Trade Terminal '{corp_key}' line exceeds 72 cols: '{clean}' (len={len(clean)})")
+
+    def test_shareholder_tier_rank_thresholds(self):
+        from poketokenbar.game.models import get_shareholder_rank, SHAREHOLDER_TIERS
+        # Boundary tests
+        self.assertEqual(get_shareholder_rank(0), (0, "None"))
+        self.assertEqual(get_shareholder_rank(1), (1, "Bronze"))
+        self.assertEqual(get_shareholder_rank(4), (1, "Bronze"))
+        self.assertEqual(get_shareholder_rank(5), (2, "Silver"))
+        self.assertEqual(get_shareholder_rank(14), (2, "Silver"))
+        self.assertEqual(get_shareholder_rank(15), (3, "Gold"))
+        self.assertEqual(get_shareholder_rank(29), (3, "Gold"))
+        self.assertEqual(get_shareholder_rank(30), (4, "Platinum"))
+        self.assertEqual(get_shareholder_rank(100), (4, "Platinum"))
+        self.assertEqual(len(SHAREHOLDER_TIERS), 5)
+
+    def test_shareholder_perk_multipliers(self):
+        self.engine.state["investments"] = {
+            "silph": 0, "devon": 0, "aether": 0, "mauville": 0, "macro": 0, "viridian": 0
+        }
+        # Rank 0 (None)
+        self.assertEqual(self.engine.get_silph_multipliers(), (1.0, 1.0))
+        self.assertEqual(self.engine.get_devon_multiplier(), 1.0)
+        self.assertEqual(self.engine.get_devon_discount_pct(), 0)
+        self.assertEqual(self.engine.get_aether_perks(), (1.0, 0))
+        self.assertEqual(self.engine.get_mauville_multiplier(), 1.0)
+        self.assertEqual(self.engine.get_macro_multiplier(), 1.0)
+        self.assertEqual(self.engine.get_viridian_dividend_bonus(), 0.0)
+
+        # Rank 1 (Bronze: 1-4 shares)
+        self.engine.state["investments"]["silph"] = 2
+        self.engine.state["investments"]["devon"] = 4
+        self.engine.state["investments"]["aether"] = 1
+        self.engine.state["investments"]["mauville"] = 3
+        self.engine.state["investments"]["macro"] = 2
+        self.engine.state["investments"]["viridian"] = 4
+        self.assertEqual(self.engine.get_silph_multipliers(), (1.10, 1.10))
+        self.assertEqual(self.engine.get_devon_multiplier(), 0.95)
+        self.assertEqual(self.engine.get_devon_discount_pct(), 5)
+        self.assertEqual(self.engine.get_aether_perks(), (1.5, 3))
+        self.assertEqual(self.engine.get_mauville_multiplier(), 1.05)
+        self.assertEqual(self.engine.get_macro_multiplier(), 1.10)
+        self.assertEqual(self.engine.get_viridian_dividend_bonus(), 0.005)
+
+        # Rank 2 (Silver: 5-14 shares)
+        self.engine.state["investments"] = {k: 5 for k in self.engine.state["investments"]}
+        self.assertEqual(self.engine.get_silph_multipliers(), (1.15, 1.15))
+        self.assertEqual(self.engine.get_devon_multiplier(), 0.90)
+        self.assertEqual(self.engine.get_devon_discount_pct(), 10)
+        self.assertEqual(self.engine.get_aether_perks(), (2.0, 5))
+        self.assertEqual(self.engine.get_mauville_multiplier(), 1.10)
+        self.assertEqual(self.engine.get_macro_multiplier(), 1.20)
+        self.assertEqual(self.engine.get_viridian_dividend_bonus(), 0.010)
+
+        # Rank 3 (Gold: 15-29 shares)
+        self.engine.state["investments"] = {k: 20 for k in self.engine.state["investments"]}
+        self.assertEqual(self.engine.get_silph_multipliers(), (1.20, 1.20))
+        self.assertEqual(self.engine.get_devon_multiplier(), 0.85)
+        self.assertEqual(self.engine.get_devon_discount_pct(), 15)
+        self.assertEqual(self.engine.get_aether_perks(), (2.5, 8))
+        self.assertEqual(self.engine.get_mauville_multiplier(), 1.15)
+        self.assertEqual(self.engine.get_macro_multiplier(), 1.30)
+        self.assertEqual(self.engine.get_viridian_dividend_bonus(), 0.015)
+
+        # Rank 4 (Platinum: 30+ shares)
+        self.engine.state["investments"] = {k: 35 for k in self.engine.state["investments"]}
+        self.assertEqual(self.engine.get_silph_multipliers(), (1.25, 1.25))
+        self.assertEqual(self.engine.get_devon_multiplier(), 0.80)
+        self.assertEqual(self.engine.get_devon_discount_pct(), 20)
+        self.assertEqual(self.engine.get_aether_perks(), (3.0, 12))
+        self.assertEqual(self.engine.get_mauville_multiplier(), 1.20)
+        self.assertEqual(self.engine.get_macro_multiplier(), 1.40)
+        self.assertEqual(self.engine.get_viridian_dividend_bonus(), 0.020)
+
+    def test_stock_trade_terminal_progression_and_72_col_compliance(self):
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.bank import _render_stock_terminal
+
+        ansi_regex = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        app = MagicMock()
+        app.engine = self.engine
+
+        # Test each corporation across all 5 ranks (0, 2, 7, 20, 35 shares)
+        for corp_key in ["silph", "devon", "aether", "mauville", "macro", "viridian"]:
+            for share_count in [0, 2, 7, 20, 35]:
+                self.engine.state["investments"][corp_key] = share_count
+                trap = io.StringIO()
+                with patch("sys.stdout", trap):
+                    _render_stock_terminal(app, avail=100_000_000, corp_key=corp_key)
+                out = trap.getvalue()
+                self.assertIn("Shareholder Rank & Perk Progression:", out)
+                self.assertIn("Rank Tiers:", out)
+                if share_count > 0:
+                    self.assertIn("◄ ACTIVE", out)
+                else:
+                    self.assertIn("Current Status: None (0 shares)", ansi_regex.sub("", out))
+                for line in out.split("\n"):
+                    clean = ansi_regex.sub("", line)
+                    self.assertLessEqual(len(clean), 72, f"Terminal [{corp_key}, {share_count} sh] exceeds 72 cols: '{clean}' (len={len(clean)})")
 
     def test_stock_tui_interactive_commands(self):
         import io
@@ -1933,6 +2048,7 @@ class TestCompanionEngine(unittest.TestCase):
         ok_burst, msg_burst = self.engine.attack_rocket_boss(burst=True)
         self.assertTrue(ok_burst)
         # Defeat boss
+        self.engine.state["rocket_battle_state"] = {"status": "win", "op_code": "3"}
         self.engine.state["rocket_ops"]["op_3"]["boss_hp_remaining"] = 0
         ok_claim3, msg_claim3 = self.engine.claim_rocket_operation("3")
         self.assertTrue(ok_claim3)
@@ -1947,6 +2063,7 @@ class TestCompanionEngine(unittest.TestCase):
         # Test Final Op 10 Climax Unlocks
         self.engine.state["rocket_ops"]["op_10"]["status"] = "available"
         self.engine.start_rocket_operation("10")
+        self.engine.state["rocket_battle_state"] = {"status": "win", "op_code": "10"}
         self.engine.state["rocket_ops"]["op_10"]["boss_hp_remaining"] = 0
         ok_final, msg_final = self.engine.claim_rocket_operation("10")
         self.assertTrue(ok_final)
@@ -2477,11 +2594,18 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertIn("[CLEARANCE GRANTED]", out_arm)
         # Operative and higher items are masked with ???
         self.assertIn("??? ???", out_arm)
-        self.assertIn("[LOCKED - HIGHER RANK REQUIRED]", out_arm)
-        self.assertIn("You need a higher rank (Operative) for this purchase.", out_arm)
-        self.assertIn("You need a higher rank (Commander) for this purchase.", out_arm)
+        self.assertIn("[LOCKED - OPERATIVE REQUIRED]", out_arm)
+        self.assertIn("[LOCKED - COMMANDER REQUIRED]", out_arm)
+        self.assertIn("Requires rank 'Operative' (Promoted via Covert Operations).", out_arm)
+        self.assertIn("Requires rank 'Commander' (Promoted via Covert Operations).", out_arm)
         self.assertNotIn("Syndicate Morale Mist", out_arm)
         self.assertNotIn("Team Rocket Authority", out_arm)
+        # Verify codes and buy/claim command hints are removed
+        self.assertNotIn("('pass')", out_arm)
+        self.assertNotIn("('???')", out_arm)
+        self.assertNotIn("claim <code>", out_arm)
+        self.assertNotIn("buy <code>", out_arm)
+        self.assertIn("Clearance perks activate automatically upon rank promotion.", out_arm)
 
         # Verify 72-col compliance across Intel and Armory
         for t in [trap_p1, trap_p2, trap_arm]:
@@ -2925,18 +3049,29 @@ class TestCompanionEngine(unittest.TestCase):
         handle_bag_help(app, "help")
         self.assertIn("Usage: help <id>", app.message)
 
-        # 3. Test unowned items -> Rejected with clear 'You do not own' message
-        handle_bag_help(app, "help 18")  # Life Orb
-        self.assertEqual(app.message, "You do not own Life Orb in your Bag!")
+        # 3. Test unowned items and absent indices -> Rejected with clear 'You do not have' message
+        # Crucial test: Give player Amulet Coin (index 12, contains '50% tokens' in desc).
+        # 'help 5' must NEVER match Amulet Coin! It must state user does not have item [5].
+        self.engine.state["inventory"]["amulet_coin"] = 1
+        handle_bag_help(app, "help 5")
+        self.assertEqual(app.message, "You do not have item [5] in your Bag!")
+        self.assertNotIn("Amulet Coin", app.message)
 
-        handle_bag_help(app, "help 16")  # Soothe Bell
-        self.assertEqual(app.message, "You do not own Soothe Bell in your Bag!")
+        # Brackets support
+        handle_bag_help(app, "help [5]")
+        self.assertEqual(app.message, "You do not have item [5] in your Bag!")
+
+        handle_bag_help(app, "help 18")  # Life Orb (unowned)
+        self.assertEqual(app.message, "You do not have Life Orb in your Bag!")
+
+        handle_bag_help(app, "help 16")  # Soothe Bell (unowned)
+        self.assertEqual(app.message, "You do not have Soothe Bell in your Bag!")
 
         handle_bag_help(app, "help life_orb")
-        self.assertEqual(app.message, "You do not own Life Orb in your Bag!")
+        self.assertEqual(app.message, "You do not have Life Orb in your Bag!")
 
         handle_bag_help(app, "help 999")
-        self.assertIn("Unknown item '999'", app.message)
+        self.assertEqual(app.message, "You do not have item [999] in your Bag!")
 
         # 4. Give player 1x Life Orb
         self.engine.state["inventory"]["life_orb"] = 1
@@ -3752,7 +3887,7 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertTrue(self.engine.state["has_exp_splitter"])
 
     def test_rocket_armory_buy_from_any_subview_and_fuzzy_code(self):
-        """Verify armory purchases work from any subview with fuzzy codes."""
+        """Verify armory tech codes resolve and buy/claim commands notify that perks are auto-granted."""
         from poketokenbar.tui_tabs.rocket import (
             handle_rocket_command, _resolve_armory_tech_code
         )
@@ -3771,14 +3906,16 @@ class TestCompanionEngine(unittest.TestCase):
         app.rocket_subview = "ops"
         self.engine.state["rocket_alliance_accepted"] = True
         self.engine.state["rocket_rank"] = "Informant"
-        self.engine.state["permanent_black_market"] = False
-        self.engine.state["used_since_install"] = 100_000_000
-        self.engine.state["spent_tokens"] = 0
 
-        # Buy pass from ops view with 'buy black pass'
+        # Attempting 'buy black pass' informs that perks are automatic
         handle_rocket_command(app, "buy black pass")
-        self.assertTrue(self.engine.state["permanent_black_market"])
-        self.assertIn("Syndicate Black Pass", app.message)
+        self.assertIn("Covert Armory perks are automatically granted", app.message)
+        self.assertIn("No purchase required", app.message)
+
+        # Attempting 'claim pass' informs that perks are automatic
+        handle_rocket_command(app, "claim pass")
+        self.assertIn("Covert Armory perks are automatically granted", app.message)
+        self.assertIn("No claim or purchase required", app.message)
 
     def test_render_settings_tab_and_rocket_init_option(self):
         """Verify Option 8 displays correctly in Settings tab and complies with 72-column limit."""
@@ -4147,6 +4284,250 @@ class TestCompanionEngine(unittest.TestCase):
         reqs2 = self.engine.get_operation_requirements("1")
         self.assertEqual(reqs2[1]["current"], 2)
         self.assertTrue(reqs2[1]["is_met"])
+
+    def test_rocket_boss_operations_initialization_and_anti_premature_completion(self):
+        """Verify boss operations initialize with full HP, resist false-positive completion, and require combat victory."""
+        from poketokenbar.game.rocket_battle import RocketBattleHandler
+
+        # 1. Verify fresh initialization allocates proper boss HP
+        self.engine.initialize_rocket_process()
+        ops = self.engine.state["rocket_ops"]
+        self.assertEqual(ops["op_3"]["boss_hp_remaining"], 150_000)
+        self.assertFalse(ops["op_3"]["objective_done"])
+        self.assertEqual(ops["op_6"]["boss_hp_remaining"], 200_000)
+        self.assertEqual(ops["op_9"]["boss_hp_remaining"], 300_000)
+        self.assertEqual(ops["op_10"]["boss_hp_remaining"], 350_000)
+
+        # 2. Simulate claiming Op 1 & Op 2 to sequentially unlock Op 3
+        self.engine.state["rocket_ops"]["op_1"]["claimed"] = True
+        self.engine.state["rocket_ops"]["op_1"]["status"] = "completed"
+        self.engine.state["rocket_ops"]["op_2"]["status"] = "active"
+        self.engine.state["rocket_ops"]["op_2"]["progress"] = 10_000_000
+        self.engine.state["rocket_ops"]["op_2"]["battle_wins"] = 2
+        ok_claim2, _ = self.engine.claim_rocket_operation("2")
+        self.assertTrue(ok_claim2)
+
+        # Op 3 must now be available with full 150,000 HP and objective_done False
+        op3_st = self.engine.state["rocket_ops"]["op_3"]
+        self.assertEqual(op3_st["status"], "available")
+        self.assertEqual(op3_st["boss_hp_remaining"], 150_000)
+        self.assertFalse(op3_st["objective_done"])
+
+        # 3. Check objective before combat -> Must NOT be marked done
+        ok_obj, msg_obj = self.engine.check_operation_objective("op_3")
+        self.assertFalse(ok_obj)
+        self.assertIn("150,000", msg_obj)
+        self.assertFalse(op3_st["objective_done"])
+
+        # 4. Start Op 3
+        ok_start, _ = self.engine.start_rocket_operation("3")
+        self.assertTrue(ok_start)
+        self.assertEqual(op3_st["status"], "active")
+        self.assertEqual(op3_st["boss_hp_remaining"], 150_000)
+        self.assertFalse(op3_st["objective_done"])
+
+        # 5. Test self-healing against corrupted/zeroed state without combat win
+        op3_st["boss_hp_remaining"] = 0
+        op3_st["objective_done"] = True
+        self.engine.state["rocket_battle_state"] = {} # No win recorded!
+
+        # check_operation_objective must catch the unearned zero HP, heal HP to 150k, and reject objective_done
+        ok_healed, msg_healed = self.engine.check_operation_objective("op_3")
+        self.assertFalse(ok_healed)
+        self.assertEqual(op3_st["boss_hp_remaining"], 150_000)
+        self.assertFalse(op3_st["objective_done"])
+
+        # Claiming while un-neutralized must fail
+        ok_claim, msg_claim = self.engine.claim_rocket_operation("3")
+        self.assertFalse(ok_claim)
+        self.assertIn("objective not fulfilled", msg_claim)
+
+        # 6. Engage and complete combat via RocketBattleHandler
+        handler = RocketBattleHandler(self.engine)
+        ok_engage, _ = handler.start_boss_battle("3")
+        self.assertTrue(ok_engage)
+
+        b_st = handler._get_state()
+        # Knock down MissingNo. and Venustoise
+        b_st["boss_hps"][0] = 1
+        handler._save_state(b_st)
+        handler.execute_turn(0) # defeat MissingNo.
+
+        b_st = handler._get_state()
+        b_st["boss_hps"][1] = 1
+        handler._save_state(b_st)
+        handler.execute_turn(0) # defeat Venustoise
+
+        b_st = handler._get_state()
+        b_st["boss_hps"][2] = 1
+        handler._save_state(b_st)
+        handler.execute_turn(0) # defeat Prototype Chimera-001 -> VICTORY
+
+        b_st = handler._get_state()
+        self.assertEqual(b_st["status"], "win")
+        self.assertEqual(op3_st["boss_hp_remaining"], 0)
+        self.assertTrue(op3_st["objective_done"])
+
+        # 7. check_operation_objective must now verify victory
+        ok_won, msg_won = self.engine.check_operation_objective("op_3")
+        self.assertTrue(ok_won)
+        self.assertIn("neutralized", msg_won)
+
+        # 8. Claim Op 3 rewards
+        spent_before = self.engine.state.get("spent_tokens", 0)
+        ok_claim_final, msg_claim_final = self.engine.claim_rocket_operation("3")
+        self.assertTrue(ok_claim_final)
+        self.assertTrue(op3_st["claimed"])
+        self.assertEqual(self.engine.state.get("spent_tokens", 0), spent_before - 40_000_000)
+        self.assertIn("intel_003", self.engine.state.get("rocket_intel_unlocked", []))
+        self.assertEqual(self.engine.state["rocket_ops"]["op_4"]["status"], "available")
+
+    def test_rocket_armory_free_clearance_and_auto_granted_perks(self):
+        """Verify armory items cost 0 tokens, require no token balance, and auto-grant perks upon rank promotion."""
+        from poketokenbar.tui_tabs.rocket import handle_rocket_command
+        from unittest.mock import MagicMock
+
+        # 1. Zero tokens balance
+        self.engine.state["used_since_install"] = 0
+        self.engine.state["spent_tokens"] = 0
+        self.assertEqual(self.engine.available_tokens, 0)
+
+        # 2. Informant Rank: Black Pass auto-granted on joining/alliance
+        self.engine.initialize_rocket_process()
+        self.assertTrue(self.engine.state.get("permanent_black_market"))
+        self.assertFalse(self.engine.state.get("has_exp_splitter"))
+
+        # Requisitioning pass while already active
+        ok_p, msg_p = self.engine.buy_rocket_armory_item("pass")
+        self.assertFalse(ok_p)
+        self.assertIn("already possess", msg_p)
+
+        # 3. Operative Rank: Free requisition of Morale Mist with 0 tokens balance
+        self.engine.state["rocket_rank"] = "Operative"
+        spent_before = self.engine.state.get("spent_tokens", 0)
+        ok_spray, msg_spray = self.engine.buy_rocket_armory_item("spray")
+        self.assertTrue(ok_spray)
+        self.assertIn("Clearance Authorized", msg_spray)
+        self.assertEqual(self.engine.state.get("spent_tokens", 0), spent_before)
+
+        # 4. Rank promotion to Special Agent auto-grants Corrupted EXP Splitter
+        self.engine.state["rocket_ops"] = {f"op_{i}": {"claimed": True} for i in range(1, 6)}
+        self.engine.state["rocket_ops"]["op_6"] = {"status": "available", "claimed": False, "objective_done": False, "boss_hp_remaining": 200_000, "progress": 0}
+        self.engine.state["rocket_ops"]["op_5"]["claimed"] = False
+        self.engine.state["rocket_ops"]["op_5"]["status"] = "active"
+        self.engine.state["rocket_ops"]["op_5"]["expeditions_done"] = 2
+        self.engine.state["rocket_ops"]["op_5"]["black_market_trades"] = 1
+        self.engine.state["expeditions"] = [{"area": "pallet", "target": 100, "progress": 10}, {"area": "viridian", "target": 100, "progress": 10}]
+        self.engine.state["has_exp_splitter"] = False
+
+        ok_claim5, msg_claim5 = self.engine.claim_rocket_operation("5")
+        self.assertTrue(ok_claim5)
+        self.assertEqual(self.engine.state["rocket_rank"], "Special Agent")
+        self.assertTrue(self.engine.state["has_exp_splitter"])
+        self.assertIn("Auto-activated Corrupted EXP Splitter", msg_claim5)
+
+        # 5. TUI command routing: deprecated commands notify that perks are auto-granted
+        app = MagicMock()
+        app.engine = self.engine
+        app.rocket_subview = "armory"
+        self.engine.state["rocket_alliance_accepted"] = True
+        self.engine.state["rocket_rank"] = "Executive"
+
+        # 'claim spray' from armory
+        handle_rocket_command(app, "claim spray")
+        self.assertIn("Covert Armory perks are automatically granted", app.message)
+
+        # 'requisition chrono'
+        handle_rocket_command(app, "requisition chrono")
+        self.assertIn("Covert Armory perks are automatically granted", app.message)
+
+        # direct 'catalyst'
+        handle_rocket_command(app, "catalyst")
+        self.assertIn("Covert Armory perks are automatically granted", app.message)
+
+    def test_mint_removal_and_expedition_rewards(self):
+        from poketokenbar.tui_tabs.shop import BAG_CATALOG, handle_shop_buy
+        from poketokenbar.game.black_market import BLACK_MARKET_POOL_100
+        from poketokenbar.game.gacha import GACHA_COMMON_POOL
+
+        # 1. ItemKind has no MINT
+        self.assertFalse(hasattr(ItemKind, "MINT"))
+
+        # 2. Game Corner Gacha common pool has no mint
+        for tier, name, weight, r_type, val in GACHA_COMMON_POOL:
+            self.assertNotEqual(val, "mint")
+
+        # 3. Black market pool has exactly 100 items and no mint
+        self.assertEqual(len(BLACK_MARKET_POOL_100), 100)
+        for d in BLACK_MARKET_POOL_100:
+            self.assertNotEqual(d.get("key"), "mint")
+            if d.get("contents"):
+                self.assertNotIn("mint", d["contents"])
+
+        # 4. Bag catalog indexing: sequential 1..64 with no gaps and no mint
+        self.assertEqual(len(BAG_CATALOG), 64)
+        for i, (cid, key, _) in enumerate(BAG_CATALOG, start=1):
+            self.assertEqual(cid, str(i))
+            self.assertNotEqual(key, "mint")
+
+        # 5. Shop buying re-indexed 1..11
+        app = MagicMock()
+        app.engine = self.engine
+        app.shop_view = "normal"
+        self.engine.state["used_since_install"] = 1_000_000_000
+        self.engine.state["spent_tokens"] = 0
+        self.engine.state["egg_tier"] = None
+
+        # Buy [1] -> Rare Candy
+        rc_before = self.engine.state["inventory"].get("rare_candy", 0)
+        handle_shop_buy(app, "buy 1 1")
+        self.assertEqual(self.engine.state["inventory"].get("rare_candy", 0), rc_before + 1)
+
+        # Buy [4] -> Oran Berry
+        oran_before = self.engine.state["inventory"].get("berry_oran", 0)
+        handle_shop_buy(app, "buy 4 2")
+        self.assertEqual(self.engine.state["inventory"].get("berry_oran", 0), oran_before + 2)
+
+        # 6. Expedition rewards: Viridian -> rare_candy, Cerulean -> berry_oran
+        mon, _ = self.engine.hatch_egg(0)
+        self.engine.state["expedition_slots"] = 5
+        ok_v, _ = self.engine.dispatch_expedition("1", "viridian")
+        self.assertTrue(ok_v)
+        viridian_exp = [e for e in self.engine.state["expeditions"] if "Viridian" in e.get("area", "")][0]
+        self.assertEqual(viridian_exp["reward"], "rare_candy")
+
+        ok_c, _ = self.engine.dispatch_expedition("1", "cerulean")
+        self.assertTrue(ok_c)
+        cerulean_exp = [e for e in self.engine.state["expeditions"] if "Cerulean" in e.get("area", "")][0]
+        self.assertEqual(cerulean_exp["reward"], "berry_oran")
+
+        # Process expedition completion for Viridian (gives rare_candy)
+        rc_count = self.engine.state["inventory"].get("rare_candy", 0)
+        viridian_exp["progress"] = viridian_exp["target"]
+        self.engine._update_expeditions(1, [])
+        self.assertEqual(self.engine.state["inventory"].get("rare_candy", 0), rc_count + 1)
+
+        # Process expedition completion for Cerulean (gives berry_oran)
+        oran_count = self.engine.state["inventory"].get("berry_oran", 0)
+        cerulean_exp["progress"] = cerulean_exp["target"]
+        self.engine._update_expeditions(1, [])
+        self.assertEqual(self.engine.state["inventory"].get("berry_oran", 0), oran_count + 1)
+
+        # 7. Legacy state migration in __init__
+        raw_state = StorageManager.default_state()
+        raw_state["inventory"]["mint"] = 5
+        raw_state["inventory"]["items"] = {"mint": 5}
+        raw_state["expeditions"] = [{"sp_id": 1, "area": "Viridian Forest", "reward": "mint", "progress": 0, "target": 5_000_000}]
+        raw_state["active_boss"] = {"id": "boss_2", "reward": "mint"}
+        raw_state["daily_quests"] = {"quests": [{"id": "q1", "reward": "mint"}]}
+        StorageManager.save_state(raw_state)
+
+        migrated_engine = CompanionEngine()
+        self.assertNotIn("mint", migrated_engine.state["inventory"])
+        self.assertNotIn("mint", migrated_engine.state["inventory"].get("items", {}))
+        self.assertEqual(migrated_engine.state["expeditions"][0]["reward"], "rare_candy")
+        self.assertEqual(migrated_engine.state["active_boss"]["reward"], "rare_candy")
+        self.assertEqual(migrated_engine.state["daily_quests"]["quests"][0]["reward"], "rare_candy")
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,6 +1,8 @@
 import sys
 from poketokenbar.utils.formatting import format_tokens
-from poketokenbar.game.models import CORPORATIONS
+from poketokenbar.game.models import (
+    CORPORATIONS, get_shareholder_rank, SHAREHOLDER_TIERS, CORPORATE_TIER_PERKS
+)
 
 HEADER = "\033[95m\033[1m"
 BLUE = "\033[94m"
@@ -8,6 +10,7 @@ CYAN = "\033[96m"
 GREEN = "\033[92m"
 YELLOW = "\033[93m"
 RED = "\033[91m"
+MAGENTA = "\033[95m"
 RESET = "\033[0m"
 BOLD = "\033[1m"
 
@@ -199,10 +202,16 @@ def _render_stocks_view(app, avail: int):
         else:
             chg_str = f"{YELLOW}— 0.0%{RESET}"
 
-        status_badge = f"{BOLD}{GREEN}[ACTIVE]{RESET}" if owned > 0 else f"{RED}[INACTIVE]{RESET}"
+        rank, rank_name = get_shareholder_rank(owned)
+        if rank > 0:
+            rank_col = {1: YELLOW, 2: CYAN, 3: YELLOW, 4: MAGENTA}.get(rank, GREEN)
+            status_badge = f"{BOLD}{rank_col}[{rank_name.upper()}]{RESET}"
+        else:
+            status_badge = f"{RED}[INACTIVE]{RESET}"
 
         sys.stdout.write(f"  [{idx}] [{BOLD}{CYAN}{corp.ticker}{RESET}] {BOLD}{corp.name}{RESET} — {format_tokens(c_price)}/sh ({chg_str}) {status_badge}\n")
-        sys.stdout.write(f"      7d: {spark} | Div: {corp.base_dividend*100:.1f}% (+{streak_bonus_pct:.1f}% = {eff_rate*100:.1f}%/d)\n")
+        bonus_rate = eff_rate - corp.base_dividend
+        sys.stdout.write(f"      7d: {spark} | Div: {corp.base_dividend*100:.1f}% (+{bonus_rate*100:.1f}% = {eff_rate*100:.1f}%/d)\n")
 
         if owned > 0:
             unreal_pnl = details["unrealized_pnl"]
@@ -255,14 +264,23 @@ def _render_stock_terminal(app, avail: int, corp_key: str):
 
     pnl_col = GREEN if unreal_pnl >= 0 else RED
     pnl_sign = "+" if unreal_pnl >= 0 else ""
-    active_badge = f"{BOLD}{GREEN}[ACTIVE]{RESET}" if owned > 0 else f"{RED}[INACTIVE]{RESET}"
+
+    rank, rank_name = get_shareholder_rank(owned)
+    tier_perks = CORPORATE_TIER_PERKS.get(corp_key, {})
+    active_perk_desc = tier_perks.get(rank, "None (Buy shares to unlock perks)")
+
+    if rank > 0:
+        rank_col = {1: YELLOW, 2: CYAN, 3: YELLOW, 4: MAGENTA}.get(rank, GREEN)
+        rank_badge = f"{BOLD}{rank_col}[{rank_name.upper()}]{RESET}"
+    else:
+        rank_badge = f"{RED}[INACTIVE]{RESET}"
 
     sys.stdout.write(f"  {BOLD}{CYAN}🏢 TRADE TERMINAL: [{corp.ticker}] {corp.name}{RESET}\n")
     sys.stdout.write(f"  Price: {BOLD}{GREEN}{format_tokens(c_price)}{RESET}/sh ({chg_str}) | 7d: {spark}\n")
     sys.stdout.write("  " + "-" * 68 + "\n\n")
 
     sys.stdout.write(f"  {BOLD}Your Position & Analytics:{RESET}\n")
-    sys.stdout.write(f"  • Shares Owned:       {BOLD}{CYAN}{owned} share(s){RESET} {active_badge}\n")
+    sys.stdout.write(f"  • Shares Owned:       {BOLD}{CYAN}{owned} share(s){RESET} {rank_badge}\n")
     sys.stdout.write(f"  • Weighted Cost:      {format_tokens(avg_cost)}/sh (Total: {format_tokens(cost_basis)})\n")
     sys.stdout.write(f"  • Market Value:       {format_tokens(market_val)} tokens\n")
     sys.stdout.write(f"  • Liquidation Value:  {format_tokens(liq_val)} tokens (10% spread applied)\n")
@@ -277,6 +295,24 @@ def _render_stock_terminal(app, avail: int, corp_key: str):
     if len(news) > 52:
         news = news[:49] + "..."
     sys.stdout.write(f"  • Headline: \"{CYAN}{news}{RESET}\"\n\n")
+
+    sys.stdout.write(f"  {BOLD}Shareholder Rank & Perk Progression:{RESET}\n")
+    if rank > 0:
+        status_line = f"  • Current Status: {rank_badge} ({owned} shares)\n"
+    else:
+        status_line = f"  • Current Status: {RED}None{RESET} (0 shares)\n"
+    sys.stdout.write(status_line)
+    sys.stdout.write(f"  • Active Benefit: {BOLD}{CYAN}{active_perk_desc}{RESET}\n")
+    sys.stdout.write(f"  • Rank Tiers:\n")
+    for t in SHAREHOLDER_TIERS:
+        if t.rank == 0:
+            continue
+        p_desc = tier_perks.get(t.rank, "")
+        is_active = (t.rank == rank)
+        active_tag = f" {BOLD}{GREEN}◄ ACTIVE{RESET}" if is_active else ""
+        tier_col = BOLD if is_active else ""
+        sys.stdout.write(f"    - {tier_col}{t.name:<8} ({t.range_label:<8}): {p_desc}{active_tag}{RESET}\n")
+    sys.stdout.write("\n")
 
     sys.stdout.write("  " + "-" * 68 + "\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}buy <qty|all>{RESET}' or '{BOLD}sell <qty|all>{RESET}' to trade\n")

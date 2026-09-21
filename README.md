@@ -33,9 +33,9 @@ Designed specifically for **Linux CLI** environments, with automated, real-time 
   - **Tab [3] Roster**: Active roster of caught companions. Features **staged selection** with `[✓]` badges for batch expedition dispatching, and single-command switching (`sel <row>|#<id>|egg`).
 - 🗺️ **Pokédex Expeditions & Multi-Select Dispatcher (Tab [5])**:
   - Dispatch companions on background token-burning expeditions across 5 areas:
-    - **Viridian Forest** (5.0M tokens) ➔ 🌿 Mint + XP + 🪙
+    - **Viridian Forest** (5.0M tokens) ➔ 🍬 Rare Candy + XP + 🪙
     - **Evolution Mine** (10.0M tokens) ➔ 💎 Random Evolution Stone
-    - **Cerulean Cave** (15.0M tokens) ➔ 🍬 Rare Candy + Map fragment chance
+    - **Cerulean Cave** (15.0M tokens) ➔ 🫐 Oran Berry + Map fragment chance
     - **Mt. Silver** (30.0M tokens) ➔ 🍇 Golden Razz Berry + Map fragment chance
     - **Spear Pillar (Deep)** (100.0M tokens, requires 3x Maps & 100% Happiness) ➔ 🌟 Legendary Egg!
   - **Interactive Multi-Select Dispatcher**: Type `dispatch`, `send`, or `select` on Tab [5] or Tab [3] to enter a visual checklist UI (`[ ]` / `[✓]`), toggle companions by number/range, view available slots, and launch batches with one keystroke!

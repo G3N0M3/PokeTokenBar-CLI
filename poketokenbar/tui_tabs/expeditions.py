@@ -32,9 +32,9 @@ def render_expeditions_tab(app):
 
     passes_count = app.engine.state.get("inventory", {}).get("expedition_pass", 0)
     sys.stdout.write(f"  {BOLD}Available Destinations (High Rarity/MEGA = Faster | 🎫 Passes: {YELLOW}{passes_count}{RESET}):\n")
-    sys.stdout.write(f"  • [1] Viridian(5M): Mint+XP+🪙   • [4] Mt.Silver(30M): Razz+Map\n")
-    sys.stdout.write(f"  • [2] Evo Mine(10M): Evo Stone   • [5] Spear(100M): Leg Egg (3 Maps)\n")
-    sys.stdout.write(f"  • [3] Cerulean(15M): Candy+Map   (Cerulean 5% Map, Silver 15% Map)\n")
+    sys.stdout.write(f"  • [1] Viridian(5M): Candy+XP+🪙   • [4] Mt.Silver(30M): Razz+Map\n")
+    sys.stdout.write(f"  • [2] Evo Mine(10M): Evo Stone    • [5] Spear(100M): Leg Egg (3 Maps)\n")
+    sys.stdout.write(f"  • [3] Cerulean(15M): Berry+Map    (Cerulean 10% Map, Silver 15% Map)\n")
     sys.stdout.write(f"  ➔ '{BOLD}dispatch{RESET}' opens picker | '{BOLD}send <rows|all> <area>{RESET}' | '{BOLD}pass <#>{RESET}'\n\n")
 
     sys.stdout.write(f"  {BOLD}🗺️ Active Expeditions Status:{RESET}\n")

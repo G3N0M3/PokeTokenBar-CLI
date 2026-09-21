@@ -354,31 +354,35 @@ def _render_armory_subtab(app):
     user_lvl = rank_order.get(user_rank, 1)
 
     armory_items = [
-        ("pass", "Syndicate Black Pass", 20_000_000, "Informant", "📯", "24/7 access to Black Market; bypasses Grunt toll fees"),
-        ("spray", "Syndicate Morale Mist", 35_000_000, "Operative", "🌫️", "Instantly boosts happiness of all squad Pokémon to 100%"),
-        ("chrono", "Chrono Accelerator", 45_000_000, "Operative", "⏱️", "Fast-forwards active Bank CDs, advancing maturity by +1 day"),
-        ("splitter", "Corrupted EXP Splitter", 50_000_000, "Special Agent", "⚡", "Mirrors 25% of coding XP to all inactive roster Pokémon"),
-        ("catalyst", "Dark Gene Catalyst", 75_000_000, "Executive", "🧬", "Stored in Bag (Slot 65): Instantly evolves companion"),
-        ("authority", "Team Rocket Authority", 100, "Commander", "👑", "Daily requisition of a random non-duplicate Gen 1 Pokémon"),
+        ("pass", "Syndicate Black Pass", "Informant", "📯", "Permanent 24/7 Black Market access & waived Grunt tolls"),
+        ("spray", "Syndicate Morale Mist", "Operative", "🌫️", "Instantly boosts happiness of all squad Pokémon to 100%"),
+        ("chrono", "Chrono Accelerator", "Operative", "⏱️", "Fast-forwards active Bank CDs, advancing maturity by +1 day"),
+        ("splitter", "Corrupted EXP Splitter", "Special Agent", "⚡", "Mirrors 25% of coding XP to all inactive roster Pokémon"),
+        ("catalyst", "Dark Gene Catalyst", "Executive", "🧬", "Stored in Bag (Slot 63): Instantly evolves companion"),
+        ("authority", "Team Rocket Authority", "Commander", "👑", "Daily requisition of a random non-duplicate Gen 1 Pokémon"),
     ]
 
-    for code, name, price, min_rank, icon, desc in armory_items:
+    for code, name, min_rank, icon, desc in armory_items:
         req_lvl = rank_order.get(min_rank, 1)
-        pr_str = format_tokens(price)
         if user_lvl >= req_lvl:
-            badge = f"{BOLD}{GREEN}[CLEARANCE GRANTED]{RESET}"
-            sys.stdout.write(f"  {icon} {BOLD}{name:<22}{RESET} [{BOLD}{CYAN}{pr_str}{RESET}] ('{BOLD}{code}{RESET}') {badge}\n")
+            if code == "pass" and app.engine.state.get("permanent_black_market", False):
+                badge = f"{BOLD}{GREEN}[ACTIVE PERK]{RESET}"
+            elif code == "splitter" and app.engine.state.get("has_exp_splitter", False):
+                badge = f"{BOLD}{GREEN}[ACTIVE PERK]{RESET}"
+            else:
+                badge = f"{BOLD}{GREEN}[CLEARANCE GRANTED]{RESET}"
+            sys.stdout.write(f"  {icon} {BOLD}{name:<28}{RESET} {badge}\n")
             for dline in textwrap.wrap(f"➔ {desc}", width=64):
                 sys.stdout.write(f"     {dline}\n")
         else:
-            badge = f"{BOLD}{RED}[LOCKED - HIGHER RANK REQUIRED]{RESET}"
-            sys.stdout.write(f"  ❓ {BOLD}{'??? ???':<19}{RESET} [{BOLD}{CYAN}???{RESET}] ('???') {badge}\n")
-            lock_msg = f"➔ You need a higher rank ({min_rank}) for this purchase."
+            badge = f"{BOLD}{RED}[LOCKED - {min_rank.upper()} REQUIRED]{RESET}"
+            sys.stdout.write(f"  ❓ {BOLD}{'??? ???':<28}{RESET} {badge}\n")
+            lock_msg = f"➔ Requires rank '{min_rank}' (Promoted via Covert Operations)."
             for dline in textwrap.wrap(lock_msg, width=64):
                 sys.stdout.write(f"     {YELLOW}{dline}{RESET}\n")
         sys.stdout.write("\n")
 
-    sys.stdout.write(f"  ➔ Type '{BOLD}buy <code>{RESET}' to acquire tech (e.g. 'buy pass')\n\n")
+    sys.stdout.write(f"  ➔ Clearance perks activate automatically upon rank promotion.\n\n")
 
 def _resolve_armory_tech_code(raw: str) -> str:
     raw = raw.lower().strip()
@@ -455,7 +459,17 @@ def handle_rocket_command(app, cmd: str):
 
     if cmd == "restart" and subview == "ops":
         if b_st.get("status") in ["win", "loss"]:
+            op_code = str(b_st.get("op_code"))
             battle_handler.run_away()
+            op_id = f"op_{op_code}"
+            ops_st = app.engine.state.setdefault("rocket_ops", {}).get(op_id)
+            if ops_st and not ops_st.get("claimed", False):
+                for op_def in app.engine.get_rocket_operations():
+                    if op_def["id"] == op_id:
+                        ops_st["boss_hp_remaining"] = op_def["boss_hp"]
+                        ops_st["objective_done"] = False
+                        app.engine.save()
+                        break
             app.message = "Reset tactical boss encounter."
             return
 
@@ -473,6 +487,10 @@ def handle_rocket_command(app, cmd: str):
                 target_code = "3"
 
         if target_code:
+            op_id = f"op_{target_code}"
+            op_st = app.engine.state.setdefault("rocket_ops", {}).get(op_id, {})
+            if op_st.get("status") == "available":
+                app.engine.start_rocket_operation(target_code)
             ok, msg = battle_handler.start_boss_battle(target_code)
             app.message = msg
         else:
@@ -566,6 +584,10 @@ def handle_rocket_command(app, cmd: str):
     elif cmd.startswith("claim"):
         parts = cmd.split()
         if len(parts) >= 2:
+            tech_code = _resolve_armory_tech_code(parts[1])
+            if tech_code in ["pass", "spray", "chrono", "splitter", "catalyst", "authority"]:
+                app.message = "Covert Armory perks are automatically granted upon rank promotion! No claim or purchase required."
+                return
             ok, msg = app.engine.claim_rocket_operation(parts[1])
             app.message = msg
         else:
@@ -585,23 +607,16 @@ def handle_rocket_command(app, cmd: str):
     elif cmd in ["keep", "dismiss"]:
         ok, msg = app.engine.handle_authority_delivery(cmd)
         app.message = msg
-    elif cmd.startswith("buy "):
-        raw_tech = cmd[4:].strip()
-        if raw_tech:
-            tech_code = _resolve_armory_tech_code(raw_tech)
-            ok, msg = app.engine.buy_rocket_armory_item(tech_code)
-            app.message = msg
-        else:
-            app.message = (
-                "Usage: buy <pass|spray|chrono|splitter|catalyst|authority>"
-            )
-    elif subview == "armory" and cmd in [
-        "pass", "spray", "chrono", "splitter", "catalyst", "authority"
-    ]:
-        ok, msg = app.engine.buy_rocket_armory_item(cmd)
-        app.message = msg
+    elif (
+        cmd == "buy"
+        or cmd.startswith("buy ")
+        or cmd.startswith("requisition")
+        or cmd.startswith("get ")
+        or (subview == "armory" and cmd in ["pass", "spray", "chrono", "splitter", "catalyst", "authority"])
+    ):
+        app.message = "Covert Armory perks are automatically granted upon rank promotion! No purchase required."
     else:
-        app.message = "Rocket command options: 'start operation', 'engage', 'briefing', 'claim', 'attack', 'burst', 'read <id>', 'buy <code>', 'keep', 'dismiss'."
+        app.message = "Rocket command options: 'start operation', 'engage', 'briefing', 'claim', 'attack', 'burst', 'read <id>', 'keep', 'dismiss'."
 
 def render_operation_dialogue(app, op_code: str):
     """Renders a full-screen, atmospheric mission briefing dialogue when starting an operation."""

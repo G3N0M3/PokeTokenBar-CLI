@@ -6,9 +6,8 @@ GACHA_COST_MULTI = 45_000_000       # 45.0M tokens for 10-pull (1 free!)
 
 GACHA_LOOT_TABLE = [
     # (Category, Item_Name, Weight, Reward_Type, Value)
-    ("COMMON", "🫐 1x Oran Berry", 25, "item", "berry_oran"),
-    ("COMMON", "🌿 1x Mint", 20, "item", "mint"),
-    ("COMMON", "💰 +1.0M Spendable Tokens", 20, "tokens", 1_000_000),
+    ("COMMON", "🫐 1x Oran Berry", 35, "item", "berry_oran"),
+    ("COMMON", "💰 +1.0M Spendable Tokens", 30, "tokens", 1_000_000),
     ("UNCOMMON", "🍬 1x Rare Candy", 15, "item", "rare_candy"),
     ("UNCOMMON", "🍇 1x Golden Razz Berry", 10, "item", "berry_golden"),
     ("UNCOMMON", "🎫 1x Expedition Pass (Insta-Complete!)", 5, "item", "expedition_pass"),

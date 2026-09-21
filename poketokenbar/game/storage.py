@@ -85,7 +85,6 @@ class StorageManager:
             "last_evolution": None,
             "inventory": {
                 "rare_candy": 0,
-                "mint": 0,
                 "berry_oran": 0,
                 "berry_golden": 0
             },
@@ -165,7 +164,12 @@ class StorageManager:
                     "progress": 0,
                     "claimed": False,
                     "objective_done": False,
-                    "boss_hp_remaining": 0,
+                    "boss_hp_remaining": (
+                        150_000 if i == 3 else
+                        200_000 if i == 6 else
+                        300_000 if i == 9 else
+                        350_000 if i == 10 else 0
+                    ),
                     "briefing_viewed": False,
                     "expeditions_done": 0,
                     "battle_wins": 0,

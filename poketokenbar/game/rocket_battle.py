@@ -287,6 +287,11 @@ class RocketBattleHandler:
             "status": "in_combat"
         }
         self._save_state(st)
+        op_id = f"op_{clean_code}"
+        ops_st = self.engine.state.setdefault("rocket_ops", {}).setdefault(op_id, {})
+        ops_st["boss_hp_remaining"] = first_boss["max_hp"]
+        ops_st["objective_done"] = False
+        self.engine.save()
         return True, f"🚀 Deployed into {boss_def['title']}! Engage {first_boss['name']}!"
 
     def execute_turn(self, move_index: int) -> Tuple[bool, str]:

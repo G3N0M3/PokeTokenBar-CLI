@@ -84,7 +84,6 @@ class PokemonNature(str, Enum):
 
 class ItemKind(str, Enum):
     RARE_CANDY = "rare_candy"
-    MINT = "mint"
     BERRY_ORAN = "berry_oran"
     BERRY_GOLDEN = "berry_golden"
     MEGA_STONE = "mega_stone"
@@ -151,7 +150,6 @@ class ItemKind(str, Enum):
     def price_for(self, difficulty=None) -> int:
         prices = {
             ItemKind.RARE_CANDY: 5_000_000,
-            ItemKind.MINT: 1_000_000,
             ItemKind.BERRY_ORAN: 1_000_000,
             ItemKind.BERRY_GOLDEN: 5_000_000,
             ItemKind.MEGA_STONE: 50_000_000,
@@ -225,7 +223,6 @@ class ItemKind(str, Enum):
     def name_en(self) -> str:
         return {
             ItemKind.RARE_CANDY: "Rare Candy",
-            ItemKind.MINT: "Mint",
             ItemKind.BERRY_ORAN: "Oran Berry",
             ItemKind.BERRY_GOLDEN: "Golden Razz Berry",
             ItemKind.MEGA_STONE: "Mega Stone",
@@ -294,7 +291,6 @@ class ItemKind(str, Enum):
     def emoji(self) -> str:
         return {
             ItemKind.RARE_CANDY: "🍬",
-            ItemKind.MINT: "🌿",
             ItemKind.BERRY_ORAN: "🫐",
             ItemKind.BERRY_GOLDEN: "🍇",
             ItemKind.MEGA_STONE: "🔮",
@@ -370,6 +366,85 @@ class CorporateInfo:
     perk_desc: str
     catalyst_desc: str
 
+@dataclass
+class ShareholderTier:
+    rank: int
+    name: str
+    min_shares: int
+    max_shares: Optional[int]
+    range_label: str
+
+SHAREHOLDER_TIERS: List[ShareholderTier] = [
+    ShareholderTier(0, "None", 0, 0, "0 sh"),
+    ShareholderTier(1, "Bronze", 1, 4, "1-4 sh"),
+    ShareholderTier(2, "Silver", 5, 14, "5-14 sh"),
+    ShareholderTier(3, "Gold", 15, 29, "15-29 sh"),
+    ShareholderTier(4, "Platinum", 30, None, "30+ sh"),
+]
+
+def get_shareholder_rank(shares: int) -> Tuple[int, str]:
+    """Returns (rank_id, rank_name) for a given number of shares.
+    Rank 0: None (0 sh)
+    Rank 1: Bronze (1-4 sh)
+    Rank 2: Silver (5-14 sh)
+    Rank 3: Gold (15-29 sh)
+    Rank 4: Platinum (30+ sh)
+    """
+    if shares >= 30:
+        return 4, "Platinum"
+    elif shares >= 15:
+        return 3, "Gold"
+    elif shares >= 5:
+        return 2, "Silver"
+    elif shares >= 1:
+        return 1, "Bronze"
+    return 0, "None"
+
+CORPORATE_TIER_PERKS: Dict[str, Dict[int, str]] = {
+    "silph": {
+        0: "No expedition bonuses active",
+        1: "+10% Expedition tokens & speed",
+        2: "+15% Expedition tokens & speed",
+        3: "+20% Expedition tokens & speed",
+        4: "+25% Expedition tokens & speed",
+    },
+    "devon": {
+        0: "No shop or egg discounts active",
+        1: "-5% Discount on Shop & eggs",
+        2: "-10% Discount on Shop & eggs",
+        3: "-15% Discount on Shop & eggs",
+        4: "-20% Discount on Shop & eggs",
+    },
+    "aether": {
+        0: "No happiness protection or daily bonus",
+        1: "1.5x decay shield; +3 daily hap.",
+        2: "2.0x decay shield; +5 daily hap.",
+        3: "2.5x decay shield; +8 daily hap.",
+        4: "3.0x decay shield; +12 daily hap.",
+    },
+    "mauville": {
+        0: "No casino payout bonus active",
+        1: "+5% Casino minigame payout bonus",
+        2: "+10% Casino minigame payout bonus",
+        3: "+15% Casino minigame payout bonus",
+        4: "+20% Casino minigame payout bonus",
+    },
+    "macro": {
+        0: "No raid or auto-battle bonus active",
+        1: "+10% Boss raid & battle tokens",
+        2: "+20% Boss raid & battle tokens",
+        3: "+30% Boss raid & battle tokens",
+        4: "+40% Boss raid & battle tokens",
+    },
+    "viridian": {
+        0: "No dividend bonus or clearance active",
+        1: "+0.5% Div yield bonus",
+        2: "+1.0% Div yield & covert ties",
+        3: "+1.5% Div yield & Syndicate ties",
+        4: "+2.0% Div yield & Syndicate ties",
+    },
+}
+
 CORPORATIONS: Dict[str, CorporateInfo] = {
     "silph": CorporateInfo(
         id="silph",
@@ -378,7 +453,7 @@ CORPORATIONS: Dict[str, CorporateInfo] = {
         share_price=10_000_000,
         base_dividend=0.025,
         perk_name="Silph Tech",
-        perk_desc="+15% Expedition tokens & speed",
+        perk_desc="+10% to +25% Expedition tokens & spd",
         catalyst_desc="Expedition completions boost research & tech"
     ),
     "devon": CorporateInfo(
@@ -388,7 +463,7 @@ CORPORATIONS: Dict[str, CorporateInfo] = {
         share_price=10_000_000,
         base_dividend=0.025,
         perk_name="Devon Commerce",
-        perk_desc="-10% Discount on Shop items & eggs",
+        perk_desc="-5% to -20% Shop & egg discount",
         catalyst_desc="Shopping & egg purchases boost retail volume"
     ),
     "aether": CorporateInfo(
@@ -398,7 +473,7 @@ CORPORATIONS: Dict[str, CorporateInfo] = {
         share_price=5_000_000,
         base_dividend=0.020,
         perk_name="Aether Sanctuary",
-        perk_desc="Halves happiness decay; +5 daily hap.",
+        perk_desc="1.5x-3.0x decay shield; +3-12 hap.",
         catalyst_desc="High happiness & shinies earn conservation grants"
     ),
     "mauville": CorporateInfo(
@@ -408,7 +483,7 @@ CORPORATIONS: Dict[str, CorporateInfo] = {
         share_price=5_000_000,
         base_dividend=0.020,
         perk_name="Casino Royalty",
-        perk_desc="+10% Payout bonus on all minigames",
+        perk_desc="+5% to +20% Casino minigame bonus",
         catalyst_desc="Casino house profits & player losses boost revenues"
     ),
     "macro": CorporateInfo(
@@ -418,7 +493,7 @@ CORPORATIONS: Dict[str, CorporateInfo] = {
         share_price=20_000_000,
         base_dividend=0.030,
         perk_name="Dynamax Energy",
-        perk_desc="+20% Tokens from Boss raids",
+        perk_desc="+10% to +40% Tokens from Boss raids",
         catalyst_desc="Defeating Gym Bosses validates energy tech"
     ),
     "viridian": CorporateInfo(
@@ -428,7 +503,7 @@ CORPORATIONS: Dict[str, CorporateInfo] = {
         share_price=25_000_000,
         base_dividend=0.025,
         perk_name="Covert Logistics",
-        perk_desc="+15% Dividend yield & covert trade ties",
+        perk_desc="+0.5% to +2.0% Div yield & covert ties",
         catalyst_desc="Nocturnal shipments & high market volume fuel growth"
     )
 }
