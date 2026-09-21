@@ -108,7 +108,13 @@ def parse_created_at(chat_model_bytes: bytes) -> Optional[datetime.datetime]:
         nanos = 0
     return datetime.datetime.fromtimestamp(seconds + nanos / 1e9, tz=datetime.timezone.utc)
 
-def parse_generation_metadata(blob: bytes, conversation_id: str, row_idx: int, mtime: Optional[float] = None) -> Optional[UsageEntry]:
+def parse_generation_metadata(
+    blob: bytes,
+    conversation_id: str,
+    row_idx: int,
+    mtime: Optional[float] = None,
+    explicit_dt: Optional[datetime.datetime] = None
+) -> Optional[UsageEntry]:
     chat_model = AntigravityProtoDecoder.get_message(blob, 1)
     if not chat_model:
         chat_model = blob
@@ -119,7 +125,7 @@ def parse_generation_metadata(blob: bytes, conversation_id: str, row_idx: int, m
         if not usage_msg:
             usage_msg = chat_model
 
-    dt = parse_created_at(chat_model)
+    dt = explicit_dt or parse_created_at(chat_model)
 
     response_id = AntigravityProtoDecoder.get_string(usage_msg, 11)
     entry_id = f"antigravity|{conversation_id}|{row_idx}|{response_id}" if response_id else f"antigravity|{conversation_id}|{row_idx}"
@@ -143,7 +149,7 @@ def parse_generation_metadata(blob: bytes, conversation_id: str, row_idx: int, m
         return None
 
     if dt:
-        local_dt = dt.astimezone()
+        local_dt = dt.astimezone() if dt.tzinfo else dt
     elif mtime:
         local_dt = datetime.datetime.fromtimestamp(mtime, tz=datetime.timezone.utc).astimezone()
     else:
@@ -270,8 +276,9 @@ class AntigravityUsageReader:
                 wal_size = 0
                 if wal_path.exists():
                     wal_stat = wal_path.stat()
-                    mtime = max(mtime, wal_stat.st_mtime)
                     wal_size = wal_stat.st_size
+                    if wal_size > 0:
+                        mtime = max(mtime, wal_stat.st_mtime)
 
                 if modified_since:
                     cutoff = modified_since.timestamp()
@@ -296,6 +303,24 @@ class AntigravityUsageReader:
                 except Exception:
                     pass
 
+                # Pre-fetch per-step timestamps from steps table if available
+                step_timestamps = {}
+                try:
+                    s_cursor = conn.cursor()
+                    s_cursor.execute("SELECT idx, metadata FROM steps WHERE metadata IS NOT NULL")
+                    for s_idx, s_meta in s_cursor.fetchall():
+                        if s_meta:
+                            f1 = AntigravityProtoDecoder.get_message(s_meta, 1)
+                            if f1:
+                                sec = AntigravityProtoDecoder.get_varint(f1, 1)
+                                nanos = AntigravityProtoDecoder.get_varint(f1, 2) or 0
+                                if sec and 1_000_000_000 <= sec <= 4_102_444_800:
+                                    step_timestamps[s_idx] = datetime.datetime.fromtimestamp(
+                                        sec + nanos / 1e9, tz=datetime.timezone.utc
+                                    ).astimezone()
+                except Exception:
+                    pass
+
                 cursor = conn.cursor()
                 cursor.execute("SELECT idx, data FROM gen_metadata WHERE data IS NOT NULL")
                 rows = cursor.fetchall()
@@ -304,7 +329,21 @@ class AntigravityUsageReader:
                 db_entries = []
                 for row_idx, blob in rows:
                     if blob:
-                        entry = parse_generation_metadata(blob, conv_id, row_idx, mtime)
+                        step_dt = None
+                        if step_timestamps:
+                            cm = AntigravityProtoDecoder.get_message(blob, 1)
+                            if cm:
+                                for fn, _, pl in AntigravityProtoDecoder.walk_fields(cm):
+                                    if fn == 20 and pl:
+                                        k = AntigravityProtoDecoder.get_string(pl, 1)
+                                        v = AntigravityProtoDecoder.get_string(pl, 2)
+                                        if k == "last_step_index" and v and v.isdigit():
+                                            step_dt = step_timestamps.get(int(v))
+                                            break
+                            if not step_dt:
+                                step_dt = step_timestamps.get(row_idx)
+
+                        entry = parse_generation_metadata(blob, conv_id, row_idx, mtime, explicit_dt=step_dt)
                         if entry:
                             db_entries.append(entry)
 

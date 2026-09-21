@@ -440,11 +440,6 @@ class PokeTokenBarTUI:
                     self.message = msg
                     if ok:
                         self.tracker.get_summary(force=True)
-                elif cmd in ["tokens clear", "token clear"]:
-                    ok, msg = self.engine.clear_total_tokens_baseline()
-                    self.message = msg
-                    if ok:
-                        self.tracker.get_summary(force=True)
                 elif cmd in ["pick", "picker"]:
                     self.expedition_picker_mode = True
                     self.current_tab = 5

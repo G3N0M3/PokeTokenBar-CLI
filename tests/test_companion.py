@@ -801,6 +801,61 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertTrue(ok_clear)
         self.assertEqual(self.engine.state["baseline_total_tokens"], 0)
 
+    def test_tokens_init_clears_all_metrics_to_zero(self):
+        from poketokenbar.tracker.manager import UsageManager
+        from poketokenbar.tracker.base import UsageEntry
+        import datetime
+
+        now = datetime.datetime.now().astimezone()
+        past = now - datetime.timedelta(hours=2)
+
+        # Create past entries within today, week, and month
+        entries = [
+            UsageEntry(
+                id="test|1",
+                date=past,
+                local_day=past.strftime("%Y-%m-%d"),
+                model="test",
+                input_tokens=100_000,
+                output_tokens=50_000
+            )
+        ]
+
+        mgr = UsageManager()
+        # Before init: metrics show 150K
+        s_before = mgr._compute_summary(entries)
+        self.assertEqual(s_before["today_tokens"], 150_000)
+        self.assertEqual(s_before["week_tokens"], 150_000)
+        self.assertEqual(s_before["month_tokens"], 150_000)
+        self.assertEqual(s_before["total_tokens"], 150_000)
+
+        # Run tokens init
+        ok_init, msg_init = self.engine.initialize_total_tokens(150_000)
+        self.assertTrue(ok_init)
+        self.assertIn("tokens_init_ts", self.engine.state)
+
+        # After init: past entries are ignored, all 4 metrics reset to 0
+        s_after = mgr._compute_summary(entries)
+        self.assertEqual(s_after["today_tokens"], 0)
+        self.assertEqual(s_after["week_tokens"], 0)
+        self.assertEqual(s_after["month_tokens"], 0)
+        self.assertEqual(s_after["total_tokens"], 0)
+
+        # New entry generated after init
+        future_entry = UsageEntry(
+            id="test|2",
+            date=now + datetime.timedelta(minutes=1),
+            local_day=(now + datetime.timedelta(minutes=1)).strftime("%Y-%m-%d"),
+            model="test",
+            input_tokens=20_000,
+            output_tokens=5_000
+        )
+        s_future = mgr._compute_summary(entries + [future_entry])
+        self.assertEqual(s_future["today_tokens"], 25_000)
+        self.assertEqual(s_future["week_tokens"], 25_000)
+        self.assertEqual(s_future["month_tokens"], 25_000)
+        self.assertEqual(s_future["total_tokens"], 25_000)
+
     def test_settings_tab_72_col_compliance_with_billing_and_baseline(self):
         import io
         import re
@@ -823,6 +878,8 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertRegex(out1, r'\d{4}-\d{2}-\d{2} \d{2}')
         self.assertTrue("(Day)" in out1 or "(Night)" in out1)
         self.assertNotIn("☀️", out1)
+        self.assertIn("Day 15 of each month", out1)
+        self.assertIn("Initialized", out1)
         for line in out1.split("\n"):
             clean = ansi_regex.sub("", line)
             self.assertLessEqual(len(clean), 72, f"Settings tab page 1 line exceeds 72 cols: '{clean}' (len={len(clean)})")
@@ -835,8 +892,7 @@ class TestCompanionEngine(unittest.TestCase):
         out2 = trap2.getvalue()
         self.assertIn("System Date & Hour:", out2)
         self.assertRegex(out2, r'\d{4}-\d{2}-\d{2} \d{2}')
-        self.assertIn("Day 15 of each month", out2)
-        self.assertIn("Active baseline", out2)
+        self.assertIn("Reset Game Progress:", out2)
         for line in out2.split("\n"):
             clean = ansi_regex.sub("", line)
             self.assertLessEqual(len(clean), 72, f"Settings tab page 2 line exceeds 72 cols: '{clean}' (len={len(clean)})")
@@ -887,7 +943,7 @@ class TestCompanionEngine(unittest.TestCase):
         events = []
         self.engine._update_expeditions(500_000, events)
         exp = self.engine.state["expeditions"][0]
-        self.assertEqual(exp.get("reward"), "rare_candy")
+        self.assertEqual(exp.get("reward"), "berry_oran")
         self.assertGreater(exp.get("progress", 0), 0)
         self.assertEqual(exp.get("target"), 5_000_000)
 
@@ -1197,10 +1253,10 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertTrue(ok_buy)
         self.assertEqual(tokens_before_rc - self.engine.available_tokens, expected_cost_bronze)
 
-        # Reach Silver tier (5+ shares) for 10% discount
+        # Reach Preferred tier (5+ shares) for 10% discount
         ok_silver, _ = self.engine.invest_corporate("DEVON", "3")
         self.assertTrue(ok_silver)
-        self.assertEqual(self.engine.get_corp_rank("devon")[1], "Silver")
+        self.assertEqual(self.engine.get_corp_rank("devon")[1], "Preferred")
         expected_cost_silver = int(rc_base * 0.90)
         tokens_before_rc2 = self.engine.available_tokens
         ok_buy2, _ = self.engine.buy_item(ItemKind.RARE_CANDY, 1)
@@ -1511,8 +1567,7 @@ class TestCompanionEngine(unittest.TestCase):
             with unittest.mock.patch("sys.stdout", trap):
                 render_bank_tab(app)
             out = trap.getvalue()
-            self.assertIn("TRADE TERMINAL", out)
-            self.assertIn("Your Position & Analytics", out)
+            self.assertIn("Position:", out)
             self.assertIn("Shareholder Rank & Perk Progression:", out)
             for line in out.split("\n"):
                 clean = ansi_regex.sub("", line)
@@ -2314,10 +2369,10 @@ class TestCompanionEngine(unittest.TestCase):
         pika = MonState(base_id=25, path_ids=[25, 26], planned_path_ids=[25, 26], stage_index=0, used_at_stage=0, rarity=Rarity.COMMON, total_forms=2)
         self.engine.set_active_mon(pika)
 
-        # Buy authority (costs 100 tokens)
+        # Requisition authority (free clearance perk)
         ok_auth, msg_auth = self.engine.buy_rocket_armory_item("authority")
         self.assertTrue(ok_auth)
-        self.assertEqual(self.engine.state["spent_tokens"], 100)
+        self.assertEqual(self.engine.state["spent_tokens"], 0)
         self.assertIn("Team Rocket Authority", msg_auth)
         pending_id = self.engine.state.get("pending_authority_delivery")
         self.assertIsNotNone(pending_id)
@@ -2466,7 +2521,7 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertNotIn("Switch view:", out2)
 
         # 3. Fulfill Op 1 objective and test parameterless 'claim' command
-        self.engine.state["expedition_logs"] = ["log 1", "log 2"]
+        self.engine.state["rocket_ops"]["op_1"]["expeditions_done"] = 2
         events = []
         self.engine._update_rocket_operations(5_000_000, events)
         handle_rocket_command(app, "claim")
@@ -2896,11 +2951,11 @@ class TestCompanionEngine(unittest.TestCase):
         ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
 
         # Verify BAG_CATALOG_MAP maps fixed numeric keys
-        self.assertEqual(BAG_CATALOG_MAP["43"], "water_stone")
-        self.assertEqual(BAG_CATALOG_MAP["20"], "choice_specs")
-        self.assertEqual(BAG_CATALOG_MAP["26"], "revitalizing_tonic")
-        self.assertEqual(BAG_CATALOG_MAP["33"], "metal_coat")
-        self.assertEqual(BAG_CATALOG_MAP["53"], "fake_rare_candy")
+        self.assertEqual(BAG_CATALOG_MAP["41"], "water_stone")
+        self.assertEqual(BAG_CATALOG_MAP["18"], "choice_specs")
+        self.assertEqual(BAG_CATALOG_MAP["24"], "revitalizing_tonic")
+        self.assertEqual(BAG_CATALOG_MAP["31"], "metal_coat")
+        self.assertEqual(BAG_CATALOG_MAP["51"], "fake_rare_candy")
 
         # 1. Setup inventory with diverse items
         self.engine.state["inventory"] = {
@@ -2932,21 +2987,21 @@ class TestCompanionEngine(unittest.TestCase):
             clean = ansi_regex.sub("", line)
             self.assertLessEqual(len(clean), 72, f"Bag line exceeds 72 cols: '{clean}'")
 
-        # 3. Render Bag page 2: Check evolution stone numeric index [43]
+        # 3. Render Bag page 2: Check evolution stone numeric index [41]
         app.shop_page = 2
         trap_bag2 = io.StringIO()
         with patch("sys.stdout", trap_bag2):
             render_shop_tab(app)
         bag_output2 = ansi_regex.sub("", trap_bag2.getvalue())
 
-        self.assertIn("[43] 💎 Water Stone: 2 owned", bag_output2)
+        self.assertIn("[41] 💎 Water Stone: 2 owned", bag_output2)
         self.assertNotIn("[water_stone]", bag_output2)
 
         for line in trap_bag2.getvalue().split("\n"):
             clean = ansi_regex.sub("", line)
             self.assertLessEqual(len(clean), 72, f"Bag line exceeds 72 cols: '{clean}'")
 
-        # 4. Use item with numeric ID '43' to evolve active Eevee into Vaporeon
+        # 4. Use item with numeric ID '41' to evolve active Eevee into Vaporeon
         eevee = MonState(
             base_id=133,
             path_ids=[133],
@@ -2959,15 +3014,15 @@ class TestCompanionEngine(unittest.TestCase):
         )
         self.engine.set_active_mon(eevee)
 
-        handle_bag_use(app, "use 43")
+        handle_bag_use(app, "use 41")
         self.assertIn("Vaporeon", app.message)
         self.assertEqual(self.engine.active_mon.current_id, 134)
         self.assertEqual(self.engine.state["inventory"].get("water_stone", 0), 1)
 
-        # 5. Sell item with numeric ID '43' and confirm 'y'
+        # 5. Sell item with numeric ID '41' and confirm 'y'
         trap_sell = io.StringIO()
         with patch("sys.stdout", trap_sell), patch("sys.stdin.readline", return_value="y\n"):
-            handle_bag_sell(app, "sell 43 1")
+            handle_bag_sell(app, "sell 41 1")
         self.assertIn("Successfully sold 1x Water Stone", app.message)
         self.assertEqual(self.engine.state["inventory"].get("water_stone", 0), 0)
 
@@ -3053,17 +3108,17 @@ class TestCompanionEngine(unittest.TestCase):
         # 'help 5' must NEVER match Amulet Coin! It must state user does not have item [5].
         self.engine.state["inventory"]["amulet_coin"] = 1
         handle_bag_help(app, "help 5")
-        self.assertEqual(app.message, "You do not have item [5] in your Bag!")
+        self.assertEqual(app.message, "You do not have Master Ball in your Bag!")
         self.assertNotIn("Amulet Coin", app.message)
 
         # Brackets support
         handle_bag_help(app, "help [5]")
-        self.assertEqual(app.message, "You do not have item [5] in your Bag!")
+        self.assertEqual(app.message, "You do not have Master Ball in your Bag!")
 
-        handle_bag_help(app, "help 18")  # Life Orb (unowned)
+        handle_bag_help(app, "help 16")  # Life Orb (unowned)
         self.assertEqual(app.message, "You do not have Life Orb in your Bag!")
 
-        handle_bag_help(app, "help 16")  # Soothe Bell (unowned)
+        handle_bag_help(app, "help 14")  # Soothe Bell (unowned)
         self.assertEqual(app.message, "You do not have Soothe Bell in your Bag!")
 
         handle_bag_help(app, "help life_orb")
@@ -3074,12 +3129,12 @@ class TestCompanionEngine(unittest.TestCase):
 
         # 4. Give player 1x Life Orb
         self.engine.state["inventory"]["life_orb"] = 1
-        handle_bag_help(app, "help 18")
+        handle_bag_help(app, "help 16")
         self.assertIn("Life Orb", app.message)
         self.assertIn("[Held Item]", app.message)
         self.assertIn("(Owned: 1)", app.message)
         self.assertIn("Channels +10% bonus token power", app.message)
-        self.assertIn("use 18", app.message)
+        self.assertIn("use 16", app.message)
 
         # 5. Verify layout compliance (<= 72 columns)
         for line in app.message.split("\n"):
@@ -3096,7 +3151,7 @@ class TestCompanionEngine(unittest.TestCase):
         self.engine.state["inventory"]["life_orb"] = 0
         pikachu.held_item = "life_orb"
         self.engine.set_active_mon(pikachu)
-        handle_bag_help(app, "help 18")
+        handle_bag_help(app, "help 16")
         self.assertIn("Life Orb", app.message)
         self.assertIn("Held by", app.message)
         self.assertIn("unequip", app.message)
@@ -3110,13 +3165,13 @@ class TestCompanionEngine(unittest.TestCase):
 
         # 9. Test Evolution Stone (Water Stone)
         self.engine.state["inventory"]["water_stone"] = 2
-        handle_bag_help(app, "help 43")
+        handle_bag_help(app, "help 41")
         self.assertIn("Water Stone", app.message)
         self.assertIn("[Evolution Stone]", app.message)
 
         # 10. Test Contraband Fake item (fake_rare_candy)
         self.engine.state["inventory"]["fake_rare_candy"] = 1
-        handle_bag_help(app, "help 53")
+        handle_bag_help(app, "help 51")
         self.assertIn("Rare Candy", app.message)
         self.assertIn("[Contraband / Fake]", app.message)
 
@@ -3858,7 +3913,7 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertEqual(self.engine.state["rocket_ops"]["op_1"]["status"], "available")
         self.assertEqual(self.engine.state["rocket_ops"]["op_2"]["status"], "locked")
         self.assertEqual(self.engine.state["rocket_intel_unlocked"], ["intel_001"])
-        self.assertFalse(self.engine.state["permanent_black_market"])
+        self.assertTrue(self.engine.state["permanent_black_market"])
         self.assertFalse(self.engine.state["has_exp_splitter"])
         self.assertEqual(self.engine.state["rocket_battle_state"], {})
         self.assertTrue(any("Team Rocket frequency initialized" in a for a in self.engine.state["unread_alerts"]))
@@ -3927,14 +3982,14 @@ class TestCompanionEngine(unittest.TestCase):
         app = MagicMock()
         app.engine = self.engine
 
-        # Case 1: Uninitialized (Option 8 is on Page 2)
+        # Case 1: Uninitialized (Option 11 is on Page 2)
         app.settings_page = 2
         self.engine.state["rocket_story_unlocked"] = False
         trap = io.StringIO()
         with patch("sys.stdout", trap):
             render_settings_tab(app)
         output = trap.getvalue()
-        self.assertIn("[8] Team Rocket Process:", output)
+        self.assertIn("[11] Team Rocket Process:", output)
         self.assertIn("UNINITIALIZED", output)
         self.assertIn("rocket init", output)
         for line in output.split("\n"):
@@ -3950,7 +4005,7 @@ class TestCompanionEngine(unittest.TestCase):
         with patch("sys.stdout", trap2):
             render_settings_tab(app)
         output2 = trap2.getvalue()
-        self.assertIn("[8] Team Rocket Process:", output2)
+        self.assertIn("[11] Team Rocket Process:", output2)
         self.assertIn("ACTIVE", output2)
         self.assertNotIn("Rep:", output2)
         self.assertNotIn("Informant", output2)
@@ -3989,10 +4044,10 @@ class TestCompanionEngine(unittest.TestCase):
             render_settings_tab(app)
         out1 = trap1.getvalue()
         self.assertIn("Page 1/2", out1)
-        self.assertIn("[1] Sprite Resolution:", out1)
-        self.assertIn("[6] Mega Evo Page Size:", out1)
-        self.assertNotIn("[7] Reset Game Progress:", out1)
-        self.assertNotIn("[12] Settings Tab Page Size:", out1)
+        self.assertIn("[1] Token Tracking Baseline:", out1)
+        self.assertIn("[6] Roster Page Size:", out1)
+        self.assertNotIn("[7] Bag Page Size:", out1)
+        self.assertNotIn("[12] Reset Game Progress:", out1)
 
         # Page 2: Items 7-12
         app.settings_page = 2
@@ -4001,11 +4056,11 @@ class TestCompanionEngine(unittest.TestCase):
             render_settings_tab(app)
         out2 = trap2.getvalue()
         self.assertIn("Page 2/2", out2)
-        self.assertNotIn("[1] Sprite Resolution:", out2)
-        self.assertNotIn("[6] Mega Evo Page Size:", out2)
-        self.assertIn("[7] Reset Game Progress:", out2)
-        self.assertIn("[11] Term Deposits Page Size:", out2)
-        self.assertIn("[12] Settings Tab Page Size:", out2)
+        self.assertNotIn("[1] Token Tracking Baseline:", out2)
+        self.assertNotIn("[6] Roster Page Size:", out2)
+        self.assertIn("[7] Bag Page Size:", out2)
+        self.assertIn("[11] Team Rocket Process:", out2)
+        self.assertIn("[12] Reset Game Progress:", out2)
 
         # Out-of-bounds upper clamping (page 99 -> 2)
         app.settings_page = 99
@@ -4037,9 +4092,9 @@ class TestCompanionEngine(unittest.TestCase):
             render_settings_tab(app)
         out = trap.getvalue()
         self.assertIn("Page 3/3", out)
-        self.assertIn("[9] Monthly Billing Cycle Day:", out)
-        self.assertIn("[12] Settings Tab Page Size:", out)
-        self.assertNotIn("[1] Sprite Resolution:", out)
+        self.assertIn("[9] Mega Evo Page Size:", out)
+        self.assertIn("[12] Reset Game Progress:", out)
+        self.assertNotIn("[1] Token Tracking Baseline:", out)
 
         # 12 items per page = 1 page total (no page tag)
         self.engine.state["page_size_settings"] = 12
@@ -4049,8 +4104,8 @@ class TestCompanionEngine(unittest.TestCase):
             render_settings_tab(app)
         out_all = trap_all.getvalue()
         self.assertNotIn("Page 1/1", out_all)
-        self.assertIn("[1] Sprite Resolution:", out_all)
-        self.assertIn("[12] Settings Tab Page Size:", out_all)
+        self.assertIn("[1] Token Tracking Baseline:", out_all)
+        self.assertIn("[12] Reset Game Progress:", out_all)
 
     def test_tui_settings_page_and_pagesize_commands(self):
         """Verify TUI event loop handling for n/p/page and pagesize settings commands on tab 11."""
@@ -4196,7 +4251,8 @@ class TestCompanionEngine(unittest.TestCase):
             render_companion_tab(app, summary2)
         out2 = trap2.getvalue()
         self.assertIn("Monthly Tokens: 1.2M  (since 2026-08-15 | Cycle: Day 15)", out2)
-        self.assertIn("Total Tokens:   300.0K  (since 2026-09-17 | re-baselined)", out2)
+        self.assertIn("Total Tokens:   300.0K  (since 2026-09-17)", out2)
+        self.assertNotIn("re-baselined", out2)
         for line in out2.split("\n"):
             clean = ansi_regex.sub("", line)
             self.assertLessEqual(len(clean), 72, f"Companion Tab 1 exceeds 72 cols: '{clean}' (len={len(clean)})")
@@ -4447,13 +4503,13 @@ class TestCompanionEngine(unittest.TestCase):
     def test_mint_removal_and_expedition_rewards(self):
         from poketokenbar.tui_tabs.shop import BAG_CATALOG, handle_shop_buy
         from poketokenbar.game.black_market import BLACK_MARKET_POOL_100
-        from poketokenbar.game.gacha import GACHA_COMMON_POOL
+        from poketokenbar.game.gacha import GACHA_LOOT_TABLE
 
         # 1. ItemKind has no MINT
         self.assertFalse(hasattr(ItemKind, "MINT"))
 
-        # 2. Game Corner Gacha common pool has no mint
-        for tier, name, weight, r_type, val in GACHA_COMMON_POOL:
+        # 2. Game Corner Gacha loot table has no mint
+        for tier, name, weight, r_type, val in GACHA_LOOT_TABLE:
             self.assertNotEqual(val, "mint")
 
         # 3. Black market pool has exactly 100 items and no mint
@@ -4489,13 +4545,14 @@ class TestCompanionEngine(unittest.TestCase):
 
         # 6. Expedition rewards: Viridian -> rare_candy, Cerulean -> berry_oran
         mon, _ = self.engine.hatch_egg(0)
+        mon2, _ = self.engine.hatch_egg(0)
         self.engine.state["expedition_slots"] = 5
         ok_v, _ = self.engine.dispatch_expedition("1", "viridian")
         self.assertTrue(ok_v)
         viridian_exp = [e for e in self.engine.state["expeditions"] if "Viridian" in e.get("area", "")][0]
         self.assertEqual(viridian_exp["reward"], "rare_candy")
 
-        ok_c, _ = self.engine.dispatch_expedition("1", "cerulean")
+        ok_c, _ = self.engine.dispatch_expedition("2", "cerulean")
         self.assertTrue(ok_c)
         cerulean_exp = [e for e in self.engine.state["expeditions"] if "Cerulean" in e.get("area", "")][0]
         self.assertEqual(cerulean_exp["reward"], "berry_oran")

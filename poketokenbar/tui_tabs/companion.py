@@ -150,9 +150,9 @@ def render(app, summary: dict):
     sys.stdout.write(f"  • Monthly Tokens: {format_tokens(summary.get('month_tokens', 0))}{month_tag}\n")
 
     base_tok = summary.get("baseline_total_tokens", app.engine.state.get("baseline_total_tokens", 0))
-    if base_tok > 0:
+    if base_tok > 0 or app.engine.state.get("tokens_init_ts"):
         base_date = summary.get("baseline_date") or app.engine.state.get("baseline_date") or app.engine.state.get("last_active_date") or datetime.datetime.now().strftime("%Y-%m-%d")
-        total_tag = f"  (since {base_date} | re-baselined)"
+        total_tag = f"  (since {base_date})"
     else:
         earliest_date = summary.get("earliest_date") or (summary.get("active_days") and summary.get("active_days")[0]) or app.engine.state.get("last_active_date") or datetime.datetime.now().strftime("%Y-%m-%d")
         total_tag = f"  (since {earliest_date})"

@@ -4532,18 +4532,21 @@ class CompanionEngine:
         return self.state.get("billing_cycle_day", 1)
 
     def initialize_total_tokens(self, raw_total: int, date_str: Optional[str] = None) -> Tuple[bool, str]:
-        """Sets the baseline for displayed Total Tokens so it starts from 0, preserving game progression."""
+        """Sets the baseline and initialization timestamp so all token metrics start from 0, preserving game progression."""
+        now = datetime.datetime.now().astimezone()
+        self.state["tokens_init_ts"] = now.isoformat()
         self.state["baseline_total_tokens"] = raw_total
         if date_str is None:
-            date_str = datetime.datetime.now().strftime("%Y-%m-%d")
+            date_str = now.strftime("%Y-%m-%d")
         self.state["baseline_date"] = date_str
         self.save()
-        return True, f"Total tokens usage initialized! Displayed total reset to 0 (baseline: {format_tokens(raw_total)})."
+        return True, f"Token metrics initialized! All token usages (Today, 7-Day, Monthly, Total) reset to 0."
 
     def clear_total_tokens_baseline(self) -> Tuple[bool, str]:
         """Clears the baseline offset so displayed Total Tokens shows absolute lifetime tokens."""
         self.state["baseline_total_tokens"] = 0
         self.state.pop("baseline_date", None)
+        self.state.pop("tokens_init_ts", None)
         self.save()
         return True, "Total tokens baseline cleared. Now displaying lifetime total tokens."
 
@@ -4573,7 +4576,7 @@ class CompanionEngine:
         self.state["rocket_intel_unlocked"] = ["intel_001"]
         # Auto-grant Informant rank permanent clearance perk (Syndicate Black Pass)
         self.state["permanent_black_market"] = True
-        self.state["has_exp_splitter"] = False
+        self.state["has_exp_splitter"] = self.state.get("has_exp_splitter", False)
         self.state["last_authority_date"] = None
         self.state["pending_authority_delivery"] = None
         self.state["rocket_battle_state"] = {}
@@ -4835,7 +4838,7 @@ class CompanionEngine:
             })
         elif op_id == "op_1":
             cur_exp = min(st.get("expeditions_done", 0), 2)
-            is_met = (cur_exp >= 2) or st.get("claimed", False)
+            is_met = (cur_exp >= 2) or st.get("objective_done", False) or st.get("claimed", False)
             pct = 100 if is_met else (cur_exp * 100) // 2
             reqs.append({
                 "name": "Scout Expeditions",
@@ -4954,7 +4957,7 @@ class CompanionEngine:
 
         if op_id == "op_1":
             cur_exp = st.get("expeditions_done", 0)
-            if cur_exp >= 2:
+            if cur_exp >= 2 or st.get("objective_done", False):
                 ok = True
                 msg = "Completed 2+ scout expeditions!"
             else:

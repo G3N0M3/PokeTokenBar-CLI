@@ -25,5 +25,15 @@ class TestAntigravityTracker(unittest.TestCase):
         entries = reader.get_entries()
         self.assertIsInstance(entries, list)
 
+    def test_parse_generation_metadata_explicit_dt(self):
+        # Construct a simple proto blob with total tokens = 500 (field 4 -> field 1 = 500)
+        blob = bytes([0x22, 0x03, 0x08, 0xF4, 0x03])
+        dt = datetime.datetime(2026, 9, 15, 12, 0, 0, tzinfo=datetime.timezone.utc)
+        entry = parse_generation_metadata(blob, "conv_test", 1, explicit_dt=dt)
+        self.assertIsNotNone(entry)
+        self.assertEqual(entry.date, dt)
+        self.assertEqual(entry.local_day, "2026-09-15")
+        self.assertEqual(entry.total_tokens, 500)
+
 if __name__ == "__main__":
     unittest.main()

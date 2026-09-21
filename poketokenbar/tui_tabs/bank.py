@@ -273,6 +273,7 @@ def _render_stock_terminal(app, avail: int, corp_key: str):
 
     pnl_col = GREEN if unreal_pnl >= 0 else RED
     pnl_sign = "+" if unreal_pnl >= 0 else ""
+    pnl_str = f"{pnl_col}{pnl_sign}{format_tokens(unreal_pnl)} ({pnl_sign}{unreal_pct:.1f}%){RESET}"
 
     rank, rank_name = get_shareholder_rank(owned)
     tier_perks = CORPORATE_TIER_PERKS.get(corp_key, {})

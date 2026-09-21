@@ -91,6 +91,19 @@ class UsageManager:
         now = datetime.datetime.now().astimezone()
         today_str = now.strftime("%Y-%m-%d")
 
+        # Check if tokens have been initialized to clear older metrics to 0
+        tokens_init_ts = state.get("tokens_init_ts")
+        init_dt = None
+        if tokens_init_ts:
+            try:
+                init_dt = datetime.datetime.fromisoformat(tokens_init_ts)
+                if init_dt.tzinfo is None and now.tzinfo is not None:
+                    init_dt = init_dt.replace(tzinfo=now.tzinfo)
+                elif init_dt.tzinfo is not None and now.tzinfo is None:
+                    init_dt = init_dt.replace(tzinfo=None)
+            except Exception:
+                init_dt = None
+
         # 7-day start (beginning of 6 days ago at 00:00:00)
         week_start_dt = (now - datetime.timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
         cycle_start_dt = get_billing_cycle_start(now, billing_cycle_day)
@@ -112,6 +125,16 @@ class UsageManager:
             t = entry.total_tokens
             raw_total_tokens += t
 
+            e_dt = entry.date
+            if e_dt.tzinfo is None and now.tzinfo is not None:
+                e_dt = e_dt.replace(tzinfo=now.tzinfo)
+            elif e_dt.tzinfo is not None and now.tzinfo is None:
+                e_dt = e_dt.replace(tzinfo=None)
+
+            # If tokens were initialized, ignore token activity generated prior to init_dt
+            if init_dt is not None and e_dt < init_dt:
+                continue
+
             if entry.local_day == today_str:
                 today_tokens += t
                 if entry.id.startswith("antigravity|"):
@@ -120,12 +143,6 @@ class UsageManager:
                     gemini_today += t
                 elif entry.id.startswith("claude|"):
                     claude_today += t
-
-            e_dt = entry.date
-            if e_dt.tzinfo is None and now.tzinfo is not None:
-                e_dt = e_dt.replace(tzinfo=now.tzinfo)
-            elif e_dt.tzinfo is not None and now.tzinfo is None:
-                e_dt = e_dt.replace(tzinfo=None)
 
             if e_dt >= week_start_dt:
                 week_tokens += t
@@ -138,8 +155,19 @@ class UsageManager:
 
         tokens_per_min = five_min_tokens / 5.0
         active_days = sorted(list(set(e.local_day for e in entries)))
-        displayed_total = max(0, raw_total_tokens - baseline_total)
-        baseline_date = state.get("baseline_date") if baseline_total > 0 else None
+        if init_dt is not None:
+            displayed_total = 0
+            for entry in entries:
+                e_dt = entry.date
+                if e_dt.tzinfo is None and now.tzinfo is not None:
+                    e_dt = e_dt.replace(tzinfo=now.tzinfo)
+                elif e_dt.tzinfo is not None and now.tzinfo is None:
+                    e_dt = e_dt.replace(tzinfo=None)
+                if e_dt >= init_dt:
+                    displayed_total += entry.total_tokens
+        else:
+            displayed_total = max(0, raw_total_tokens - baseline_total)
+        baseline_date = state.get("baseline_date") if (baseline_total > 0 or tokens_init_ts) else None
         earliest_date = active_days[0] if active_days else today_str
 
         return {
