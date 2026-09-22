@@ -1,6 +1,6 @@
 # PokeTokenBar: Technical Architecture Guide
 
-This document is intended for developers maintaining or extending the PokeTokenBar application. It outlines the core architecture, module responsibilities, state management, safety guarantees, and the TUI rendering pipeline as of **v1.10.0**.
+This document is intended for developers maintaining or extending the PokeTokenBar application. It outlines the core architecture, module responsibilities, state management, safety guarantees, and the TUI rendering pipeline as of **v1.11.0**.
 
 ---
 
@@ -46,17 +46,18 @@ PokeTokenBar follows a clean separation of concerns between the **View/Controlle
 
 ```text
 poketokenbar/
-├── __init__.py           # Package version definition (v1.10.0)
+├── __init__.py           # Package version definition (v1.11.0)
 ├── cli.py                # CLI entry point (ptb, ptb status, ptb watch, ptb card, ptb settings)
 ├── tui.py                # PokeTokenBarTUI: 72-column terminal renderer and input dispatch loop
-├── sprite_renderer.py    # SpriteRenderer: 24-bit TrueColor ANSI half-block renderer
+├── sprite_renderer.py    # SpriteRenderer: 24-bit TrueColor ANSI half-block renderer (with flip_h support)
 ├── game/
 │   ├── companion.py      # CompanionEngine: Core progression, evolution, expeditions, bank, repossession
-│   ├── stock_market.py   # StockMarketEngine: 5 pattern cycles, lore hints, gravity, corporate perks
+│   ├── stock_market.py   # StockMarketEngine: 5 pattern cycles, lore hints, shareholder perks
 │   ├── black_market.py   # BlackMarketEngine: 100 contraband pool, sealed troves, counterfeit logic
 │   ├── models.py         # Static data, dataclasses (MonState, ItemKind, Corporation, PokemonBalance)
 │   ├── storage.py        # StorageManager: Atomic save, .bak rolling backup, sandbox redirect
 │   ├── pokeapi.py        # PokeAPIClient: Local sprite & metadata caching (~/.poketokenbar/cache/)
+│   ├── rocket_battle.py  # RocketBattleHandler: Tactical boss combat engine, stance cores & persistent HP
 │   ├── red_battle.py     # RedBattleHandler: Mt. Silver 6v6 turn-based RPG battle engine & Arceus fight
 │   ├── gacha.py          # GachaEngine: Drop table probability and capsule pull logic
 │   ├── poker.py          # TexasHoldemEngine: 5-card draw Video Poker engine
@@ -79,8 +80,8 @@ poketokenbar/
 │   ├── mega_evo.py       # Tab [8] Mega Evolution chamber & form reversal
 │   ├── game_corner.py    # Tab [9] Casino Hub (Poker, Gacha, Slots, Blackjack)
 │   ├── bank.py           # Tab [10] Token Bank (Checking, CDs, and Dynamic Stock Market)
-│   ├── settings.py       # Tab [11] Preferences, sprite resolution, page sizes, safe reset, Rocket init
-│   ├── rocket.py         # Tab [12] Team Rocket Covert HQ: Operations, Intel Dossiers, Armory
+│   ├── settings.py       # Tab [11] Grouped preferences, sprite resolution, page sizes, tokens init
+│   ├── rocket.py         # Tab [12] Team Rocket Covert HQ: Operations, Tactical Combat, Armory
 │   └── red.py            # Mt. Silver Summit battle interface (called from Tab [6])
 └── utils/
     └── formatting.py     # ANSI color constants, token abbreviation (format_tokens), progress bars
@@ -96,6 +97,10 @@ Key                          | Type            | Description
 :--------------------------- | :-------------- | :-----------------------------------------------------------------
 `used_since_install`         | `int`           | Lifetime total tokens indexed from AI log sources.
 `spent_tokens`               | `int`           | Lifetime tokens spent on items, casino, or bank. `available = used - spent`.
+`baseline_total_tokens`      | `int`           | Baseline offset subtracted from lifetime total tokens when re-baselined.
+`baseline_date`              | `str / None`    | Calendar date anchor when token metrics baseline was set.
+`tokens_init_ts`             | `str / None`    | ISO timestamp when tokens were initialized to 0; filters earlier telemetry.
+`billing_cycle_day`          | `int`           | Day of month (1-31) serving as monthly billing cycle anchor.
 `active_mon`                 | `Dict / None`   | Serialized `MonState` dictionary of currently active companion.
 `egg_tier`                   | `str / None`    | Tier of incubating egg (`"common"`, `"rare"`, `"legendary"`, etc.).
 `egg_usage`                  | `int`           | Progress tokens accumulated toward current egg hatch threshold.
@@ -107,9 +112,10 @@ Key                          | Type            | Description
 `expedition_logs`            | `List[str]`     | Recent completed expedition event logs (retained to last 3 entries).
 `bank_balance`               | `int`           | Tokens deposited in the Token Bank checking account.
 `bank_loan`                  | `int`           | Active token loan debt.
-`term_deposits`              | `List[Dict]`    | Active Certificates of Deposit (`id`, `tier`, `principal`, `apy`, `matures_at`, `duration_days`).
+`term_deposits`              | `List[Dict]`    | Active Certificates of Deposit (`id`, `principal`, `term_days`, `days_elapsed`, `current_value`, `matured`).
+`cd_sort_criteria`           | `str`           | Active CD sort preference (`"days"`, `"amount"`, `"term"`).
 `investments`                | `Dict[str,int]` | Stock share portfolio (`{"silph": int, "devon": int, ...}`).
-`stock_market`               | `Dict`          | Dynamic stock exchange state: `prices`, `price_history`, `cost_basis`, `latest_news`, `daily_catalysts`, `market_headline`.
+`stock_market`               | `Dict`          | Dynamic stock exchange state: `prices`, `price_history`, `cost_basis`, `shareholder_tier`, `latest_news`.
 `gym_badges`                 | `List[str]`     | Badges earned from Gym Bosses and Trainer Red.
 `trainer_battles`            | `Dict`          | Auto-battle record `{"wins": int, "losses": int}`.
 `battle_logs`                | `List[str]`     | Recent battle event strings (last 5 fights).
@@ -122,7 +128,8 @@ Key                          | Type            | Description
 `rocket_alliance_accepted`   | `bool`          | Flag indicating whether the trainer accepted the Syndicate alliance (`accept`).
 `rocket_rank`                | `str`           | Operative clearance rank (`Informant`, `Operative`, `Special Agent`, `Executive`, `Commander`).
 `rocket_reputation`          | `int`           | Completed mission reputation progress toward rank promotions (0–10).
-`rocket_ops`                 | `Dict[str,Dict]`| 10 Covert Operations status, multi-objective progress, and claim state.
+`rocket_ops`                 | `Dict[str,Dict]`| 10 Covert Operations status, multi-objective progress, boss HP remaining, and claim state.
+`rocket_battle_state`        | `Dict / None`   | Active tactical combat arena state against Syndicate prototype bosses.
 `rocket_intel_unlocked`      | `List[str]`     | Decrypted Syndicate Intel Dossier IDs (`"intel_001"` through `"intel_010"`).
 `page_size_*`                | `int`           | Configurable table page sizes (`page_size_roster`, `page_size_expedition`, `page_size_cd`, etc.).
 
@@ -165,15 +172,27 @@ The system supports **three dispatch mechanisms**:
 ### 4.3 Token Bank, Stock Cycle Engine & Liquidation Waterfall
 Tab [10] Bank provides three distinct financial services:
 1. **Checking Account & Borrowing**: Standard deposit/withdrawal with daily interest accrual and collateralized borrowing up to 30% of checking deposits (max 500M tokens).
-2. **Certificates of Deposit (CDs)**: Fixed-term deposit contracts (1-Day at 5% APY, 3-Day at 12% APY, 7-Day at 25% APY). Matured deposits yield guaranteed principal + interest. Early redemption incurs a 10% penalty and forfeits accrued interest. Bracket indexing (`[1]`, `[2]`, etc.) enables direct redemption commands (`claim [id]`, `break [id]`) with configurable pagination (`pagesize cd <num>`).
-3. **Dynamic Stock Exchange (`stocks`)**:
+2. **Certificates of Deposit (CDs) & Dynamic Multi-Key Sorting**:
+   - Fixed-term deposit contracts (3-Day at 8% APY, 7-Day at 12% APY, 14-Day at 20% APY compounding daily).
+   - **Deterministic Multi-Key Sorting (`CompanionEngine.get_sorted_cds`)**: Supports criteria-based ordering with three modes:
+     - `days` (Default): Matured claimable CDs first (`days_left <= 0`), followed by nearest maturity (`days_left` ascending), larger deposit values, and ID.
+     - `amount`: Highest current value first (`current_value` descending), matured status, `days_left`, and ID.
+     - `term`: Longest duration lockup first (`term_days` descending), matured status, `days_left`, and ID.
+   - **Sequential 1-Based Display Indexing**: Active CD rows dynamically number `[1], [2], ...` based on current sort order. Commands (`claim 1`, `break 1`, `claim all`) resolve directly to the sorted index with internal slot fallback.
+3. **Dynamic Stock Exchange & Shareholder Tiers (`stocks`)**:
    - **6 In-Universe Corporations**:
-     - Silph Co. (`SILPH`): Saffron City tech giant (+15% expedition token yield).
-     - Devon Corp (`DEVN`): Rustboro industrial conglomerate (+20% raid & battle token rewards).
-     - Aether Foundation (`AETHR`): Alolan conservation sanctuary (+5 daily companion happiness recovery).
-     - Mauville Energy (`MAUV`): Hoenn power utility (+15% casino payout boost).
-     - Macro Cosmos (`MACRO`): Galar conglomerate (+25% raid boss damage & Dynamax energy).
-     - Viridian Dynamics (`VRDN`): Syndicate tech arm (+10% shiny encounter odds).
+     - Silph Co. (`SILPH`): Saffron City tech giant (+15% expedition token yield & speed).
+     - Devon Corp (`DEVN`): Rustboro industrial conglomerate (-5% Mart shop item discount).
+     - Aether Foundation (`AETHR`): Alolan conservation sanctuary (+5 daily companion happiness recovery, halved decay).
+     - Mauville Energy (`MAUV`): Hoenn power utility (+10% casino payout boost).
+     - Macro Cosmos (`MACRO`): Galar conglomerate (+20% raid boss damage & token drops).
+     - Viridian Dynamics (`VRDN`): Syndicate tech arm (+10% shiny encounter odds & token momentum).
+   - **Tiered Shareholder Perks**: Holding larger share positions unlocks escalated corporate dividends and perks:
+     - **Retail** (< 10 sh): Base perk unlocked.
+     - **Preferred** (10+ sh): 1.5x perk multiplier.
+     - **Corporate** (50+ sh): 2x perk multiplier.
+     - **Board Member** (250+ sh): 3x perk multiplier.
+     - **Controlling** (1000+ sh): 4x maximum perk multiplier.
    - **5 Pattern Cycles**: Stocks run on distinct pattern archetypes rather than random walks:
      - `bull_rally`: Consistent upward momentum, multi-day rallies, resistance testing.
      - `bear_decline`: Downward trends, short-seller pressure, oversold value bounce opportunities.
@@ -213,6 +232,11 @@ The Mt. Silver Red Battle is architecturally integrated into Tab [6] Battles:
 ### 4.6 Team Rocket Covert HQ (Tab [12])
 - **Dynamic Frequency Signal**: Broadcasts on encrypted frequency `131.55` as `[12] Secure Comm` when milestone thresholds are reached. Accepting the alliance (`accept`) unlocks full `[12] Rocket HQ`.
 - **10 Covert Operations (`ops`)**: Mission directives from Commander Petrel tracking multi-objective milestones (token burn, expeditions, battle wins, bank CDs, companion happiness, and syndicate boss battles). Deployed via `start operation <num>` with tactical briefings (`briefing`).
+- **Tactical Boss Combat Arena (`rocket_battle.py`)**:
+  - Enter the combat arena via `engage` or `fight` when an operation confrontation is active.
+  - Battle experimental bosses (e.g. `Prototype Chimera-001`) with dynamic elemental stance cores (Fire, Ice, Electric, Water).
+  - Boss health and remaining percentages persist across turns, battle retreats, and game restarts (`ops_st["boss_hp_remaining"]`).
+  - Directional front-sprite horizontal flipping (`flip_h=True`) dynamically faces your companion toward the enemy when back sprites are missing.
 - **10 Classified Intel Dossiers (`intel`)**: Decrypted archives #001 to #010 covering Syndicate origins, Silph Co. infiltration, Mewtwo cloning, and shadow energy. Features 5-item pagination (`n`, `p`, `page <num>`) and terminal reading (`read <num>`).
 - **Covert Armory (`armory`)**: Illicit syndicate equipment (Shadow Elixirs, Overclock Chips, Rocket Master Balls) unlocked by clearance rank.
 - **5 Clearance Ranks**: Ranks progress from `Informant` ➔ `Operative` ➔ `Special Agent` ➔ `Executive` ➔ `Commander` based on completed operations.
@@ -250,7 +274,7 @@ or with unittest:
 PTB_STATE_FILE=/tmp/ptb_test.json python -m unittest discover tests
 ```
 
-The test suite contains 73 passing unit and integration tests verifying sprite rendering, economy calculations, repossession waterfall, stock cycle transitions, Red battle logic, and TUI 72-column formatting constraints.
+The test suite contains **110 passing unit and integration tests** verifying sprite rendering, economy calculations, repossession waterfall, stock cycle transitions, Red battle logic, tactical boss combat, CD criteria sorting, and TUI 72-column formatting constraints.
 
 ### Adding a New TUI Command
 1. If the command belongs to an existing submode (e.g. Expeditions, Stocks, Minigames, Rocket HQ), handle it in the appropriate conditional block in `PokeTokenBarTUI.run()`.

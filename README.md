@@ -1,6 +1,6 @@
 # 🐾 PokeTokenBar (Linux CLI Edition)
 
-[![Version](https://img.shields.io/badge/version-1.10.0-blue.svg)](https://github.com/G3N0M3/PokeTokenBar-CLI)
+[![Version](https://img.shields.io/badge/version-1.11.0-blue.svg)](https://github.com/G3N0M3/PokeTokenBar-CLI)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python: 3.8+](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 
@@ -17,7 +17,11 @@ Designed specifically for **Linux CLI** environments, with automated, real-time 
 
 - 🐾 **Terminal Pokémon Companion (Tab [1])**:
   - Incubate eggs, hatch base Pokémon, level them up with your coding tokens, and evolve them as you write code!
-  - **Milestone Tracking & Celebrations**: Records major companion lifecycle achievements with dynamic icons (`🐣` egg hatch, `🎉` evolution, `🎓` graduation) right in the companion HUD, complete with full-screen celebration screens.
+  - **Rebalanced Companion HUD**: Features a clean 4-line summary above your companion sprite:
+    - **Line 1**: Companion identity, Shiny status (`✨ SHINY`), and Mega Evolution tags (`[✨ MEGA EVOLVED +50% XP]`).
+    - **Line 2**: Companion traits—**Rarity**, **Form Stage**, and **Held Item** (e.g. `🍀 Lucky Egg`, `🪙 Amulet Coin`).
+    - **Line 3**: Trainer progression—**Happiness** (with `(+20% XP)` boost tag at 100%) and active **Coding Streak** (`🔥 Xd`).
+    - **Line 4**: Milestone celebration banners (`🐣` egg hatch, `🎉` evolution, `🎓` graduation).
   - **Compact Incubation Monitor**: Shortened, responsive progress indicator (`Incubation: [███░░░░░░░░░░░░░░░░░] 13.2% (197.6K / 1.5M tokens)`) engineered to strictly fit within standard terminal widths.
   - **Evolution Safeguard**: Automatically halts evolution if the next evolutionary stage is already registered in your Pokédex, preventing unintended duplicates.
   - **Branch Evolutions via Evolution Stones**: Use elemental stones (Fire, Water, Thunder, Leaf, Moon, Sun, Shiny, Dusk, Dawn, Ice) to evolve species with branched evolutions (e.g. Eevee, Poliwhirl, Gloom).
@@ -25,7 +29,7 @@ Designed specifically for **Linux CLI** environments, with automated, real-time 
   - **Guaranteed Duplicate-Free Hatching**: Egg hatching enforces strict exclusion logic against all species and evolutionary family lines in your Pokédex and roster.
   - **Interactive Egg Decision**: Seamlessly choose to swap or keep newly discovered eggs when your egg slot is full.
 - 🎨 **TrueColor ANSI Sprite Rendering**:
-  - Crisp, 24-bit TrueColor ANSI half-block sprites rendered directly in your terminal, with configurable sprite sizes (15–50 columns).
+  - Crisp, 24-bit TrueColor ANSI half-block sprites rendered directly in your terminal, with configurable sprite sizes (15–50 columns) and dynamic horizontal flipping (`flip_h`) during combat.
 - 📡 **Real-Time Token Usage Tracking**:
   - Low-overhead log reader tracks active tokens and daily coding activity across multiple AI coding assistants with zero external telemetry.
 - 📖 **Pokédex Archives (Tab [2]) & Roster Management (Tab [3])**:
@@ -44,16 +48,18 @@ Designed specifically for **Linux CLI** environments, with automated, real-time 
   - **Clean Recent Logs**: Shows a clean overview of your last 3 completed expeditions.
 - 🏦 **Token Bank & Dynamic Stock Exchange (Tab [10])**:
   - **Checking Account & Collateralized Loans**: Deposit tokens, compound daily interest (+5%), and take out loans (`deposit`, `withdraw`, `loan`, `payoff`).
-  - **Term Deposits (CDs)**: Lock tokens into fixed-term 1-day, 3-day, or 7-day CDs for high returns (`open`, `claim`, `break`), supporting bracket indexing (`[1]`) and custom page sizes (`pagesize cd <num>`).
+  - **Term Deposits (CDs) & Criteria Sorting**: Lock tokens into fixed-term 3-day (8% APY), 7-day (12% APY), or 14-day (20% APY) CDs (`cd open <amt> <term>`).
+    - **Dynamic Sorting (`sort <days|amount|term>`)**: Orders active CDs by **Days Left** (matured claimable first, default), **Amount** (highest deposit value first), or **Term Duration** (longest lockup first).
+    - **Sequential Dynamic Indexing**: Active CD rows dynamically number `[1], [2], ...`, allowing instant bracket redemption (`claim 1`, `break 1`, `claim all`).
   - **6-Tier Bank Repossession Waterfall**: If a loan is defaulted after 7 days, an automated seizure waterfall recovers debt in strict liquidity order: `Checking Deposits -> Spendable Tokens -> Term Deposits (CDs) -> Corporate Stocks (90% market value) -> Bag Inventory Items (80% shop value) -> Debt Discharge -> Companion Distress (-50 happiness)`. Surplus proceeds from broken CDs or share sales are automatically credited back as refunds!
-  - **Dynamic Stock Market (`stocks`)**: Trade 6 corporate stocks with distinct volatilities, market profiles, and permanent perks:
-    - **Silph Co.** (`SILPH`) ➔ +15% Expedition tokens & speed
-    - **Devon Corporation** (`DEVN`) ➔ -10% Mart shop item discount
-    - **Aether Foundation** (`AETHR`) ➔ Halves happiness decay; +5 daily happiness
-    - **Greater Mauville Holdings** (`MAUV`) ➔ +10% Payout bonus on Game Corner minigames
-    - **Macro Cosmos** (`MACRO`) ➔ +20% Tokens from Boss raids
-    - **Viridian Global Logistics** (`VRDN`) ➔ +15% Token burn momentum
-  - **Independent Pattern Engine**: Each corporation operates on independent cycles across 5 market patterns (`bull_rally`, `bear_decline`, `cyclical_wave`, `speculative_bubble`, `consolidation`), forward Lore News hints forecasting tomorrow's movement, and player action catalysts!
+  - **Dynamic Stock Market & Shareholder Tiers (`stocks`)**: Trade 6 corporate stocks with distinct volatilities, market profiles, and tiered shareholder perks based on total shares held (**Retail** <10 sh, **Preferred** 10+ sh, **Corporate** 50+ sh, **Board Member** 250+ sh, **Controlling** 1000+ sh):
+    - **Silph Co.** (`SILPH`) ➔ Scaled expedition token yield & speed (+15% up to +60%)
+    - **Devon Corporation** (`DEVN`) ➔ Scaled Mart shop item discount (-5% up to -20%)
+    - **Aether Foundation** (`AETHR`) ➔ Halves happiness decay; daily happiness recovery (+5 up to +20)
+    - **Greater Mauville Holdings** (`MAUV`) ➔ Scaled Payout bonus on Game Corner minigames (+10% up to +40%)
+    - **Macro Cosmos** (`MACRO`) ➔ Scaled tokens & damage in Boss raids (+20% up to +80%)
+    - **Viridian Dynamics** (`VRDN`) ➔ Scaled shiny encounter odds & token burn momentum (+10% up to +40%)
+  - **Independent Pattern Engine & Compact Trade Terminal**: Each corporation operates on independent cycles across 5 market patterns (`bull_rally`, `bear_decline`, `cyclical_wave`, `speculative_bubble`, `consolidation`), forward Lore News hints forecasting tomorrow's movement, interactive 7-day sparkline charts, and player action catalysts!
 - 🎲 **Game Corner (Casino Hub) (Tab [9])**:
   - **Video Poker (`play 1`)**: 5-card draw poker with payouts up to **250x** for a Royal Flush (`bet <amount>`, `hold <cards>`).
   - **Gacha Capsule Machine (`play 2`)**: Single pulls (5M) and discounted 10-pull batches (45M) for Shiny Charms, Mega Stones, Rare Eggs, and Legendary Shiny partners (`pull <qty>`).
@@ -69,6 +75,7 @@ Designed specifically for **Linux CLI** environments, with automated, real-time 
 - 🚀 **Team Rocket Covert HQ (Tab [12])**:
   - **Dynamic Covert Channel**: Unlocked through story milestones, initially appearing as `[12] Secure Comm` and transitioning to `[12] Rocket HQ` upon accepting the alliance (`accept`).
   - **10 Covert Operations (`ops`)**: Mission directives and tactical briefings from **Commander Petrel**, tracking multi-objective milestones (tokens, expeditions, arena wins, bank CDs, happiness, and syndicate boss battles) to earn token rewards and promotions.
+  - **Tactical Boss Combat Arena (`engage` / `fight`)**: Directly battle Syndicate prototype chimera bosses (e.g. `Prototype Chimera-001`) with multi-phase stance core shifts. Features persistent boss HP tracking and a real-time confrontation progress bar preserved across combat rounds and process restarts.
   - **10 Intel Dossiers (`intel`)**: Unlocked classified archives (#001 to #010) with 5-item paging (`n`, `p`, `page <num>`) and terminal reading (`read <num>`).
   - **Covert Armory (`armory`)**: Access illicit syndicate gear (Shadow Elixirs, Overclock Chips, Rocket Master Balls) with higher-rank clearance masking.
   - **Clearance Ranks**: Rise through 5 ranks from `Informant` ➔ `Operative` ➔ `Special Agent` ➔ `Executive` ➔ `Commander`.
@@ -82,6 +89,8 @@ Designed specifically for **Linux CLI** environments, with automated, real-time 
 - 📜 **Daily Quests (Tab [7])**:
   - Complete scaled daily token burning and companion interaction milestones for bonus token payouts and items (`claim <id>` or `claim all`).
 - ⚙️ **Settings & Customization (Tab [11])**:
+  - **Grouped Settings Menu**: Neatly organized into **Display & Preferences** (sprite size, table page sizes), **Token Tracking & Baselines** (`tokens init`, `billing <day>`), and **Danger Zone & Administrative Controls** (`rocket init`, `reset`).
+  - **Token Initialization (`tokens init <amount>`)**: Simultaneously resets Today's, 7-Day, Monthly, and Total tokens to 0, establishing an exact initialization timestamp (`tokens_init_ts`) without altering game save progression.
   - Customize pagination across all tables and settings using `pagesize <dex|roster|exp|bag|mega|cd|settings> <number>`.
   - Navigate settings with `n`, `p`, or `page <number>`.
   - Adjust sprite resolution (15–50 columns).
@@ -143,8 +152,10 @@ ptb
 | `pass <idx>` | Instantly finish an active expedition using an Expedition Pass (🎫) |
 | `deposit` / `withdraw <amt>` | Bank checking account deposit/withdrawal (e.g. `deposit 10m`, `withdraw 5m`) |
 | `loan` / `payoff <amt>` | Take out or repay token loans (e.g. `loan 2m`, `payoff all`) |
-| `open <1d\|3d\|7d> <amt>` | Open a Certificate of Deposit (CD) with locked high APY |
-| `claim [id]` / `break [id]` | Claim matured CD payout or break CD early with penalty (bracket indexed) |
+| `cd open <amt> <3d\|7d\|14d>` | Open a Certificate of Deposit (CD) with locked high APY |
+| `sort <days\|amount\|term>` | Change CD sorting criteria (**Days Left**, **Amount**, or **Term**) |
+| `claim <id>` / `break <id>` | Claim matured CD payout or break CD early with penalty (dynamic display index) |
+| `claim all` | Claim all matured CDs at once |
 | `b` / `c` / `s` | Switch Bank subtabs (Checking, Certificate of Deposit, Stocks) |
 | `stock <idx\|sym>` | Open Trade Terminal (`SILPH`, `DEVN`, `AETHR`, `MAUV`, `MACRO`, `VRDN`) |
 | `buy <qty>` / `sell <qty>` | Buy or sell shares in active stock terminal |
@@ -167,10 +178,13 @@ ptb
 | `ops` | View 10 Covert Operations directives and progress (Tab 12) |
 | `start operation <num>` | Deploy operative team on a Covert Operation (Tab 12) |
 | `briefing` | View tactical briefing for the active operation (Tab 12) |
+| `engage` / `fight` | Enter tactical combat arena against active syndicate boss (Tab 12) |
 | `intel` | Access Syndicate Intel Archives #001–#010 (Tab 12) |
 | `read <num>` | Read decrypted dossier intelligence file (Tab 12) |
 | `armory` | Access the Covert Syndicate Armory (Tab 12) |
 | `accept` | Accept alliance with Team Rocket (when `[12] Secure Comm` signal appears) |
+| `tokens init <amount>` | Initialize token usage baseline, resetting all 4 metrics to 0 (Tab 11) |
+| `billing <1-31>` | Set monthly billing cycle anchor day (Tab 11) |
 | `rocket init` | Initialize or reset Team Rocket campaign and operations (Tab 11) |
 | `pagesize <tab> <num>` | Configure page size for `dex`, `roster`, `exp`, `bag`, `mega`, `cd`, or `settings` |
 | `card` | Display ASCII Trainer Profile Card |
