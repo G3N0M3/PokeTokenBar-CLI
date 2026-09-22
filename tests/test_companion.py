@@ -4732,6 +4732,66 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertEqual(len(self.engine.state["term_deposits"]), 1)
         self.assertEqual(self.engine.state["term_deposits"][0]["id"], 2)
 
+    def test_companion_tab_header_line_reformatting(self):
+        """Verify rebalanced companion header: L2 has Rarity, Form, Held; L3 has Happiness, Streak."""
+        import re
+        import io
+        from poketokenbar.tui_tabs.companion import render as render_companion_tab
+        from poketokenbar.game.models import MonState, Rarity, ItemKind
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+        app = MagicMock()
+        app.engine = self.engine
+
+        active_mon = MonState(
+            base_id=6,
+            path_ids=[4, 5, 6],
+            planned_path_ids=[4, 5, 6],
+            stage_index=2,
+            used_at_stage=500_000,
+            rarity=Rarity.RARE,
+            total_forms=3,
+            held_item=ItemKind.LUCKY_EGG.value,
+            happiness=100,
+        )
+        self.engine.set_active_mon(active_mon)
+        self.engine.state["streak_days"] = 7
+        self.engine.state["last_milestone"] = "🎉 Graduated to Charizard!"
+
+        summary = {
+            "today_tokens": 100_000,
+            "antigravity_today": 80_000,
+            "week_tokens": 500_000,
+            "month_tokens": 1_000_000,
+            "total_tokens": 2_000_000,
+            "burn_rate_tpm": 1200,
+        }
+
+        trap = io.StringIO()
+        with patch("sys.stdout", trap):
+            render_companion_tab(app, summary)
+        out = trap.getvalue()
+        clean_lines = [ansi_regex.sub("", line) for line in out.split("\n")]
+
+        # Line 1: Active Companion
+        self.assertTrue(any("Active Companion: Charizard (#6)" in l for l in clean_lines))
+        # Line 2: Rarity, Form, Held
+        l2 = next(l for l in clean_lines if "Rarity:" in l)
+        self.assertIn("Rarity: RARE", l2)
+        self.assertIn("Form: 3/3", l2)
+        self.assertIn("Held: 🍀 Lucky Egg", l2)
+        # Line 3: Happiness, Streak
+        l3 = next(l for l in clean_lines if "Happiness:" in l)
+        self.assertIn("Happiness: 💖 100% (+20% XP)", l3)
+        self.assertIn("Streak: 🔥 7d", l3)
+        self.assertNotIn("Held:", l3)
+        # Line 4: Milestone
+        l4 = next(l for l in clean_lines if "Milestone:" in l)
+        self.assertIn("Milestone: 🎉 Graduated to Charizard!", l4)
+
+        for line in clean_lines:
+            self.assertLessEqual(len(line), 72, f"Line exceeds 72 cols: '{line}'")
+
 if __name__ == "__main__":
     unittest.main()
 

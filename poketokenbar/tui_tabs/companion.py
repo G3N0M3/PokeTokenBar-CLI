@@ -37,9 +37,6 @@ def render(app, summary: dict):
         shiny_str = f"{YELLOW}✨ SHINY {RESET}" if active.is_shiny else ""
         mega_badge = f" {BOLD}{HEADER}[✨ MEGA EVOLVED +50% XP]{RESET}" if active.is_mega else ""
 
-        sys.stdout.write(f"\n  {BOLD}{GREEN}Active Companion: {shiny_str}{name} (#{sp_id}){mega_badge}{RESET}\n")
-        sys.stdout.write(f"  Rarity: {YELLOW}{active.rarity.value.upper()}{RESET}  |  Form: {active.stage_index+1}/{active.total_forms}\n")
-
         held_str = "None"
         if active.held_item:
             from poketokenbar.game.models import ItemKind
@@ -52,7 +49,10 @@ def render(app, summary: dict):
         happiness = active.happiness if active else app.engine.state.get("happiness", 100)
         streak = app.engine.state.get("streak_days", 1)
         hap_boost = f" {GREEN}(+20% XP){RESET}" if happiness >= 100 else ""
-        sys.stdout.write(f"  Happiness: {RED}💖 {happiness}%{RESET}{hap_boost}  |  Streak: {YELLOW}🔥 {streak}d{RESET}  |  Held: {BOLD}{CYAN}{held_str}{RESET}\n")
+
+        sys.stdout.write(f"\n  {BOLD}{GREEN}Active Companion: {shiny_str}{name} (#{sp_id}){mega_badge}{RESET}\n")
+        sys.stdout.write(f"  Rarity: {YELLOW}{active.rarity.value.upper()}{RESET}  |  Form: {active.stage_index+1}/{active.total_forms}  |  Held: {BOLD}{CYAN}{held_str}{RESET}\n")
+        sys.stdout.write(f"  Happiness: {RED}💖 {happiness}%{RESET}{hap_boost}  |  Streak: {YELLOW}🔥 {streak}d{RESET}\n")
         
         last_milestone = app.engine.state.get("last_milestone") or app.engine.state.get("last_evolution")
         if last_milestone:
