@@ -53,6 +53,10 @@ def render(app, summary: dict):
         sys.stdout.write(f"\n  {BOLD}{GREEN}Active Companion: {shiny_str}{name} (#{sp_id}){mega_badge}{RESET}\n")
         sys.stdout.write(f"  Rarity: {YELLOW}{active.rarity.value.upper()}{RESET}  |  Form: {active.stage_index+1}/{active.total_forms}  |  Held: {BOLD}{CYAN}{held_str}{RESET}\n")
         sys.stdout.write(f"  Happiness: {RED}💖 {happiness}%{RESET}{hap_boost}  |  Streak: {YELLOW}🔥 {streak}d{RESET}\n")
+        if happiness == 0:
+            sys.stdout.write(f"  {BOLD}{RED}⚠️ Exhausted!{RESET} Type '{BOLD}feed 4{RESET}' or '{BOLD}feed{RESET}' to restore with Oran Berries 🫐\n")
+        elif happiness < 50:
+            sys.stdout.write(f"  {YELLOW}⚠️ Low Happiness!{RESET} Type '{BOLD}feed [qty]{RESET}' to cheer up with Oran Berries 🫐\n")
         
         last_milestone = app.engine.state.get("last_milestone") or app.engine.state.get("last_evolution")
         if last_milestone:

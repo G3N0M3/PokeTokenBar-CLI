@@ -39,6 +39,7 @@ class PokeTokenBarTUI:
         self.expedition_picker_mode: bool = False
         self.picker_page: int = 1
         self.settings_page: int = 1
+        self.pending_feed = None
 
     def clear_screen(self):
         sys.stdout.write("\033[H\033[2J")
@@ -232,6 +233,20 @@ class PokeTokenBarTUI:
                         self.message = f"🚀 {msg}"
                     else:
                         self.message = "❌ Team Rocket initialization cancelled."
+                elif getattr(self, "pending_feed", None) is not None:
+                    plan = self.pending_feed
+                    self.pending_feed = None
+                    if cmd in ["confirm", "yes", "y", "ok"]:
+                        ok, msg = self.engine.execute_feed_plan(plan)
+                        self.message = msg
+                    elif cmd.startswith("feed ") or cmd == "feed":
+                        self.handle_feed_command(cmd)
+                    else:
+                        self.message = "❌ Feeding cancelled."
+                        tab_max = 12 if self.engine.state.get("rocket_story_unlocked") else 11
+                        if cmd in [str(i) for i in range(1, tab_max + 1)]:
+                            self.current_tab = int(cmd)
+                            self.message = ""
                 elif getattr(self, "expedition_picker_mode", False):
                     # In Interactive Expedition Picker mode
                     if cmd == "back":
@@ -270,6 +285,8 @@ class PokeTokenBarTUI:
                     elif cmd == "all":
                         indices = self._parse_indices_string("all")
                         self._toggle_selection_indices(indices)
+                    elif cmd.startswith("feed ") or cmd == "feed":
+                        self.handle_feed_command(cmd)
                     elif self._is_expedition_destination_cmd(cmd):
                         area = self._resolve_expedition_destination(cmd)
                         if not self.selected_expedition_targets:
@@ -447,6 +464,8 @@ class PokeTokenBarTUI:
                 elif cmd == "clear" and self.selected_expedition_targets:
                     self.selected_expedition_targets.clear()
                     self.message = "Cleared all selected companions."
+                elif cmd.startswith("feed ") or cmd == "feed":
+                    self.handle_feed_command(cmd)
                 elif cmd.startswith("sel ") or cmd == "sel":
                     arg = cmd.split(maxsplit=1)[1].strip() if " " in cmd else ""
                     if not arg:
@@ -1024,6 +1043,56 @@ class PokeTokenBarTUI:
     def handle_bag_help(self, cmd: str):
         from poketokenbar.tui_tabs.shop import handle_bag_help
         handle_bag_help(self, cmd)
+
+    def handle_feed_command(self, cmd: str):
+        raw_parts = cmd.split()
+        bypass_confirm = False
+        parts = []
+        for p in raw_parts:
+            if p.lower() in ["-y", "--yes", "confirm"]:
+                bypass_confirm = True
+            else:
+                parts.append(p)
+
+        target = None
+        qty = None
+
+        if len(parts) == 1:
+            if getattr(self, "selected_expedition_targets", None):
+                target = [str(i) for i in sorted(self.selected_expedition_targets)]
+            else:
+                target = None
+        elif len(parts) == 2:
+            arg = parts[1].strip()
+            # If on Tab 1 (Companion) and a number is provided, treat as qty for active mon
+            if self.current_tab == 1 and arg.isdigit() and int(arg) > 0 and self.engine.active_mon:
+                target = "active"
+                qty = int(arg)
+            # If staged companions are selected and a number is provided, treat as qty for staged
+            elif getattr(self, "selected_expedition_targets", None) and arg.isdigit() and 1 <= int(arg) <= 20:
+                target = [str(i) for i in sorted(self.selected_expedition_targets)]
+                qty = int(arg)
+            else:
+                target = arg
+        else:
+            target = parts[1].strip()
+            try:
+                qty = int(parts[2].strip())
+            except ValueError:
+                self.message = "Usage: feed <row|#id|name|0|all> [qty] (e.g. 'feed 0', 'feed 1 4')"
+                return
+
+        plan = self.engine.get_feed_plan(target=target, qty=qty)
+        if not plan.get("ok"):
+            self.message = plan.get("error", "Could not feed Pokémon.")
+            return
+
+        if bypass_confirm:
+            ok, msg = self.engine.execute_feed_plan(plan)
+            self.message = msg
+        else:
+            self.pending_feed = plan
+            self.message = plan.get("prompt", "Confirm feeding?")
 
     def render_quests_tab(self):
         from poketokenbar.tui_tabs.quests import render_quests_tab

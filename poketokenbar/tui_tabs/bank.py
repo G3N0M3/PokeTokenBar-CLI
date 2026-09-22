@@ -42,9 +42,15 @@ def _render_checking_view(app, avail: int):
     loan = app.engine.state.get("bank_loan", 0)
     loan_days = app.engine.state.get("loan_days_active", 0)
 
+    daily_dep_interest = int(bank * 1.05) - bank if bank > 0 else 0
+    daily_loan_interest = int(loan * 1.10) - loan if loan > 0 else 0
+
     sys.stdout.write(f"  {BOLD}{GREEN}🏦 Token Checking & Loans{RESET}  (Spendable: {BOLD}{CYAN}{format_tokens(avail)}{RESET})\n\n")
-    sys.stdout.write(f"  {BOLD}Deposited Balance:{RESET} {BOLD}{GREEN}{format_tokens(bank)}{RESET} tokens\n")
-    sys.stdout.write(f"  {BOLD}Active Loan Debt:{RESET}  {BOLD}{RED}{format_tokens(loan)}{RESET} tokens\n")
+    sys.stdout.write(f"  {BOLD}Deposited Balance:{RESET} {BOLD}{GREEN}{format_tokens(bank)}{RESET} tokens  ({GREEN}+{format_tokens(daily_dep_interest)}/day interest{RESET})\n")
+    if loan > 0:
+        sys.stdout.write(f"  {BOLD}Active Loan Debt:{RESET}  {BOLD}{RED}{format_tokens(loan)}{RESET} tokens  ({RED}+{format_tokens(daily_loan_interest)}/day interest{RESET})\n")
+    else:
+        sys.stdout.write(f"  {BOLD}Active Loan Debt:{RESET}  {BOLD}{CYAN}0{RESET} tokens  ({CYAN}No active debt{RESET})\n")
     
     if loan > 0:
         if loan_days == 6:
@@ -59,10 +65,11 @@ def _render_checking_view(app, avail: int):
         sys.stdout.write(f"   {RED}5. Liquidation of Inventory Items{RESET}\n")
         sys.stdout.write(f"   {RED}6. Happiness of ALL companions drops by 50!{RESET}\n")
         
-    sys.stdout.write(f"\n  {BOLD}Interest Rates (Daily Compounding):{RESET}\n")
-    sys.stdout.write(f"  • {GREEN}Deposits:{RESET} +5% interest daily\n")
+    sys.stdout.write(f"\n  {BOLD}Daily Interest Rates & Accrual:{RESET}\n")
+    sys.stdout.write(f"  • {GREEN}Deposits:{RESET} +5% daily interest (+{format_tokens(daily_dep_interest)} tokens/day)\n")
     max_loan = max(500_000_000, int(bank * 0.30))
-    sys.stdout.write(f"  • {RED}Loans:{RESET}    -10% interest daily (Max Loan: {format_tokens(max_loan)})\n\n")
+    loan_accrual_str = f"+{format_tokens(daily_loan_interest)} debt/day" if loan > 0 else "+0 debt/day"
+    sys.stdout.write(f"  • {RED}Loans:{RESET}    +10% daily interest ({loan_accrual_str} | Max: {format_tokens(max_loan)})\n\n")
     sys.stdout.write(f"  {BOLD}Commands:{RESET}\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}deposit <amount>{RESET}' / '{BOLD}withdraw <amount>{RESET}' (e.g. 'deposit 1m')\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}loan <amount>{RESET}' / '{BOLD}payoff <amount>{RESET}' (e.g. 'payoff all')\n\n")

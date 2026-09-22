@@ -94,9 +94,11 @@ def render(app):
         if len(sel_str) > 50:
             sel_str = sel_str[:47] + "..."
         sys.stdout.write(f"\n  🎯 {BOLD}{GREEN}Selected for Expedition ({len(selected_targets)}):{RESET} {sel_str}\n")
-        sys.stdout.write(f"  ➔ Type '{BOLD}send <area>{RESET}' to dispatch! (e.g. 'send mine') | '{BOLD}clear{RESET}' to deselect\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}send <area>{RESET}' to dispatch! | '{BOLD}feed [qty]{RESET}' to feed! | '{BOLD}clear{RESET}'\n")
 
-    sys.stdout.write(f"\n  ➔ Type '{BOLD}sel <row>|#<dex>|egg{RESET}' to switch active companion!\n")
+    sys.stdout.write(f"\n  ➔ Type '{BOLD}feed 0{RESET}' to revive all 0% happiness Pokémon (4 berries each)!\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}feed <row|#id|name|all> [qty]{RESET}' to feed Oran Berries 🫐!\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}sel <row>|#<dex>|egg{RESET}' to switch active companion!\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}pick{RESET}' to open Interactive Multi-Select Dispatcher!\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}send <row(s)|#dex|all> [area]{RESET}' on expedition!\n")
     sys.stdout.write(f"     Areas:\n")

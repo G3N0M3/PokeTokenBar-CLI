@@ -102,8 +102,8 @@ ITEM_DESCRIPTIONS: Dict[str, Dict[str, str]] = {
         "name": "🫐 Oran Berry",
         "clean_name": "Oran Berry",
         "category": "Consumable",
-        "desc": "Restores +25% Happiness per berry to active companion.",
-        "usage": "Type 'use <id> [qty]' to feed to active companion.",
+        "desc": "Restores +25% Happiness per berry. 4 berries fully revive exhausted Pokémon.",
+        "usage": "Type 'feed 0' to revive all 0% Pokémon, or 'feed <row|name> [qty]'.",
     },
     "berry_golden": {
         "name": "🍇 Golden Razz",

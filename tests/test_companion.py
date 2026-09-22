@@ -4792,6 +4792,392 @@ class TestCompanionEngine(unittest.TestCase):
         for line in clean_lines:
             self.assertLessEqual(len(line), 72, f"Line exceeds 72 cols: '{line}'")
 
+class TestOranBerryFeeding(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.temp_state = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        self.temp_state.close()
+        os.environ["PTB_STATE_FILE"] = self.temp_state.name
+        self.engine = CompanionEngine()
+
+    def tearDown(self):
+        if os.path.exists(self.temp_state.name):
+            os.remove(self.temp_state.name)
+        bak = self.temp_state.name.replace(".json", ".json.bak")
+        if os.path.exists(bak):
+            os.remove(bak)
+
+    def test_feed_active_companion_custom_qty(self):
+        self.engine.hatch_egg(0)
+        active = self.engine.active_mon
+        self.assertIsNotNone(active)
+        active.happiness = 50
+        self.engine.set_active_mon(active)
+        self.engine.state["inventory"] = {"berry_oran": 5}
+
+        ok, msg = self.engine.feed_pokemon("active", 1)
+        self.assertTrue(ok)
+        self.assertIn("Fed 1 Oran Berry", msg)
+        self.assertEqual(self.engine.active_mon.happiness, 75)
+        self.assertEqual(self.engine.state["inventory"].get("berry_oran"), 4)
+
+    def test_feed_zero_happiness_defaults_to_4_berries(self):
+        self.engine.hatch_egg(0)
+        active = self.engine.active_mon
+        active.happiness = 0
+        self.engine.set_active_mon(active)
+        self.engine.state["inventory"] = {"berry_oran": 10}
+
+        ok, msg = self.engine.feed_pokemon("0")
+        self.assertTrue(ok)
+        self.assertIn("Fed 4 Oran Berries", msg)
+        self.assertIn("100%", msg)
+        self.assertEqual(self.engine.active_mon.happiness, 100)
+        self.assertEqual(self.engine.state["inventory"].get("berry_oran"), 6)
+
+    def test_feed_zero_multiple_exhausted_companions(self):
+        self.engine.hatch_egg(0)
+        active = self.engine.active_mon
+        active.happiness = 0
+        self.engine.set_active_mon(active)
+
+        # Add second companion to roster
+        self.engine.state["dex"].append({
+            "id": "sp_25",
+            "species_id": 25,
+            "base_id": 25,
+            "chain_order": [25, 26],
+            "rarity": "uncommon",
+            "status": "inactive",
+            "mon_state": {"base_id": 25, "current_id": 25, "happiness": 0, "stage_index": 0, "total_forms": 2},
+            "happiness": 0
+        })
+        self.engine.state["inventory"] = {"berry_oran": 10}
+
+        ok, msg = self.engine.feed_pokemon("exhausted")
+        self.assertTrue(ok)
+        self.assertIn("Fed 8 Oran Berries", msg)
+        self.assertEqual(self.engine.active_mon.happiness, 100)
+        self.assertEqual(self.engine.state["dex"][-1]["mon_state"]["happiness"], 100)
+        self.assertEqual(self.engine.state["inventory"].get("berry_oran"), 2)
+
+    def test_feed_zero_partial_inventory(self):
+        self.engine.hatch_egg(0)
+        active = self.engine.active_mon
+        active.happiness = 0
+        self.engine.set_active_mon(active)
+        self.engine.state["inventory"] = {"berry_oran": 3}
+
+        ok, msg = self.engine.feed_pokemon("0")
+        self.assertTrue(ok)
+        self.assertIn("Fed 3 Oran Berries", msg)
+        self.assertEqual(self.engine.active_mon.happiness, 75)
+        self.assertNotIn("berry_oran", self.engine.state["inventory"])
+
+    def test_feed_saves_excess_berries_at_max_happiness(self):
+        self.engine.hatch_egg(0)
+        active = self.engine.active_mon
+        active.happiness = 75
+        self.engine.set_active_mon(active)
+        self.engine.state["inventory"] = {"berry_oran": 5}
+
+        # Requesting 4 berries, but only 1 needed to reach 100%
+        ok, msg = self.engine.feed_pokemon("active", 4)
+        self.assertTrue(ok)
+        self.assertIn("Fed 1 Oran Berry", msg)
+        self.assertIn("saved 3 berries", msg)
+        self.assertEqual(self.engine.active_mon.happiness, 100)
+        self.assertEqual(self.engine.state["inventory"].get("berry_oran"), 4)
+
+    def test_feed_all_hungry_companions(self):
+        self.engine.hatch_egg(0)
+        active = self.engine.active_mon
+        active.happiness = 50
+        self.engine.set_active_mon(active)
+
+        self.engine.state["dex"].append({
+            "id": "sp_25",
+            "species_id": 25,
+            "base_id": 25,
+            "chain_order": [25, 26],
+            "rarity": "uncommon",
+            "status": "inactive",
+            "mon_state": {"base_id": 25, "current_id": 25, "happiness": 75, "stage_index": 0, "total_forms": 2},
+            "happiness": 75
+        })
+        self.engine.state["inventory"] = {"berry_oran": 10}
+
+        ok, msg = self.engine.feed_pokemon("all")
+        self.assertTrue(ok)
+        # active needs 2 berries, #25 needs 1 berry -> total 3 berries
+        self.assertIn("Fed 3 Oran Berries", msg)
+        self.assertEqual(self.engine.active_mon.happiness, 100)
+        self.assertEqual(self.engine.state["dex"][-1]["mon_state"]["happiness"], 100)
+        self.assertEqual(self.engine.state["inventory"].get("berry_oran"), 7)
+
+    def test_feed_with_soothe_bell_doubles_effect(self):
+        self.engine.hatch_egg(0)
+        active = self.engine.active_mon
+        active.happiness = 0
+        active.held_item = "soothe_bell"
+        self.engine.set_active_mon(active)
+        self.engine.state["inventory"] = {"berry_oran": 10}
+
+        # With soothe_bell (+50% each), needs only 2 berries to reach 100% from 0%
+        ok, msg = self.engine.feed_pokemon("active", 4)
+        self.assertTrue(ok)
+        self.assertIn("Fed 2 Oran Berries", msg)
+        self.assertIn("Soothe Bell", msg)
+        self.assertEqual(self.engine.active_mon.happiness, 100)
+        self.assertEqual(self.engine.state["inventory"].get("berry_oran"), 8)
+
+    def test_feed_by_roster_row_and_species_name(self):
+        self.engine.hatch_egg(0)
+        active = self.engine.active_mon
+        active.happiness = 50
+        self.engine.set_active_mon(active)
+        self.engine.state["inventory"] = {"berry_oran": 5}
+
+        # Feed by row 1
+        ok, msg = self.engine.feed_pokemon("1", 1)
+        self.assertTrue(ok)
+        self.assertEqual(self.engine.active_mon.happiness, 75)
+
+        # Feed by species name
+        name = self.engine.api.get_species_name(active.current_id)
+        ok, msg = self.engine.feed_pokemon(name, 1)
+        self.assertTrue(ok)
+        self.assertEqual(self.engine.active_mon.happiness, 100)
+
+    def test_feed_plan_stating_required_and_available(self):
+        self.engine.hatch_egg(0)
+        active = self.engine.active_mon
+        active.happiness = 0
+        self.engine.set_active_mon(active)
+        self.engine.state["inventory"] = {"berry_oran": 15}
+
+        plan = self.engine.get_feed_plan("0")
+        self.assertTrue(plan["ok"])
+        self.assertEqual(plan["total_berries"], 4)
+        self.assertEqual(plan["available_berries"], 15)
+        self.assertIn("Req: 4", plan["prompt"])
+        self.assertIn("Bag: 15", plan["prompt"])
+        self.assertLessEqual(len(plan["prompt"]), 72)
+        # Verify state was not mutated by planning
+        self.assertEqual(self.engine.active_mon.happiness, 0)
+        self.assertEqual(self.engine.state["inventory"]["berry_oran"], 15)
+
+    def test_feed_pokemon_confirm_flag(self):
+        self.engine.hatch_egg(0)
+        active = self.engine.active_mon
+        active.happiness = 0
+        self.engine.set_active_mon(active)
+        self.engine.state["inventory"] = {"berry_oran": 10}
+
+        # With confirm=True, returns prompt without mutating state
+        ok, prompt_str = self.engine.feed_pokemon("0", confirm=True)
+        self.assertTrue(ok)
+        self.assertIn("Req: 4", prompt_str)
+        self.assertIn("Bag: 10", prompt_str)
+        self.assertEqual(self.engine.active_mon.happiness, 0)
+        self.assertEqual(self.engine.state["inventory"]["berry_oran"], 10)
+
+    def test_feed_tui_confirmation_flow(self):
+        from poketokenbar.tui import PokeTokenBarTUI
+        self.engine.hatch_egg(0)
+        active = self.engine.active_mon
+        active.happiness = 0
+        self.engine.set_active_mon(active)
+        self.engine.state["inventory"] = {"berry_oran": 10}
+
+        app = PokeTokenBarTUI()
+        app.engine = self.engine
+
+        # Calling 'feed 0' creates pending_feed and shows prompt with req and in bag
+        app.handle_feed_command("feed 0")
+        self.assertIsNotNone(app.pending_feed)
+        self.assertIn("Req: 4", app.message)
+        self.assertIn("Bag: 10", app.message)
+        # Berries not consumed yet
+        self.assertEqual(self.engine.active_mon.happiness, 0)
+        self.assertEqual(self.engine.state["inventory"]["berry_oran"], 10)
+
+        # Confirming executes the plan
+        ok, msg = app.engine.execute_feed_plan(app.pending_feed)
+        app.pending_feed = None
+        self.assertTrue(ok)
+        self.assertIn("Fed 4 Oran Berries", msg)
+        self.assertEqual(self.engine.active_mon.happiness, 100)
+        self.assertEqual(self.engine.state["inventory"]["berry_oran"], 6)
+
+    def test_feed_tui_bypass_confirm_flags(self):
+        from poketokenbar.tui import PokeTokenBarTUI
+        self.engine.hatch_egg(0)
+        active = self.engine.active_mon
+        active.happiness = 0
+        self.engine.set_active_mon(active)
+        self.engine.state["inventory"] = {"berry_oran": 10}
+
+        app = PokeTokenBarTUI()
+        app.engine = self.engine
+
+        # With -y flag, executes immediately without pending_feed
+        app.handle_feed_command("feed 0 -y")
+        self.assertIsNone(app.pending_feed)
+        self.assertIn("Fed 4 Oran Berries", app.message)
+        self.assertEqual(self.engine.active_mon.happiness, 100)
+        self.assertEqual(self.engine.state["inventory"]["berry_oran"], 6)
+
+    def test_feed_confirmation_prompts_under_72_cols(self):
+        self.engine.hatch_egg(0)
+        active = self.engine.active_mon
+        active.happiness = 0
+        self.engine.set_active_mon(active)
+
+        for i in range(1, 15):
+            self.engine.state["dex"].append({
+                "id": f"sp_{i}",
+                "species_id": i,
+                "base_id": i,
+                "chain_order": [i],
+                "rarity": "common",
+                "status": "inactive",
+                "mon_state": {"base_id": i, "current_id": i, "happiness": 0, "stage_index": 0, "total_forms": 1},
+                "happiness": 0
+            })
+        self.engine.state["inventory"] = {"berry_oran": 100}
+
+        # Check exhausted prompt
+        plan = self.engine.get_feed_plan("0")
+        self.assertTrue(plan["ok"])
+        self.assertLessEqual(len(plan["prompt"]), 72)
+        self.assertIn("Req:", plan["prompt"])
+        self.assertIn("Bag:", plan["prompt"])
+
+        # Check all hungry prompt
+        plan_all = self.engine.get_feed_plan("all")
+        self.assertTrue(plan_all["ok"])
+        self.assertLessEqual(len(plan_all["prompt"]), 72)
+        self.assertIn("Req:", plan_all["prompt"])
+        self.assertIn("Bag:", plan_all["prompt"])
+
+        # Check single target prompt
+        plan_single = self.engine.get_feed_plan("1", 4)
+        self.assertTrue(plan_single["ok"])
+        self.assertLessEqual(len(plan_single["prompt"]), 72)
+        self.assertIn("Req:", plan_single["prompt"])
+        self.assertIn("Bag:", plan_single["prompt"])
+
+class TestBankDailyInterest(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.temp_state = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        self.temp_state.close()
+        os.environ["PTB_STATE_FILE"] = self.temp_state.name
+        self.engine = CompanionEngine()
+
+    def tearDown(self):
+        if os.path.exists(self.temp_state.name):
+            os.remove(self.temp_state.name)
+        bak = self.temp_state.name.replace(".json", ".json.bak")
+        if os.path.exists(bak):
+            os.remove(bak)
+
+    def test_bank_checking_view_displays_daily_interest(self):
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.bank import render_bank_tab
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+        self.engine.state["bank_balance"] = 10_000_000
+        self.engine.state["bank_loan"] = 5_000_000
+
+        app = MagicMock()
+        app.engine = self.engine
+        app.bank_subtab = "checking"
+
+        trap = io.StringIO()
+        with patch("sys.stdout", trap):
+            render_bank_tab(app)
+
+        output = trap.getvalue()
+        clean_lines = [ansi_regex.sub("", l) for l in output.split("\n")]
+
+        # Check daily deposit interest (+500.0K/day interest)
+        self.assertIn("+500.0K/day interest", output)
+        self.assertIn("+5% daily interest (+500.0K tokens/day)", output)
+
+        # Check daily loan interest (+500.0K/day interest)
+        self.assertIn("+500.0K/day interest", output)
+        self.assertIn("+10% daily interest (+500.0K debt/day", output)
+
+        # 72-col compliance check
+        for line in clean_lines:
+            self.assertLessEqual(len(line), 72, f"Line exceeds 72 cols: '{line}'")
+
+    def test_bank_checking_view_zero_balances(self):
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.bank import render_bank_tab
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+        self.engine.state["bank_balance"] = 0
+        self.engine.state["bank_loan"] = 0
+
+        app = MagicMock()
+        app.engine = self.engine
+        app.bank_subtab = "checking"
+
+        trap = io.StringIO()
+        with patch("sys.stdout", trap):
+            render_bank_tab(app)
+
+        output = trap.getvalue()
+        clean_lines = [ansi_regex.sub("", l) for l in output.split("\n")]
+
+        self.assertIn("+0/day interest", output)
+        self.assertIn("No active debt", output)
+        self.assertIn("+5% daily interest (+0 tokens/day)", output)
+        self.assertIn("+10% daily interest (+0 debt/day", output)
+
+        for line in clean_lines:
+            self.assertLessEqual(len(line), 72, f"Line exceeds 72 cols: '{line}'")
+
+    def test_bank_transactions_feedback_daily_interest(self):
+        self.engine.state["used_since_install"] = 50_000_000
+        self.engine.state["spent_tokens"] = 0
+
+        # Deposit 10M -> balance 10M -> daily interest +500K/day
+        ok, msg = self.engine.handle_bank_transaction("deposit", "10m")
+        self.assertTrue(ok)
+        self.assertIn("Deposited 10.0M tokens", msg)
+        self.assertIn("+500.0K/day interest", msg)
+
+        # Withdraw 2M -> balance 8M -> daily interest +400K/day
+        ok, msg = self.engine.handle_bank_transaction("withdraw", "2m")
+        self.assertTrue(ok)
+        self.assertIn("Withdrew 2.0M tokens", msg)
+        self.assertIn("+400.0K/day interest", msg)
+
+        # Loan 5M -> debt 5M -> daily debt interest +500K/day
+        ok, msg = self.engine.handle_bank_transaction("loan", "5m")
+        self.assertTrue(ok)
+        self.assertIn("Took loan of 5.0M tokens", msg)
+        self.assertIn("+500.0K/day interest", msg)
+
+        # Payoff 3M -> debt 2M -> daily debt interest +200K/day
+        ok, msg = self.engine.handle_bank_transaction("payoff", "3m")
+        self.assertTrue(ok)
+        self.assertIn("Paid off 3.0M tokens", msg)
+        self.assertIn("+200.0K/day interest", msg)
+
+        # Payoff remaining 2M -> debt 0 -> debt fully cleared
+        ok, msg = self.engine.handle_bank_transaction("payoff", "2m")
+        self.assertTrue(ok)
+        self.assertIn("debt fully cleared", msg)
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -1,3 +1,4 @@
+import math
 import random
 import datetime
 from typing import Dict, List, Optional, Tuple, Any, Union, Set
@@ -2573,12 +2574,7 @@ class CompanionEngine:
         elif item_kind == ItemKind.BERRY_ORAN:
             if active is None:
                 return False, "You need an active Pokémon companion to feed an Oran Berry!"
-            inv[item_kind.value] -= qty
-            active.happiness = min(100, active.happiness + (25 * qty))
-            self.set_active_mon(active)
-            self.state["inventory"] = inv
-            self.save()
-            return True, f"Fed {qty} Oran Berry 🫐 to {self.api.get_species_name(active.current_id)}! (+{25 * qty}% Happiness! Current: {active.happiness}%)"
+            return self.feed_pokemon("active", qty=qty)
 
         elif item_kind == ItemKind.BERRY_GOLDEN:
             if qty > 1:
@@ -2747,6 +2743,434 @@ class CompanionEngine:
             return True, "📜 Used an Expedition License! You can now send 10 more Pokémon on expeditions simultaneously!"
 
         return False, f"{item_kind.name_en} is not usable directly from the Bag."
+
+    def get_feed_plan(self, target: Optional[Union[str, int, List[Union[str, int]]]] = None, qty: Optional[int] = None) -> Dict[str, Any]:
+        """Calculates the feeding plan without mutating game state.
+        Returns a dict containing:
+        - 'ok': bool
+        - 'error': Optional[str]
+        - 'plan_type': 'exhausted' | 'all' | 'single' | 'batch'
+        - 'items': List[Dict] with 'name', 'cur_h', 'give_berries', 'boost', 'new_h', 'mon', 'user_qty'
+        - 'total_berries': int (total berries required)
+        - 'available_berries': int (berries currently in bag)
+        - 'prompt': str (one-line confirmation prompt formatted for <= 72 columns)
+        - 'summary_names': str (readable target names summary)
+        """
+        inv = self.state.get("inventory", {})
+        available_berries = inv.get("berry_oran", 0)
+        if available_berries <= 0:
+            return {"ok": False, "error": "You don't have any Oran Berries 🫐 in your bag! Purchase some from the Pokémart (Tab [4])."}
+
+        dex = self.state.get("dex", [])
+        roster = [d for d in dex if d.get("status") != "evolved"]
+        active = self.active_mon
+
+        def _get_happiness(m) -> int:
+            if isinstance(m, dict):
+                sp_id = m.get("species_id", m.get("final_id", m.get("base_id")))
+                if active and active.current_id == sp_id:
+                    return active.happiness
+                m_st = m.get("mon_state")
+                if isinstance(m_st, dict) and "happiness" in m_st:
+                    return m_st["happiness"]
+                return m.get("happiness", 100)
+            elif hasattr(m, "happiness"):
+                return m.happiness
+            return 100
+
+        def _get_name(m) -> str:
+            if isinstance(m, dict):
+                sp_id = m.get("species_id", m.get("final_id", m.get("base_id")))
+                return self.api.get_species_name(sp_id)
+            elif hasattr(m, "current_id"):
+                return self.api.get_species_name(m.current_id)
+            return "Pokémon"
+
+        def _get_boost_per_berry(m) -> int:
+            held = None
+            if isinstance(m, dict):
+                m_st = m.get("mon_state")
+                if isinstance(m_st, dict):
+                    held = m_st.get("held_item")
+            elif hasattr(m, "held_item"):
+                held = m.held_item
+            return 50 if held == "soothe_bell" else 25
+
+        # Build unified unique candidate list
+        candidates = list(roster)
+        if active:
+            active_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in roster}
+            if active.current_id not in active_sp_ids:
+                candidates.append(active)
+
+        # 1. Check for 0-happiness / exhausted batch feeding
+        s_target = str(target).strip().lower() if target is not None else ""
+        if s_target in ["0", "exhausted", "revive", "rev", "zero", "all-zero"]:
+            exhausted_mons = [c for c in candidates if _get_happiness(c) == 0]
+            if not exhausted_mons:
+                return {"ok": False, "error": "No Pokémon in your roster currently have 0% Happiness! All companions are in high spirits."}
+
+            qty_per_mon = 4 if qty is None else max(1, int(qty))
+            plan_items = []
+            rem_berries = available_berries
+            for c in exhausted_mons:
+                if rem_berries <= 0:
+                    break
+                boost = _get_boost_per_berry(c)
+                needed = math.ceil(100 / boost)
+                give = min(qty_per_mon, needed, rem_berries)
+                if give > 0:
+                    new_h = min(100, give * boost)
+                    rem_berries -= give
+                    plan_items.append({
+                        "mon": c,
+                        "name": _get_name(c),
+                        "cur_h": 0,
+                        "give_berries": give,
+                        "boost": boost,
+                        "new_h": new_h,
+                        "user_qty": qty_per_mon
+                    })
+
+            if not plan_items:
+                return {"ok": False, "error": "No berries available to feed exhausted Pokémon."}
+
+            total_req = sum(item["give_berries"] for item in plan_items)
+            b_word = "Oran Berry" if total_req == 1 else "Oran Berries"
+            count = len(plan_items)
+            summary_names = f"{count} exhausted Pokémon" if count > 1 else plan_items[0]["name"]
+            prompt = f"🫐 Feed {total_req} {b_word} to {summary_names} (Req: {total_req}, In Bag: {available_berries})? Type 'confirm' (or 'y')"
+            if len(prompt) > 72:
+                prompt = f"🫐 Feed {total_req} 🫐 to {summary_names} (Req: {total_req}, Bag: {available_berries})? Type 'y'"
+            if len(prompt) > 72:
+                prompt = f"Feed {total_req} 🫐 to {summary_names} (Req:{total_req}, Bag:{available_berries})? [y/N]"
+            if len(prompt) > 72:
+                prompt = prompt[:69] + "..."
+
+            return {
+                "ok": True,
+                "error": None,
+                "plan_type": "exhausted",
+                "items": plan_items,
+                "total_berries": total_req,
+                "available_berries": available_berries,
+                "summary_names": summary_names,
+                "prompt": prompt
+            }
+
+        # 2. Check for "all" batch feeding
+        if s_target in ["all", "party", "roster"]:
+            hungry_mons = [c for c in candidates if _get_happiness(c) < 100]
+            if not hungry_mons:
+                return {"ok": False, "error": "All Pokémon in your party and roster are already at 100% Happiness! 💖"}
+
+            plan_items = []
+            rem_berries = available_berries
+            for c in hungry_mons:
+                if rem_berries <= 0:
+                    break
+                cur_h = _get_happiness(c)
+                boost = _get_boost_per_berry(c)
+                needed = math.ceil((100 - cur_h) / boost)
+                max_give = needed if qty is None else min(max(1, int(qty)), needed)
+                give = min(max_give, rem_berries)
+                if give > 0:
+                    new_h = min(100, cur_h + give * boost)
+                    rem_berries -= give
+                    plan_items.append({
+                        "mon": c,
+                        "name": _get_name(c),
+                        "cur_h": cur_h,
+                        "give_berries": give,
+                        "boost": boost,
+                        "new_h": new_h,
+                        "user_qty": max_give
+                    })
+
+            if not plan_items:
+                return {"ok": False, "error": "No berries available to feed Pokémon."}
+
+            total_req = sum(item["give_berries"] for item in plan_items)
+            b_word = "Oran Berry" if total_req == 1 else "Oran Berries"
+            count = len(plan_items)
+            summary_names = f"{count} Pokémon" if count > 1 else plan_items[0]["name"]
+            prompt = f"🫐 Feed {total_req} {b_word} to {summary_names} (Req: {total_req}, In Bag: {available_berries})? Type 'confirm' (or 'y')"
+            if len(prompt) > 72:
+                prompt = f"🫐 Feed {total_req} 🫐 to {summary_names} (Req: {total_req}, Bag: {available_berries})? Type 'y'"
+            if len(prompt) > 72:
+                prompt = f"Feed {total_req} 🫐 to {summary_names} (Req:{total_req}, Bag:{available_berries})? [y/N]"
+            if len(prompt) > 72:
+                prompt = prompt[:69] + "..."
+
+            return {
+                "ok": True,
+                "error": None,
+                "plan_type": "all",
+                "items": plan_items,
+                "total_berries": total_req,
+                "available_berries": available_berries,
+                "summary_names": summary_names,
+                "prompt": prompt
+            }
+
+        # 3. Default with target=None or empty
+        if not s_target:
+            if active:
+                if active.happiness < 100:
+                    target = "active"
+                    if qty is None and active.happiness == 0:
+                        qty = 4
+                    elif qty is None:
+                        qty = 1
+                else:
+                    exhausted_count = len([c for c in candidates if _get_happiness(c) == 0])
+                    if exhausted_count > 0:
+                        return {"ok": False, "error": f"Active companion is already at 100% Happiness! You have {exhausted_count} exhausted Pokémon (0% Happiness) in your roster. Type 'feed 0' to restore them all to 100%!"}
+                    return {"ok": False, "error": "Active companion is already at 100% Happiness! Usage: feed <row|#id|name|0|all> [qty]"}
+            else:
+                exhausted_count = len([c for c in candidates if _get_happiness(c) == 0])
+                if exhausted_count > 0:
+                    return {"ok": False, "error": f"No active companion selected! You have {exhausted_count} exhausted Pokémon in your roster. Type 'feed 0' to restore them all to 100%!"}
+                return {"ok": False, "error": "No active companion! Usage: feed <row|#id|name|0|all> [qty]"}
+
+        # 4. Resolve specific target or list of targets
+        target_tokens = []
+        if isinstance(target, (list, set, tuple)):
+            target_tokens = [str(x).strip() for x in target if str(x).strip()]
+        elif "," in str(target):
+            target_tokens = [p.strip() for p in str(target).split(",") if p.strip()]
+        elif "-" in str(target) and not str(target).strip().startswith("#"):
+            parts_hyphen = str(target).strip().split("-")
+            if len(parts_hyphen) == 2 and parts_hyphen[0].isdigit() and parts_hyphen[1].isdigit():
+                target_tokens = [str(i) for i in range(int(parts_hyphen[0]), int(parts_hyphen[1]) + 1)]
+            else:
+                target_tokens = [str(target).strip()]
+        else:
+            target_tokens = [str(target).strip()]
+
+        matched_targets = []
+        for token in target_tokens:
+            t_low = token.lower()
+            matched = None
+            if t_low in ["active", "current"]:
+                matched = active
+            elif t_low.startswith("#"):
+                raw_sp = t_low[1:]
+                for c in candidates:
+                    sp = str(c.get("species_id", c.get("base_id")) if isinstance(c, dict) else c.current_id)
+                    if sp == raw_sp:
+                        matched = c
+                        break
+            elif t_low.isdigit():
+                idx = int(t_low)
+                if 1 <= idx <= len(roster):
+                    matched = roster[idx - 1]
+                else:
+                    for c in candidates:
+                        sp = str(c.get("species_id", c.get("base_id")) if isinstance(c, dict) else c.current_id)
+                        if sp == t_low:
+                            matched = c
+                            break
+            else:
+                for c in candidates:
+                    name = _get_name(c).lower()
+                    if t_low == name:
+                        matched = c
+                        break
+
+            if matched and matched not in matched_targets:
+                matched_targets.append(matched)
+
+        if not matched_targets:
+            return {"ok": False, "error": f"Pokémon '{target}' not found in your Roster! Use row index (1..{len(roster)}), species ID (e.g. #25), name, or '0' for exhausted."}
+
+        # Single target
+        if len(matched_targets) == 1:
+            mon = matched_targets[0]
+            cur_h = _get_happiness(mon)
+            name = _get_name(mon)
+            boost = _get_boost_per_berry(mon)
+            needed = math.ceil((100 - cur_h) / boost)
+            user_qty = (4 if cur_h == 0 else 1) if qty is None else max(1, int(qty))
+
+            if cur_h >= 100:
+                actual_qty = 1
+            else:
+                actual_qty = min(user_qty, needed)
+
+            if available_berries < actual_qty:
+                return {"ok": False, "error": f"Not enough Oran Berries 🫐! You need {actual_qty}, but only have {available_berries} in your bag."}
+
+            new_h = min(100, cur_h + actual_qty * boost)
+            b_word = "Oran Berry" if actual_qty == 1 else "Oran Berries"
+            treat_note = " as treat" if cur_h >= 100 else ""
+            prompt = f"🫐 Feed {actual_qty} {b_word} to {name}{treat_note} (Req: {actual_qty}, In Bag: {available_berries})? Type 'confirm' (or 'y')"
+            if len(prompt) > 72:
+                prompt = f"🫐 Feed {actual_qty} 🫐 to {name}{treat_note} (Req: {actual_qty}, Bag: {available_berries})? Type 'y'"
+            if len(prompt) > 72:
+                prompt = f"Feed {actual_qty} 🫐 to {name} (Req:{actual_qty}, Bag:{available_berries})? [y/N]"
+            if len(prompt) > 72:
+                prompt = prompt[:69] + "..."
+
+            return {
+                "ok": True,
+                "error": None,
+                "plan_type": "single",
+                "items": [{
+                    "mon": mon,
+                    "name": name,
+                    "cur_h": cur_h,
+                    "give_berries": actual_qty,
+                    "boost": boost,
+                    "new_h": new_h,
+                    "user_qty": user_qty
+                }],
+                "total_berries": actual_qty,
+                "available_berries": available_berries,
+                "summary_names": name,
+                "prompt": prompt
+            }
+
+        # Multiple targets
+        plan_items = []
+        rem_berries = available_berries
+        for mon in matched_targets:
+            if rem_berries <= 0:
+                break
+            cur_h = _get_happiness(mon)
+            boost = _get_boost_per_berry(mon)
+            needed = math.ceil((100 - cur_h) / boost)
+            user_qty = (4 if cur_h == 0 else 1) if qty is None else max(1, int(qty))
+            if cur_h >= 100:
+                give = 0
+            else:
+                give = min(user_qty, needed, rem_berries)
+
+            if give > 0:
+                new_h = min(100, cur_h + give * boost)
+                rem_berries -= give
+                plan_items.append({
+                    "mon": mon,
+                    "name": _get_name(mon),
+                    "cur_h": cur_h,
+                    "give_berries": give,
+                    "boost": boost,
+                    "new_h": new_h,
+                    "user_qty": user_qty
+                })
+
+        if not plan_items:
+            return {"ok": False, "error": "All selected Pokémon are already at 100% Happiness! 💖"}
+
+        total_req = sum(item["give_berries"] for item in plan_items)
+        b_word = "Oran Berry" if total_req == 1 else "Oran Berries"
+        count = len(plan_items)
+        summary_names = f"{count} Pokémon"
+        prompt = f"🫐 Feed {total_req} {b_word} to {summary_names} (Req: {total_req}, In Bag: {available_berries})? Type 'confirm' (or 'y')"
+        if len(prompt) > 72:
+            prompt = f"🫐 Feed {total_req} 🫐 to {summary_names} (Req: {total_req}, Bag: {available_berries})? Type 'y'"
+        if len(prompt) > 72:
+            prompt = f"Feed {total_req} 🫐 to {summary_names} (Req:{total_req}, Bag:{available_berries})? [y/N]"
+        if len(prompt) > 72:
+            prompt = prompt[:69] + "..."
+
+        return {
+            "ok": True,
+            "error": None,
+            "plan_type": "batch",
+            "items": plan_items,
+            "total_berries": total_req,
+            "available_berries": available_berries,
+            "summary_names": summary_names,
+            "prompt": prompt
+        }
+
+    def execute_feed_plan(self, plan: Dict[str, Any]) -> Tuple[bool, str]:
+        """Executes a validated feeding plan, consuming berries and updating happiness."""
+        if not plan.get("ok"):
+            return False, plan.get("error", "Invalid feed plan.")
+
+        total_berries = plan.get("total_berries", 0)
+        inv = self.state.get("inventory", {})
+        available_berries = inv.get("berry_oran", 0)
+        if available_berries < total_berries:
+            return False, f"Not enough Oran Berries 🫐! Needed {total_berries}, but only have {available_berries} in your bag."
+
+        dex = self.state.get("dex", [])
+        active = self.active_mon
+
+        def _apply_feed(m, num_berries: int, boost: int) -> int:
+            cur_h = 100
+            if isinstance(m, dict):
+                m_st = m.get("mon_state")
+                if isinstance(m_st, dict) and "happiness" in m_st:
+                    cur_h = m_st["happiness"]
+                else:
+                    cur_h = m.get("happiness", 100)
+            elif hasattr(m, "happiness"):
+                cur_h = m.happiness
+
+            new_h = min(100, cur_h + (num_berries * boost))
+            if isinstance(m, dict):
+                m_st = m.get("mon_state")
+                if isinstance(m_st, dict):
+                    m_st["happiness"] = new_h
+                m["happiness"] = new_h
+                sp_id = m.get("species_id", m.get("final_id", m.get("base_id")))
+                if active and active.current_id == sp_id:
+                    active.happiness = new_h
+            elif hasattr(m, "happiness"):
+                m.happiness = new_h
+                for d in dex:
+                    sp_id = d.get("species_id", d.get("final_id", d.get("base_id")))
+                    if sp_id == m.current_id:
+                        m_st = d.get("mon_state")
+                        if isinstance(m_st, dict):
+                            m_st["happiness"] = new_h
+                        d["happiness"] = new_h
+            return new_h
+
+        items = plan.get("items", [])
+        for item in items:
+            _apply_feed(item["mon"], item["give_berries"], item["boost"])
+
+        inv["berry_oran"] = available_berries - total_berries
+        if inv["berry_oran"] <= 0:
+            del inv["berry_oran"]
+        self.state["inventory"] = inv
+        if active:
+            self.set_active_mon(active)
+        self.save()
+
+        # Generate return message
+        if plan.get("plan_type") == "single":
+            item = items[0]
+            b_str = "Oran Berry" if item["give_berries"] == 1 else "Oran Berries"
+            saved_note = f" (Max reached, saved {item['user_qty'] - item['give_berries']} berries!)" if item["user_qty"] > item["give_berries"] else ""
+            boost_note = " (+50% Soothe Bell boost!)" if item["boost"] == 50 else ""
+            hap_gain = min(100 - item["cur_h"], item["give_berries"] * item["boost"]) if item["cur_h"] < 100 else 0
+            return True, f"Fed {item['give_berries']} {b_str} 🫐 to {item['name']}! (+{hap_gain}% Happiness! Current: {item['new_h']}%){boost_note}{saved_note}"
+
+        count = len(items)
+        fed_summary = [f"{item['name']} (💖{item['new_h']}%)" for item in items]
+        names_str = ", ".join(fed_summary[:6])
+        if len(fed_summary) > 6:
+            names_str += f" and {len(fed_summary) - 6} more"
+        b_word = "Oran Berry" if total_berries == 1 else "Oran Berries"
+        qualifier = " exhausted" if plan.get("plan_type") == "exhausted" else ""
+        return True, f"🫐 Fed {total_berries} {b_word} to {count}{qualifier} Pokémon ({names_str})! Restored to readiness!"
+
+    def feed_pokemon(self, target: Optional[Union[str, int, List[Union[str, int]]]] = None, qty: Optional[int] = None, confirm: bool = False) -> Tuple[bool, str]:
+        """Feeds Oran Berries (🫐) to Pokémon companions to restore Happiness.
+        If confirm=True, returns the confirmation prompt string stating required and available berries.
+        If confirm=False, executes the feeding immediately.
+        """
+        plan = self.get_feed_plan(target=target, qty=qty)
+        if not plan.get("ok"):
+            return False, plan.get("error", "Could not feed Pokémon.")
+        if confirm:
+            return True, plan["prompt"]
+        return self.execute_feed_plan(plan)
 
     def unequip_item(self) -> Tuple[bool, str]:
         active = self.active_mon
@@ -3532,7 +3956,9 @@ class CompanionEngine:
             self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + amount
             self.state["bank_balance"] = self.state.get("bank_balance", 0) + amount
             self.save()
-            return True, f"🏦 Deposited {format_tokens(amount)} tokens. New balance: {format_tokens(self.state['bank_balance'])}"
+            new_bal = self.state["bank_balance"]
+            daily_int = int(new_bal * 1.05) - new_bal
+            return True, f"🏦 Deposited {format_tokens(amount)} tokens. Balance: {format_tokens(new_bal)} (+{format_tokens(daily_int)}/day interest)"
             
         elif action == "withdraw":
             current_bank = self.state.get("bank_balance", 0)
@@ -3541,7 +3967,9 @@ class CompanionEngine:
             self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - amount
             self.state["bank_balance"] = current_bank - amount
             self.save()
-            return True, f"🏦 Withdrew {format_tokens(amount)} tokens. New balance: {format_tokens(self.state['bank_balance'])}"
+            new_bal = self.state["bank_balance"]
+            daily_int = int(new_bal * 1.05) - new_bal
+            return True, f"🏦 Withdrew {format_tokens(amount)} tokens. Balance: {format_tokens(new_bal)} (+{format_tokens(daily_int)}/day interest)"
             
         elif action == "loan":
             current_loan = self.state.get("bank_loan", 0)
@@ -3554,7 +3982,9 @@ class CompanionEngine:
             if current_loan == 0:
                 self.state["loan_days_active"] = 0
             self.save()
-            return True, f"🏦 Took out a loan of {format_tokens(amount)} tokens. Total debt: {format_tokens(self.state['bank_loan'])}"
+            new_loan = self.state["bank_loan"]
+            daily_int = int(new_loan * 1.10) - new_loan
+            return True, f"🏦 Took loan of {format_tokens(amount)} tokens. Debt: {format_tokens(new_loan)} (+{format_tokens(daily_int)}/day interest)"
             
         elif action == "payoff":
             current_loan = self.state.get("bank_loan", 0)
@@ -3569,7 +3999,12 @@ class CompanionEngine:
             if self.state["bank_loan"] == 0:
                 self.state["loan_days_active"] = 0
             self.save()
-            return True, f"🏦 Paid off {format_tokens(amount_to_pay)} tokens towards your loan! Remaining debt: {format_tokens(self.state['bank_loan'])}"
+            new_loan = self.state["bank_loan"]
+            if new_loan > 0:
+                daily_int = int(new_loan * 1.10) - new_loan
+                return True, f"🏦 Paid off {format_tokens(amount_to_pay)} tokens! Debt: {format_tokens(new_loan)} (+{format_tokens(daily_int)}/day interest)"
+            else:
+                return True, f"🏦 Paid off {format_tokens(amount_to_pay)} tokens! Loan debt fully cleared! 🎉"
         else:
             return False, "Invalid bank action."
 

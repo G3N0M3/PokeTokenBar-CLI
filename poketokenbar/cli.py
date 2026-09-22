@@ -150,6 +150,10 @@ def main():
     subparsers.add_parser("dex", help="View Pokédex catch history")
     subparsers.add_parser("shop", help="View Shop & available spendable tokens")
     subparsers.add_parser("card", help="Print shareable ASCII Trainer Profile Card")
+    feed_parser = subparsers.add_parser("feed", help="Feed Oran Berries 🫐 to companions (e.g. 'ptb feed 0' or 'ptb feed 1 4')")
+    feed_parser.add_argument("target", nargs="?", default=None, help="Target Pokémon (row number, #species_id, name, '0' for exhausted, or 'all')")
+    feed_parser.add_argument("qty", nargs="?", type=int, default=None, help="Number of Oran Berries to feed (default 4 for exhausted, 1 otherwise)")
+    feed_parser.add_argument("-y", "--yes", action="store_true", help="Bypass confirmation prompt")
 
     settings_parser = subparsers.add_parser("settings", help="View or update tracking settings")
     settings_parser.add_argument("--auto-track", choices=["on", "off"], help="Toggle automatic tracking system ON or OFF")
@@ -169,6 +173,27 @@ def main():
         cmd_watch(tracker, engine, args.interval)
     elif args.command == "card":
         print(engine.generate_trainer_card())
+    elif args.command == "feed":
+        plan = engine.get_feed_plan(target=args.target, qty=args.qty)
+        if not plan.get("ok"):
+            print(f"❌ {plan.get('error', 'Could not feed Pokémon.')}")
+        else:
+            if getattr(args, "yes", False):
+                ok, msg = engine.execute_feed_plan(plan)
+                print(msg)
+            else:
+                prompt_text = plan.get("prompt", "")
+                print(prompt_text)
+                try:
+                    resp = input("Proceed? [y/N]: ").strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    print("\nFeeding cancelled.")
+                    return
+                if resp in ["y", "yes", "confirm"]:
+                    ok, msg = engine.execute_feed_plan(plan)
+                    print(msg)
+                else:
+                    print("Feeding cancelled.")
     elif args.command == "dex":
         tui = PokeTokenBarTUI()
         tui.render_pokedex_tab()
