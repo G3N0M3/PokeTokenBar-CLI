@@ -664,8 +664,10 @@ class PokeTokenBarTUI:
                         ok, msg = self.engine.claim_cd(target)
                     elif action == "break" and len(parts) >= 3:
                         ok, msg = self.engine.break_cd(parts[2])
+                    elif action == "sort" and len(parts) >= 3:
+                        ok, msg = self.engine.set_cd_sort_criteria(parts[2])
                     else:
-                        ok, msg = False, "CD Usage: 'cd open <amt> <3|7|14>', 'cd claim <id|all>', or 'cd break <id>'"
+                        ok, msg = False, "CD Usage: 'cd open <amt> <3|7|14>', 'cd claim <id|all>', 'cd break <id>', or 'cd sort <days|amount|term>'"
                     self.message = msg
                 elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "cd" and cmd.startswith("open "):
                     parts = cmd.split()
@@ -684,6 +686,23 @@ class PokeTokenBarTUI:
                         ok, msg = self.engine.break_cd(parts[1])
                     else:
                         ok, msg = False, "Usage: cd break <id>"
+                    self.message = msg
+                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "cd" and cmd.startswith("claim "):
+                    parts = cmd.split()
+                    if len(parts) >= 2:
+                        ok, msg = self.engine.claim_cd(parts[1])
+                    else:
+                        ok, msg = False, "Usage: cd claim <id|all>"
+                    self.message = msg
+                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "cd" and cmd == "claim":
+                    ok, msg = self.engine.claim_cd("all")
+                    self.message = msg
+                elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "cd" and (cmd.startswith("sort ") or cmd == "sort"):
+                    parts = cmd.split()
+                    if len(parts) >= 2:
+                        ok, msg = self.engine.set_cd_sort_criteria(parts[1])
+                    else:
+                        ok, msg = False, "Usage: sort <days|amount|term>"
                     self.message = msg
                 elif cmd.startswith("invest "):
                     parts = cmd.split()

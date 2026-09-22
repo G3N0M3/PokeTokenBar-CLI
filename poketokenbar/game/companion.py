@@ -494,6 +494,7 @@ class CompanionEngine:
                 if isinstance(m_st, dict) and "nature" in m_st:
                     m_st.pop("nature", None)
                     cleaned_nature = True
+        self.state.setdefault("cd_sort_criteria", "days")
         if cleaned_nature:
             self.save()
 
@@ -3611,10 +3612,74 @@ class CompanionEngine:
         }
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + amount
         cds.append(cd_entry)
-        cds.sort(key=lambda c: c.get("id", 0))
         self.state["term_deposits"] = cds
         self.save()
         return True, f"🏦 Opened {term_days}-Day CD [{next_id}] for {format_tokens(amount)} tokens at {int(rate*100)}%/day interest! (Early break: 10% penalty, forfeits interest)"
+
+    def get_sorted_cds(self) -> List[Dict[str, Any]]:
+        """Returns active Term Deposits (CDs) sorted according to the active cd_sort_criteria.
+        
+        Criteria options:
+        - 'days': Matured (claimable) first, then shortest remaining time to longest, then highest value, then id.
+        - 'amount': Highest current value (or principal) first, then matured first, then days remaining, then id.
+        - 'term': Longest term duration first (14d -> 7d -> 3d), then matured first, then days remaining, then id.
+        """
+        cds = list(self.state.get("term_deposits", []))
+        criteria = self.state.get("cd_sort_criteria", "days")
+        if not isinstance(criteria, str):
+            criteria = "days"
+        criteria = criteria.lower().strip()
+        
+        if criteria in ["amount", "amt", "value", "val", "principal"]:
+            return sorted(
+                cds,
+                key=lambda c: (
+                    -c.get("current_value", c.get("principal", 0)),
+                    0 if c.get("matured") else 1,
+                    max(0, c.get("term_days", 3) - c.get("days_elapsed", 0)),
+                    c.get("id", 0)
+                )
+            )
+        elif criteria in ["term", "duration"]:
+            return sorted(
+                cds,
+                key=lambda c: (
+                    -c.get("term_days", 3),
+                    0 if c.get("matured") else 1,
+                    max(0, c.get("term_days", 3) - c.get("days_elapsed", 0)),
+                    -c.get("current_value", c.get("principal", 0)),
+                    c.get("id", 0)
+                )
+            )
+        else:  # default: "days"
+            return sorted(
+                cds,
+                key=lambda c: (
+                    0 if c.get("matured") else 1,
+                    max(0, c.get("term_days", 3) - c.get("days_elapsed", 0)),
+                    -c.get("current_value", c.get("principal", 0)),
+                    c.get("id", 0)
+                )
+            )
+
+    def set_cd_sort_criteria(self, criteria: str) -> Tuple[bool, str]:
+        """Sets the ordering criteria for active Term Deposits in the Bank tab."""
+        raw = criteria.lower().strip()
+        if raw in ["days", "day", "days_left", "time", "date"]:
+            normalized = "days"
+            label = "Days Left (Matured First)"
+        elif raw in ["amount", "amt", "value", "val", "principal"]:
+            normalized = "amount"
+            label = "Deposit Value (Highest First)"
+        elif raw in ["term", "duration"]:
+            normalized = "term"
+            label = "Term Duration (Longest First)"
+        else:
+            return False, "Invalid sort criteria! Options: 'days' (days left), 'amount' (highest value), 'term' (term duration)."
+        
+        self.state["cd_sort_criteria"] = normalized
+        self.save()
+        return True, f"🏦 Term Deposits sort criteria updated: {label}."
 
     def claim_cd(self, cd_id_str: str) -> Tuple[bool, str]:
         cds = self.state.get("term_deposits", [])
@@ -3636,22 +3701,26 @@ class CompanionEngine:
         except ValueError:
             return False, "Invalid CD ID. Example: 'cd claim 1' or 'cd claim all'."
 
+        sorted_cds = self.get_sorted_cds()
         found = None
-        for c in cds:
-            if c.get("id") == target_id:
-                found = c
-                break
+        # 1. Primary resolution: 1-based display index in the sorted list
+        if 1 <= target_id <= len(sorted_cds):
+            found = sorted_cds[target_id - 1]
 
-        if not found and 1 <= target_id <= len(cds):
-            found = cds[target_id - 1]
+        # 2. Fallback resolution: internal deposit ID
+        if not found:
+            for c in sorted_cds:
+                if c.get("id") == target_id:
+                    found = c
+                    break
 
         if not found:
             return False, f"Certificate of Deposit [{target_id}] not found."
 
-        cd_id = found.get("id", target_id)
+        disp_idx = sorted_cds.index(found) + 1 if found in sorted_cds else target_id
         if not found.get("matured"):
             days_left = max(0, found["term_days"] - found.get("days_elapsed", 0))
-            return False, f"CD [{cd_id}] has not matured yet ({days_left} day(s) remaining)! Type 'cd break {cd_id}' for early withdrawal (forfeits interest + 10% penalty)."
+            return False, f"CD [{disp_idx}] has not matured yet ({days_left} day(s) remaining)! Type 'cd break {disp_idx}' for early withdrawal (forfeits interest + 10% penalty)."
 
         principal = found["principal"]
         val = found["current_value"]
@@ -3660,7 +3729,7 @@ class CompanionEngine:
         cds.remove(found)
         self.state["term_deposits"] = cds
         self.save()
-        return True, f"🏦 Claimed CD [{cd_id}]! Principal: {format_tokens(principal)} + Interest: {format_tokens(interest)} = {format_tokens(val)} tokens credited to your spendable balance!"
+        return True, f"🏦 Claimed CD [{disp_idx}]! Principal: {format_tokens(principal)} + Interest: {format_tokens(interest)} = {format_tokens(val)} tokens credited to your spendable balance!"
 
     def break_cd(self, cd_id_str: str) -> Tuple[bool, str]:
         cds = self.state.get("term_deposits", [])
@@ -3670,19 +3739,23 @@ class CompanionEngine:
         except ValueError:
             return False, "Invalid CD ID. Example: 'cd break 1'."
 
+        sorted_cds = self.get_sorted_cds()
         found = None
-        for c in cds:
-            if c.get("id") == target_id:
-                found = c
-                break
+        # 1. Primary resolution: 1-based display index in the sorted list
+        if 1 <= target_id <= len(sorted_cds):
+            found = sorted_cds[target_id - 1]
 
-        if not found and 1 <= target_id <= len(cds):
-            found = cds[target_id - 1]
+        # 2. Fallback resolution: internal deposit ID
+        if not found:
+            for c in sorted_cds:
+                if c.get("id") == target_id:
+                    found = c
+                    break
 
         if not found:
             return False, f"Certificate of Deposit [{target_id}] not found."
 
-        cd_id = found.get("id", target_id)
+        disp_idx = sorted_cds.index(found) + 1 if found in sorted_cds else target_id
         principal = found["principal"]
         refund = int(principal * 0.90)
         penalty = principal - refund
@@ -3690,7 +3763,7 @@ class CompanionEngine:
         cds.remove(found)
         self.state["term_deposits"] = cds
         self.save()
-        return True, f"⚠️ Early withdrawal of CD [{cd_id}]: Forfeited all interest and paid 10% penalty ({format_tokens(penalty)}). Refunded {format_tokens(refund)} tokens to your spendable balance."
+        return True, f"⚠️ Early withdrawal of CD [{disp_idx}]: Forfeited all interest and paid 10% penalty ({format_tokens(penalty)}). Refunded {format_tokens(refund)} tokens to your spendable balance."
 
     @staticmethod
     def _resolve_corp_key(code_or_name: str) -> Optional[str]:

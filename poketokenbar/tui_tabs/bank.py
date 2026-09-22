@@ -68,7 +68,7 @@ def _render_checking_view(app, avail: int):
     sys.stdout.write(f"  ➔ Type '{BOLD}loan <amount>{RESET}' / '{BOLD}payoff <amount>{RESET}' (e.g. 'payoff all')\n\n")
 
 def _render_cd_view(app, avail: int):
-    cds = sorted(app.engine.state.get("term_deposits", []), key=lambda c: c.get("id", 0))
+    cds = app.engine.get_sorted_cds()
     sys.stdout.write(f"  {BOLD}{YELLOW}📜 Certificates of Deposit (CD){RESET}  (Spendable: {BOLD}{CYAN}{format_tokens(avail)}{RESET})\n")
     sys.stdout.write(f"  {CYAN}Locked fixed-term savings accounts with high compound yields.{RESET}\n\n")
     sys.stdout.write(f"  {BOLD}Available CD Terms & Daily Yields:{RESET}\n")
@@ -76,7 +76,11 @@ def _render_cd_view(app, avail: int):
     sys.stdout.write(f"  • {GREEN}7-Day Term:{RESET}  {BOLD}12%/day{RESET}  (Early break: 10% penalty, forfeits interest)\n")
     sys.stdout.write(f"  • {GREEN}14-Day Term:{RESET} {BOLD}20%/day{RESET}  (Early break: 10% penalty, forfeits interest)\n\n")
 
-    sys.stdout.write(f"  {BOLD}Active Term Deposits ({len(cds)} active):{RESET}\n")
+    sort_mode = app.engine.state.get("cd_sort_criteria", "days")
+    sort_labels = {"days": "Days Left", "amount": "Amount", "term": "Term Duration"}
+    sort_label = sort_labels.get(sort_mode, "Days Left")
+
+    sys.stdout.write(f"  {BOLD}Active Term Deposits ({len(cds)} active | Sort: {sort_label}):{RESET}\n")
     if not cds:
         sys.stdout.write("  (No active Term Deposits. Open one with 'cd open <amount> <days>')\n\n")
     else:
@@ -89,8 +93,7 @@ def _render_cd_view(app, avail: int):
         start_idx = (app.cd_page - 1) * page_size
         end_idx = start_idx + page_size
 
-        for cd in cds[start_idx:end_idx]:
-            c_id = cd.get("id", 1)
+        for i, cd in enumerate(cds[start_idx:end_idx], start=start_idx + 1):
             principal = format_tokens(cd.get("principal", 0))
             term = cd.get("term_days", 3)
             elapsed = cd.get("days_elapsed", 0)
@@ -100,7 +103,7 @@ def _render_cd_view(app, avail: int):
             else:
                 days_left = max(0, term - elapsed)
                 status_str = f"{YELLOW}[LOCKED] ({days_left}d left){RESET}"
-            sys.stdout.write(f"  [{c_id}] {principal:<7} ({term}d term, {elapsed}/{term}d) -> {BOLD}{CYAN}{cur_val:<7}{RESET} | {status_str}\n")
+            sys.stdout.write(f"  [{i}] {principal:<7} ({term}d term, {elapsed}/{term}d) -> {BOLD}{CYAN}{cur_val:<7}{RESET} | {status_str}\n")
 
         if total_pages > 1:
             sys.stdout.write(f"\n  ➔ Page {app.cd_page}/{total_pages} - Type '{BOLD}n{RESET}', '{BOLD}p{RESET}', or '{BOLD}page <N>{RESET}' to navigate deposits!\n")
@@ -108,8 +111,8 @@ def _render_cd_view(app, avail: int):
 
     sys.stdout.write(f"  {BOLD}Commands:{RESET}\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}cd open <amount> <3|7|14>{RESET}' (e.g. 'cd open 10m 7')\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}cd claim <id|all>{RESET}' to claim matured deposits\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}cd break <id>{RESET}' for early withdrawal (10% penalty)\n\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}cd claim <id|all>{RESET}' / '{BOLD}cd break <id>{RESET}' (10% penalty)\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}sort <days|amount|term>{RESET}' to change sort criteria\n\n")
 
 SPARK_CHARS = [" ", "▂", "▃", "▄", "▅", "▆", "▇", "█"]
 

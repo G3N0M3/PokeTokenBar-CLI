@@ -102,6 +102,7 @@ class StorageManager:
             "golden_razz_active": False,
             "last_date": datetime.datetime.now().strftime("%Y-%m-%d"),
             "term_deposits": [],
+            "cd_sort_criteria": "days",
             "investments": {
                 "silph": 0,
                 "devon": 0,

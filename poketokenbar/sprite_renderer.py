@@ -154,22 +154,22 @@ class SpriteRenderer:
     _ansi_cache = {}  # (str(file_path), max_cols, mtime) -> ansi_str
 
     @classmethod
-    def render_png_to_ansi(cls, file_path: Path, max_cols: int = 32, center_width: int = 0) -> str:
+    def render_png_to_ansi(cls, file_path: Path, max_cols: int = 32, center_width: int = 0, flip_h: bool = False) -> str:
         try:
             mtime = file_path.stat().st_mtime
-            cache_key = (str(file_path.resolve()), max_cols, center_width, mtime)
+            cache_key = (str(file_path.resolve()), max_cols, center_width, flip_h, mtime)
             if cache_key in cls._ansi_cache:
                 return cls._ansi_cache[cache_key]
         except Exception:
             cache_key = None
 
-        ansi_res = cls._compute_ansi(file_path, max_cols, center_width)
+        ansi_res = cls._compute_ansi(file_path, max_cols, center_width, flip_h=flip_h)
         if cache_key and ansi_res:
             cls._ansi_cache[cache_key] = ansi_res
         return ansi_res
 
     @classmethod
-    def _compute_ansi(cls, file_path: Path, max_cols: int = 32, center_width: int = 0) -> str:
+    def _compute_ansi(cls, file_path: Path, max_cols: int = 32, center_width: int = 0, flip_h: bool = False) -> str:
         # Try PIL first if available
         try:
             from PIL import Image
@@ -181,7 +181,7 @@ class SpriteRenderer:
                 for x in range(w):
                     row.append(img.getpixel((x, y)))
                 pixels.append(row)
-            return cls._draw_ansi_blocks(w, h, pixels, max_cols, center_width)
+            return cls._draw_ansi_blocks(w, h, pixels, max_cols, center_width, flip_h=flip_h)
         except Exception:
             pass
 
@@ -190,21 +190,22 @@ class SpriteRenderer:
         if not res:
             return " [Sprite unavailable] "
         w, h, pixels = res
-        return cls._draw_ansi_blocks(w, h, pixels, max_cols, center_width)
+        return cls._draw_ansi_blocks(w, h, pixels, max_cols, center_width, flip_h=flip_h)
 
     @classmethod
-    def _draw_ansi_blocks(cls, width: int, height: int, pixels: List[List[Tuple[int, int, int, int]]], max_cols: int, center_width: int = 0) -> str:
+    def _draw_ansi_blocks(cls, width: int, height: int, pixels: List[List[Tuple[int, int, int, int]]], max_cols: int, center_width: int = 0, flip_h: bool = False) -> str:
         # Target scale
         scale_x = max(1, width // max_cols)
         scale_y = scale_x * 2  # 2 vertical pixels per line character
 
-        visual_width = len(range(0, width, scale_x))
+        x_indices = list(range(width - 1, -1, -scale_x)) if flip_h else list(range(0, width, scale_x))
+        visual_width = len(x_indices)
         padding = " " * max(0, (center_width - visual_width) // 2)
 
         lines = []
         for y in range(0, height - 1, scale_y):
             line_str = padding
-            for x in range(0, width, scale_x):
+            for x in x_indices:
                 # Top pixel
                 top_p = pixels[y][x]
                 # Bottom pixel

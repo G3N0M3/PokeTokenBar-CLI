@@ -56,26 +56,9 @@ def generate_player_moves(primary_type: str) -> List[Dict[str, Any]]:
 # Boss Team Definitions for Syndicate Boss Operations
 ROCKET_BOSS_TEAMS: Dict[str, Dict[str, Any]] = {
     "3": {
-        "title": "Silph Sub-Vault 4: Oak's Bio-Genetic Abominations",
+        "title": "Silph Sub-Vault 4: Prototype Chimera-001",
         "location": "Silph Co. Sealed Sub-Basement // Saffron City",
         "team": [
-            {
-                "id": 2010,
-                "name": "MissingNo.",
-                "title": "Specimen 000: Null-Glitch Anomaly",
-                "type": "glitch",
-                "max_hp": 60_000,
-                "moves": ["Water Gun", "Sky Attack", "Buffer Overflow", "Screen Glitch"]
-            },
-            {
-                "id": 2011,
-                "name": "Venustoise",
-                "title": "Specimen 073: Bio-Fusion Alpha",
-                "type": "grass",
-                "sub_type": "water",
-                "max_hp": 90_000,
-                "moves": ["Hydro Cannon", "Frenzy Plant", "Shell Spore", "Leech Seed"]
-            },
             {
                 "id": 2012,
                 "name": "Prototype Chimera-001",
@@ -264,6 +247,12 @@ class RocketBattleHandler:
         boss_hps = [b["max_hp"] for b in boss_team]
         boss_max_hps = list(boss_hps)
 
+        op_id = f"op_{clean_code}"
+        ops_st = self.engine.state.setdefault("rocket_ops", {}).setdefault(op_id, {})
+        current_rem = ops_st.get("boss_hp_remaining")
+        if current_rem and 0 < current_rem < boss_hps[0]:
+            boss_hps[0] = current_rem
+
         first_boss = boss_team[0]
         st = {
             "op_code": clean_code,
@@ -287,9 +276,7 @@ class RocketBattleHandler:
             "status": "in_combat"
         }
         self._save_state(st)
-        op_id = f"op_{clean_code}"
-        ops_st = self.engine.state.setdefault("rocket_ops", {}).setdefault(op_id, {})
-        ops_st["boss_hp_remaining"] = first_boss["max_hp"]
+        ops_st["boss_hp_remaining"] = boss_hps[0]
         ops_st["objective_done"] = False
         self.engine.save()
         return True, f"🚀 Deployed into {boss_def['title']}! Engage {first_boss['name']}!"

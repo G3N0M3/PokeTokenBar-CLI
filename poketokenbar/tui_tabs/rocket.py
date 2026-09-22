@@ -20,6 +20,15 @@ def render_rocket_tab(app):
         _render_secure_comm_channel(app)
         return
 
+    battle_handler = RocketBattleHandler(app.engine)
+    b_st = battle_handler._get_state()
+    in_combat = bool(b_st.get("player_team")) and b_st.get("status") not in ["win", "loss"]
+
+    # When in tactical boss combat, render battle arena directly without HQ header and submenu
+    if in_combat:
+        _render_rocket_battle_screen(app, battle_handler, b_st)
+        return
+
     subview = getattr(app, "rocket_subview", "ops")
     if subview not in ["ops", "intel", "armory", "read_intel"]:
         subview = "ops"
@@ -95,7 +104,11 @@ def _render_rocket_battle_screen(app, handler, st):
     p_sprite_path = app.engine.api.download_sprite(p_id, is_back=True)
     r_sprite_path = app.engine.api.download_sprite(r_mon["id"])
 
-    p_sprite_lines = SpriteRenderer.render_png_to_ansi(p_sprite_path, 24).split("\n") if p_sprite_path else [f"[{p_name:^22}]"]
+    flip_player = False
+    if p_sprite_path and "front_" in p_sprite_path.name:
+        flip_player = True
+
+    p_sprite_lines = SpriteRenderer.render_png_to_ansi(p_sprite_path, 24, flip_h=flip_player).split("\n") if p_sprite_path else [f"[{p_name:^22}]"]
     r_sprite_lines = SpriteRenderer.render_png_to_ansi(r_sprite_path, 24).split("\n") if r_sprite_path else [f"[{r_name:^22}]"]
 
     ansi_clean = re.compile(r'\x1b\[[0-9;]*[mK]')
@@ -132,9 +145,9 @@ def _render_rocket_battle_screen(app, handler, st):
     b_type_core = f"{r_mon['type'].upper()} CORE" if "stances" in r_mon else r_mon["type"].upper()
     sys.stdout.write(f"  {CYAN}Type: {p_type.upper():<20}{RESET}{' ' * 18}{YELLOW}Type: {b_type_core:>20}{RESET}\n\n")
 
-    # Turn telemetry log
+    # Turn telemetry log (compact 2 entries to prevent vertical overflow)
     sys.stdout.write(f"  {BOLD}Tactical Battle Log:{RESET}\n")
-    logs = st.get("turn_log", [])[-3:]
+    logs = st.get("turn_log", [])[-2:]
     for log in logs:
         for wline in textwrap.wrap(log, width=64):
             sys.stdout.write(f"  > {wline}\n")
@@ -209,10 +222,11 @@ def _render_ops_subtab(app):
         b_name = active_op["boss_name"]
         rem_hp = active_op["boss_hp_remaining"]
         max_hp = active_op["boss_hp"]
-        bar = format_progress_bar(max_hp - rem_hp, max_hp, width=12)
-        pct = (rem_hp * 100) // max_hp if max_hp > 0 else 0
+        pct_left = (rem_hp * 100.0) / max_hp if max_hp > 0 else 0.0
+        filled = max(0, min(12, int(round(12 * (rem_hp / float(max_hp)))))) if max_hp > 0 else 0
+        hp_bar = f"[{'█' * filled}{'░' * (12 - filled)}] {pct_left:.1f}% left"
         sys.stdout.write(f"  {BOLD}{RED}⚠️ ACTIVE BOSS CONFRONTATION:{RESET} {BOLD}{b_name}{RESET}\n")
-        sys.stdout.write(f"  HP: {BOLD}{YELLOW}{rem_hp:,}/{max_hp:,}{RESET} | {bar} ({pct}% left)\n")
+        sys.stdout.write(f"  HP: {BOLD}{YELLOW}{rem_hp:,}/{max_hp:,}{RESET} | {hp_bar}\n")
         mon_str = app.engine.api.get_species_name(app.engine.active_mon.current_id) if app.engine.active_mon else "None"
         sys.stdout.write(f"  Strike Squad Leader: {BOLD}{CYAN}{mon_str}{RESET} (Squad ready)\n")
         sys.stdout.write(f"  ➔ Tactical Commands: '{BOLD}engage{RESET}' or '{BOLD}fight{RESET}' to enter combat arena!\n")

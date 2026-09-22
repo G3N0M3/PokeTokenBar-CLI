@@ -86,8 +86,8 @@ class PokeAPIClient:
         if direct_cache.exists():
             return direct_cache
 
-        # 3. If back sprite requested for custom species but missing, check front sprite
-        if is_back:
+        # 3. For custom special species: if dedicated back sprite doesn't exist, check custom front sprite
+        if species_id in SPECIAL_SPECIES and is_back:
             front_filename = f"{'shiny_' if is_shiny else 'normal_'}front_{species_id}.png"
             bundled_front = Path(__file__).resolve().parent.parent / "assets" / "sprites" / front_filename
             if bundled_front.exists():
@@ -111,7 +111,7 @@ class PokeAPIClient:
         if target_path.exists():
             return target_path
 
-        # URL for PokeAPI sprites
+        # 5. Attempt download from PokeAPI
         subfolder = "shiny/" if is_shiny else ""
         backfolder = "back/" if is_back else ""
         url = f"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{backfolder}{subfolder}{target_id}.png"
@@ -124,7 +124,15 @@ class PokeAPIClient:
                     f.write(content)
                 return target_path
         except Exception:
-            return None
+            pass
+
+        # 6. Fallback to front sprite if back sprite failed (e.g. Gen 7+ or offline)
+        if is_back:
+            front_path = self.download_sprite(species_id, is_shiny=is_shiny, is_back=False)
+            if front_path and front_path.exists():
+                return front_path
+
+        return None
 
     def extract_names(self, species_data: Dict[str, Any]) -> Dict[str, str]:
         names = {}

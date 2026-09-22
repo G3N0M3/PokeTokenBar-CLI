@@ -807,14 +807,15 @@ class TestCompanionEngine(unittest.TestCase):
         import datetime
 
         now = datetime.datetime.now().astimezone()
-        past = now - datetime.timedelta(hours=2)
+        today_str = now.strftime("%Y-%m-%d")
+        past = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
         # Create past entries within today, week, and month
         entries = [
             UsageEntry(
                 id="test|1",
                 date=past,
-                local_day=past.strftime("%Y-%m-%d"),
+                local_day=today_str,
                 model="test",
                 input_tokens=100_000,
                 output_tokens=50_000
@@ -822,39 +823,43 @@ class TestCompanionEngine(unittest.TestCase):
         ]
 
         mgr = UsageManager()
-        # Before init: metrics show 150K
-        s_before = mgr._compute_summary(entries)
-        self.assertEqual(s_before["today_tokens"], 150_000)
-        self.assertEqual(s_before["week_tokens"], 150_000)
-        self.assertEqual(s_before["month_tokens"], 150_000)
-        self.assertEqual(s_before["total_tokens"], 150_000)
+        try:
+            # Before init: metrics show 150K
+            s_before = mgr._compute_summary(entries)
+            self.assertEqual(s_before["today_tokens"], 150_000)
+            self.assertEqual(s_before["week_tokens"], 150_000)
+            self.assertEqual(s_before["month_tokens"], 150_000)
+            self.assertEqual(s_before["total_tokens"], 150_000)
 
-        # Run tokens init
-        ok_init, msg_init = self.engine.initialize_total_tokens(150_000)
-        self.assertTrue(ok_init)
-        self.assertIn("tokens_init_ts", self.engine.state)
+            # Run tokens init
+            ok_init, msg_init = self.engine.initialize_total_tokens(150_000)
+            self.assertTrue(ok_init)
+            self.assertIn("tokens_init_ts", self.engine.state)
 
-        # After init: past entries are ignored, all 4 metrics reset to 0
-        s_after = mgr._compute_summary(entries)
-        self.assertEqual(s_after["today_tokens"], 0)
-        self.assertEqual(s_after["week_tokens"], 0)
-        self.assertEqual(s_after["month_tokens"], 0)
-        self.assertEqual(s_after["total_tokens"], 0)
+            # After init: past entries are ignored, all 4 metrics reset to 0
+            s_after = mgr._compute_summary(entries)
+            self.assertEqual(s_after["today_tokens"], 0)
+            self.assertEqual(s_after["week_tokens"], 0)
+            self.assertEqual(s_after["month_tokens"], 0)
+            self.assertEqual(s_after["total_tokens"], 0)
 
-        # New entry generated after init
-        future_entry = UsageEntry(
-            id="test|2",
-            date=now + datetime.timedelta(minutes=1),
-            local_day=(now + datetime.timedelta(minutes=1)).strftime("%Y-%m-%d"),
-            model="test",
-            input_tokens=20_000,
-            output_tokens=5_000
-        )
-        s_future = mgr._compute_summary(entries + [future_entry])
-        self.assertEqual(s_future["today_tokens"], 25_000)
-        self.assertEqual(s_future["week_tokens"], 25_000)
-        self.assertEqual(s_future["month_tokens"], 25_000)
-        self.assertEqual(s_future["total_tokens"], 25_000)
+            # New entry generated after init
+            init_dt = datetime.datetime.fromisoformat(self.engine.state["tokens_init_ts"])
+            future_entry = UsageEntry(
+                id="test|2",
+                date=init_dt + datetime.timedelta(seconds=1),
+                local_day=today_str,
+                model="test",
+                input_tokens=20_000,
+                output_tokens=5_000
+            )
+            s_future = mgr._compute_summary(entries + [future_entry])
+            self.assertEqual(s_future["today_tokens"], 25_000)
+            self.assertEqual(s_future["week_tokens"], 25_000)
+            self.assertEqual(s_future["month_tokens"], 25_000)
+            self.assertEqual(s_future["total_tokens"], 25_000)
+        finally:
+            mgr.stop()
 
     def test_settings_tab_72_col_compliance_with_billing_and_baseline(self):
         import io
@@ -3225,6 +3230,8 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertNotIn("#1", out1)
         self.assertNotIn("#5", out1)
         self.assertNotIn("[6] 10.0M", out1)
+        # In default 'days' sort mode, matured CD is sorted to position 1 on page 1
+        self.assertIn("[MATURED! Claimable]", out1)
         # Check paging hint
         self.assertIn("Page 1/2 - Type 'n', 'p', or 'page <N>' to navigate deposits!", out1)
 
@@ -3244,24 +3251,24 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertIn("[7] 10.0M", out2)
         self.assertIn("[8] 10.0M", out2)
         self.assertNotIn("[1] 10.0M", out2)
-        self.assertIn("[MATURED! Claimable]", out2)
+        self.assertIn("[LOCKED]", out2)
         self.assertIn("Page 2/2", out2)
 
         for line in trap2.getvalue().split("\n"):
             clean = ansi_regex.sub("", line)
             self.assertLessEqual(len(clean), 72, f"CD line exceeds 72 cols: '{clean}'")
 
-        # 4. Verify claim and break work with bracketed ID e.g. '[7]' and '[8]'
-        ok_claim, msg_claim = self.engine.claim_cd("[7]")
+        # 4. Verify claim and break work with dynamic 1-based display index e.g. '[1]' and '[7]'
+        ok_claim, msg_claim = self.engine.claim_cd("[1]")
         self.assertTrue(ok_claim)
-        self.assertIn("Claimed CD [7]", msg_claim)
+        self.assertIn("Claimed CD [1]", msg_claim)
 
-        ok_break, msg_break = self.engine.break_cd("[8]")
+        ok_break, msg_break = self.engine.break_cd("[7]")
         self.assertTrue(ok_break)
-        self.assertIn("Early withdrawal of CD [8]", msg_break)
+        self.assertIn("Early withdrawal of CD [7]", msg_break)
 
     def test_term_deposits_dynamic_slot_recycling_and_positional_fallback(self):
-        """Verify CDs recycle lowest available IDs and support positional fallback."""
+        """Verify CDs recycle lowest available IDs and support dynamic display indexing."""
         self.engine.state["used_since_install"] = 1_000_000_000
         self.engine.state["term_deposits"] = []
 
@@ -3283,27 +3290,23 @@ class TestCompanionEngine(unittest.TestCase):
         ok, msg = self.engine.open_cd("10m", 3)
         self.assertTrue(ok)
         self.assertIn("CD [2]", msg)
-        # Verify term_deposits list remains sorted by ID
-        ids = [c["id"] for c in self.engine.state["term_deposits"]]
-        self.assertEqual(ids, [1, 2, 3])
 
-        # Test positional fallback:
-        # Create a state with sparse IDs [10, 20]
+        # Test dynamic index resolution with sparse IDs [10, 20]:
         self.engine.state["term_deposits"] = [
             {"id": 10, "principal": 10_000_000, "term_days": 3, "days_elapsed": 3, "current_value": 12_000_000, "matured": True},
             {"id": 20, "principal": 10_000_000, "term_days": 7, "days_elapsed": 1, "current_value": 10_000_000, "matured": False}
         ]
-        # Position 1 is CD [10] (matured). Using "[1]" should match position 1 as fallback!
+        # Position 1 is CD [10] (matured). Using "[1]" matches display index 1!
         ok_pos_claim, msg_pos_claim = self.engine.claim_cd("[1]")
         self.assertTrue(ok_pos_claim)
-        self.assertIn("Claimed CD [10]", msg_pos_claim)
+        self.assertIn("Claimed CD [1]", msg_pos_claim)
         self.assertEqual(len(self.engine.state["term_deposits"]), 1)
         self.assertEqual(self.engine.state["term_deposits"][0]["id"], 20)
 
         # Position 1 is now CD [20]. Early break position 1!
         ok_pos_break, msg_pos_break = self.engine.break_cd("[1]")
         self.assertTrue(ok_pos_break)
-        self.assertIn("Early withdrawal of CD [20]", msg_pos_break)
+        self.assertIn("Early withdrawal of CD [1]", msg_pos_break)
         self.assertEqual(len(self.engine.state["term_deposits"]), 0)
 
     def test_rocket_operations_and_rank_alignments(self):
@@ -3763,14 +3766,13 @@ class TestCompanionEngine(unittest.TestCase):
         # 3. Start boss battle
         ok, msg = handler.start_boss_battle("3")
         self.assertTrue(ok)
-        self.assertIn("MissingNo.", msg)
+        self.assertIn("Prototype Chimera-001", msg)
 
         st = handler._get_state()
         self.assertEqual(st["status"], "in_combat")
-        self.assertEqual(len(st["boss_team"]), 3)
-        self.assertEqual(st["boss_team"][0]["name"], "MissingNo.")
-        self.assertEqual(st["boss_team"][1]["name"], "Venustoise")
-        self.assertEqual(st["boss_team"][2]["name"], "Prototype Chimera-001")
+        self.assertEqual(len(st["boss_team"]), 1)
+        self.assertEqual(st["boss_team"][0]["name"], "Prototype Chimera-001")
+        self.assertEqual(st["boss_hps"][0], 150_000)
 
         # 4. Player moves generation
         moves = generate_player_moves("fire")
@@ -3784,35 +3786,17 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertGreater(st["turn_count"], 0)
         self.assertLess(st["boss_hps"][0], st["boss_max_hps"][0])
 
-        # 6. Defeat MissingNo. -> Advances to Venustoise
-        st["boss_hps"][0] = 10
-        handler._save_state(st)
-        ok, msg = handler.execute_turn(0)
-        self.assertTrue(ok)
-        st = handler._get_state()
-        self.assertEqual(st["boss_active_index"], 1)
-        self.assertEqual(st["boss_team"][1]["name"], "Venustoise")
-
-        # 7. Defeat Venustoise -> Advances to Prototype Chimera-001
-        st["boss_hps"][1] = 10
-        handler._save_state(st)
-        ok, msg = handler.execute_turn(0)
-        self.assertTrue(ok)
-        st = handler._get_state()
-        self.assertEqual(st["boss_active_index"], 2)
-        self.assertEqual(st["boss_team"][2]["name"], "Prototype Chimera-001")
-
-        # 8. Test Chimera stance shift on even turns
+        # 6. Test Chimera stance shift on even turns
         st["turn_count"] = 3
         handler._save_state(st)
         ok, msg = handler.execute_turn(0)
         self.assertTrue(ok)
         st = handler._get_state()
-        chimera = st["boss_team"][2]
+        chimera = st["boss_team"][0]
         self.assertIn(chimera["type"], ["fire", "ice", "electric", "dragon"])
 
-        # 9. Defeat Chimera -> Victory!
-        st["boss_hps"][2] = 10
+        # 7. Defeat Chimera -> Victory!
+        st["boss_hps"][0] = 10
         handler._save_state(st)
         ok, msg = handler.execute_turn(0)
         self.assertTrue(ok)
@@ -3859,7 +3843,10 @@ class TestCompanionEngine(unittest.TestCase):
             render_rocket_tab(app)
         combat_output = trap.getvalue()
         self.assertIn("TACTICAL COMBAT", combat_output)
-        self.assertIn("MissingNo.", combat_output)
+        self.assertIn("Prototype Chimera-001", combat_output)
+        self.assertNotIn("[O] Operations", combat_output)
+        self.assertNotIn("[I] Intel Dossier", combat_output)
+        self.assertNotIn("[A] Covert Armory", combat_output)
         for line in combat_output.split("\n"):
             clean = ansi_regex.sub("", line)
             self.assertLessEqual(len(clean), 72, f"Combat screen line exceeds 72 cols: '{clean}' (len={len(clean)})")
@@ -4403,18 +4390,7 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertTrue(ok_engage)
 
         b_st = handler._get_state()
-        # Knock down MissingNo. and Venustoise
         b_st["boss_hps"][0] = 1
-        handler._save_state(b_st)
-        handler.execute_turn(0) # defeat MissingNo.
-
-        b_st = handler._get_state()
-        b_st["boss_hps"][1] = 1
-        handler._save_state(b_st)
-        handler.execute_turn(0) # defeat Venustoise
-
-        b_st = handler._get_state()
-        b_st["boss_hps"][2] = 1
         handler._save_state(b_st)
         handler.execute_turn(0) # defeat Prototype Chimera-001 -> VICTORY
 
@@ -4584,6 +4560,177 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertEqual(migrated_engine.state["expeditions"][0]["reward"], "rare_candy")
         self.assertEqual(migrated_engine.state["active_boss"]["reward"], "rare_candy")
         self.assertEqual(migrated_engine.state["daily_quests"]["quests"][0]["reward"], "rare_candy")
+
+    def test_rocket_boss_chimera_hp_sync_and_compact_tui(self):
+        """Verify Chimera-001 HP synchronization, HP% left banner rendering, compact combat TUI, and sprite flipping."""
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui_tabs.rocket import render_rocket_tab
+        from poketokenbar.game.rocket_battle import RocketBattleHandler, ROCKET_BOSS_TEAMS
+        from poketokenbar.sprite_renderer import SpriteRenderer
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+
+        # 1. Op 3 boss team definition matches 150k HP Chimera-001
+        self.assertEqual(len(ROCKET_BOSS_TEAMS["3"]["team"]), 1)
+        chimera_def = ROCKET_BOSS_TEAMS["3"]["team"][0]
+        self.assertEqual(chimera_def["name"], "Prototype Chimera-001")
+        self.assertEqual(chimera_def["max_hp"], 150_000)
+        self.assertEqual(chimera_def["id"], 2012)
+
+        # 2. Operations Menu: HP% left calculation verification
+        app = MagicMock()
+        app.engine = self.engine
+        app.rocket_subview = "ops"
+        self.engine.state["rocket_story_unlocked"] = True
+        self.engine.state["rocket_alliance_accepted"] = True
+        self.engine.state["rocket_ops"]["op_3"]["status"] = "active"
+        self.engine.state["rocket_ops"]["op_3"]["claimed"] = False
+        self.engine.state["rocket_ops"]["op_3"]["objective_done"] = False
+        self.engine.state["rocket_ops"]["op_3"]["boss_hp_remaining"] = 60_000
+        self.engine.state["rocket_battle_state"] = {}
+
+        trap_banner = io.StringIO()
+        with patch("sys.stdout", trap_banner):
+            render_rocket_tab(app)
+        banner_out = ansi_regex.sub("", trap_banner.getvalue())
+
+        # Must display 40.0% left and NOT the inverted 60.0% (40% left)
+        self.assertIn("HP: 60,000/150,000 | [█████░░░░░░░] 40.0% left", banner_out)
+        self.assertNotIn("60.0% (40% left)", banner_out)
+
+        # 3. Combat TUI: submenu removal & vertical compactness
+        handler = RocketBattleHandler(self.engine)
+        handler.start_boss_battle("3")
+
+        trap_combat = io.StringIO()
+        with patch("sys.stdout", trap_combat):
+            render_rocket_tab(app)
+        combat_out = ansi_regex.sub("", trap_combat.getvalue())
+
+        # Submenu and HQ header must be omitted in combat
+        self.assertNotIn("TEAM ROCKET COVERT HEADQUARTERS", combat_out)
+        self.assertNotIn("[O] Operations", combat_out)
+        self.assertNotIn("[I] Intel Dossier", combat_out)
+        self.assertNotIn("[A] Covert Armory", combat_out)
+        self.assertIn("TACTICAL COMBAT // Silph Sub-Vault 4: Prototype Chimera-001", combat_out)
+        self.assertIn("Prototype Chimera-001", combat_out)
+
+        # Verify <= 72 columns compliance on all lines
+        for line in combat_out.split("\n"):
+            self.assertLessEqual(len(line), 72, f"Combat line exceeds 72 cols: '{line}'")
+
+        # 4. Sprite horizontal flipping
+        ansi_normal = SpriteRenderer.render_png_to_ansi(None, 24, flip_h=False)
+        ansi_flipped = SpriteRenderer.render_png_to_ansi(None, 24, flip_h=True)
+        self.assertIsNotNone(ansi_normal)
+        self.assertIsNotNone(ansi_flipped)
+
+    def test_cd_criteria_sorting_modes(self):
+        """Verify get_sorted_cds and set_cd_sort_criteria across 'days', 'amount', and 'term' modes."""
+        self.engine.state["term_deposits"] = [
+            {"id": 1, "principal": 5_000_000, "term_days": 3, "days_elapsed": 1, "current_value": 5_400_000, "matured": False},   # 2d left
+            {"id": 2, "principal": 50_000_000, "term_days": 14, "days_elapsed": 14, "current_value": 75_000_000, "matured": True}, # Matured (0d left)
+            {"id": 3, "principal": 25_000_000, "term_days": 7, "days_elapsed": 2, "current_value": 28_000_000, "matured": False},  # 5d left
+            {"id": 4, "principal": 10_000_000, "term_days": 14, "days_elapsed": 10, "current_value": 15_000_000, "matured": False}, # 4d left
+        ]
+
+        # 1. Default mode: 'days' -> Matured first (id 2), then 2d left (id 1), then 4d left (id 4), then 5d left (id 3)
+        self.assertEqual(self.engine.state.get("cd_sort_criteria"), "days")
+        sorted_days = self.engine.get_sorted_cds()
+        self.assertEqual([c["id"] for c in sorted_days], [2, 1, 4, 3])
+
+        # 2. 'amount' mode -> Highest value first: 75M (id 2), 28M (id 3), 15M (id 4), 5.4M (id 1)
+        ok_amt, msg_amt = self.engine.set_cd_sort_criteria("amount")
+        self.assertTrue(ok_amt)
+        self.assertIn("Deposit Value", msg_amt)
+        sorted_amt = self.engine.get_sorted_cds()
+        self.assertEqual([c["id"] for c in sorted_amt], [2, 3, 4, 1])
+
+        # 3. 'term' mode -> Longest duration first: 14d matured (id 2), 14d locked (id 4), 7d (id 3), 3d (id 1)
+        ok_term, msg_term = self.engine.set_cd_sort_criteria("term")
+        self.assertTrue(ok_term)
+        self.assertIn("Term Duration", msg_term)
+        sorted_term = self.engine.get_sorted_cds()
+        self.assertEqual([c["id"] for c in sorted_term], [2, 4, 3, 1])
+
+        # 4. Invalid mode rejection
+        ok_bad, msg_bad = self.engine.set_cd_sort_criteria("invalid_mode")
+        self.assertFalse(ok_bad)
+        self.assertIn("Invalid sort criteria", msg_bad)
+
+        # 5. Shorthand synonyms: 'days_left' -> 'days', 'val' -> 'amount', 'duration' -> 'term'
+        self.assertTrue(self.engine.set_cd_sort_criteria("days_left")[0])
+        self.assertEqual(self.engine.state["cd_sort_criteria"], "days")
+        self.assertTrue(self.engine.set_cd_sort_criteria("val")[0])
+        self.assertEqual(self.engine.state["cd_sort_criteria"], "amount")
+        self.assertTrue(self.engine.set_cd_sort_criteria("duration")[0])
+        self.assertEqual(self.engine.state["cd_sort_criteria"], "term")
+
+    def test_cd_tui_sort_and_indexing_interaction(self):
+        """Verify TUI rendering with sequential [1..N] indexing, interactive sort commands, and 72-col safety."""
+        import io
+        import re
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui import PokeTokenBarTUI
+        from poketokenbar.tui_tabs.bank import _render_cd_view
+
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+
+        self.engine.state["used_since_install"] = 500_000_000
+        self.engine.state["spent_tokens"] = 0
+        self.engine.state["cd_sort_criteria"] = "amount"
+        self.engine.state["term_deposits"] = [
+            {"id": 10, "principal": 5_000_000, "term_days": 3, "days_elapsed": 1, "current_value": 5_400_000, "matured": False},
+            {"id": 20, "principal": 50_000_000, "term_days": 14, "days_elapsed": 14, "current_value": 75_000_000, "matured": True},
+            {"id": 30, "principal": 25_000_000, "term_days": 7, "days_elapsed": 2, "current_value": 28_000_000, "matured": False},
+        ]
+
+        app = MagicMock()
+        app.engine = self.engine
+        app.cd_page = 1
+
+        # Render under 'amount' sort: [1] should be 75M (id 20), [2] should be 28M (id 30), [3] should be 5.4M (id 10)
+        trap = io.StringIO()
+        with patch("sys.stdout", trap):
+            _render_cd_view(app, self.engine.available_tokens)
+        out = ansi_regex.sub("", trap.getvalue())
+
+        self.assertIn("Sort: Amount", out)
+        self.assertIn("[1] 50.0M", out)
+        self.assertIn("[2] 25.0M", out)
+        self.assertIn("[3] 5.0M", out)
+        self.assertIn("sort <days|amount|term>", out)
+
+        for line in trap.getvalue().split("\n"):
+            clean = ansi_regex.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"CD view line exceeds 72 cols: '{clean}'")
+
+        # Test breaking item [1] on screen (which is 50M deposit, id 20)
+        ok_brk, msg_brk = self.engine.break_cd("1")
+        self.assertTrue(ok_brk)
+        self.assertIn("Early withdrawal of CD [1]", msg_brk)
+        remaining_ids = [c["id"] for c in self.engine.state["term_deposits"]]
+        self.assertEqual(remaining_ids, [10, 30])
+
+        # Test TUI interactive commands for sorting and claiming
+        tui = PokeTokenBarTUI()
+        tui.engine = self.engine
+        tui.current_tab = 10
+        tui.bank_subtab = "cd"
+        self.engine.state["term_deposits"] = [
+            {"id": 1, "principal": 10_000_000, "term_days": 3, "days_elapsed": 3, "current_value": 12_000_000, "matured": True},
+            {"id": 2, "principal": 20_000_000, "term_days": 7, "days_elapsed": 1, "current_value": 20_000_000, "matured": False},
+        ]
+
+        # Use in-tab 'sort days' command
+        commands = "\n".join(["sort days", "claim 1", "q"]) + "\n"
+        with patch("sys.stdin", io.StringIO(commands)), patch("sys.stdout"), patch("poketokenbar.tui.UsageManager"):
+            tui.run()
+        self.assertEqual(self.engine.state["cd_sort_criteria"], "days")
+        self.assertEqual(len(self.engine.state["term_deposits"]), 1)
+        self.assertEqual(self.engine.state["term_deposits"][0]["id"], 2)
 
 if __name__ == "__main__":
     unittest.main()
