@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="poketokenbar",
-    version="1.11.1",
+    version="1.11.2",
     packages=find_packages(exclude=["tests*", "tests"]),
     entry_points={
         "console_scripts": [

@@ -1,6 +1,7 @@
 import math
 import random
 import datetime
+import re
 from typing import Dict, List, Optional, Tuple, Any, Union, Set
 
 from poketokenbar.game.models import (
@@ -2137,7 +2138,7 @@ class CompanionEngine:
         except Exception:
             return None
 
-    def buy_item(self, item_kind: ItemKind, qty: int = 1) -> Tuple[bool, str]:
+    def buy_item(self, item_kind: ItemKind, qty: int = 1, confirm: bool = False) -> Tuple[bool, str]:
         if qty <= 0:
             return False, "Quantity must be greater than 0!"
             
@@ -2148,6 +2149,16 @@ class CompanionEngine:
         
         if self.available_tokens < cost:
             return False, f"Not enough tokens! Required: {format_tokens(cost)}, Available: {format_tokens(self.available_tokens)}"
+
+        if confirm:
+            prompt = f"🛒 Buy {qty}x {item_kind.name_en} {item_kind.emoji} for {format_tokens(cost)} tokens? Type 'confirm' (or 'y')"
+            if len(prompt) > 72:
+                prompt = f"🛒 Buy {qty}x {item_kind.emoji} for {format_tokens(cost)} tokens? Type 'y'"
+            if len(prompt) > 72:
+                prompt = f"Buy {qty}x {item_kind.name_en} for {format_tokens(cost)}? [y/N]"
+            if len(prompt) > 72:
+                prompt = prompt[:69] + "..."
+            return True, prompt
 
         inv = self.state.get("inventory", {})
 
@@ -2744,12 +2755,149 @@ class CompanionEngine:
 
         return False, f"{item_kind.name_en} is not usable directly from the Bag."
 
+    def _get_companion_happiness(self, m: Any) -> int:
+        active = self.active_mon
+        if isinstance(m, dict):
+            sp_id = m.get("species_id", m.get("final_id", m.get("base_id")))
+            if active and active.current_id == sp_id:
+                return active.happiness
+            m_st = m.get("mon_state")
+            if isinstance(m_st, dict) and "happiness" in m_st:
+                return m_st["happiness"]
+            return m.get("happiness", 100)
+        elif hasattr(m, "happiness"):
+            return m.happiness
+        return 100
+
+    def _get_companion_name(self, m: Any) -> str:
+        if isinstance(m, dict):
+            sp_id = m.get("species_id", m.get("final_id", m.get("base_id")))
+            return self.api.get_species_name(sp_id)
+        elif hasattr(m, "current_id"):
+            return self.api.get_species_name(m.current_id)
+        return "Pokémon"
+
+    def _get_companion_boost_per_berry(self, m: Any) -> int:
+        held = None
+        if isinstance(m, dict):
+            m_st = m.get("mon_state")
+            if isinstance(m_st, dict):
+                held = m_st.get("held_item")
+        elif hasattr(m, "held_item"):
+            held = m.held_item
+        return 50 if held == "soothe_bell" else 25
+
+    def _get_roster_and_active_candidates(self) -> List[Any]:
+        dex = self.state.get("dex", [])
+        roster = [d for d in dex if d.get("status") != "evolved"]
+        active = self.active_mon
+        candidates = list(roster)
+        if active:
+            active_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in roster}
+            if active.current_id not in active_sp_ids:
+                candidates.append(active)
+        return candidates
+
+    def get_feed_threshold_plan(self, max_happiness: int, qty: Optional[int] = None) -> Dict[str, Any]:
+        """Calculates a feeding plan for all companions with happiness <= max_happiness."""
+        inv = self.state.get("inventory", {})
+        available_berries = inv.get("berry_oran", 0)
+        if available_berries <= 0:
+            return {"ok": False, "error": "You don't have any Oran Berries 🫐 in your bag! Purchase some from the Pokémart (Tab [4])."}
+
+        candidates = self._get_roster_and_active_candidates()
+        target_mons = [c for c in candidates if self._get_companion_happiness(c) <= max_happiness and self._get_companion_happiness(c) < 100]
+
+        if not target_mons:
+            if max_happiness == 0:
+                return {"ok": False, "error": "No Pokémon in your roster currently have 0% Happiness! All companions are in high spirits."}
+            return {"ok": False, "error": f"No Pokémon found with happiness <= {max_happiness}% needing berries! All companions are in high spirits."}
+
+        qty_per_mon = 4 if (qty is None and max_happiness == 0) else (max(1, int(qty)) if qty is not None else None)
+        plan_items = []
+        rem_berries = available_berries
+
+        for c in target_mons:
+            if rem_berries <= 0:
+                break
+            cur_h = self._get_companion_happiness(c)
+            boost = self._get_companion_boost_per_berry(c)
+            needed = math.ceil((100 - cur_h) / boost)
+            user_qty = needed if qty_per_mon is None else qty_per_mon
+            give = min(user_qty, needed, rem_berries)
+            if give > 0:
+                new_h = min(100, cur_h + give * boost)
+                rem_berries -= give
+                plan_items.append({
+                    "mon": c,
+                    "name": self._get_companion_name(c),
+                    "cur_h": cur_h,
+                    "give_berries": give,
+                    "boost": boost,
+                    "new_h": new_h,
+                    "user_qty": user_qty
+                })
+
+        if not plan_items:
+            return {"ok": False, "error": "No berries available to feed Pokémon."}
+
+        total_req = sum(item["give_berries"] for item in plan_items)
+        b_word = "Oran Berry" if total_req == 1 else "Oran Berries"
+        count = len(plan_items)
+        plan_type = "exhausted" if max_happiness == 0 else "threshold"
+
+        if max_happiness == 0:
+            summary_names = f"{count} exhausted Pokémon" if count > 1 else plan_items[0]["name"]
+        else:
+            summary_names = f"{count} Pokémon (<={max_happiness}%)" if count > 1 else f"{plan_items[0]['name']} (<={max_happiness}%)"
+
+        prompt = f"🫐 Feed {total_req} {b_word} to {summary_names} (Req: {total_req}, In Bag: {available_berries})? Type 'confirm' (or 'y')"
+        if len(prompt) > 72:
+            prompt = f"🫐 Feed {total_req} 🫐 to {summary_names} (Req: {total_req}, Bag: {available_berries})? Type 'y'"
+        if len(prompt) > 72:
+            prompt = f"Feed {total_req} 🫐 to {summary_names} (Req:{total_req}, Bag:{available_berries})? [y/N]"
+        if len(prompt) > 72:
+            short_s = f"{count} mons (<={max_happiness}%)"
+            prompt = f"Feed {total_req} 🫐 to {short_s} (Req:{total_req}, Bag:{available_berries})? [y/N]"
+        if len(prompt) > 72:
+            prompt = prompt[:69] + "..."
+
+        return {
+            "ok": True,
+            "error": None,
+            "plan_type": plan_type,
+            "threshold": max_happiness,
+            "items": plan_items,
+            "total_berries": total_req,
+            "available_berries": available_berries,
+            "summary_names": summary_names,
+            "prompt": prompt
+        }
+
+    def feed_by_happiness_threshold(
+        self,
+        max_happiness: int,
+        qty: Optional[int] = None,
+        confirm: bool = False
+    ) -> Tuple[bool, str]:
+        """Feeds a specific amount of Oran Berries to all Pokémon companions with happiness <= max_happiness.
+
+        If confirm=True, returns the confirmation prompt string stating required and available berries.
+        If confirm=False, executes the feeding immediately and returns the status and summary message.
+        """
+        plan = self.get_feed_threshold_plan(max_happiness=max_happiness, qty=qty)
+        if not plan.get("ok"):
+            return False, plan.get("error", "Could not feed Pokémon.")
+        if confirm:
+            return True, plan["prompt"]
+        return self.execute_feed_plan(plan)
+
     def get_feed_plan(self, target: Optional[Union[str, int, List[Union[str, int]]]] = None, qty: Optional[int] = None) -> Dict[str, Any]:
         """Calculates the feeding plan without mutating game state.
         Returns a dict containing:
         - 'ok': bool
         - 'error': Optional[str]
-        - 'plan_type': 'exhausted' | 'all' | 'single' | 'batch'
+        - 'plan_type': 'exhausted' | 'threshold' | 'single' | 'batch'
         - 'items': List[Dict] with 'name', 'cur_h', 'give_berries', 'boost', 'new_h', 'mon', 'user_qty'
         - 'total_berries': int (total berries required)
         - 'available_berries': int (berries currently in bag)
@@ -2761,157 +2909,36 @@ class CompanionEngine:
         if available_berries <= 0:
             return {"ok": False, "error": "You don't have any Oran Berries 🫐 in your bag! Purchase some from the Pokémart (Tab [4])."}
 
-        dex = self.state.get("dex", [])
-        roster = [d for d in dex if d.get("status") != "evolved"]
+        candidates = self._get_roster_and_active_candidates()
         active = self.active_mon
 
-        def _get_happiness(m) -> int:
-            if isinstance(m, dict):
-                sp_id = m.get("species_id", m.get("final_id", m.get("base_id")))
-                if active and active.current_id == sp_id:
-                    return active.happiness
-                m_st = m.get("mon_state")
-                if isinstance(m_st, dict) and "happiness" in m_st:
-                    return m_st["happiness"]
-                return m.get("happiness", 100)
-            elif hasattr(m, "happiness"):
-                return m.happiness
-            return 100
-
-        def _get_name(m) -> str:
-            if isinstance(m, dict):
-                sp_id = m.get("species_id", m.get("final_id", m.get("base_id")))
-                return self.api.get_species_name(sp_id)
-            elif hasattr(m, "current_id"):
-                return self.api.get_species_name(m.current_id)
-            return "Pokémon"
-
-        def _get_boost_per_berry(m) -> int:
-            held = None
-            if isinstance(m, dict):
-                m_st = m.get("mon_state")
-                if isinstance(m_st, dict):
-                    held = m_st.get("held_item")
-            elif hasattr(m, "held_item"):
-                held = m.held_item
-            return 50 if held == "soothe_bell" else 25
-
-        # Build unified unique candidate list
-        candidates = list(roster)
-        if active:
-            active_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in roster}
-            if active.current_id not in active_sp_ids:
-                candidates.append(active)
-
-        # 1. Check for 0-happiness / exhausted batch feeding
+        # Helper to parse threshold from target
         s_target = str(target).strip().lower() if target is not None else ""
-        if s_target in ["0", "exhausted", "revive", "rev", "zero", "all-zero"]:
-            exhausted_mons = [c for c in candidates if _get_happiness(c) == 0]
-            if not exhausted_mons:
-                return {"ok": False, "error": "No Pokémon in your roster currently have 0% Happiness! All companions are in high spirits."}
 
-            qty_per_mon = 4 if qty is None else max(1, int(qty))
-            plan_items = []
-            rem_berries = available_berries
-            for c in exhausted_mons:
-                if rem_berries <= 0:
-                    break
-                boost = _get_boost_per_berry(c)
-                needed = math.ceil(100 / boost)
-                give = min(qty_per_mon, needed, rem_berries)
-                if give > 0:
-                    new_h = min(100, give * boost)
-                    rem_berries -= give
-                    plan_items.append({
-                        "mon": c,
-                        "name": _get_name(c),
-                        "cur_h": 0,
-                        "give_berries": give,
-                        "boost": boost,
-                        "new_h": new_h,
-                        "user_qty": qty_per_mon
-                    })
+        def _parse_threshold_val(val_str: str) -> Optional[int]:
+            s = val_str.strip().lower()
+            if s in ["0", "exhausted", "revive", "rev", "zero", "all-zero"]:
+                return 0
+            m_le = re.match(r"^<=\s*(\d{1,3})%?$", s)
+            if m_le:
+                return min(100, max(0, int(m_le.group(1))))
+            m_lt = re.match(r"^<\s*(\d{1,3})%?$", s)
+            if m_lt:
+                return min(100, max(0, int(m_lt.group(1)) - 1))
+            m_pct = re.match(r"^(\d{1,3})%$", s)
+            if m_pct:
+                return min(100, max(0, int(m_pct.group(1))))
+            return None
 
-            if not plan_items:
-                return {"ok": False, "error": "No berries available to feed exhausted Pokémon."}
+        # 1. Check for threshold-based feeding (e.g. "0", "<=50%", "50%", "<30")
+        if target is not None and not isinstance(target, (list, set, tuple)):
+            thresh = _parse_threshold_val(s_target)
+            if thresh is not None:
+                return self.get_feed_threshold_plan(max_happiness=thresh, qty=qty)
 
-            total_req = sum(item["give_berries"] for item in plan_items)
-            b_word = "Oran Berry" if total_req == 1 else "Oran Berries"
-            count = len(plan_items)
-            summary_names = f"{count} exhausted Pokémon" if count > 1 else plan_items[0]["name"]
-            prompt = f"🫐 Feed {total_req} {b_word} to {summary_names} (Req: {total_req}, In Bag: {available_berries})? Type 'confirm' (or 'y')"
-            if len(prompt) > 72:
-                prompt = f"🫐 Feed {total_req} 🫐 to {summary_names} (Req: {total_req}, Bag: {available_berries})? Type 'y'"
-            if len(prompt) > 72:
-                prompt = f"Feed {total_req} 🫐 to {summary_names} (Req:{total_req}, Bag:{available_berries})? [y/N]"
-            if len(prompt) > 72:
-                prompt = prompt[:69] + "..."
-
-            return {
-                "ok": True,
-                "error": None,
-                "plan_type": "exhausted",
-                "items": plan_items,
-                "total_berries": total_req,
-                "available_berries": available_berries,
-                "summary_names": summary_names,
-                "prompt": prompt
-            }
-
-        # 2. Check for "all" batch feeding
+        # 2. Check for removed "all" option
         if s_target in ["all", "party", "roster"]:
-            hungry_mons = [c for c in candidates if _get_happiness(c) < 100]
-            if not hungry_mons:
-                return {"ok": False, "error": "All Pokémon in your party and roster are already at 100% Happiness! 💖"}
-
-            plan_items = []
-            rem_berries = available_berries
-            for c in hungry_mons:
-                if rem_berries <= 0:
-                    break
-                cur_h = _get_happiness(c)
-                boost = _get_boost_per_berry(c)
-                needed = math.ceil((100 - cur_h) / boost)
-                max_give = needed if qty is None else min(max(1, int(qty)), needed)
-                give = min(max_give, rem_berries)
-                if give > 0:
-                    new_h = min(100, cur_h + give * boost)
-                    rem_berries -= give
-                    plan_items.append({
-                        "mon": c,
-                        "name": _get_name(c),
-                        "cur_h": cur_h,
-                        "give_berries": give,
-                        "boost": boost,
-                        "new_h": new_h,
-                        "user_qty": max_give
-                    })
-
-            if not plan_items:
-                return {"ok": False, "error": "No berries available to feed Pokémon."}
-
-            total_req = sum(item["give_berries"] for item in plan_items)
-            b_word = "Oran Berry" if total_req == 1 else "Oran Berries"
-            count = len(plan_items)
-            summary_names = f"{count} Pokémon" if count > 1 else plan_items[0]["name"]
-            prompt = f"🫐 Feed {total_req} {b_word} to {summary_names} (Req: {total_req}, In Bag: {available_berries})? Type 'confirm' (or 'y')"
-            if len(prompt) > 72:
-                prompt = f"🫐 Feed {total_req} 🫐 to {summary_names} (Req: {total_req}, Bag: {available_berries})? Type 'y'"
-            if len(prompt) > 72:
-                prompt = f"Feed {total_req} 🫐 to {summary_names} (Req:{total_req}, Bag:{available_berries})? [y/N]"
-            if len(prompt) > 72:
-                prompt = prompt[:69] + "..."
-
-            return {
-                "ok": True,
-                "error": None,
-                "plan_type": "all",
-                "items": plan_items,
-                "total_berries": total_req,
-                "available_berries": available_berries,
-                "summary_names": summary_names,
-                "prompt": prompt
-            }
+            return {"ok": False, "error": "The 'all' option has been removed. Feed by species '#id' (e.g. '#25'), or happiness threshold (e.g. '<=50%', '0')."}
 
         # 3. Default with target=None or empty
         if not s_target:
@@ -2923,15 +2950,15 @@ class CompanionEngine:
                     elif qty is None:
                         qty = 1
                 else:
-                    exhausted_count = len([c for c in candidates if _get_happiness(c) == 0])
+                    exhausted_count = len([c for c in candidates if self._get_companion_happiness(c) == 0])
                     if exhausted_count > 0:
                         return {"ok": False, "error": f"Active companion is already at 100% Happiness! You have {exhausted_count} exhausted Pokémon (0% Happiness) in your roster. Type 'feed 0' to restore them all to 100%!"}
-                    return {"ok": False, "error": "Active companion is already at 100% Happiness! Usage: feed <row|#id|name|0|all> [qty]"}
+                    return {"ok": False, "error": "Active companion is already at 100% Happiness! Usage: feed <#id|<=pct%> [qty]"}
             else:
-                exhausted_count = len([c for c in candidates if _get_happiness(c) == 0])
+                exhausted_count = len([c for c in candidates if self._get_companion_happiness(c) == 0])
                 if exhausted_count > 0:
                     return {"ok": False, "error": f"No active companion selected! You have {exhausted_count} exhausted Pokémon in your roster. Type 'feed 0' to restore them all to 100%!"}
-                return {"ok": False, "error": "No active companion! Usage: feed <row|#id|name|0|all> [qty]"}
+                return {"ok": False, "error": "No active companion! Usage: feed <#id|<=pct%> [qty]"}
 
         # 4. Resolve specific target or list of targets
         target_tokens = []
@@ -2939,12 +2966,18 @@ class CompanionEngine:
             target_tokens = [str(x).strip() for x in target if str(x).strip()]
         elif "," in str(target):
             target_tokens = [p.strip() for p in str(target).split(",") if p.strip()]
-        elif "-" in str(target) and not str(target).strip().startswith("#"):
-            parts_hyphen = str(target).strip().split("-")
-            if len(parts_hyphen) == 2 and parts_hyphen[0].isdigit() and parts_hyphen[1].isdigit():
-                target_tokens = [str(i) for i in range(int(parts_hyphen[0]), int(parts_hyphen[1]) + 1)]
+        elif "-" in str(target):
+            clean_t = str(target).strip()
+            parts_hyphen = clean_t.split("-")
+            if len(parts_hyphen) == 2:
+                p0 = parts_hyphen[0].strip().lstrip("#")
+                p1 = parts_hyphen[1].strip().lstrip("#")
+                if p0.isdigit() and p1.isdigit():
+                    target_tokens = [f"#{i}" for i in range(int(p0), int(p1) + 1)]
+                else:
+                    target_tokens = [clean_t]
             else:
-                target_tokens = [str(target).strip()]
+                target_tokens = [clean_t]
         else:
             target_tokens = [str(target).strip()]
 
@@ -2955,26 +2988,20 @@ class CompanionEngine:
             if t_low in ["active", "current"]:
                 matched = active
             elif t_low.startswith("#"):
-                raw_sp = t_low[1:]
-                for c in candidates:
-                    sp = str(c.get("species_id", c.get("base_id")) if isinstance(c, dict) else c.current_id)
-                    if sp == raw_sp:
-                        matched = c
-                        break
-            elif t_low.isdigit():
-                idx = int(t_low)
-                if 1 <= idx <= len(roster):
-                    matched = roster[idx - 1]
-                else:
+                raw_sp = t_low[1:].strip()
+                if raw_sp.isdigit():
+                    t_sp_id = int(raw_sp)
                     for c in candidates:
-                        sp = str(c.get("species_id", c.get("base_id")) if isinstance(c, dict) else c.current_id)
-                        if sp == t_low:
+                        sp = c.get("species_id", c.get("final_id", c.get("base_id"))) if isinstance(c, dict) else c.current_id
+                        if sp == t_sp_id:
                             matched = c
                             break
-            else:
+            elif t_low.isdigit():
+                # Target by species ID (numeric)
+                t_sp_id = int(t_low)
                 for c in candidates:
-                    name = _get_name(c).lower()
-                    if t_low == name:
+                    sp = c.get("species_id", c.get("final_id", c.get("base_id"))) if isinstance(c, dict) else c.current_id
+                    if sp == t_sp_id:
                         matched = c
                         break
 
@@ -2982,14 +3009,14 @@ class CompanionEngine:
                 matched_targets.append(matched)
 
         if not matched_targets:
-            return {"ok": False, "error": f"Pokémon '{target}' not found in your Roster! Use row index (1..{len(roster)}), species ID (e.g. #25), name, or '0' for exhausted."}
+            return {"ok": False, "error": f"Pokémon '{target}' not found in your Roster! Use species ID (e.g. '#25'), 'active', '0' for exhausted, or a happiness threshold (e.g. '<=50%')."}
 
         # Single target
         if len(matched_targets) == 1:
             mon = matched_targets[0]
-            cur_h = _get_happiness(mon)
-            name = _get_name(mon)
-            boost = _get_boost_per_berry(mon)
+            cur_h = self._get_companion_happiness(mon)
+            name = self._get_companion_name(mon)
+            boost = self._get_companion_boost_per_berry(mon)
             needed = math.ceil((100 - cur_h) / boost)
             user_qty = (4 if cur_h == 0 else 1) if qty is None else max(1, int(qty))
 
@@ -3037,8 +3064,8 @@ class CompanionEngine:
         for mon in matched_targets:
             if rem_berries <= 0:
                 break
-            cur_h = _get_happiness(mon)
-            boost = _get_boost_per_berry(mon)
+            cur_h = self._get_companion_happiness(mon)
+            boost = self._get_companion_boost_per_berry(mon)
             needed = math.ceil((100 - cur_h) / boost)
             user_qty = (4 if cur_h == 0 else 1) if qty is None else max(1, int(qty))
             if cur_h >= 100:
@@ -3051,7 +3078,7 @@ class CompanionEngine:
                 rem_berries -= give
                 plan_items.append({
                     "mon": mon,
-                    "name": _get_name(mon),
+                    "name": self._get_companion_name(mon),
                     "cur_h": cur_h,
                     "give_berries": give,
                     "boost": boost,
@@ -3157,7 +3184,12 @@ class CompanionEngine:
         if len(fed_summary) > 6:
             names_str += f" and {len(fed_summary) - 6} more"
         b_word = "Oran Berry" if total_berries == 1 else "Oran Berries"
-        qualifier = " exhausted" if plan.get("plan_type") == "exhausted" else ""
+        qualifier = ""
+        if plan.get("plan_type") == "exhausted":
+            qualifier = " exhausted"
+        elif plan.get("plan_type") == "threshold":
+            t_val = plan.get("threshold", 100)
+            qualifier = f" (<={t_val}% Hap)"
         return True, f"🫐 Fed {total_berries} {b_word} to {count}{qualifier} Pokémon ({names_str})! Restored to readiness!"
 
     def feed_pokemon(self, target: Optional[Union[str, int, List[Union[str, int]]]] = None, qty: Optional[int] = None, confirm: bool = False) -> Tuple[bool, str]:
@@ -4565,7 +4597,7 @@ class CompanionEngine:
 
         return bm
 
-    def buy_black_market_deal(self, deal_id_str: str, qty: int = 1) -> Tuple[bool, str]:
+    def buy_black_market_deal(self, deal_id_str: str, qty: int = 1, confirm: bool = False) -> Tuple[bool, str]:
         bm = self.get_or_init_black_market()
         if not bm.get("is_open"):
             return False, "The Rocket Syndicate backroom is currently locked! Expected return on random days (5% chance)."
@@ -4600,6 +4632,14 @@ class CompanionEngine:
         total_cost = price * qty
         if total_cost > self.available_tokens:
             return False, f"Not enough tokens! Requires {format_tokens(total_cost)} (You have {format_tokens(self.available_tokens)})."
+
+        if confirm:
+            prompt = f"🕶️ Buy {qty}x {deal['name']} for {format_tokens(total_cost)} tokens? Type 'confirm' (or 'y')"
+            if len(prompt) > 72:
+                prompt = f"🕶️ Buy {qty}x [{deal_id}] for {format_tokens(total_cost)} tokens? Type 'y'"
+            if len(prompt) > 72:
+                prompt = prompt[:69] + "..."
+            return True, prompt
 
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + total_cost
         deal["stock"] -= qty

@@ -40,6 +40,7 @@ class PokeTokenBarTUI:
         self.picker_page: int = 1
         self.settings_page: int = 1
         self.pending_feed = None
+        self.pending_buy = None
 
     def clear_screen(self):
         sys.stdout.write("\033[H\033[2J")
@@ -243,6 +244,25 @@ class PokeTokenBarTUI:
                         self.handle_feed_command(cmd)
                     else:
                         self.message = "❌ Feeding cancelled."
+                        tab_max = 12 if self.engine.state.get("rocket_story_unlocked") else 11
+                        if cmd in [str(i) for i in range(1, tab_max + 1)]:
+                            self.current_tab = int(cmd)
+                            self.message = ""
+                elif getattr(self, "pending_buy", None) is not None:
+                    plan = self.pending_buy
+                    self.pending_buy = None
+                    if cmd in ["confirm", "yes", "y", "ok", "buy"]:
+                        ok, msg = self.execute_pending_buy(plan)
+                        self.message = msg
+                    elif self.current_tab == 4 and (cmd.startswith("buy ") or cmd == "buy"):
+                        self.handle_shop_buy(cmd)
+                    elif self.current_tab == 10 and (cmd.startswith("buy ") or cmd == "buy" or cmd.startswith("invest ")):
+                        if cmd.startswith("invest "):
+                            self.handle_invest_command(cmd)
+                        else:
+                            self.handle_stock_terminal_buy(cmd)
+                    else:
+                        self.message = "❌ Purchase cancelled."
                         tab_max = 12 if self.engine.state.get("rocket_story_unlocked") else 11
                         if cmd in [str(i) for i in range(1, tab_max + 1)]:
                             self.current_tab = int(cmd)
@@ -642,10 +662,7 @@ class PokeTokenBarTUI:
                     self.stock_terminal = None
                     self.message = ""
                 elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and getattr(self, "stock_terminal", None) and (cmd.startswith("buy ") or cmd == "buy"):
-                    parts = cmd.split()
-                    shares = parts[1] if len(parts) >= 2 else "1"
-                    ok, msg = self.engine.invest_corporate(self.stock_terminal, shares)
-                    self.message = msg
+                    self.handle_stock_terminal_buy(cmd)
                 elif self.current_tab == 10 and getattr(self, "bank_subtab", "") == "stocks" and getattr(self, "stock_terminal", None) and (cmd.startswith("sell ") or cmd == "sell"):
                     parts = cmd.split()
                     shares = parts[1] if len(parts) >= 2 else "1"
@@ -724,13 +741,7 @@ class PokeTokenBarTUI:
                         ok, msg = False, "Usage: sort <days|amount|term>"
                     self.message = msg
                 elif cmd.startswith("invest "):
-                    parts = cmd.split()
-                    if len(parts) >= 2:
-                        shares = parts[2] if len(parts) >= 3 else "1"
-                        ok, msg = self.engine.invest_corporate(parts[1], shares)
-                    else:
-                        ok, msg = False, "Usage: invest <code> <shares|all> (e.g. 'invest SILPH 2')"
-                    self.message = msg
+                    self.handle_invest_command(cmd)
                 elif cmd.startswith("divest "):
                     parts = cmd.split()
                     if len(parts) >= 2:
@@ -1032,6 +1043,109 @@ class PokeTokenBarTUI:
         from poketokenbar.tui_tabs.shop import handle_shop_buy
         handle_shop_buy(self, cmd)
 
+    def execute_pending_buy(self, plan: dict) -> Tuple[bool, str]:
+        p_type = plan.get("type")
+        if p_type == "shop_item":
+            return self.engine.buy_item(plan["item_kind"], plan["qty"])
+        elif p_type == "black_market":
+            return self.engine.buy_black_market_deal(plan["deal_id"], plan["qty"])
+        elif p_type == "stock":
+            return self.engine.invest_corporate(plan["corp_key"], str(plan["shares"]))
+        return False, "Unknown purchase plan."
+
+    def handle_stock_terminal_buy(self, cmd: str):
+        from poketokenbar.game.models import CORPORATIONS
+        parts = cmd.split()
+        bypass_confirm = any(p.lower() in ["-y", "--yes", "confirm"] for p in parts)
+        clean_parts = [p for p in parts if p.lower() not in ["-y", "--yes", "confirm"]]
+        shares_str = clean_parts[1] if len(clean_parts) >= 2 else "1"
+        corp_key = getattr(self, "stock_terminal", None)
+        if not corp_key or corp_key not in CORPORATIONS:
+            ok, msg = self.engine.invest_corporate(corp_key, shares_str)
+            self.message = msg
+            return
+
+        corp = CORPORATIONS[corp_key]
+        sm = self.engine.get_or_init_stock_market()
+        price = sm["prices"].get(corp_key, corp.share_price)
+
+        if shares_str.lower() == "all":
+            shares = self.engine.available_tokens // price
+        else:
+            try:
+                shares = int(shares_str)
+            except ValueError:
+                shares = 1
+
+        if shares > 5 and not bypass_confirm:
+            total_cost = shares * price
+            ticker = corp.ticker
+            prompt = f"📈 Buy {shares} shares of {ticker} for {format_tokens(total_cost)} tokens? Type 'confirm' (or 'y')"
+            if len(prompt) > 72:
+                prompt = f"📈 Buy {shares} {ticker} shares for {format_tokens(total_cost)}? Type 'y'"
+            if len(prompt) > 72:
+                prompt = prompt[:69] + "..."
+            self.pending_buy = {
+                "type": "stock",
+                "corp_key": corp_key,
+                "shares": shares_str,
+                "cost": total_cost,
+                "prompt": prompt,
+            }
+            self.message = prompt
+        else:
+            ok, msg = self.engine.invest_corporate(self.stock_terminal, shares_str)
+            self.message = msg
+
+    def handle_invest_command(self, cmd: str):
+        from poketokenbar.game.models import CORPORATIONS
+        parts = cmd.split()
+        bypass_confirm = any(p.lower() in ["-y", "--yes", "confirm"] for p in parts)
+        clean_parts = [p for p in parts if p.lower() not in ["-y", "--yes", "confirm"]]
+        if len(clean_parts) < 2:
+            self.message = "Usage: invest <code> <shares|all> (e.g. 'invest SILPH 2')"
+            return
+
+        code = clean_parts[1]
+        shares_str = clean_parts[2] if len(clean_parts) >= 3 else "1"
+        corp_key = self.engine._resolve_corp_key(code)
+        if not corp_key or corp_key not in CORPORATIONS:
+            ok, msg = self.engine.invest_corporate(code, shares_str)
+            self.message = msg
+            return
+
+        corp = CORPORATIONS[corp_key]
+        sm = self.engine.get_or_init_stock_market()
+        price = sm["prices"].get(corp_key, corp.share_price)
+
+        if shares_str.lower() == "all":
+            shares = self.engine.available_tokens // price
+        else:
+            try:
+                shares = int(shares_str)
+            except ValueError:
+                shares = 1
+
+        if shares > 5 and not bypass_confirm:
+            total_cost = shares * price
+            ticker = corp.ticker
+            prompt = f"📈 Buy {shares} shares of {ticker} for {format_tokens(total_cost)} tokens? Type 'confirm' (or 'y')"
+            if len(prompt) > 72:
+                prompt = f"📈 Buy {shares} {ticker} shares for {format_tokens(total_cost)}? Type 'y'"
+            if len(prompt) > 72:
+                prompt = prompt[:69] + "..."
+            self.pending_buy = {
+                "type": "stock",
+                "corp_key": corp_key,
+                "shares": shares_str,
+                "cost": total_cost,
+                "prompt": prompt,
+            }
+            self.message = prompt
+        else:
+            ok, msg = self.engine.invest_corporate(code, shares_str)
+            self.message = msg
+
     def handle_bag_use(self, cmd: str):
         from poketokenbar.tui_tabs.shop import handle_bag_use
         handle_bag_use(self, cmd)
@@ -1059,7 +1173,7 @@ class PokeTokenBarTUI:
 
         if len(parts) == 1:
             if getattr(self, "selected_expedition_targets", None):
-                target = [str(i) for i in sorted(self.selected_expedition_targets)]
+                target = [f"#{self.engine.state.get('dex', [])[i-1].get('species_id')}" for i in sorted(self.selected_expedition_targets) if 1 <= i <= len(self.engine.state.get('dex', []))]
             else:
                 target = None
         elif len(parts) == 2:
@@ -1068,19 +1182,24 @@ class PokeTokenBarTUI:
             if self.current_tab == 1 and arg.isdigit() and int(arg) > 0 and self.engine.active_mon:
                 target = "active"
                 qty = int(arg)
-            # If staged companions are selected and a number is provided, treat as qty for staged
-            elif getattr(self, "selected_expedition_targets", None) and arg.isdigit() and 1 <= int(arg) <= 20:
-                target = [str(i) for i in sorted(self.selected_expedition_targets)]
-                qty = int(arg)
             else:
                 target = arg
         else:
-            target = parts[1].strip()
-            try:
-                qty = int(parts[2].strip())
-            except ValueError:
-                self.message = "Usage: feed <row|#id|name|0|all> [qty] (e.g. 'feed 0', 'feed 1 4')"
-                return
+            if parts[1] in ["<=", "<"] and len(parts) >= 3:
+                target = parts[1] + parts[2]
+                if len(parts) >= 4:
+                    try:
+                        qty = int(parts[3].strip())
+                    except ValueError:
+                        self.message = "Usage: feed <#id|<=pct%> [qty] (e.g. 'feed 0', 'feed #25 4')"
+                        return
+            else:
+                target = parts[1].strip()
+                try:
+                    qty = int(parts[2].strip())
+                except ValueError:
+                    self.message = "Usage: feed <#id|<=pct%> [qty] (e.g. 'feed 0', 'feed #25 4')"
+                    return
 
         plan = self.engine.get_feed_plan(target=target, qty=qty)
         if not plan.get("ok"):

@@ -53,10 +53,10 @@ def _render_checking_view(app, avail: int):
         sys.stdout.write(f"  {BOLD}Active Loan Debt:{RESET}  {BOLD}{CYAN}0{RESET} tokens  ({CYAN}No active debt{RESET})\n")
     
     if loan > 0:
-        if loan_days == 6:
-            sys.stdout.write(f"  {BOLD}{RED}🚨 WARNING: FINAL DAY BEFORE REPOSSESSION! PAY OFF LOAN NOW!{RESET}\n")
-        else:
-            sys.stdout.write(f"  {BOLD}{RED}🚨 Loan Deadline:{RESET} {loan_days}/7 days until repossession!\n")
+        days_left = max(0, 7 - loan_days)
+        if loan_days >= 6:
+            sys.stdout.write(f"  {BOLD}{RED}🚨 WARNING: FINAL DAY BEFORE REPOSSESSION (D-1)! PAY OFF LOAN NOW!{RESET}\n")
+        sys.stdout.write(f"  {BOLD}{RED}🚨 Loan Deadline:{RESET}  {BOLD}{RED}D-{days_left}{RESET} until repossession\n")
         sys.stdout.write(f"  {BOLD}{RED}Repossession Protocol:{RESET}\n")
         sys.stdout.write(f"   {RED}1. Confiscation of Bank Checking Deposits{RESET}\n")
         sys.stdout.write(f"   {RED}2. Confiscation of Spendable Tokens{RESET}\n")

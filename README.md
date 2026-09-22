@@ -84,7 +84,7 @@ Designed specifically for **Linux CLI** environments, with automated, real-time 
 - 💖 **Individual Companion Happiness & Coding Streaks**:
   - Every Pokémon maintains its own Happiness (0–100%).
   - **100% Happiness**: Grants a **+20% Bonus XP Boost** on all token gains.
-  - **0% Happiness**: Exhausted companions refuse expeditions, miss battles, and gain no XP until fed **Oran Berries 🫐** (+25%). Type `feed 0` to revive all 0% companions to 100% (4 berries each), or `feed <row|#id|name|all> [qty]` to feed specific companions with user-configured berry amounts!
+  - **0% Happiness**: Exhausted companions refuse expeditions, miss battles, and gain no XP until fed **Oran Berries 🫐** (+25%). Type `feed 0` to revive all 0% companions to 100% (4 berries each), or `feed <#id|<=pct%> [qty]` (e.g. `feed #25 4` or `feed <=50% 2`) to feed specific companions or happiness tiers with user-configured berry amounts!
   - Daily coding activity restores +10% Happiness and maintains your active coding streak!
 - 📜 **Daily Quests (Tab [7])**:
   - Complete scaled daily token burning and companion interaction milestones for bonus token payouts and items (`claim <id>` or `claim all`).

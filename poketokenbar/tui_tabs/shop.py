@@ -103,7 +103,7 @@ ITEM_DESCRIPTIONS: Dict[str, Dict[str, str]] = {
         "clean_name": "Oran Berry",
         "category": "Consumable",
         "desc": "Restores +25% Happiness per berry. 4 berries fully revive exhausted Pokémon.",
-        "usage": "Type 'feed 0' to revive all 0% Pokémon, or 'feed <row|name> [qty]'.",
+        "usage": "Type 'feed <#id|<=pct%> [qty]' to feed Oran Berries 🫐 (0 = revive).",
     },
     "berry_golden": {
         "name": "🍇 Golden Razz",
@@ -713,7 +713,15 @@ def _render_black_market_view(app):
     sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return\n\n")
 
 def handle_deal_buy(app, cmd: str):
-    parts = cmd.split()
+    raw_parts = cmd.split()
+    bypass_confirm = False
+    parts = []
+    for p in raw_parts:
+        if p.lower() in ["-y", "--yes", "confirm"]:
+            bypass_confirm = True
+        else:
+            parts.append(p)
+
     if len(parts) < 2:
         app.message = "Usage: buy <id> [qty] (e.g. 'buy 1')"
         return
@@ -728,6 +736,49 @@ def handle_deal_buy(app, cmd: str):
         except ValueError:
             app.message = "Invalid quantity."
             return
+
+    bm = app.engine.get_or_init_black_market()
+    deals = bm.get("deals", [])
+    matched_deal = None
+    for d in deals:
+        if str(d.get("id")) == str(deal_id):
+            matched_deal = d
+            break
+
+    if not matched_deal:
+        app.message = f"Deal [{deal_id}] not found on the Black Market."
+        return
+
+    stock = matched_deal.get("stock", 0)
+    if stock < qty:
+        app.message = f"Deal [{deal_id}] only has {stock} in stock!"
+        return
+
+    unit_cost = matched_deal.get("cost", 0)
+    total_cost = unit_cost * qty
+    if app.engine.available_tokens < total_cost:
+        app.message = f"Not enough tokens! Required: {format_tokens(total_cost)}, Available: {format_tokens(app.engine.available_tokens)}"
+        return
+
+    if qty > 5 and not bypass_confirm:
+        d_name = matched_deal.get("name", f"Deal #{deal_id}")
+        prompt = f"🕶️ Buy {qty}x {d_name} for {format_tokens(total_cost)} tokens? Type 'confirm' (or 'y')"
+        if len(prompt) > 72:
+            prompt = f"🕶️ Buy {qty}x [{deal_id}] for {format_tokens(total_cost)} tokens? Type 'y'"
+        if len(prompt) > 72:
+            prompt = prompt[:69] + "..."
+
+        app.pending_buy = {
+            "type": "black_market",
+            "deal_id": deal_id,
+            "qty": qty,
+            "cost": total_cost,
+            "name": d_name,
+            "prompt": prompt,
+        }
+        app.message = prompt
+        return
+
     ok, msg = app.engine.buy_black_market_deal(deal_id, qty)
     app.message = msg
 
@@ -736,46 +787,115 @@ def handle_shop_buy(app, cmd: str):
         handle_deal_buy(app, cmd)
         return
 
-    parts = cmd.split()
-    choice = parts[1] if len(parts) > 1 else ""
+    raw_parts = cmd.split()
+    bypass_confirm = False
+    clean_parts = []
+    for p in raw_parts:
+        if p.lower() in ["-y", "--yes", "confirm"]:
+            bypass_confirm = True
+        else:
+            clean_parts.append(p)
+
+    choice = clean_parts[1] if len(clean_parts) > 1 else ""
     qty = 1
-    if len(parts) >= 3:
+    if len(clean_parts) >= 3:
         try:
-            qty = int(parts[2])
+            qty = int(clean_parts[2])
+            if qty <= 0:
+                app.message = "Quantity must be greater than 0."
+                return
         except ValueError:
             app.message = "Invalid quantity."
             return
 
+    # Map choice to ItemKind or egg
+    item_kind = None
     if choice == "1":
-        ok, msg = app.engine.buy_item(ItemKind.RARE_CANDY, qty)
+        item_kind = ItemKind.RARE_CANDY
     elif choice == "2":
         if qty > 1:
             app.message = "You can only hold one egg!"
             return
         ok, msg = app.engine.buy_egg(None)
+        app.message = msg
+        return
     elif choice == "3":
         if qty > 1:
             app.message = "You can only hold one egg!"
             return
         ok, msg = app.engine.buy_egg(Rarity.UNCOMMON)
+        app.message = msg
+        return
     elif choice == "4":
-        ok, msg = app.engine.buy_item(ItemKind.BERRY_ORAN, qty)
+        item_kind = ItemKind.BERRY_ORAN
     elif choice == "5":
-        ok, msg = app.engine.buy_item(ItemKind.BERRY_GOLDEN, qty)
+        item_kind = ItemKind.BERRY_GOLDEN
     elif choice == "6":
-        ok, msg = app.engine.buy_item(ItemKind.EXPEDITION_LICENSE, qty)
+        item_kind = ItemKind.EXPEDITION_LICENSE
     elif choice == "7":
-        ok, msg = app.engine.buy_item(ItemKind.EVERSTONE, qty)
+        item_kind = ItemKind.EVERSTONE
     elif choice == "8":
-        ok, msg = app.engine.buy_item(ItemKind.LUCKY_EGG, qty)
+        item_kind = ItemKind.LUCKY_EGG
     elif choice == "9":
-        ok, msg = app.engine.buy_item(ItemKind.AMULET_COIN, qty)
+        item_kind = ItemKind.AMULET_COIN
     elif choice == "10":
-        ok, msg = app.engine.buy_item(ItemKind.LEFTOVERS, qty)
+        item_kind = ItemKind.LEFTOVERS
     elif choice == "11":
-        ok, msg = app.engine.buy_item(ItemKind.CHOICE_SCARF, qty)
+        item_kind = ItemKind.CHOICE_SCARF
     else:
-        ok, msg = False, "Invalid shop selection."
+        name_map = {
+            "rare_candy": ItemKind.RARE_CANDY,
+            "candy": ItemKind.RARE_CANDY,
+            "oran": ItemKind.BERRY_ORAN,
+            "berry_oran": ItemKind.BERRY_ORAN,
+            "golden": ItemKind.BERRY_GOLDEN,
+            "golden_razz": ItemKind.BERRY_GOLDEN,
+            "berry_golden": ItemKind.BERRY_GOLDEN,
+            "license": ItemKind.EXPEDITION_LICENSE,
+            "everstone": ItemKind.EVERSTONE,
+            "lucky_egg": ItemKind.LUCKY_EGG,
+            "amulet_coin": ItemKind.AMULET_COIN,
+            "leftovers": ItemKind.LEFTOVERS,
+            "choice_scarf": ItemKind.CHOICE_SCARF,
+        }
+        item_kind = name_map.get(choice.lower().replace("-", "_"))
+
+    if not item_kind:
+        app.message = "Invalid shop selection. Usage: buy <1-11> [qty]"
+        return
+
+    diff = app.engine.current_difficulty
+    unit_cost = item_kind.price_for(diff)
+    devon_mult = app.engine.get_devon_multiplier()
+    unit_cost = int(unit_cost * devon_mult)
+    total_cost = unit_cost * qty
+
+    if app.engine.available_tokens < total_cost:
+        app.message = f"Not enough tokens! Required: {format_tokens(total_cost)}, Available: {format_tokens(app.engine.available_tokens)}"
+        return
+
+    if qty > 5 and not bypass_confirm:
+        prompt = f"🛒 Buy {qty}x {item_kind.name_en} {item_kind.emoji} for {format_tokens(total_cost)} tokens? Type 'confirm' (or 'y')"
+        if len(prompt) > 72:
+            prompt = f"🛒 Buy {qty}x {item_kind.emoji} for {format_tokens(total_cost)} tokens? Type 'y'"
+        if len(prompt) > 72:
+            prompt = f"Buy {qty}x {item_kind.name_en} for {format_tokens(total_cost)}? [y/N]"
+        if len(prompt) > 72:
+            prompt = prompt[:69] + "..."
+
+        app.pending_buy = {
+            "type": "shop_item",
+            "item_kind": item_kind,
+            "qty": qty,
+            "cost": total_cost,
+            "name": item_kind.name_en,
+            "emoji": item_kind.emoji,
+            "prompt": prompt,
+        }
+        app.message = prompt
+        return
+
+    ok, msg = app.engine.buy_item(item_kind, qty)
     app.message = msg
 
 def handle_bag_use(app, cmd: str):

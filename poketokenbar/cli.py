@@ -150,9 +150,10 @@ def main():
     subparsers.add_parser("dex", help="View Pokédex catch history")
     subparsers.add_parser("shop", help="View Shop & available spendable tokens")
     subparsers.add_parser("card", help="Print shareable ASCII Trainer Profile Card")
-    feed_parser = subparsers.add_parser("feed", help="Feed Oran Berries 🫐 to companions (e.g. 'ptb feed 0' or 'ptb feed 1 4')")
-    feed_parser.add_argument("target", nargs="?", default=None, help="Target Pokémon (row number, #species_id, name, '0' for exhausted, or 'all')")
+    feed_parser = subparsers.add_parser("feed", help="Feed Oran Berries 🫐 to companions (e.g. 'ptb feed #25 4' or 'ptb feed <=50%% 2')")
+    feed_parser.add_argument("target", nargs="?", default=None, help="Target Pokémon (#species_id, '0' for exhausted, or threshold '<=50%%')")
     feed_parser.add_argument("qty", nargs="?", type=int, default=None, help="Number of Oran Berries to feed (default 4 for exhausted, 1 otherwise)")
+    feed_parser.add_argument("-m", "--max-happiness", type=int, default=None, help="Feed companions with happiness at or below this percentage")
     feed_parser.add_argument("-y", "--yes", action="store_true", help="Bypass confirmation prompt")
 
     settings_parser = subparsers.add_parser("settings", help="View or update tracking settings")
@@ -174,7 +175,10 @@ def main():
     elif args.command == "card":
         print(engine.generate_trainer_card())
     elif args.command == "feed":
-        plan = engine.get_feed_plan(target=args.target, qty=args.qty)
+        if getattr(args, "max_happiness", None) is not None:
+            plan = engine.get_feed_threshold_plan(max_happiness=args.max_happiness, qty=args.qty)
+        else:
+            plan = engine.get_feed_plan(target=args.target, qty=args.qty)
         if not plan.get("ok"):
             print(f"❌ {plan.get('error', 'Could not feed Pokémon.')}")
         else:
