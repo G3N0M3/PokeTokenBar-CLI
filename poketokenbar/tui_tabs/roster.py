@@ -96,7 +96,7 @@ def render(app):
         sys.stdout.write(f"\n  🎯 {BOLD}{GREEN}Selected for Expedition ({len(selected_targets)}):{RESET} {sel_str}\n")
         sys.stdout.write(f"  ➔ Type '{BOLD}send <area>{RESET}' to dispatch! | '{BOLD}feed [qty]{RESET}' to feed! | '{BOLD}clear{RESET}'\n")
 
-    sys.stdout.write(f"\n  ➔ Type '{BOLD}feed <#id|<=pct%> [qty]{RESET}' to feed Oran Berries 🫐 (0 = revive)!\n")
+    sys.stdout.write(f"\n  ➔ Type '{BOLD}feed <#[id]|<=[pct]|[pct]|0> [qty]{RESET}' to feed Oran Berries 🫐!\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}sel <row>|#<dex>|egg{RESET}' to switch active companion!\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}pick{RESET}' to open Interactive Multi-Select Dispatcher!\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}send <row(s)|#dex|all> [area]{RESET}' on expedition!\n")

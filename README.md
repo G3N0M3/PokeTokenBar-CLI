@@ -1,6 +1,6 @@
 # 🐾 PokeTokenBar (Linux CLI Edition)
 
-[![Version](https://img.shields.io/badge/version-1.11.1-blue.svg)](https://github.com/G3N0M3/PokeTokenBar-CLI)
+[![Version](https://img.shields.io/badge/version-1.11.3-blue.svg)](https://github.com/G3N0M3/PokeTokenBar-CLI)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python: 3.8+](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 
@@ -15,89 +15,20 @@ Designed specifically for **Linux CLI** environments, with automated, real-time 
 
 ## ⚡ Key Features
 
-- 🐾 **Terminal Pokémon Companion (Tab [1])**:
-  - Incubate eggs, hatch base Pokémon, level them up with your coding tokens, and evolve them as you write code!
-  - **Rebalanced Companion HUD**: Features a clean 4-line summary above your companion sprite:
-    - **Line 1**: Companion identity, Shiny status (`✨ SHINY`), and Mega Evolution tags (`[✨ MEGA EVOLVED +50% XP]`).
-    - **Line 2**: Companion traits—**Rarity**, **Form Stage**, and **Held Item** (e.g. `🍀 Lucky Egg`, `🪙 Amulet Coin`).
-    - **Line 3**: Trainer progression—**Happiness** (with `(+20% XP)` boost tag at 100%) and active **Coding Streak** (`🔥 Xd`).
-    - **Line 4**: Milestone celebration banners (`🐣` egg hatch, `🎉` evolution, `🎓` graduation).
-  - **Compact Incubation Monitor**: Shortened, responsive progress indicator (`Incubation: [███░░░░░░░░░░░░░░░░░] 13.2% (197.6K / 1.5M tokens)`) engineered to strictly fit within standard terminal widths.
-  - **Evolution Safeguard**: Automatically halts evolution if the next evolutionary stage is already registered in your Pokédex, preventing unintended duplicates.
-  - **Branch Evolutions via Evolution Stones**: Use elemental stones (Fire, Water, Thunder, Leaf, Moon, Sun, Shiny, Dusk, Dawn, Ice) to evolve species with branched evolutions (e.g. Eevee, Poliwhirl, Gloom).
-  - **Legendary & Base Pool Expansion**: Includes all 68 Legendary and Mythical Pokémon across Gens 1–7 and over 150 base species.
-  - **Guaranteed Duplicate-Free Hatching**: Egg hatching enforces strict exclusion logic against all species and evolutionary family lines in your Pokédex and roster.
-  - **Interactive Egg Decision**: Seamlessly choose to swap or keep newly discovered eggs when your egg slot is full.
-- 🎨 **TrueColor ANSI Sprite Rendering**:
-  - Crisp, 24-bit TrueColor ANSI half-block sprites rendered directly in your terminal, with configurable sprite sizes (15–50 columns) and dynamic horizontal flipping (`flip_h`) during combat.
-- 📡 **Real-Time Token Usage Tracking**:
-  - Low-overhead log reader tracks active tokens and daily coding activity across multiple AI coding assistants with zero external telemetry.
-- 📖 **Pokédex Archives (Tab [2]) & Roster Management (Tab [3])**:
-  - **Tab [2] Pokédex**: Historical encyclopedia of all discovered species, showing evolutionary paths, forms, and graduation badges (`[GRADUATED]`, `[OWNED]`, `[EVOLVED]`).
-  - **Tab [3] Roster**: Active roster of caught companions. Features **staged selection** with `[✓]` badges for batch expedition dispatching, and single-command switching (`sel <row>|#<id>|egg`).
-- 🗺️ **Pokédex Expeditions & Multi-Select Dispatcher (Tab [5])**:
-  - Dispatch companions on background token-burning expeditions across 5 areas:
-    - **Viridian Forest** (5.0M tokens) ➔ 🍬 Rare Candy + XP + 🪙
-    - **Evolution Mine** (10.0M tokens) ➔ 💎 Random Evolution Stone
-    - **Cerulean Cave** (15.0M tokens) ➔ 🫐 Oran Berry + Map fragment chance
-    - **Mt. Silver** (30.0M tokens) ➔ 🍇 Golden Razz Berry + Map fragment chance
-    - **Spear Pillar (Deep)** (100.0M tokens, requires 3x Maps & 100% Happiness) ➔ 🌟 Legendary Egg!
-  - **Interactive Multi-Select Dispatcher**: Type `dispatch`, `send`, or `select` on Tab [5] or Tab [3] to enter a visual checklist UI (`[ ]` / `[✓]`), toggle companions by number/range, view available slots, and launch batches with one keystroke!
-  - **Batch Command Syntax**: Dispatch immediately using `send 1,2,3 viridian`, `send 1-5 mine`, or `send all silver`.
-  - **Expedition Passes (🎫)**: Instantly complete any active expedition with `pass <idx>`.
-  - **Clean Recent Logs**: Shows a clean overview of your last 3 completed expeditions.
-- 🏦 **Token Bank & Dynamic Stock Exchange (Tab [10])**:
-  - **Checking Account & Collateralized Loans**: Deposit tokens, compound daily interest (+5%), and take out loans (`deposit`, `withdraw`, `loan`, `payoff`).
-  - **Term Deposits (CDs) & Criteria Sorting**: Lock tokens into fixed-term 3-day (8% APY), 7-day (12% APY), or 14-day (20% APY) CDs (`cd open <amt> <term>`).
-    - **Dynamic Sorting (`sort <days|amount|term>`)**: Orders active CDs by **Days Left** (matured claimable first, default), **Amount** (highest deposit value first), or **Term Duration** (longest lockup first).
-    - **Sequential Dynamic Indexing**: Active CD rows dynamically number `[1], [2], ...`, allowing instant bracket redemption (`claim 1`, `break 1`, `claim all`).
-  - **6-Tier Bank Repossession Waterfall**: If a loan is defaulted after 7 days, an automated seizure waterfall recovers debt in strict liquidity order: `Checking Deposits -> Spendable Tokens -> Term Deposits (CDs) -> Corporate Stocks (90% market value) -> Bag Inventory Items (80% shop value) -> Debt Discharge -> Companion Distress (-50 happiness)`. Surplus proceeds from broken CDs or share sales are automatically credited back as refunds!
-  - **Dynamic Stock Market & Shareholder Tiers (`stocks`)**: Trade 6 corporate stocks with distinct volatilities, market profiles, and tiered shareholder perks based on total shares held (**Retail** <10 sh, **Preferred** 10+ sh, **Corporate** 50+ sh, **Board Member** 250+ sh, **Controlling** 1000+ sh):
-    - **Silph Co.** (`SILPH`) ➔ Scaled expedition token yield & speed (+15% up to +60%)
-    - **Devon Corporation** (`DEVN`) ➔ Scaled Mart shop item discount (-5% up to -20%)
-    - **Aether Foundation** (`AETHR`) ➔ Halves happiness decay; daily happiness recovery (+5 up to +20)
-    - **Greater Mauville Holdings** (`MAUV`) ➔ Scaled Payout bonus on Game Corner minigames (+10% up to +40%)
-    - **Macro Cosmos** (`MACRO`) ➔ Scaled tokens & damage in Boss raids (+20% up to +80%)
-    - **Viridian Dynamics** (`VRDN`) ➔ Scaled shiny encounter odds & token burn momentum (+10% up to +40%)
-  - **Independent Pattern Engine & Compact Trade Terminal**: Each corporation operates on independent cycles across 5 market patterns (`bull_rally`, `bear_decline`, `cyclical_wave`, `speculative_bubble`, `consolidation`), forward Lore News hints forecasting tomorrow's movement, interactive 7-day sparkline charts, and player action catalysts!
-- 🎲 **Game Corner (Casino Hub) (Tab [9])**:
-  - **Video Poker (`play 1`)**: 5-card draw poker with payouts up to **250x** for a Royal Flush (`bet <amount>`, `hold <cards>`).
-  - **Gacha Capsule Machine (`play 2`)**: Single pulls (5M) and discounted 10-pull batches (45M) for Shiny Charms, Mega Stones, Rare Eggs, and Legendary Shiny partners (`pull <qty>`).
-  - **Animated Slot Machine (`play 3`)**: 3-reel spinning slots with reel animation (`spin <amount>`).
-  - **Blackjack 21 (`play 4`)**: Classic table blackjack against the dealer (`bet <amount>`, `hit`, `stand`, `double`).
-- ⚔️ **Trainer Battles, Gym Raids & Mt. Silver Summit (Tab [6])**:
-  - **Auto-Battles**: Encounter NPC trainers every 2.0M tokens burned to earn spendable tokens and battle badges.
-  - **Gym Boss Raids**: Challenge all 8 Kanto Gym Leaders, Elite Four, and the Champion.
-  - **Mt. Silver Summit (Battle with Red)**: Integrated 6v6 turn-based RPG battle against PKMN Trainer Red with an independent battle token economy, team HP tracking, Sacred Ash restoration, and combat state locking (battling Pokémon cannot be held as active companions or sent on expeditions).
-  - **Hall of Fame**: Victorious teams are permanently immortalized in an integrated dual-view interface alongside Gym Raids.
-  - **Exclusive Mew Recruitment**: Defeating Red awards the Master of Masters badge and directly recruits **Mew** (unobtainable from eggs).
-  - **Secret Arceus Clash**: Challenging Red with his exact iconic roster awakens Arceus in a colossal 5,000,000 HP encounter!
-- 🚀 **Team Rocket Covert HQ (Tab [12])**:
-  - **Dynamic Covert Channel**: Unlocked through story milestones, initially appearing as `[12] Secure Comm` and transitioning to `[12] Rocket HQ` upon accepting the alliance (`accept`).
-  - **10 Covert Operations (`ops`)**: Mission directives and tactical briefings from **Commander Petrel**, tracking multi-objective milestones (tokens, expeditions, arena wins, bank CDs, happiness, and syndicate boss battles) to earn token rewards and promotions.
-  - **Tactical Boss Combat Arena (`engage` / `fight`)**: Directly battle Syndicate prototype chimera bosses (e.g. `Prototype Chimera-001`) with multi-phase stance core shifts. Features persistent boss HP tracking and a real-time confrontation progress bar preserved across combat rounds and process restarts.
-  - **10 Intel Dossiers (`intel`)**: Unlocked classified archives (#001 to #010) with 5-item paging (`n`, `p`, `page <num>`) and terminal reading (`read <num>`).
-  - **Covert Armory (`armory`)**: Access illicit syndicate gear (Shadow Elixirs, Overclock Chips, Rocket Master Balls) with higher-rank clearance masking.
-  - **Clearance Ranks**: Rise through 5 ranks from `Informant` ➔ `Operative` ➔ `Special Agent` ➔ `Executive` ➔ `Commander`.
-- ✨ **Mega Evolution Chamber (Tab [8])**:
-  - Equip Mega Stones on eligible final forms (Charizard, Lucario, Gengar, Mewtwo, Venusaur, Blastoise) for glowing ANSI titles, faster expeditions, and a **+50% XP boost**! Reversible anytime via `revert`.
-- 💖 **Individual Companion Happiness & Coding Streaks**:
-  - Every Pokémon maintains its own Happiness (0–100%).
-  - **100% Happiness**: Grants a **+20% Bonus XP Boost** on all token gains.
-  - **0% Happiness**: Exhausted companions refuse expeditions, miss battles, and gain no XP until fed **Oran Berries 🫐** (+25%). Type `feed 0` to revive all 0% companions to 100% (4 berries each), or `feed <#id|<=pct%> [qty]` (e.g. `feed #25 4` or `feed <=50% 2`) to feed specific companions or happiness tiers with user-configured berry amounts!
-  - Daily coding activity restores +10% Happiness and maintains your active coding streak!
-- 📜 **Daily Quests (Tab [7])**:
-  - Complete scaled daily token burning and companion interaction milestones for bonus token payouts and items (`claim <id>` or `claim all`).
-- ⚙️ **Settings & Customization (Tab [11])**:
-  - **Grouped Settings Menu**: Neatly organized into **Display & Preferences** (sprite size, table page sizes), **Token Tracking & Baselines** (`tokens init`, `billing <day>`), and **Danger Zone & Administrative Controls** (`rocket init`, `reset`).
-  - **Token Initialization (`tokens init <amount>`)**: Simultaneously resets Today's, 7-Day, Monthly, and Total tokens to 0, establishing an exact initialization timestamp (`tokens_init_ts`) without altering game save progression.
-  - Customize pagination across all tables and settings using `pagesize <dex|roster|exp|bag|mega|cd|settings> <number>`.
-  - Navigate settings with `n`, `p`, or `page <number>`.
-  - Adjust sprite resolution (15–50 columns).
-  - Safe two-step data reset confirmation (`reset` ➔ `reset all`).
-  - Initialize / reset Team Rocket campaign from Tab 11 Settings (`rocket init`) or CLI (`ptb settings --init-rocket`).
-- 📇 **Shareable Trainer Card (`ptb card`)**:
-  - Generates a terminal-formatted ASCII trainer card with your active Pokémon sprite, gym badges, streak, and rank.
+- 🐾 **Interactive Pokémon Companion (Tab [1])**: Incubate eggs, level up companions with coding activity, and trigger branch/stone evolutions with automatic Pokédex duplicate safeguards.
+- 🎨 **TrueColor ANSI Sprites**: Crisp, 24-bit TrueColor half-block sprites rendered natively in your Linux terminal with customizable widths (15–50 cols) and combat flipping.
+- 📡 **Zero-Overhead Local Tracking**: Automatically monitors active tokens, daily coding streaks, and burn rates from Antigravity CLI, Gemini CLI, and Claude Code with 100% on-device privacy.
+- 📖 **Pokédex & Roster Management (Tabs [2] & [3])**: Browse all discovered species, track graduation milestones, stage companions for multi-dispatch, and switch active partners on the fly.
+- 🗺️ **Background Expeditions (Tab [5])**: Dispatch inactive companions on automated token-burning missions across 5 regions via single-line commands or an interactive checklist dispatcher.
+- ⚔️ **Gym Raids & Mt. Silver Summit (Tab [6])**: Defeat all 8 Kanto Gym Leaders, earn badges, and assemble a 6-Pokémon team for the turn-based RPG battle against Trainer Red to recruit Mew.
+- 📜 **Daily Quests & Happiness Streaks (Tab [7])**: Maintain daily coding streaks for up to +20% bonus XP, restore exhausted companions with berry feeding (`feed <#[id]|<=[pct]|[pct]|0> [qty]`), and complete daily milestones.
+- ✨ **Mega Evolution Chamber (Tab [8])**: Equip Mega Stones on eligible final forms for glowing terminal titles, accelerated expeditions, and a permanent +50% XP boost.
+- 🎲 **Game Corner & Black Market (Tabs [9] & [4])**: Play Video Poker, Gacha pulls, Slots, and Blackjack—or bribe your way into the clandestine Rocket Syndicate Black Market.
+- 🏦 **Token Bank & Stock Exchange (Tab [10])**: Compound daily checking interest (+5%), track loan deadlines with `D-<days>` countdowns, lock high-yield CDs, and trade 6 corporate stocks with lore-driven cycle trends.
+- 🚀 **Team Rocket Covert HQ (Tab [12])**: Intercept encrypted comms, deploy on 10 syndicate operations, and confront experimental prototype bosses in tactical combat.
+- ⚙️ **Grouped Settings & Customization (Tab [11])**: Configure table pagination, customize sprite resolution, calibrate monthly billing days, initialize token baselines, and generate shareable ASCII Trainer Profile Cards (`ptb card`).
+
+> 📖 **Developer & Architecture Reference**: For comprehensive system design, storage schemas, state persistence rules, and TUI 72-column formatting runbooks, see the [Technical Architecture Guide](poketokenbar/README.md).
 
 ---
 
@@ -145,20 +76,21 @@ ptb
 | :--- | :--- |
 | `1` .. `12` | Switch directly between tabs 1 through 12 (`[12]` unlocks via story) |
 | `sel <row> \| #<id> \| egg` | Switch active companion or incubating egg (in Tab 3) |
+| `feed <#[id]\|<=[pct]\|<[pct]\|[pct]\|0> [qty]` | Feed Oran Berries (e.g. `feed <=70 2`, `feed =70`, `feed 0`, `feed #25 4`) |
 | `pick` | Open Interactive Multi-Select Expedition Dispatcher (in Tab 5) |
 | `send <area>` | Dispatch all currently staged companions to `<area>` (e.g. `send mine`) |
 | `send <row(s)> <area>` | Direct batch dispatch (e.g. `send 1,2,3 viridian`, `send 1-5 mine`, `send all silver`) |
 | `clear` | Clear currently selected expedition companions |
 | `pass <idx>` | Instantly finish an active expedition using an Expedition Pass (🎫) |
 | `deposit` / `withdraw <amt>` | Bank checking account deposit/withdrawal (e.g. `deposit 10m`, `withdraw 5m`) |
-| `loan` / `payoff <amt>` | Take out or repay token loans (e.g. `loan 2m`, `payoff all`) |
+| `loan` / `payoff <amt>` | Take out or repay token loans with daily interest & `D-<days>` countdown |
 | `cd open <amt> <3d\|7d\|14d>` | Open a Certificate of Deposit (CD) with locked high APY |
 | `sort <days\|amount\|term>` | Change CD sorting criteria (**Days Left**, **Amount**, or **Term**) |
 | `claim <id>` / `break <id>` | Claim matured CD payout or break CD early with penalty (dynamic display index) |
 | `claim all` | Claim all matured CDs at once |
 | `b` / `c` / `s` | Switch Bank subtabs (Checking, Certificate of Deposit, Stocks) |
 | `stock <idx\|sym>` | Open Trade Terminal (`SILPH`, `DEVN`, `AETHR`, `MAUV`, `MACRO`, `VRDN`) |
-| `buy <qty>` / `sell <qty>` | Buy or sell shares in active stock terminal |
+| `buy <qty>` / `sell <qty>` | Buy or sell shares in active stock terminal (confirms if > 5 shares) |
 | `black` | Access Rocket Syndicate Black Market (when open or etched 'R' found) |
 | `back` | Return from submodes (Dispatcher, Stock Terminal, Casino, Black Market) |
 | `play <1..4>` | Open Game Corner minigames (1=Poker, 2=Gacha, 3=Slots, 4=Blackjack) |
@@ -169,8 +101,8 @@ ptb
 | `poster` | Inspect secret switch behind the Slot Machine poster (Tab 9) |
 | `bribe` | Pay daily Team Rocket toll (1M–5M) to unlock Black Market (Tab 9) |
 | `hit` / `stand` / `double` | Blackjack game actions |
-| `buy <id>` / `sell <id>` | Buy or sell items in Mart / Bag |
-| `use <id>` | Use an item or feed berries from your Bag |
+| `buy <id> [qty]` / `sell <id> [qty]` | Buy or sell items in Mart / Bag (confirms if > 5 items) |
+| `use <id>` | Use an item from your Bag |
 | `claim <id>` / `claim all` | Claim daily quest rewards |
 | `assemble <id1>..<id6>` | Assemble locked 6-Pokémon team for Mt. Silver Summit (Tab 6) |
 | `fight <1-4>` / `swap <1-6>` | Turn-based RPG battle actions against Trainer Red |
@@ -194,13 +126,14 @@ ptb
 
 ### Command-Line Shortcuts
 ```bash
-ptb status       # 1-line status banner (ideal for tmux / prompt integration)
-ptb watch        # Continuous live monitor loop with animated sprite
-ptb card         # Shareable ASCII Trainer Profile Card
-ptb dex          # Quick terminal Pokédex archive listing
-ptb shop         # Quick Shop & Bag inventory listing
-ptb settings     # View or update tracking settings
-ptb settings --init-rocket # Initialize or reset Team Rocket campaign & operations
+ptb status                  # 1-line status banner (ideal for tmux / prompt integration)
+ptb watch                   # Continuous live monitor loop with animated sprite
+ptb card                    # Shareable ASCII Trainer Profile Card
+ptb dex                     # Quick terminal Pokédex archive listing
+ptb shop                    # Quick Shop & Bag inventory listing
+ptb feed [target] [qty]     # Feed Oran Berries (e.g. 'ptb feed #25 4', 'ptb feed <=70 2', or 'ptb feed =70')
+ptb settings                # View or update tracking settings
+ptb settings --init-rocket  # Initialize or reset Team Rocket campaign & operations
 ```
 
 ---

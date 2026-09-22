@@ -1,6 +1,6 @@
 # PokeTokenBar: Technical Architecture Guide
 
-This document is intended for developers maintaining or extending the PokeTokenBar application. It outlines the core architecture, module responsibilities, state management, safety guarantees, and the TUI rendering pipeline as of **v1.11.1**.
+This document is intended for developers maintaining or extending the PokeTokenBar application. It outlines the core architecture, module responsibilities, state management, safety guarantees, and the TUI rendering pipeline as of **v1.11.3**.
 
 ---
 
@@ -46,7 +46,7 @@ PokeTokenBar follows a clean separation of concerns between the **View/Controlle
 
 ```text
 poketokenbar/
-├── __init__.py           # Package version definition (v1.11.1)
+├── __init__.py           # Package version definition (v1.11.3)
 ├── cli.py                # CLI entry point (ptb, ptb status, ptb watch, ptb card, ptb settings)
 ├── tui.py                # PokeTokenBarTUI: 72-column terminal renderer and input dispatch loop
 ├── sprite_renderer.py    # SpriteRenderer: 24-bit TrueColor ANSI half-block renderer (with flip_h support)
@@ -171,7 +171,10 @@ The system supports **three dispatch mechanisms**:
 
 ### 4.3 Token Bank, Stock Cycle Engine & Liquidation Waterfall
 Tab [10] Bank provides three distinct financial services:
-1. **Checking Account & Borrowing**: Standard deposit/withdrawal with daily interest accrual and collateralized borrowing up to 30% of checking deposits (max 500M tokens).
+1. **Checking Account & Borrowing**:
+   - **Daily Interest Rates**: Checking deposits yield `+5.0%/day` compounded daily, while borrowed loans accrue `+10.0%/day` borrowing interest upon daily rollover (`CompanionEngine._apply_day_rollover()`).
+   - **Collateralized Borrowing**: Players may take out loans up to 30% of total checking deposits (capped at 500M tokens).
+   - **Repossession Deadline Notice**: The banking HUD displays `D-<NumOfDays> until repossession` (where `days_left = max(0, 7 - loan_days)`), giving trainers an explicit countdown before the default liquidation waterfall is triggered.
 2. **Certificates of Deposit (CDs) & Dynamic Multi-Key Sorting**:
    - Fixed-term deposit contracts (3-Day at 8% APY, 7-Day at 12% APY, 14-Day at 20% APY compounding daily).
    - **Deterministic Multi-Key Sorting (`CompanionEngine.get_sorted_cds`)**: Supports criteria-based ordering with three modes:
@@ -246,6 +249,32 @@ The Mt. Silver Red Battle is architecturally integrated into Tab [6] Battles:
 - **Egg Hatch Celebrations**: Egg hatching triggers congratulatory milestone banners in Tab [1].
 - **Compact Incubation Display**: Incubation progress line formatted strictly under 72 columns (`Incubating: [███░░░░░░░░░░░░░░░░░] 13.2% (197.6K / 1.5M)`), preventing terminal wrapping.
 
+### 4.8 Companion Feeding Engine & Happiness Conditions
+- **Target Resolution Syntax**:
+  - `<=[pct]` (Less or equal to): e.g. `<=70%`, `<=70`. Matches companions with happiness $\le$ `pct`.
+  - `<[pct]` (Less than): e.g. `<70%`, `<70`. Matches companions with happiness $<$ `pct`.
+  - `[pct]` / `=[pct]` (Equal to): e.g. `70%`, `=70`, `70`. Matches companions with happiness $==$ `pct`.
+  - `0` (All exhausted): Shorthand targeting all companions at `0%` happiness.
+  - `#[id]` (Specific Pokédex ID): e.g. `#25` (Pikachu), `#133` (Eevee). Matches species by exact Pokédex ID. Arbitrary species names and table row indices are disallowed to eliminate ambiguity.
+- **Threshold Planning & Berry Optimization (`CompanionEngine.get_feed_threshold_plan`)**:
+  - Evaluates all companions in the roster against the specified condition (`<=`, `<`, `=`).
+  - Computes required Oran Berries per companion based on current happiness and item modifiers: standard berries grant `+25%` happiness, while companions holding a Soothe Bell (`held_item == "soothe_bell"`) receive double yield (`+50%` per berry).
+  - Target quantities are strictly capped at the exact amount required to reach 100% happiness, preventing wasted berry consumption.
+- **Batch Execution & Confirmation Flow (`CompanionEngine.feed_by_happiness_threshold`)**:
+  - Interactive feeding prompts a 72-column preview detailing target species, count of eligible Pokémon, current happiness, target happiness, and total berries to consume.
+  - When executed, berries are deducted from `inventory["berry_oran"]` and companion happiness levels are restored atomically.
+  - Supports CLI execution via `ptb feed <#[id]|<=[pct]|<[pct]|[pct]|0> [qty]` with `-y`/`--yes` bypass.
+
+### 4.9 Large-Quantity Transaction Safeguards
+To safeguard players against accidental large purchases or keystroke errors:
+- **Trigger Threshold**: Any Mart/Black Market item purchase or Stock Exchange share acquisition exceeding 5 units (`qty > 5`) automatically triggers an interactive confirmation prompt.
+- **Confirmation State Machine (`app.pending_buy`)**:
+  - Staged in memory with order payload (`kind`, `item_id` / `stock_sym`, `qty`, `cost`).
+  - Terminal prompts: `⚠️ Buy <qty>x <name> for <cost>? Type 'yes' to confirm or 'no' to cancel`.
+  - Strictly formatted within 72 columns.
+  - Confirming with `y`, `yes`, or `confirm` finalizes the purchase and debits tokens; typing `n`, `no`, or any other command immediately cancels the staged order without mutating state.
+  - Supports non-interactive bypass via `-y` flag or programmatic `confirm=True` calls.
+
 ---
 
 ## 5. TUI Rendering Pipeline & Layout Constraints
@@ -274,7 +303,7 @@ or with unittest:
 PTB_STATE_FILE=/tmp/ptb_test.json python -m unittest discover tests
 ```
 
-The test suite contains **110 passing unit and integration tests** verifying sprite rendering, economy calculations, repossession waterfall, stock cycle transitions, Red battle logic, tactical boss combat, CD criteria sorting, and TUI 72-column formatting constraints.
+The test suite contains **137 passing unit and integration tests** (133 companion, banking, and combat tests in `tests/test_companion.py`, and 4 telemetry parser tests in `tests/test_antigravity.py`) verifying sprite rendering, economy calculations, repossession waterfall, stock cycle transitions, Red battle logic, tactical boss combat, CD criteria sorting, happiness threshold and equality feeding, large-quantity transaction safeguards, and strict TUI 72-column formatting constraints.
 
 ### Adding a New TUI Command
 1. If the command belongs to an existing submode (e.g. Expeditions, Stocks, Minigames, Rocket HQ), handle it in the appropriate conditional block in `PokeTokenBarTUI.run()`.

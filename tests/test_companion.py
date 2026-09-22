@@ -5018,21 +5018,116 @@ class TestOranBerryFeeding(unittest.TestCase):
         self.engine.set_active_mon(active)
         self.engine.state["inventory"] = {"berry_oran": 10}
 
-        # Test '<=50%' target string
+        # Test '<=50%' target string (less than or equal to)
         plan1 = self.engine.get_feed_plan("<=50%", qty=1)
         self.assertTrue(plan1["ok"])
         self.assertEqual(plan1["plan_type"], "threshold")
         self.assertEqual(plan1["threshold"], 50)
+        self.assertEqual(plan1["op"], "<=")
 
-        # Test '50%' target string
-        plan2 = self.engine.get_feed_plan("50%", qty=1)
+        # Test '<=50' target string
+        plan2 = self.engine.get_feed_plan("<=50", qty=1)
         self.assertTrue(plan2["ok"])
         self.assertEqual(plan2["threshold"], 50)
 
-        # Test '<=50' target string
-        plan3 = self.engine.get_feed_plan("<=50", qty=1)
+        # Test '<50%' target string (less than)
+        plan3 = self.engine.get_feed_plan("<50%", qty=1)
         self.assertTrue(plan3["ok"])
-        self.assertEqual(plan3["threshold"], 50)
+        self.assertEqual(plan3["op"], "<")
+
+        # Test '<30' target string (not matching since 30 is not < 30)
+        plan4 = self.engine.get_feed_plan("<30", qty=1)
+        self.assertFalse(plan4["ok"])
+
+        # Test '30%' target string (equal to 30)
+        plan5 = self.engine.get_feed_plan("30%", qty=1)
+        self.assertTrue(plan5["ok"])
+        self.assertEqual(plan5["op"], "=")
+
+        # Test '=30' target string (equal to 30)
+        plan6 = self.engine.get_feed_plan("=30", qty=1)
+        self.assertTrue(plan6["ok"])
+        self.assertEqual(plan6["op"], "=")
+
+        # Test '30' target string (plain number equal to 30)
+        plan7 = self.engine.get_feed_plan("30", qty=1)
+        self.assertTrue(plan7["ok"])
+        self.assertEqual(plan7["op"], "=")
+
+        # Test '=70' target string (equal to 70, does not match 30)
+        plan8 = self.engine.get_feed_plan("=70", qty=1)
+        self.assertFalse(plan8["ok"])
+
+        # Test '#<id>' targets species specifically
+        plan9 = self.engine.get_feed_plan(f"#{active.current_id}", qty=1)
+        self.assertTrue(plan9["ok"])
+        self.assertEqual(plan9["plan_type"], "single")
+
+    def test_feed_operator_conditions_comprehensive(self):
+        self.engine.hatch_egg(0)
+        active = self.engine.active_mon
+        active.happiness = 0
+        self.engine.set_active_mon(active)
+
+        # Mon 2: 30% happiness
+        self.engine.state["dex"].append({
+            "id": "sp_25", "species_id": 25, "base_id": 25,
+            "chain_order": [25], "rarity": "uncommon", "status": "inactive",
+            "mon_state": {"base_id": 25, "current_id": 25, "happiness": 30, "stage_index": 0, "total_forms": 1},
+            "happiness": 30
+        })
+        # Mon 3: 70% happiness
+        self.engine.state["dex"].append({
+            "id": "sp_133", "species_id": 133, "base_id": 133,
+            "chain_order": [133], "rarity": "rare", "status": "inactive",
+            "mon_state": {"base_id": 133, "current_id": 133, "happiness": 70, "stage_index": 0, "total_forms": 1},
+            "happiness": 70
+        })
+        # Mon 4: 70% happiness
+        self.engine.state["dex"].append({
+            "id": "sp_143", "species_id": 143, "base_id": 143,
+            "chain_order": [143], "rarity": "rare", "status": "inactive",
+            "mon_state": {"base_id": 143, "current_id": 143, "happiness": 70, "stage_index": 0, "total_forms": 1},
+            "happiness": 70
+        })
+        # Mon 5: 90% happiness
+        self.engine.state["dex"].append({
+            "id": "sp_149", "species_id": 149, "base_id": 149,
+            "chain_order": [149], "rarity": "rare", "status": "inactive",
+            "mon_state": {"base_id": 149, "current_id": 149, "happiness": 90, "stage_index": 0, "total_forms": 1},
+            "happiness": 90
+        })
+        self.engine.state["inventory"] = {"berry_oran": 20}
+
+        # 1. <=70%: matches Mon 1 (0%), Mon 2 (30%), Mon 3 (70%), Mon 4 (70%) -> 4 mons
+        plan_le = self.engine.get_feed_plan("<=70", qty=1)
+        self.assertTrue(plan_le["ok"])
+        self.assertEqual(len(plan_le["items"]), 4)
+
+        # 2. <70%: matches Mon 1 (0%), Mon 2 (30%) -> 2 mons
+        plan_lt = self.engine.get_feed_plan("<70", qty=1)
+        self.assertTrue(plan_lt["ok"])
+        self.assertEqual(len(plan_lt["items"]), 2)
+
+        # 3. =70 / 70% / 70: matches Mon 3 (70%), Mon 4 (70%) -> 2 mons
+        plan_eq = self.engine.get_feed_plan("=70", qty=1)
+        self.assertTrue(plan_eq["ok"])
+        self.assertEqual(len(plan_eq["items"]), 2)
+
+        plan_pct = self.engine.get_feed_plan("70%", qty=1)
+        self.assertTrue(plan_pct["ok"])
+        self.assertEqual(len(plan_pct["items"]), 2)
+
+        # 4. 0: matches Mon 1 (0%) -> 1 mon
+        plan_zero = self.engine.get_feed_plan("0", qty=1)
+        self.assertTrue(plan_zero["ok"])
+        self.assertEqual(len(plan_zero["items"]), 1)
+
+        # 5. #149: matches Mon 5 (Dragonite #149) specifically
+        plan_id = self.engine.get_feed_plan("#149", qty=1)
+        self.assertTrue(plan_id["ok"])
+        self.assertEqual(len(plan_id["items"]), 1)
+        self.assertEqual(plan_id["items"][0]["name"], "Dragonite")
 
     def test_feed_plan_stating_required_and_available(self):
         self.engine.hatch_egg(0)

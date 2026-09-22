@@ -1185,20 +1185,20 @@ class PokeTokenBarTUI:
             else:
                 target = arg
         else:
-            if parts[1] in ["<=", "<"] and len(parts) >= 3:
+            if parts[1] in ["<=", "<", "=", "=="] and len(parts) >= 3:
                 target = parts[1] + parts[2]
                 if len(parts) >= 4:
                     try:
                         qty = int(parts[3].strip())
                     except ValueError:
-                        self.message = "Usage: feed <#id|<=pct%> [qty] (e.g. 'feed 0', 'feed #25 4')"
+                        self.message = "Usage: feed <#[id]|<=[pct]|<[pct]|[pct]|0> [qty] (e.g. 'feed <=70 2', 'feed =70', 'feed 0', 'feed #25 4')"
                         return
             else:
                 target = parts[1].strip()
                 try:
                     qty = int(parts[2].strip())
                 except ValueError:
-                    self.message = "Usage: feed <#id|<=pct%> [qty] (e.g. 'feed 0', 'feed #25 4')"
+                    self.message = "Usage: feed <#[id]|<=[pct]|<[pct]|[pct]|0> [qty] (e.g. 'feed <=70 2', 'feed =70', 'feed 0', 'feed #25 4')"
                     return
 
         plan = self.engine.get_feed_plan(target=target, qty=qty)
