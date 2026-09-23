@@ -1,6 +1,6 @@
 # 🐾 PokeTokenBar (Linux CLI Edition)
 
-[![Version](https://img.shields.io/badge/version-1.11.3-blue.svg)](https://github.com/G3N0M3/PokeTokenBar-CLI)
+[![Version](https://img.shields.io/badge/version-1.12.0-blue.svg)](https://github.com/G3N0M3/PokeTokenBar-CLI)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python: 3.8+](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 
@@ -23,7 +23,7 @@ Designed specifically for **Linux CLI** environments, with automated, real-time 
 - ⚔️ **Gym Raids & Mt. Silver Summit (Tab [6])**: Defeat all 8 Kanto Gym Leaders, earn badges, and assemble a 6-Pokémon team for the turn-based RPG battle against Trainer Red to recruit Mew.
 - 📜 **Daily Quests & Happiness Streaks (Tab [7])**: Maintain daily coding streaks for up to +20% bonus XP, restore exhausted companions with berry feeding (`feed <#[id]|<=[pct]|[pct]|0> [qty]`), and complete daily milestones.
 - ✨ **Mega Evolution Chamber (Tab [8])**: Equip Mega Stones on eligible final forms for glowing terminal titles, accelerated expeditions, and a permanent +50% XP boost.
-- 🎲 **Game Corner & Black Market (Tabs [9] & [4])**: Play Video Poker, Gacha pulls, Slots, and Blackjack—or bribe your way into the clandestine Rocket Syndicate Black Market.
+- 🎲 **Game Corner & Black Market (Tabs [9] & [4])**: Play Video Poker, Gacha capsules, Slots, Blackjack, Voltorb Flip, Underground Digging, Silhouette Trivia, and Stadium Derby—or bribe your way into the clandestine Rocket Syndicate Black Market.
 - 🏦 **Token Bank & Stock Exchange (Tab [10])**: Compound daily checking interest (+5%), track loan deadlines with `D-<days>` countdowns, lock high-yield CDs, and trade 6 corporate stocks with lore-driven cycle trends.
 - 🚀 **Team Rocket Covert HQ (Tab [12])**: Intercept encrypted comms, deploy on 10 syndicate operations, and confront experimental prototype bosses in tactical combat.
 - ⚙️ **Grouped Settings & Customization (Tab [11])**: Configure table pagination, customize sprite resolution, calibrate monthly billing days, initialize token baselines, and generate shareable ASCII Trainer Profile Cards (`ptb card`).
@@ -93,8 +93,12 @@ ptb
 | `buy <qty>` / `sell <qty>` | Buy or sell shares in active stock terminal (confirms if > 5 shares) |
 | `black` | Access Rocket Syndicate Black Market (when open or etched 'R' found) |
 | `back` | Return from submodes (Dispatcher, Stock Terminal, Casino, Black Market) |
-| `play <1..4>` | Open Game Corner minigames (1=Poker, 2=Gacha, 3=Slots, 4=Blackjack) |
-| `bet <amount>` | Place a bet in Poker or Blackjack (e.g. `bet 500k`, `bet 1m`) |
+| `play <1..8>` | Open Game Corner minigames (1=Poker, 2=Gacha, 3=Slots, 4=Blackjack, 5=Voltorb, 6=Dig, 7=Trivia, 8=Derby) |
+| `bet <amount>` | Place a bet in Poker, Blackjack, Voltorb, Trivia, or Derby |
+| `flip <r> <c>` / `memo` / `cashout` | Voltorb Flip card reveal, note annotations, and payout cashout |
+| `pick <r> <c>` / `hammer` / `dig` | Underground Fossil Excavator mining tools & cave excavation |
+| `guess <name>` / `hint` / `giveup` | "Who's That Pokémon?" silhouette trivia challenge |
+| `race` / `start` | Launch Pokémon Stadium 4-lane hurdle derby race |
 | `hold <1..5>` / `all` / `none` | Choose cards to hold in Video Poker |
 | `pull <qty>` | Pull Gacha capsules (e.g. `pull 1`, `pull 10`) |
 | `spin <amount>` | Spin the Slot Machine (e.g. `spin 250k`) |
