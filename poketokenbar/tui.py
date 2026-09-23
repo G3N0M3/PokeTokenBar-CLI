@@ -647,7 +647,7 @@ class PokeTokenBarTUI:
                 elif cmd.startswith("play "):
                     parts = cmd.split()
                     if len(parts) >= 2:
-                        game = parts[1]
+                        game = parts[1].lower()
                         if game in ["1", "poker"]:
                             self.minigame_state = "poker"
                             self.message = ""
@@ -660,13 +660,25 @@ class PokeTokenBarTUI:
                         elif game in ["4", "blackjack", "21"]:
                             self.minigame_state = "blackjack"
                             self.message = ""
+                        elif game in ["5", "voltorb", "flip"]:
+                            self.minigame_state = "voltorb"
+                            self.message = ""
+                        elif game in ["6", "excavator", "dig", "mine"]:
+                            self.minigame_state = "excavator"
+                            self.message = ""
+                        elif game in ["7", "trivia", "quiz", "silhouette"]:
+                            self.minigame_state = "trivia"
+                            self.message = ""
+                        elif game in ["8", "derby", "race", "stadium"]:
+                            self.minigame_state = "derby"
+                            self.message = ""
                         else:
                             self.message = (
                                 "Game not found! Type 'play 1' for Poker, "
-                                "'play 2' for Gacha, etc."
+                                "'play 5' for Voltorb Flip, etc."
                             )
                     else:
-                        self.message = "Usage: play <idx> (e.g. 'play 1')"
+                        self.message = "Usage: play <idx> (e.g. 'play 1' to 'play 8')"
                 elif self.current_tab == 9 and getattr(self, "minigame_state", "menu") == "slot" and cmd == "poster":
                     if self.engine.state.get("permanent_black_market", False):
                         ok, msg = self.engine.bribe_grunt_for_black_market()
@@ -699,12 +711,25 @@ class PokeTokenBarTUI:
                 elif cmd.startswith("bet"):
                     parts = cmd.split()
                     if len(parts) >= 2:
-                        if getattr(self, "minigame_state", "menu") == "poker":
+                        mg_state = getattr(self, "minigame_state", "menu")
+                        if mg_state == "poker":
                             ok, msg = self.engine.play_poker_bet(parts[1])
-                        elif getattr(self, "minigame_state", "menu") == "blackjack":
+                        elif mg_state == "blackjack":
                             ok, msg = self.engine.play_blackjack_bet(parts[1])
+                        elif mg_state == "voltorb":
+                            lvl = int(parts[2]) if len(parts) >= 3 and parts[2].isdigit() else None
+                            ok, msg = self.engine.play_voltorb_bet(parts[1], lvl)
+                        elif mg_state == "trivia":
+                            ok, msg = self.engine.play_trivia_start(parts[1])
+                        elif mg_state == "derby":
+                            if len(parts) >= 3:
+                                ok, msg = self.engine.play_derby_bet(parts[1], parts[2])
+                            else:
+                                ok, msg = False, "Usage: bet <lane 1-4> <amount> (e.g. 'bet 1 500k')"
+                        elif mg_state == "excavator":
+                            ok, msg = self.engine.play_excavator_start(parts[1])
                         else:
-                            ok, msg = False, "You must open Poker or Blackjack to bet."
+                            ok, msg = False, "You must open a Game Corner game to bet!"
                         self.message = msg
                     else:
                         self.message = "Usage: bet <amount> (e.g. 'bet 500k', 'bet 1m')"
@@ -723,6 +748,61 @@ class PokeTokenBarTUI:
                 elif cmd in ["hit", "stand", "double"] and getattr(self, "minigame_state", "menu") == "blackjack":
                     ok, msg = self.engine.play_blackjack_action(cmd)
                     self.message = msg
+                elif (cmd.startswith("flip ") or cmd.startswith("f ")) and getattr(self, "minigame_state", "menu") == "voltorb":
+                    parts = cmd.split()
+                    if len(parts) >= 3:
+                        ok, msg = self.engine.play_voltorb_flip(parts[1], parts[2])
+                        self.message = msg
+                    else:
+                        self.message = "Usage: flip <row 1-5> <col 1-5> (e.g. 'flip 1 3')"
+                elif (cmd.startswith("memo ") or cmd.startswith("m ")) and getattr(self, "minigame_state", "menu") == "voltorb":
+                    parts = cmd.split()
+                    if len(parts) >= 3:
+                        note = parts[3] if len(parts) >= 4 else ""
+                        ok, msg = self.engine.play_voltorb_memo(parts[1], parts[2], note)
+                        self.message = msg
+                    else:
+                        self.message = "Usage: memo <row 1-5> <col 1-5> [note]"
+                elif cmd == "cashout" and getattr(self, "minigame_state", "menu") == "voltorb":
+                    ok, msg = self.engine.play_voltorb_cashout()
+                    self.message = msg
+                elif (cmd.startswith("pick ") or cmd.startswith("p ")) and getattr(self, "minigame_state", "menu") == "excavator":
+                    parts = cmd.split()
+                    if len(parts) >= 3:
+                        ok, msg = self.engine.play_excavator_pick(parts[1], parts[2])
+                        self.message = msg
+                    else:
+                        self.message = "Usage: pick <row 1-6> <col 1-9> (e.g. 'pick 2 4')"
+                elif (cmd.startswith("hammer ") or cmd.startswith("h ")) and getattr(self, "minigame_state", "menu") == "excavator":
+                    parts = cmd.split()
+                    if len(parts) >= 3:
+                        ok, msg = self.engine.play_excavator_hammer(parts[1], parts[2])
+                        self.message = msg
+                    else:
+                        self.message = "Usage: hammer <row 1-6> <col 1-9> (e.g. 'hammer 3 5')"
+                elif (cmd.startswith("dig") or cmd.startswith("mine")) and getattr(self, "minigame_state", "menu") == "excavator":
+                    parts = cmd.split()
+                    cost = parts[1] if len(parts) >= 2 else "500k"
+                    ok, msg = self.engine.play_excavator_start(cost)
+                    self.message = msg
+                elif (cmd.startswith("guess ") or cmd.startswith("g ")) and getattr(self, "minigame_state", "menu") == "trivia":
+                    guess_str = cmd.split(maxsplit=1)[1].strip() if len(cmd.split()) > 1 else ""
+                    ok, msg = self.engine.play_trivia_guess(guess_str)
+                    self.message = msg
+                elif cmd == "hint" and getattr(self, "minigame_state", "menu") == "trivia":
+                    ok, msg = self.engine.play_trivia_hint()
+                    self.message = msg
+                elif cmd in ["giveup", "pass"] and getattr(self, "minigame_state", "menu") == "trivia":
+                    ok, msg = self.engine.play_trivia_pass()
+                    self.message = msg
+                elif cmd in ["race", "start"] and getattr(self, "minigame_state", "menu") == "derby":
+                    if self.engine.derby.game_state == "bet_placed":
+                        frames = self.engine.derby.simulate_race()
+                        self.animate_derby_race(frames)
+                        ok, msg = self.engine.play_derby_race()
+                        self.message = msg
+                    else:
+                        self.message = "Place a bet first! Type 'bet <lane 1-4> <amount>'."
                 elif cmd.startswith("pull"):
                     parts = cmd.split()
                     pull_type = parts[1] if len(parts) >= 2 else "1"
@@ -1437,6 +1517,29 @@ class PokeTokenBarTUI:
             time.sleep(delay)
             
         self.slot_animating = False
+
+    def animate_derby_race(self, frames):
+        import io
+        cached_summary = self.tracker.get_summary()
+        from poketokenbar.tui_tabs.game_corner import render_game_corner_tab
+        for frame in frames:
+            for r in self.engine.derby.racers:
+                r.position = frame["positions"].get(r.lane, r.position)
+
+            buf = io.StringIO()
+            old_stdout = sys.stdout
+            sys.stdout = buf
+
+            self.render_header(cached_summary)
+            self.render_tabs()
+            render_game_corner_tab(self)
+            self.render_footer()
+
+            sys.stdout = old_stdout
+            frame_str = buf.getvalue().replace("\n", "\033[K\n")
+            sys.stdout.write("\033[H" + frame_str + "\033[J")
+            sys.stdout.flush()
+            time.sleep(0.18)
 
 def main():
     tui = PokeTokenBarTUI()

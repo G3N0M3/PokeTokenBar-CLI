@@ -283,3 +283,198 @@ class CasinoMixin:
             self.save()
             
         return ok, msg
+
+    # ==========================================
+    # 5. Voltorb Flip (HGSS Deduction Puzzle)
+    # ==========================================
+    def play_voltorb_bet(self, amount_str: str, level: int = None) -> Tuple[bool, str]:
+        avail = self.available_tokens
+        bet = parse_tokens(amount_str) if amount_str.lower() != "all" else avail
+        if bet <= 0:
+            return False, "Invalid bet amount! Example: 'bet 500k', 'bet 1m'."
+        if bet > avail:
+            return False, f"Not enough tokens! You only have {format_tokens(avail)}."
+
+        ok, msg = self.voltorb.start_game(bet, level)
+        if ok:
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + bet
+            self.save()
+        return ok, msg
+
+    def play_voltorb_flip(self, row_str: str, col_str: str) -> Tuple[bool, str]:
+        try:
+            r = int(row_str)
+            c = int(col_str)
+        except ValueError:
+            return False, "Row and column must be numbers 1 to 5 (e.g. 'flip 1 3')."
+
+        ok, msg = self.voltorb.flip(r, c)
+        if ok and self.voltorb.game_state in ["cleared", "game_over"]:
+            winnings = self.voltorb.last_winnings
+            mauv_mult = self.get_mauville_multiplier()
+            if winnings > 0 and mauv_mult > 1.0:
+                winnings = int(winnings * mauv_mult)
+            if winnings > 0:
+                self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - winnings
+            self._record_catalyst("casino_net_pnl", winnings - self.voltorb.current_bet)
+            self.save()
+        return ok, msg
+
+    def play_voltorb_memo(self, row_str: str, col_str: str, note: str = "") -> Tuple[bool, str]:
+        try:
+            r = int(row_str)
+            c = int(col_str)
+        except ValueError:
+            return False, "Row and column must be numbers 1 to 5."
+        return self.voltorb.memo(r, c, note)
+
+    def play_voltorb_cashout(self) -> Tuple[bool, str]:
+        ok, msg, winnings = self.voltorb.cashout()
+        if ok:
+            mauv_mult = self.get_mauville_multiplier()
+            if winnings > 0 and mauv_mult > 1.0:
+                winnings = int(winnings * mauv_mult)
+            if winnings > 0:
+                self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - winnings
+            self._record_catalyst("casino_net_pnl", winnings - self.voltorb.current_bet)
+            self.save()
+        return ok, msg
+
+    # ==========================================
+    # 6. Underground Fossil Excavator
+    # ==========================================
+    def play_excavator_start(self, cost_str: str = "500k") -> Tuple[bool, str]:
+        avail = self.available_tokens
+        cost = parse_tokens(cost_str) if cost_str.lower() != "all" else avail
+        if cost <= 0:
+            cost = 500_000
+        if cost > avail:
+            return False, f"Not enough tokens! Excavation requires {format_tokens(cost)} (you have {format_tokens(avail)})."
+
+        ok, msg = self.excavator.start_game(cost)
+        if ok:
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + cost
+            self.save()
+        return ok, msg
+
+    def play_excavator_pick(self, row_str: str, col_str: str) -> Tuple[bool, str]:
+        try:
+            r = int(row_str)
+            c = int(col_str)
+        except ValueError:
+            return False, "Usage: pick <row 1-6> <col 1-9> (e.g. 'pick 2 4')."
+
+        ok, msg, rewards = self.excavator.pick(r, c)
+        if ok and rewards:
+            self._apply_excavator_rewards(rewards)
+        return ok, msg
+
+    def play_excavator_hammer(self, row_str: str, col_str: str) -> Tuple[bool, str]:
+        try:
+            r = int(row_str)
+            c = int(col_str)
+        except ValueError:
+            return False, "Usage: hammer <row 1-6> <col 1-9> (e.g. 'hammer 3 5')."
+
+        ok, msg, rewards = self.excavator.hammer(r, c)
+        if ok and rewards:
+            self._apply_excavator_rewards(rewards)
+        return ok, msg
+
+    def _apply_excavator_rewards(self, rewards: list):
+        inv = self.state.setdefault("inventory", {})
+        total_tokens = 0
+        for r in rewards:
+            k = r.get("kind")
+            val = r.get("val", 0)
+            if k == "token":
+                total_tokens += val
+            elif k in ["item", "fossil"]:
+                item_key = r.get("key")
+                inv[item_key] = inv.get(item_key, 0) + 1
+
+        if total_tokens > 0:
+            mauv_mult = self.get_mauville_multiplier()
+            if mauv_mult > 1.0:
+                total_tokens = int(total_tokens * mauv_mult)
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - total_tokens
+
+        self._record_catalyst("casino_net_pnl", total_tokens - self.excavator.entry_cost)
+        self.save()
+
+    # ==========================================
+    # 7. "Who's That Pokémon?" Silhouette Trivia
+    # ==========================================
+    def play_trivia_start(self, bet_str: str = "500k") -> Tuple[bool, str]:
+        avail = self.available_tokens
+        bet = parse_tokens(bet_str) if bet_str.lower() != "all" else avail
+        if bet <= 0:
+            bet = 500_000
+        if bet > avail:
+            return False, f"Not enough tokens! You have {format_tokens(avail)}."
+
+        ok, msg = self.trivia.start_game(bet)
+        if ok:
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + bet
+            self.save()
+        return ok, msg
+
+    def play_trivia_guess(self, name_str: str) -> Tuple[bool, str]:
+        if not name_str.strip():
+            return False, "Usage: guess <pokemon name> (e.g. 'guess pikachu')."
+
+        finished, msg, winnings = self.trivia.guess(name_str)
+        if finished:
+            mauv_mult = self.get_mauville_multiplier()
+            if winnings > 0 and mauv_mult > 1.0:
+                winnings = int(winnings * mauv_mult)
+            if winnings > 0:
+                self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - winnings
+            self._record_catalyst("casino_net_pnl", winnings - self.trivia.current_bet)
+            self.save()
+        return True, msg
+
+    def play_trivia_hint(self) -> Tuple[bool, str]:
+        return self.trivia.request_hint()
+
+    def play_trivia_pass(self) -> Tuple[bool, str]:
+        ok, msg = self.trivia.give_up()
+        if ok:
+            self._record_catalyst("casino_net_pnl", -self.trivia.current_bet)
+            self.save()
+        return ok, msg
+
+    # ==========================================
+    # 8. Pokémon Stadium Derby (Hurdle Track)
+    # ==========================================
+    def play_derby_bet(self, lane_str: str, amount_str: str) -> Tuple[bool, str]:
+        try:
+            lane = int(lane_str)
+        except ValueError:
+            return False, "Usage: bet <lane 1-4> <amount> (e.g. 'bet 1 500k')."
+
+        avail = self.available_tokens
+        bet = parse_tokens(amount_str) if amount_str.lower() != "all" else avail
+        if bet <= 0:
+            return False, "Bet amount must be greater than 0!"
+        if bet > avail:
+            return False, f"Not enough tokens! You only have {format_tokens(avail)}."
+
+        ok, msg = self.derby.place_bet(lane, bet)
+        if ok:
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + bet
+            self.save()
+        return ok, msg
+
+    def play_derby_race(self) -> Tuple[bool, str]:
+        ok, msg, winnings = self.derby.resolve_race()
+        if ok:
+            mauv_mult = self.get_mauville_multiplier()
+            if winnings > 0 and mauv_mult > 1.0:
+                winnings = int(winnings * mauv_mult)
+            if winnings > 0:
+                self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - winnings
+            self._record_catalyst("casino_net_pnl", winnings - self.derby.bet_amount)
+            self.save()
+        return ok, msg
+

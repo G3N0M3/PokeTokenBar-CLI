@@ -154,22 +154,22 @@ class SpriteRenderer:
     _ansi_cache = {}  # (str(file_path), max_cols, mtime) -> ansi_str
 
     @classmethod
-    def render_png_to_ansi(cls, file_path: Path, max_cols: int = 32, center_width: int = 0, flip_h: bool = False) -> str:
+    def render_png_to_ansi(cls, file_path: Path, max_cols: int = 32, center_width: int = 0, flip_h: bool = False, silhouette: bool = False) -> str:
         try:
             mtime = file_path.stat().st_mtime
-            cache_key = (str(file_path.resolve()), max_cols, center_width, flip_h, mtime)
+            cache_key = (str(file_path.resolve()), max_cols, center_width, flip_h, silhouette, mtime)
             if cache_key in cls._ansi_cache:
                 return cls._ansi_cache[cache_key]
         except Exception:
             cache_key = None
 
-        ansi_res = cls._compute_ansi(file_path, max_cols, center_width, flip_h=flip_h)
+        ansi_res = cls._compute_ansi(file_path, max_cols, center_width, flip_h=flip_h, silhouette=silhouette)
         if cache_key and ansi_res:
             cls._ansi_cache[cache_key] = ansi_res
         return ansi_res
 
     @classmethod
-    def _compute_ansi(cls, file_path: Path, max_cols: int = 32, center_width: int = 0, flip_h: bool = False) -> str:
+    def _compute_ansi(cls, file_path: Path, max_cols: int = 32, center_width: int = 0, flip_h: bool = False, silhouette: bool = False) -> str:
         # Try PIL first if available
         try:
             from PIL import Image
@@ -181,7 +181,7 @@ class SpriteRenderer:
                 for x in range(w):
                     row.append(img.getpixel((x, y)))
                 pixels.append(row)
-            return cls._draw_ansi_blocks(w, h, pixels, max_cols, center_width, flip_h=flip_h)
+            return cls._draw_ansi_blocks(w, h, pixels, max_cols, center_width, flip_h=flip_h, silhouette=silhouette)
         except Exception:
             pass
 
@@ -190,10 +190,10 @@ class SpriteRenderer:
         if not res:
             return " [Sprite unavailable] "
         w, h, pixels = res
-        return cls._draw_ansi_blocks(w, h, pixels, max_cols, center_width, flip_h=flip_h)
+        return cls._draw_ansi_blocks(w, h, pixels, max_cols, center_width, flip_h=flip_h, silhouette=silhouette)
 
     @classmethod
-    def _draw_ansi_blocks(cls, width: int, height: int, pixels: List[List[Tuple[int, int, int, int]]], max_cols: int, center_width: int = 0, flip_h: bool = False) -> str:
+    def _draw_ansi_blocks(cls, width: int, height: int, pixels: List[List[Tuple[int, int, int, int]]], max_cols: int, center_width: int = 0, flip_h: bool = False, silhouette: bool = False) -> str:
         # Target scale
         scale_x = max(1, width // max_cols)
         scale_y = scale_x * 2  # 2 vertical pixels per line character
@@ -213,6 +213,10 @@ class SpriteRenderer:
 
                 top_r, top_g, top_b, top_a = top_p
                 bot_r, bot_g, bot_b, bot_a = bot_p
+
+                if silhouette:
+                    top_r, top_g, top_b = 35, 40, 55
+                    bot_r, bot_g, bot_b = 35, 40, 55
 
                 # Handle transparency
                 if top_a < 50 and bot_a < 50:

@@ -10,6 +10,8 @@ YELLOW = "\033[93m"
 RED = "\033[91m"
 RESET = "\033[0m"
 BOLD = "\033[1m"
+DARK_GRAY = "\033[90m"
+WHITE = "\033[37m"
 
 def render_game_corner_tab(app):
     state = getattr(app, 'minigame_state', 'menu')
@@ -21,19 +23,31 @@ def render_game_corner_tab(app):
         app.render_slot_tab()
     elif state == 'blackjack':
         app.render_blackjack_tab()
+    elif state == 'voltorb':
+        render_voltorb_tab(app)
+    elif state == 'excavator':
+        render_excavator_tab(app)
+    elif state == 'trivia':
+        render_trivia_tab(app)
+    elif state == 'derby':
+        render_derby_tab(app)
     elif state == 'grunt_bribe':
         render_grunt_bribe_tab(app)
     else:
-        app.render_game_corner_menu()
+        render_game_corner_menu(app)
 
 def render_game_corner_menu(app):
     sys.stdout.write(f"\n  {BOLD}{HEADER}🎰 Welcome to the Token Game Corner!{RESET}\n\n")
     sys.stdout.write(f"  {BOLD}Available Games:{RESET}\n")
-    sys.stdout.write(f"   {CYAN}1. Hold'em Poker{RESET} - High stakes Texas Hold'em against the dealer.\n")
-    sys.stdout.write(f"   {CYAN}2. Gacha Capsules{RESET} - Pull for rare items & companions!\n")
-    sys.stdout.write(f"   {CYAN}3. Token Slots{RESET}    - A fast-paced slot machine.\n")
-    sys.stdout.write(f"   {CYAN}4. Blackjack{RESET}      - Classic 21 against the dealer.\n\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}play <idx>{RESET}' to start a game (e.g., 'play 1' for Poker).\n\n")
+    sys.stdout.write(f"   {CYAN}1. Hold'em Poker{RESET}    - High stakes Texas Hold'em vs Dealer.\n")
+    sys.stdout.write(f"   {CYAN}2. Gacha Capsules{RESET}   - Pull for rare items & companions!\n")
+    sys.stdout.write(f"   {CYAN}3. Token Slots{RESET}      - Fast-paced 3-reel slot machine.\n")
+    sys.stdout.write(f"   {CYAN}4. Blackjack{RESET}        - Classic 21 casino showdown.\n")
+    sys.stdout.write(f"   {CYAN}5. Voltorb Flip{RESET}     - Deduction card puzzle with multipliers!\n")
+    sys.stdout.write(f"   {CYAN}6. Underground Dig{RESET}  - Sledgehammer excavation for rare fossils.\n")
+    sys.stdout.write(f"   {CYAN}7. Silhouette Quiz{RESET}  - Who's That Pokémon trivia challenge!\n")
+    sys.stdout.write(f"   {CYAN}8. Stadium Derby{RESET}    - 4-lane hurdle track race betting.\n\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}play <1-8>{RESET}' to start (e.g. 'play 5' or 'play voltorb').\n\n")
     
 def render_slot_tab(app):
     avail = app.engine.available_tokens
@@ -188,3 +202,196 @@ def render_gacha_tab(app):
     sys.stdout.write(f"   • 🔮 Rare (15%):      Standard/Uncommon Eggs 🥚, Mega Stone 🔮\n")
     sys.stdout.write(f"   • 🍬 Uncommon (30%):  Rare Candy 🍬, Golden Razz Berry 🍇, +3M Tokens\n")
     sys.stdout.write(f"   • 🫐 Common (45%):    Oran Berry 🫐, +1.0M Tokens\n\n")
+
+def render_voltorb_tab(app):
+    v = app.engine.voltorb
+    avail = app.engine.available_tokens
+    sys.stdout.write(f"\n  {BOLD}{HEADER}⚡ Voltorb Flip [Level {v.current_level}/8]{RESET}\n\n")
+    sys.stdout.write(f"  Available Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n")
+    if v.game_state == "playing":
+        sys.stdout.write(f"  Bet: {BOLD}{YELLOW}{format_tokens(v.current_bet)}{RESET} | Multiplier: {BOLD}{GREEN}{v.current_multiplier}x{RESET} | Bank: {BOLD}{CYAN}{format_tokens(v.current_bet * v.current_multiplier)}{RESET}\n\n")
+    else:
+        sys.stdout.write(f"  Status: {BOLD}{YELLOW}{v.game_state.replace('_', ' ').title()}{RESET}\n\n")
+
+    sys.stdout.write(f"  {BOLD}Commands:{RESET}\n")
+    sys.stdout.write(f"   • '{BOLD}bet <amt>{RESET}' to start (e.g. 'bet 500k', 'bet 1m')\n")
+    sys.stdout.write(f"   • '{BOLD}flip <r> <c>{RESET}' to uncover (e.g. 'flip 1 3')\n")
+    sys.stdout.write(f"   • '{BOLD}memo <r> <c> <note>{RESET}' to mark notes (e.g. 'memo 2 4 v')\n")
+    sys.stdout.write(f"   • '{BOLD}cashout{RESET}' to bank payout | '{BOLD}back{RESET}' to exit\n\n")
+
+    if v.board:
+        sys.stdout.write("        1     2     3     4     5\n")
+        sys.stdout.write("     ┌─────┬─────┬─────┬─────┬─────┐\n")
+        for r in range(5):
+            row_str = f"   {r+1} │"
+            for c in range(5):
+                card = v.board[r][c]
+                if card.revealed:
+                    if card.value == 0:
+                        cell = f"  {RED}⚡{RESET}  "
+                    else:
+                        color = GREEN if card.value > 1 else CYAN
+                        cell = f" [{color}{card.value}{RESET}] "
+                elif card.memo:
+                    cell = f" {YELLOW}{card.memo[:3]:^3}{RESET} "
+                else:
+                    cell = " [?] "
+                row_str += cell + "│"
+            pts = v.row_points[r]
+            volts = v.row_voltorbs[r]
+            row_str += f"  Pts: {pts:>2} | ⚡: {volts}\n"
+            sys.stdout.write(row_str)
+            if r < 4:
+                sys.stdout.write("     ├─────┼─────┼─────┼─────┼─────┤\n")
+        sys.stdout.write("     └─────┴─────┴─────┴─────┴─────┘\n")
+        pts_line = "  Pts " + " ".join(f"{p:>5}" for p in v.col_points) + "\n"
+        volts_line = f"   {RED}⚡{RESET}  " + " ".join(f"{vo:>5}" for vo in v.col_voltorbs) + "\n\n"
+        sys.stdout.write(pts_line)
+        sys.stdout.write(volts_line)
+
+    if v.last_result:
+        sys.stdout.write(f"  {BOLD}Last Outcome:{RESET} {v.last_result}\n\n")
+
+def render_excavator_tab(app):
+    ex = app.engine.excavator
+    avail = app.engine.available_tokens
+    sys.stdout.write(f"\n  {BOLD}{HEADER}⛏️ Underground Fossil Excavator{RESET}\n\n")
+    sys.stdout.write(f"  Available Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n")
+
+    bar_len = 16
+    filled = int(bar_len * max(0, ex.integrity) / ex.MAX_INTEGRITY)
+    color = GREEN if ex.integrity > 12 else (YELLOW if ex.integrity > 5 else RED)
+    bar = f"{color}{'█' * filled}{RESET}{'░' * (bar_len - filled)}"
+    sys.stdout.write(f"  Wall Integrity: [{bar}] {ex.integrity}/{ex.MAX_INTEGRITY}\n\n")
+
+    sys.stdout.write(f"  {BOLD}Excavation Controls:{RESET}\n")
+    sys.stdout.write(f"   • '{BOLD}pick <r 1-6> <c 1-9>{RESET}'  - 1 tile: 1 hit, costs 1 integrity\n")
+    sys.stdout.write(f"   • '{BOLD}hammer <r 1-6> <c 1-9>{RESET}' - Blast area: 3 hits, costs 3 integrity\n")
+    sys.stdout.write(f"   • '{BOLD}dig [cost]{RESET}'           - Start new wall (costs 500K tokens)\n")
+    sys.stdout.write(f"   • '{BOLD}back{RESET}'                 - Return to Game Corner menu\n\n")
+
+    if ex.strata:
+        sys.stdout.write("      1  2  3  4  5  6  7  8  9\n")
+        sys.stdout.write("    ┌───────────────────────────┐\n")
+        for r in range(ex.ROWS):
+            row_str = f"  {r+1} │"
+            for c in range(ex.COLS):
+                sym, col_code = ex.get_tile_display(r, c)
+                row_str += f" {col_code}{sym}{RESET} "
+            row_str += "│\n"
+            sys.stdout.write(row_str)
+        sys.stdout.write("    └───────────────────────────┘\n")
+        sys.stdout.write(f"    Strata: {DARK_GRAY}▓{RESET} Rock | {YELLOW}▒{RESET} Dirt | {WHITE}░{RESET} Soil | {RED}■{RESET} Iron Barrier\n\n")
+
+    if ex.treasures:
+        uncovered = [t for t in ex.treasures if t.uncovered and t.kind != "barrier"]
+        if uncovered:
+            items_str = ", ".join(f"{t.symbol} {t.name}" for t in uncovered)
+            sys.stdout.write(f"  {BOLD}{GREEN}Uncovered Relics:{RESET} {items_str}\n\n")
+
+    if ex.last_action_msg:
+        sys.stdout.write(f"  {BOLD}Last Action:{RESET} {ex.last_action_msg}\n\n")
+
+def render_trivia_tab(app):
+    tr = app.engine.trivia
+    avail = app.engine.available_tokens
+    sys.stdout.write(f"\n  {BOLD}{HEADER}❓ \"Who's That Pokémon?!\" Silhouette Quiz{RESET}\n\n")
+    sys.stdout.write(f"  Available Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n")
+
+    streak_str = f" | {YELLOW}Streak: {tr.streak} 🔥{RESET}" if tr.streak > 0 else ""
+    if tr.game_state == "guessing" and tr.current_target:
+        types_str = " / ".join(tr.current_target["types"])
+        sys.stdout.write(f"  Wager: {BOLD}{YELLOW}{format_tokens(tr.current_bet)}{RESET} | Multiplier: {BOLD}{GREEN}{tr.current_multiplier:.1f}x{RESET}{streak_str}\n")
+        sys.stdout.write(f"  Type: {BOLD}{CYAN}{types_str}{RESET} | Guesses Left: {BOLD}{YELLOW}{tr.guesses_left}/3{RESET}\n\n")
+    else:
+        sys.stdout.write(f"  Status: {BOLD}{YELLOW}{tr.game_state.replace('_', ' ').title()}{RESET}{streak_str}\n\n")
+
+    sys.stdout.write(f"  {BOLD}Commands:{RESET}\n")
+    sys.stdout.write(f"   • '{BOLD}bet <amount>{RESET}' to start round (e.g. 'bet 500k', 'bet 1m')\n")
+    sys.stdout.write(f"   • '{BOLD}guess <name>{RESET}' to submit guess (e.g. 'guess pikachu')\n")
+    sys.stdout.write(f"   • '{BOLD}hint{RESET}' for next clue (drops mult) | '{BOLD}giveup{RESET}' to surrender\n")
+    sys.stdout.write(f"   • '{BOLD}back{RESET}' to return to Game Corner menu\n\n")
+
+    # Render Silhouette or Color Sprite
+    if tr.current_target:
+        species_id = tr.current_target["id"]
+        from poketokenbar.sprite_renderer import SpriteRenderer
+        sprite_path = app.engine.api.download_sprite(species_id, is_shiny=False, is_back=False)
+        is_sil = (tr.game_state == "guessing")
+        if sprite_path and sprite_path.exists():
+            art = SpriteRenderer.render_png_to_ansi(sprite_path, max_cols=22, center_width=28, silhouette=is_sil)
+            sys.stdout.write(f"{art}\n\n")
+        else:
+            if is_sil:
+                sys.stdout.write(f"       \033[38;2;35;40;55m▄█████████▄\033[0m\n")
+                sys.stdout.write(f"      \033[38;2;35;40;55m████  ?  ████\033[0m\n")
+                sys.stdout.write(f"       \033[38;2;35;40;55m▀█████████▀\033[0m\n\n")
+            else:
+                sys.stdout.write(f"      [{BOLD}{GREEN}★ {tr.current_target['name'].upper()} ★{RESET}]\n\n")
+
+    # Render unlocked hints
+    if tr.current_target and tr.hints_used > 0:
+        sys.stdout.write(f"  {BOLD}Revealed Hints:{RESET}\n")
+        target = tr.current_target
+        if tr.hints_used >= 1:
+            sys.stdout.write(f"   1. Category: {CYAN}{target['cat']}{RESET} (Height: {target['ht']}, Weight: {target['wt']})\n")
+        if tr.hints_used >= 2:
+            sys.stdout.write(f"   2. Name: Starts with '{CYAN}{target['name'][0]}{RESET}' ({len(target['name'])} letters)\n")
+        if tr.hints_used >= 3:
+            import re
+            dex_redacted = re.sub(re.escape(target["name"]), "______", target["dex"], flags=re.IGNORECASE)
+            sys.stdout.write(f"   3. Pokédex: \"{YELLOW}{dex_redacted}{RESET}\"\n")
+        sys.stdout.write("\n")
+
+    if tr.last_result:
+        sys.stdout.write(f"  {BOLD}Outcome:{RESET} {tr.last_result}\n\n")
+
+def render_derby_tab(app):
+    db = app.engine.derby
+    avail = app.engine.available_tokens
+    sys.stdout.write(f"\n  {BOLD}{HEADER}🏇 Pokémon Stadium Derby{RESET}\n\n")
+    sys.stdout.write(f"  Available Tokens: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n")
+    if db.game_state == "bet_placed":
+        chosen = db.racers[db.bet_lane - 1]
+        sys.stdout.write(f"  Active Bet: {BOLD}{YELLOW}{format_tokens(db.bet_amount)}{RESET} on Lane {db.bet_lane} [{chosen.icon} {chosen.name}] ({chosen.odds:.1f}x)\n\n")
+    else:
+        sys.stdout.write(f"  Status: {BOLD}{YELLOW}{db.game_state.replace('_', ' ').title()}{RESET}\n\n")
+
+    sys.stdout.write(f"  {BOLD}Racers & Track Odds:{RESET}\n")
+    for r in db.racers:
+        tag = f"{GREEN}[YOUR PICK]{RESET} " if db.game_state == "bet_placed" and r.lane == db.bet_lane else ""
+        sys.stdout.write(f"   {CYAN}Lane {r.lane}:{RESET} {r.icon} {BOLD}{r.name:<8}{RESET} ({YELLOW}{r.odds:>4.1f}x{RESET}) - {r.style} {tag}\n")
+    sys.stdout.write("\n")
+
+    sys.stdout.write(f"  {BOLD}Commands:{RESET}\n")
+    sys.stdout.write(f"   • '{BOLD}bet <lane 1-4> <amt>{RESET}' (e.g. 'bet 1 500k', 'bet 4 1m')\n")
+    sys.stdout.write(f"   • '{BOLD}race{RESET}' or '{BOLD}start{RESET}' to launch the race!\n")
+    sys.stdout.write(f"   • '{BOLD}back{RESET}' to return to Game Corner menu\n\n")
+
+    sys.stdout.write(f"  {BOLD}Track [Hurdles: ║ at 8m, 16m]:{RESET}\n")
+    for r in db.racers:
+        pos = min(db.TRACK_LENGTH, r.position)
+        track_chars = []
+        for i in range(db.TRACK_LENGTH + 1):
+            if i == pos:
+                track_chars.append(f"{YELLOW}●{RESET}")
+            elif i in db.HURDLES:
+                track_chars.append(f"{RED}║{RESET}")
+            else:
+                track_chars.append("─")
+        track_str = "".join(track_chars)
+        flag = "🚩" if pos >= db.TRACK_LENGTH else "🏁"
+        sys.stdout.write(f"   {r.lane} [{r.icon} {r.name:<8}] {track_str}{flag} ({pos:>2}m)\n")
+    sys.stdout.write("\n")
+
+    if db.race_frames and len(db.race_frames) > 1:
+        last_evts = db.race_frames[-1].get("events", [])
+        if last_evts:
+            sys.stdout.write(f"  {BOLD}Race Commentary:{RESET}\n")
+            for ev in last_evts[:3]:
+                sys.stdout.write(f"   📢 {ev}\n")
+            sys.stdout.write("\n")
+
+    if db.last_result:
+        sys.stdout.write(f"  {BOLD}Final Result:{RESET}\n  {db.last_result}\n\n")
+

@@ -10,6 +10,10 @@ from poketokenbar.game.storage import StorageManager
 from poketokenbar.game.poker import TexasHoldemEngine
 from poketokenbar.game.slots import SlotMachineEngine
 from poketokenbar.game.blackjack import BlackjackEngine
+from poketokenbar.game.voltorb_flip import VoltorbFlipEngine
+from poketokenbar.game.excavator import ExcavatorEngine
+from poketokenbar.game.trivia import TriviaEngine
+from poketokenbar.game.derby import DerbyEngine
 
 from poketokenbar.game.companion.hatching import HatchingMixin
 from poketokenbar.game.companion.evolution import EvolutionMixin
@@ -67,6 +71,10 @@ class CompanionEngine(
         self.poker = TexasHoldemEngine()
         self.blackjack = BlackjackEngine()
         self.slots = SlotMachineEngine()
+        self.voltorb = VoltorbFlipEngine()
+        self.excavator = ExcavatorEngine()
+        self.trivia = TriviaEngine()
+        self.derby = DerbyEngine()
 
         self._last_saved_state_str = json.dumps(self.state, sort_keys=True)
 

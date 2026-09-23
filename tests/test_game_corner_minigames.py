@@ -1,0 +1,227 @@
+import os
+import tempfile
+import unittest
+from pathlib import Path
+
+from poketokenbar.game.companion import CompanionEngine
+from poketokenbar.game.storage import StorageManager
+from poketokenbar.game.voltorb_flip import VoltorbFlipEngine
+from poketokenbar.game.excavator import ExcavatorEngine
+from poketokenbar.game.trivia import TriviaEngine
+from poketokenbar.game.derby import DerbyEngine
+
+
+class TestGameCornerMinigames(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls._temp_dir = tempfile.TemporaryDirectory()
+        cls._temp_state_file = Path(cls._temp_dir.name) / "test_minigame_state.json"
+        cls._old_state_file = os.environ.get("PTB_STATE_FILE")
+        os.environ["PTB_STATE_FILE"] = str(cls._temp_state_file)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._temp_dir.cleanup()
+        if cls._old_state_file is not None:
+            os.environ["PTB_STATE_FILE"] = cls._old_state_file
+        else:
+            os.environ.pop("PTB_STATE_FILE", None)
+
+    def setUp(self):
+        StorageManager.save_state(StorageManager.default_state())
+        self.engine = CompanionEngine()
+        # Seed tokens for testing bets
+        self.engine.state["used_since_install"] = 100_000_000
+        self.engine.state["spent_tokens"] = 0
+        self.engine.save()
+
+    # -------------------------------------------------------------------------
+    # 1. Voltorb Flip Tests
+    # -------------------------------------------------------------------------
+    def test_voltorb_engine_generation_and_clues(self):
+        v = VoltorbFlipEngine()
+        ok, msg = v.start_game(500_000, level=1)
+        self.assertTrue(ok)
+        self.assertEqual(len(v.board), 5)
+        self.assertEqual(len(v.board[0]), 5)
+
+        # Verify clues match card values
+        for r in range(5):
+            expected_pts = sum(v.board[r][c].value for c in range(5))
+            expected_volts = sum(1 for c in range(5) if v.board[r][c].value == 0)
+            self.assertEqual(v.row_points[r], expected_pts)
+            self.assertEqual(v.row_voltorbs[r], expected_volts)
+
+        for c in range(5):
+            expected_pts = sum(v.board[r][c].value for r in range(5))
+            expected_volts = sum(1 for r in range(5) if v.board[r][c].value == 0)
+            self.assertEqual(v.col_points[c], expected_pts)
+            self.assertEqual(v.col_voltorbs[c], expected_volts)
+
+    def test_voltorb_memo_and_flip(self):
+        v = VoltorbFlipEngine()
+        v.start_game(200_000, level=1)
+
+        # Test memo
+        ok_m, msg_m = v.memo(1, 2, "v")
+        self.assertTrue(ok_m)
+        self.assertEqual(v.board[0][1].memo, "v")
+
+        # Clear memo
+        v.memo(1, 2, "")
+        self.assertEqual(v.board[0][1].memo, "")
+
+        # Flip card
+        ok_f, msg_f = v.flip(1, 1)
+        self.assertTrue(ok_f)
+        self.assertTrue(v.board[0][0].revealed)
+
+    def test_voltorb_explosion_reveals_board(self):
+        v = VoltorbFlipEngine()
+        v.start_game(100_000, level=1)
+
+        # Force a voltorb at (1, 1)
+        v.board[0][0].value = 0
+        ok, msg = v.flip(1, 1)
+        self.assertTrue(ok)
+        self.assertEqual(v.game_state, "game_over")
+        self.assertIn("KABOOM", msg)
+        # All cards should be revealed after explosion
+        for r in range(5):
+            for c in range(5):
+                self.assertTrue(v.board[r][c].revealed)
+
+    def test_voltorb_cashout(self):
+        v = VoltorbFlipEngine()
+        v.start_game(100_000, level=1)
+        # Force a 2 at (1, 1)
+        v.board[0][0].value = 2
+        v.flip(1, 1)
+        self.assertEqual(v.current_multiplier, 2)
+
+        ok_co, msg_co, winnings = v.cashout()
+        self.assertTrue(ok_co)
+        self.assertEqual(winnings, 200_000)
+        self.assertEqual(v.game_state, "cashed_out")
+
+    # -------------------------------------------------------------------------
+    # 2. Excavator Tests
+    # -------------------------------------------------------------------------
+    def test_excavator_generation_and_pick(self):
+        ex = ExcavatorEngine()
+        ok, msg = ex.start_game(500_000)
+        self.assertTrue(ok)
+        self.assertEqual(len(ex.strata), 6)
+        self.assertEqual(len(ex.strata[0]), 9)
+        self.assertEqual(ex.integrity, 25)
+
+        initial_depth = ex.strata[0][0]
+        ok_p, msg_p, rewards = ex.pick(1, 1)
+        self.assertTrue(ok_p)
+        self.assertEqual(ex.integrity, 24)
+        if not any((0, 0) in t.coords for t in ex.treasures if t.kind == "barrier"):
+            self.assertEqual(ex.strata[0][0], max(0, initial_depth - 1))
+
+    def test_excavator_hammer_and_collapse(self):
+        ex = ExcavatorEngine()
+        ex.start_game(500_000)
+
+        # Hammer costs 3 integrity
+        ok_h, msg_h, _ = ex.hammer(3, 3)
+        self.assertTrue(ok_h)
+        self.assertEqual(ex.integrity, 22)
+
+        # Drain integrity to trigger collapse
+        ex.integrity = 2
+        ok_c, msg_c, rewards = ex.hammer(1, 1)
+        self.assertTrue(ok_c)
+        self.assertEqual(ex.game_state, "collapsed")
+        self.assertIn("collapsed", msg_c)
+
+    # -------------------------------------------------------------------------
+    # 3. Trivia Tests ("Who's That Pokémon?")
+    # -------------------------------------------------------------------------
+    def test_trivia_start_and_guess(self):
+        tr = TriviaEngine()
+        ok, msg = tr.start_game(500_000)
+        self.assertTrue(ok)
+        self.assertIsNotNone(tr.current_target)
+        self.assertEqual(tr.current_multiplier, 5.0)
+        self.assertEqual(tr.guesses_left, 3)
+
+        # Test hints
+        ok_h1, msg_h1 = tr.request_hint()
+        self.assertTrue(ok_h1)
+        self.assertEqual(tr.current_multiplier, 3.5)
+
+        ok_h2, msg_h2 = tr.request_hint()
+        self.assertTrue(ok_h2)
+        self.assertEqual(tr.current_multiplier, 2.0)
+
+        # Test wrong guess
+        ok_wrong, msg_wrong, win0 = tr.guess("totally_not_a_pokemon")
+        self.assertFalse(ok_wrong)
+        self.assertEqual(tr.guesses_left, 2)
+
+        # Test correct guess
+        correct_name = tr.current_target["name"]
+        ok_right, msg_right, winnings = tr.guess(correct_name)
+        self.assertTrue(ok_right)
+        self.assertEqual(tr.game_state, "won")
+        self.assertEqual(tr.streak, 1)
+        self.assertEqual(winnings, int(500_000 * 2.0))
+
+    # -------------------------------------------------------------------------
+    # 4. Derby Race Tests
+    # -------------------------------------------------------------------------
+    def test_derby_bet_and_simulation(self):
+        db = DerbyEngine()
+        self.assertEqual(len(db.racers), 4)
+
+        ok_b, msg_b = db.place_bet(1, 500_000)
+        self.assertTrue(ok_b)
+        self.assertEqual(db.game_state, "bet_placed")
+
+        frames = db.simulate_race()
+        self.assertGreater(len(frames), 1)
+        self.assertIsNotNone(db.winner)
+        self.assertGreaterEqual(db.winner.position, db.TRACK_LENGTH)
+
+        ok_r, msg_r, winnings = db.resolve_race()
+        self.assertTrue(ok_r)
+        self.assertEqual(db.game_state, "finished")
+        if db.winner.lane == 1:
+            self.assertEqual(winnings, int(500_000 * 2.0))
+        else:
+            self.assertEqual(winnings, 0)
+
+    # -------------------------------------------------------------------------
+    # 5. CompanionEngine Integration Tests
+    # -------------------------------------------------------------------------
+    def test_companion_casino_integration(self):
+        avail_start = self.engine.available_tokens
+
+        # Voltorb bet
+        ok_v, _ = self.engine.play_voltorb_bet("200k")
+        self.assertTrue(ok_v)
+        self.assertEqual(self.engine.available_tokens, avail_start - 200_000)
+
+        # Excavator start
+        ok_ex, _ = self.engine.play_excavator_start("300k")
+        self.assertTrue(ok_ex)
+        self.assertEqual(self.engine.available_tokens, avail_start - 500_000)
+
+        # Trivia start
+        ok_tr, _ = self.engine.play_trivia_start("100k")
+        self.assertTrue(ok_tr)
+        self.assertEqual(self.engine.available_tokens, avail_start - 600_000)
+
+        # Derby bet
+        ok_db, _ = self.engine.play_derby_bet("2", "400k")
+        self.assertTrue(ok_db)
+        self.assertEqual(self.engine.available_tokens, avail_start - 1_000_000)
+
+
+if __name__ == "__main__":
+    unittest.main()
