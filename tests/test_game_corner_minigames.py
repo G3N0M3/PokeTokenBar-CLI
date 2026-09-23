@@ -222,6 +222,70 @@ class TestGameCornerMinigames(unittest.TestCase):
         self.assertTrue(ok_db)
         self.assertEqual(self.engine.available_tokens, avail_start - 1_000_000)
 
+    # -------------------------------------------------------------------------
+    # 6. Grid TUI Alignment Verification Tests
+    # -------------------------------------------------------------------------
+    def test_grid_rendering_alignment(self):
+        import io
+        import sys
+        import re
+        from poketokenbar.tui_tabs.game_corner import render_voltorb_tab, render_excavator_tab
+
+        # Mock app object
+        class MockApp:
+            def __init__(self, engine):
+                self.engine = engine
+
+        app = MockApp(self.engine)
+
+        # 1. Voltorb Flip: all 25 cards revealed
+        self.engine.voltorb.start_game(500_000, level=1)
+        for r in range(5):
+            for c in range(5):
+                self.engine.voltorb.board[r][c].revealed = True
+        self.engine.voltorb.game_state = "game_over"
+        self.engine.voltorb.last_result = "KABOOM!"
+
+        buf = io.StringIO()
+        old_stdout = sys.stdout
+        try:
+            sys.stdout = buf
+            render_voltorb_tab(app)
+        finally:
+            sys.stdout = old_stdout
+
+        output = buf.getvalue()
+        # Find all 5 card row lines: "   <r> │...│"
+        grid_rows = [line for line in output.splitlines() if re.match(r"^\s+[1-5]\s+│", line)]
+        self.assertEqual(len(grid_rows), 5)
+        # Strip ANSI codes and verify pipe positions
+        clean_rows = [re.sub(r"\033\[[0-9;]*m", "", r) for r in grid_rows]
+        pipe_positions = [r.rfind("│") for r in clean_rows]
+        self.assertEqual(len(set(pipe_positions)), 1, f"Voltorb grid rows are misaligned: {pipe_positions}")
+
+        # 2. Excavator: with uncovered treasures
+        self.engine.excavator.start_game(500_000)
+        # Force uncovered treasures and empty soil
+        for t in self.engine.excavator.treasures:
+            t.uncovered = True
+            for r, c in t.coords:
+                self.engine.excavator.strata[r][c] = 0
+
+        buf2 = io.StringIO()
+        try:
+            sys.stdout = buf2
+            render_excavator_tab(app)
+        finally:
+            sys.stdout = old_stdout
+
+        output2 = buf2.getvalue()
+        ex_rows = [line for line in output2.splitlines() if re.match(r"^\s+[1-6]\s+│", line)]
+        self.assertEqual(len(ex_rows), 6)
+        clean_ex = [re.sub(r"\033\[[0-9;]*m", "", r) for r in ex_rows]
+        ex_pipe_positions = [r.rfind("│") for r in clean_ex]
+        self.assertEqual(len(set(ex_pipe_positions)), 1, f"Excavator grid rows are misaligned: {ex_pipe_positions}")
+
 
 if __name__ == "__main__":
     unittest.main()
+

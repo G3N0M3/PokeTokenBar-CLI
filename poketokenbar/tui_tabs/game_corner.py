@@ -228,7 +228,7 @@ def render_voltorb_tab(app):
                 card = v.board[r][c]
                 if card.revealed:
                     if card.value == 0:
-                        cell = f"  {RED}⚡{RESET}  "
+                        cell = f" [{RED}{BOLD}0{RESET}] "
                     else:
                         color = GREEN if card.value > 1 else CYAN
                         cell = f" [{color}{card.value}{RESET}] "
@@ -244,13 +244,21 @@ def render_voltorb_tab(app):
             if r < 4:
                 sys.stdout.write("     ├─────┼─────┼─────┼─────┼─────┤\n")
         sys.stdout.write("     └─────┴─────┴─────┴─────┴─────┘\n")
-        pts_line = "  Pts " + " ".join(f"{p:>5}" for p in v.col_points) + "\n"
-        volts_line = f"   {RED}⚡{RESET}  " + " ".join(f"{vo:>5}" for vo in v.col_voltorbs) + "\n\n"
+        pts_line = "  Pts " + " ".join(f"{p:^5}" for p in v.col_points) + "\n"
+        volts_line = f"   {RED}⚡{RESET} " + " ".join(f"{vo:^5}" for vo in v.col_voltorbs) + "\n\n"
         sys.stdout.write(pts_line)
         sys.stdout.write(volts_line)
 
     if v.last_result:
-        sys.stdout.write(f"  {BOLD}Last Outcome:{RESET} {v.last_result}\n\n")
+        sys.stdout.write(f"  {BOLD}Last Outcome:{RESET}\n  {v.last_result}\n\n")
+
+def _format_excavator_tile(sym: str, col_code: str) -> str:
+    import unicodedata
+    is_wide = (unicodedata.east_asian_width(sym[0]) in ('W', 'F') or len(sym) > 1 or ord(sym[0]) > 0x2000) and sym not in ('▓', '▒', '░', '■', ' ')
+    if is_wide:
+        return f"{col_code}{sym}{RESET} "
+    else:
+        return f" {col_code}{sym}{RESET} "
 
 def render_excavator_tab(app):
     ex = app.engine.excavator
@@ -277,7 +285,7 @@ def render_excavator_tab(app):
             row_str = f"  {r+1} │"
             for c in range(ex.COLS):
                 sym, col_code = ex.get_tile_display(r, c)
-                row_str += f" {col_code}{sym}{RESET} "
+                row_str += _format_excavator_tile(sym, col_code)
             row_str += "│\n"
             sys.stdout.write(row_str)
         sys.stdout.write("    └───────────────────────────┘\n")
