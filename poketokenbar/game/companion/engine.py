@@ -117,6 +117,18 @@ class CompanionEngine(
                     else:
                         ops_state[key].setdefault("boss_hp_remaining", 0)
 
+        # Clean up legacy multi-wave boss battle state if team size > 1
+        if b_st and len(b_st.get("boss_team", [])) > 1:
+            op_code = str(b_st.get("op_code", ""))
+            if b_st.get("status") != "win":
+                self.state["rocket_battle_state"] = {}
+                op_key = f"op_{op_code}"
+                if op_key in ops_state and not ops_state[op_key].get("claimed", False):
+                    num = int(op_code) if op_code.isdigit() else 0
+                    if num in boss_hps:
+                        ops_state[op_key]["boss_hp_remaining"] = boss_hps[num]
+                        ops_state[op_key]["objective_done"] = False
+
         # Unlock ops sequentially if preceding is claimed
         for i in range(1, 10):
             if ops_state.get(f"op_{i}", {}).get("claimed", False):
@@ -147,6 +159,21 @@ class CompanionEngine(
             self.state["permanent_black_market"] = True
         if cur_lvl >= 3:
             self.state["has_exp_splitter"] = True
+
+        # Initialize or migrate Covert Armory charges
+        charges_st = self.state.setdefault("rocket_armory_charges", {})
+        is_op = cur_lvl >= 2
+        for tech in ["spray", "chrono"]:
+            if tech not in charges_st or not isinstance(charges_st[tech], dict):
+                charges_st[tech] = {
+                    "charges": 3 if is_op else 0,
+                    "progress": 0,
+                    "target": 2_500_000
+                }
+            else:
+                charges_st[tech].setdefault("charges", 3 if is_op else 0)
+                charges_st[tech].setdefault("progress", 0)
+                charges_st[tech].setdefault("target", 2_500_000)
 
         unlocked_intel = self.state.setdefault("rocket_intel_unlocked", [])
         if "intel_red_autopsy" in unlocked_intel and "intel_001" not in unlocked_intel:

@@ -238,30 +238,21 @@ class StockMarketEngine:
 
     @staticmethod
     def get_ceiling_price(corp_key: str) -> int:
-        base = StockMarketEngine.get_base_price(corp_key)
-        return int(base * 3.5)
+        # Uncapped ceiling (10 Trillion tokens)
+        return 10_000_000_000_000
 
     @staticmethod
     def get_hard_cap(corp_key: str) -> int:
-        base = StockMarketEngine.get_base_price(corp_key)
-        return int(base * 4.5)
+        # Uncapped upper limit (10 Trillion tokens)
+        return 10_000_000_000_000
 
     @staticmethod
     def choose_pattern(corp_key: str, curr_price: int) -> str:
-        """Selects a market pattern intelligently based on current price relative to base."""
+        """Selects a market pattern intelligently without artificial upper ceilings."""
         base = StockMarketEngine.get_base_price(corp_key)
         ratio = curr_price / float(base)
 
-        if ratio >= 2.8:
-            # Overextended: high chance of bear decline or crash
-            weights = {
-                PATTERN_BULL_RALLY: 0.05,
-                PATTERN_BEAR_DECLINE: 0.50,
-                PATTERN_CYCLICAL_WAVE: 0.15,
-                PATTERN_SPECULATIVE_BUBBLE: 0.10,
-                PATTERN_CONSOLIDATION: 0.20,
-            }
-        elif ratio <= 0.45:
+        if ratio <= 0.45:
             # Undervalued: high chance of bull rally or value accumulation
             weights = {
                 PATTERN_BULL_RALLY: 0.45,
@@ -271,13 +262,13 @@ class StockMarketEngine:
                 PATTERN_CONSOLIDATION: 0.15,
             }
         else:
-            # Normal balanced trading
+            # Uncapped dynamic market: high probability of bull runs, bubbles, and waves
             weights = {
-                PATTERN_BULL_RALLY: 0.25,
-                PATTERN_BEAR_DECLINE: 0.25,
+                PATTERN_BULL_RALLY: 0.35,
                 PATTERN_CYCLICAL_WAVE: 0.25,
-                PATTERN_SPECULATIVE_BUBBLE: 0.10,
+                PATTERN_SPECULATIVE_BUBBLE: 0.15,
                 PATTERN_CONSOLIDATION: 0.15,
+                PATTERN_BEAR_DECLINE: 0.10,
             }
 
         patterns = list(weights.keys())
@@ -363,16 +354,14 @@ class StockMarketEngine:
                 noise = random.uniform(-0.015, 0.015)
                 c_boost = corp_boosts.get(c_key, 0.0)
 
-                # Elastic gravity resistance against infinite price growth
+                # Downside floor bounce protection (no upper gravity ceiling)
                 gravity = 0.0
-                if curr_price > int(base_price * 1.8):
-                    gravity = -0.04 * ((curr_price / float(base_price)) - 1.5)
-                elif curr_price < int(base_price * 0.6):
+                if curr_price < int(base_price * 0.6):
                     gravity = +0.04 * (1.0 - (curr_price / float(base_price)))
 
                 net_pct = planned_bias + noise + burn_mom + streak_sent + c_boost + gravity
-                # Clamp daily change between -35% and +35%
-                clamped_pct = max(-0.35, min(0.35, net_pct))
+                # Clamp daily change between -35% and +50% for explosive upside profit
+                clamped_pct = max(-0.35, min(0.50, net_pct))
 
                 new_price = int(curr_price * (1.0 + clamped_pct))
                 new_price = max(floor_price, min(hard_cap, new_price))

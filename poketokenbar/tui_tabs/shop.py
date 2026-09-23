@@ -921,6 +921,12 @@ def handle_bag_use(app, cmd: str):
 
     target_key = resolve_bag_item(app, choice)
     if not target_key:
+        if choice in ["mist", "spray", "morale_mist", "morale mist"]:
+            app.message = "Morale Mist is deployed from Tab [12] Armory! Type '12' -> 'use mist'."
+            return
+        if choice in ["chrono", "accelerator", "chrono_accelerator"]:
+            app.message = "Chrono Accelerator is deployed from Tab [12] Armory! Type '12' -> 'use chrono'."
+            return
         if choice.startswith("mega_stone") or choice == "mega_stone":
             app.message = "Mega Stones must be used from Tab [8] Mega Evolution!"
         else:

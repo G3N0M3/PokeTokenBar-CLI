@@ -271,7 +271,7 @@ class EvolutionMixin:
                 # Final form + reached graduation threshold for the first time!
                 mon_name = self.api.get_species_name(mon.current_id)
                 shiny_str = "✨ Shiny " if mon.is_shiny else ""
-                grad_str = f"🎓 Graduation! {shiny_str}{mon_name} has graduated to your Pokédex!"
+                grad_str = f"🎓 Graduation! {shiny_str}{mon_name} (#{mon.current_id}) has graduated to your Pokédex!"
                 events.append(grad_str)
                 self.state["last_evolution"] = f"{shiny_str}{mon_name} graduated to Pokédex!"
                 self.state["last_milestone"] = self.state["last_evolution"]

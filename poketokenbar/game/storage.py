@@ -183,7 +183,11 @@ class StorageManager:
             "has_exp_splitter": False,
             "last_authority_date": None,
             "pending_authority_delivery": None,
-            "rocket_battle_state": {}
+            "rocket_battle_state": {},
+            "rocket_armory_charges": {
+                "spray": {"charges": 0, "progress": 0, "target": 2_500_000},
+                "chrono": {"charges": 0, "progress": 0, "target": 2_500_000}
+            }
         }
 
     @staticmethod

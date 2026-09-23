@@ -2297,6 +2297,133 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertTrue(ok_claim)
         self.assertIn("Claimed CD", msg_claim)
 
+    def test_rocket_armory_charging_system(self):
+        """Verify armory items store up to 3 charges, decrement on use, and recharge with token usage."""
+        self.engine.state["rocket_rank"] = "Operative"
+        self.engine.state["rocket_story_unlocked"] = True
+        self.engine.state["install_baseline_set"] = True
+        self.engine.state["used_since_install"] = 10_000_000
+
+        # Check initial charges
+        info_spray = self.engine.get_armory_charge_info("spray")
+        self.assertEqual(info_spray["charges"], 3)
+        self.assertEqual(info_spray["max_charges"], 3)
+
+        # Deplete all 3 charges of Morale Mist
+        ok1, msg1 = self.engine.use_rocket_armory_item("mist")
+        self.assertTrue(ok1)
+        self.assertIn("Charges: 2/3", msg1)
+
+        ok2, msg2 = self.engine.use_rocket_armory_item("spray")
+        self.assertTrue(ok2)
+        self.assertIn("Charges: 1/3", msg2)
+
+        ok3, msg3 = self.engine.use_rocket_armory_item("morale mist")
+        self.assertTrue(ok3)
+        self.assertIn("Charges: 0/3", msg3)
+
+        # 4th use should be rejected due to 0 charges
+        ok4, msg4 = self.engine.use_rocket_armory_item("mist")
+        self.assertFalse(ok4)
+        self.assertIn("0/3 charges", msg4)
+
+        # Simulate coding usage: 2.5M tokens -> +1 charge
+        self.engine.process_usage(12_500_000)
+        info_spray2 = self.engine.get_armory_charge_info("spray")
+        self.assertEqual(info_spray2["charges"], 1)
+
+        # Simulate another 5.0M tokens -> reaches max 3/3 charges
+        self.engine.process_usage(17_500_000)
+        info_spray3 = self.engine.get_armory_charge_info("spray")
+        self.assertEqual(info_spray3["charges"], 3)
+
+        # Further tokens do not exceed 3
+        self.engine.process_usage(25_000_000)
+        info_spray4 = self.engine.get_armory_charge_info("spray")
+        self.assertEqual(info_spray4["charges"], 3)
+
+    def test_covert_armory_use_command_tui(self):
+        """Verify 'use mist', 'use chrono', and direct commands in Covert Armory TUI."""
+        from poketokenbar.tui import PokeTokenBarTUI
+        from poketokenbar.tui_tabs.rocket import handle_rocket_command, render_rocket_tab
+        import io
+        from unittest.mock import patch
+
+        self.engine.state["rocket_rank"] = "Operative"
+        self.engine.state["rocket_story_unlocked"] = True
+        self.engine.state["rocket_alliance_accepted"] = True
+
+        app = PokeTokenBarTUI()
+        app.engine = self.engine
+        app.current_tab = 12
+        app.rocket_subview = "armory"
+
+        # Test 'use mist' via handle_rocket_command
+        handle_rocket_command(app, "use mist")
+        self.assertIn("Deployed Syndicate Morale Mist", app.message)
+
+        # Test 'use chrono' via handle_rocket_command
+        handle_rocket_command(app, "use chrono")
+        self.assertIn("Chrono Accelerator", app.message)
+
+        # Test 'use 2' and 'use 3' are rejected (no alternative numeric commands)
+        handle_rocket_command(app, "use 2")
+        self.assertIn("Unknown armory tech. Valid commands: 'use mist', 'use chrono'.", app.message)
+        handle_rocket_command(app, "use 3")
+        self.assertIn("Unknown armory tech. Valid commands: 'use mist', 'use chrono'.", app.message)
+
+        # Test bare numbers and bare names are rejected (strict single command)
+        handle_rocket_command(app, "2")
+        self.assertIn("Please use 'use mist' or 'use chrono'.", app.message)
+        handle_rocket_command(app, "chrono")
+        self.assertIn("Rocket commands:", app.message)
+
+        # Test paging navigation (3 items per page: page 1 has items 1-3, page 2 has items 4-6)
+        self.assertEqual(app.armory_page, 1)
+        trap1 = io.StringIO()
+        with patch("sys.stdout", trap1):
+            render_rocket_tab(app)
+        out1 = trap1.getvalue()
+        self.assertIn("Syndicate Black Pass", out1)
+        self.assertIn("Syndicate Morale Mist", out1)
+        self.assertIn("Chrono Accelerator", out1)
+        self.assertNotIn("Corrupted EXP Splitter", out1)
+        self.assertIn("Page 1/2", out1)
+        self.assertIn("use mist", out1)
+        self.assertIn("use chrono", out1)
+        self.assertNotIn("use 2", out1)
+        self.assertNotIn("use 3", out1)
+
+        # Advance to page 2
+        handle_rocket_command(app, "n")
+        self.assertEqual(app.armory_page, 2)
+        trap2 = io.StringIO()
+        with patch("sys.stdout", trap2):
+            render_rocket_tab(app)
+        out2 = trap2.getvalue()
+        self.assertIn("Corrupted EXP Splitter", out2)
+        self.assertIn("Dark Gene Catalyst", out2)
+        self.assertIn("Team Rocket Authority", out2)
+        self.assertNotIn("Syndicate Black Pass", out2)
+        self.assertIn("Page 2/2", out2)
+        self.assertIn("requisition catalyst", out2)
+        self.assertIn("claim authority", out2)
+
+        # Page backwards
+        handle_rocket_command(app, "p")
+        self.assertEqual(app.armory_page, 1)
+
+        # Jump directly to page 2
+        handle_rocket_command(app, "page 2")
+        self.assertEqual(app.armory_page, 2)
+
+        # Test <= 72 column compliance across both pages
+        ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
+        for out in [out1, out2]:
+            clean_out = ansi_regex.sub("", out)
+            for line in clean_out.split("\n"):
+                self.assertLessEqual(len(line), 72, f"Armory line exceeds 72 cols: '{line}'")
+
     def test_corrupted_exp_splitter_passive_xp_mirror(self):
         """Verify Corrupted EXP Splitter mirrors 25% of coding XP to inactive roster mons without unseating active mon."""
         self.engine.state["used_since_install"] = 100_000_000
@@ -4612,12 +4739,30 @@ class TestCompanionEngine(unittest.TestCase):
 
         ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
 
-        # 1. Op 3 boss team definition matches 150k HP Chimera-001
+        # 1. Boss team definitions match exact single-boss configurations
         self.assertEqual(len(ROCKET_BOSS_TEAMS["3"]["team"]), 1)
         chimera_def = ROCKET_BOSS_TEAMS["3"]["team"][0]
         self.assertEqual(chimera_def["name"], "Prototype Chimera-001")
         self.assertEqual(chimera_def["max_hp"], 150_000)
         self.assertEqual(chimera_def["id"], 2012)
+
+        self.assertEqual(len(ROCKET_BOSS_TEAMS["6"]["team"]), 1)
+        zapdos_def = ROCKET_BOSS_TEAMS["6"]["team"][0]
+        self.assertEqual(zapdos_def["name"], "Cyber-Zapdos Core")
+        self.assertEqual(zapdos_def["max_hp"], 200_000)
+        self.assertEqual(zapdos_def["id"], 2013)
+
+        self.assertEqual(len(ROCKET_BOSS_TEAMS["9"]["team"]), 1)
+        omega_def = ROCKET_BOSS_TEAMS["9"]["team"][0]
+        self.assertEqual(omega_def["name"], "Apex Vanguard Mon-Omega")
+        self.assertEqual(omega_def["max_hp"], 300_000)
+        self.assertEqual(omega_def["id"], 2014)
+
+        self.assertEqual(len(ROCKET_BOSS_TEAMS["10"]["team"]), 1)
+        oak_def = ROCKET_BOSS_TEAMS["10"]["team"][0]
+        self.assertEqual(oak_def["name"], "Arch-Director Samuel Oak & Master Core")
+        self.assertEqual(oak_def["max_hp"], 350_000)
+        self.assertEqual(oak_def["id"], 2001)
 
         # 2. Operations Menu: HP% left calculation verification
         app = MagicMock()
@@ -5208,6 +5353,26 @@ class TestOranBerryFeeding(unittest.TestCase):
         self.assertEqual(self.engine.active_mon.happiness, 100)
         self.assertEqual(self.engine.state["inventory"]["berry_oran"], 6)
 
+    def test_feed_tab1_immediate_execution(self):
+        from poketokenbar.tui import PokeTokenBarTUI
+        self.engine.hatch_egg(0)
+        active = self.engine.active_mon
+        active.happiness = 0
+        self.engine.set_active_mon(active)
+        self.engine.state["inventory"] = {"berry_oran": 10}
+
+        app = PokeTokenBarTUI()
+        app.engine = self.engine
+        app.current_tab = 1
+
+        # 'feed 3' on Tab 1 should execute immediately and update active companion happiness
+        app.handle_feed_command("feed 3")
+        self.assertIsNone(app.pending_feed)
+        self.assertIn("Fed 3 Oran Berries", app.message)
+        self.assertEqual(self.engine.active_mon.happiness, 75)
+        self.assertEqual(self.engine.state["inventory"]["berry_oran"], 7)
+        self.assertEqual(self.engine.state["happiness"], 75)
+
     def test_feed_confirmation_prompts_under_72_cols(self):
         self.engine.hatch_egg(0)
         active = self.engine.active_mon
@@ -5476,6 +5641,139 @@ class TestLargeQuantityPurchaseConfirmation(unittest.TestCase):
             app.handle_invest_command(f"invest {ticker} 10")
             if app.pending_buy:
                 self.assertLessEqual(len(app.pending_buy["prompt"]), 72, f"Stock {ticker} prompt exceeds 72 cols: {app.pending_buy['prompt']}")
+
+    def test_multiple_congratulation_alerts_render_distinct_sprites(self):
+        """Verify each milestone alert dynamically renders its own Pokémon sprite and stats."""
+        import io
+        from unittest.mock import MagicMock, patch
+        from poketokenbar.tui import PokeTokenBarTUI
+        from poketokenbar.game.models import MonState, Rarity
+        from poketokenbar.game.storage import StorageManager
+
+        tui = PokeTokenBarTUI()
+        tui.engine = self.engine
+        tui.tracker.get_summary = MagicMock(return_value={"total_tokens": 0, "active_days": []})
+
+        # Set active companion to Pikachu (#25)
+        active_pika = MonState(
+            base_id=25,
+            path_ids=[172, 25, 26],
+            stage_index=1,
+            rarity=Rarity.UNCOMMON,
+            total_forms=3,
+        )
+        self.engine.set_active_mon(active_pika)
+
+        # Set up dex entries for other Pokémon involved in alerts
+        charmeleon_mon = MonState(
+            base_id=4,
+            path_ids=[4, 5, 6],
+            stage_index=1,
+            rarity=Rarity.UNCOMMON,
+            total_forms=3,
+        )
+        squirtle_mon = MonState(
+            base_id=7,
+            path_ids=[7],
+            stage_index=0,
+            rarity=Rarity.COMMON,
+            total_forms=1,
+            is_graduated=True,
+        )
+        self.engine.state["dex"] = [
+            {
+                "species_id": 5,
+                "base_id": 4,
+                "rarity": "uncommon",
+                "status": "inactive",
+                "mon_state": StorageManager.mon_to_dict(charmeleon_mon),
+            },
+            {
+                "species_id": 7,
+                "base_id": 7,
+                "rarity": "common",
+                "status": "graduated",
+                "mon_state": StorageManager.mon_to_dict(squirtle_mon),
+            },
+        ]
+
+        # Queue 3 milestone alerts: Hatch, Evolution, Graduation
+        self.engine.state["unread_alerts"] = [
+            "🐣 Egg Hatched! You got a Bulbasaur (#1)! Rarity: COMMON",
+            "🎉 Evolution! Charmander evolved into Charmeleon (#5)!",
+            "🎓 Graduation! Squirtle (#7) has graduated to your Pokédex!",
+        ]
+
+        download_calls = []
+        def mock_download(sp_id, is_shiny=False, is_back=False):
+            download_calls.append((sp_id, is_shiny))
+            return "/tmp/dummy.png"
+
+        trap_out = io.StringIO()
+        with patch.object(self.engine.api, "download_sprite", side_effect=mock_download), \
+             patch("poketokenbar.sprite_renderer.SpriteRenderer.render_png_to_ansi", return_value="[SPRITE]"), \
+             patch("sys.stdin", io.StringIO("\n\n\nq\n")), \
+             patch("sys.stdout", trap_out):
+            tui.run()
+
+        # Verify that download_sprite was called for each alert's specific Pokémon ID, NOT Pikachu (#25)
+        self.assertEqual(len(download_calls), 3)
+        self.assertEqual(download_calls[0], (1, False))
+        self.assertEqual(download_calls[1], (5, False))
+        self.assertEqual(download_calls[2], (7, False))
+
+        # Verify all alerts were popped
+        self.assertEqual(self.engine.state["unread_alerts"], [])
+
+        # Verify shiny handling
+        self.engine.state["unread_alerts"] = [
+            "🐣 Egg Hatched! You got a ✨ Shiny Charmander (#4)! Rarity: COMMON"
+        ]
+        download_calls.clear()
+        trap_shiny = io.StringIO()
+        with patch.object(self.engine.api, "download_sprite", side_effect=mock_download), \
+             patch("poketokenbar.sprite_renderer.SpriteRenderer.render_png_to_ansi", return_value="[SPRITE]"), \
+             patch("sys.stdin", io.StringIO("\nq\n")), \
+             patch("sys.stdout", trap_shiny):
+            tui.run()
+
+        self.assertEqual(len(download_calls), 1)
+        self.assertEqual(download_calls[0], (4, True))
+
+    def test_uncapped_stock_growth_and_trillion_scale_formatting(self):
+        """Verify that stock price upper limits are expanded and prices can grow past 4.5x without artificial caps."""
+        from poketokenbar.game.economy.stock_market import StockMarketEngine, BASE_PRICES
+        from poketokenbar.utils.formatting import format_tokens, parse_tokens
+
+        # 1. Verify trillion scale formatting and parsing
+        self.assertEqual(format_tokens(1_500_000_000_000), "1.5T")
+        self.assertEqual(parse_tokens("1.5t"), 1_500_000_000_000)
+        self.assertEqual(parse_tokens("2.0q"), 2_000_000_000_000_000)
+
+        # 2. Verify hard cap and ceiling are expanded to trillion scale
+        for c_key in BASE_PRICES:
+            self.assertGreaterEqual(StockMarketEngine.get_hard_cap(c_key), 10_000_000_000_000)
+            self.assertGreaterEqual(StockMarketEngine.get_ceiling_price(c_key), 10_000_000_000_000)
+
+        # 3. Verify stock prices can grow past previous 4.5x cap (e.g. Mauville base is 5M, old cap was 22.5M)
+        sm = self.engine.get_or_init_stock_market()
+        sm["prices"]["mauville"] = 50_000_000  # 10x base price
+        sm["market_state"]["mauville"]["next_bias"] = 0.20  # +20% bull move
+        sm["market_state"]["mauville"]["pattern"] = "bull_rally"
+
+        changes = StockMarketEngine.step_day(
+            sm_data=sm,
+            days_to_apply=1,
+            streak=5,
+            burn_tokens=1_000_000,
+            catalysts={},
+            corp_boosts={"mauville": 0.05}
+        )
+
+        new_price = sm["prices"]["mauville"]
+        # New price must not be clamped down to 22.5M! It should grow above 50M
+        self.assertGreater(new_price, 50_000_000)
+        self.assertGreaterEqual(changes["mauville"], 0.15)
 
 if __name__ == "__main__":
     unittest.main()

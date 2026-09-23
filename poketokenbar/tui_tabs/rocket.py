@@ -369,48 +369,84 @@ def _render_armory_subtab(app):
 
     armory_items = [
         ("pass", "Syndicate Black Pass", "Informant", "📯", "Permanent 24/7 Black Market access & waived Grunt tolls"),
-        ("spray", "Syndicate Morale Mist", "Operative", "🌫️", "Instantly boosts happiness of all squad Pokémon to 100%"),
-        ("chrono", "Chrono Accelerator", "Operative", "⏱️", "Fast-forwards active Bank CDs, advancing maturity by +1 day"),
+        ("spray", "Syndicate Morale Mist", "Operative", "💨", "Instantly boosts happiness of all squad Pokémon to 100%"),
+        ("chrono", "Chrono Accelerator", "Operative", "⌛", "Fast-forwards active Bank CDs, advancing maturity by +1 day"),
         ("splitter", "Corrupted EXP Splitter", "Special Agent", "⚡", "Mirrors 25% of coding XP to all inactive roster Pokémon"),
         ("catalyst", "Dark Gene Catalyst", "Executive", "🧬", "Stored in Bag (Slot 63): Instantly evolves companion"),
         ("authority", "Team Rocket Authority", "Commander", "👑", "Daily requisition of a random non-duplicate Gen 1 Pokémon"),
     ]
 
-    for code, name, min_rank, icon, desc in armory_items:
+    page_size = 3
+    total_pages = max(1, (len(armory_items) - 1) // page_size + 1)
+    if not hasattr(app, "armory_page") or not isinstance(app.armory_page, int):
+        app.armory_page = 1
+    app.armory_page = max(1, min(app.armory_page, total_pages))
+
+    start_idx = (app.armory_page - 1) * page_size
+    end_idx = start_idx + page_size
+    items_to_display = armory_items[start_idx:end_idx]
+
+    for offset, (code, name, min_rank, icon, desc) in enumerate(items_to_display):
+        global_idx = start_idx + offset + 1
         req_lvl = rank_order.get(min_rank, 1)
         if user_lvl >= req_lvl:
             if code == "pass" and app.engine.state.get("permanent_black_market", False):
                 badge = f"{BOLD}{GREEN}[ACTIVE PERK]{RESET}"
             elif code == "splitter" and app.engine.state.get("has_exp_splitter", False):
                 badge = f"{BOLD}{GREEN}[ACTIVE PERK]{RESET}"
+            elif code in ["spray", "chrono"]:
+                c_info = app.engine.get_armory_charge_info(code)
+                c_cnt = c_info["charges"]
+                color = GREEN if c_cnt > 0 else YELLOW
+                badge = f"{BOLD}{color}[CHARGES: {c_cnt}/3]{RESET}"
             else:
                 badge = f"{BOLD}{GREEN}[CLEARANCE GRANTED]{RESET}"
-            sys.stdout.write(f"  {icon} {BOLD}{name:<28}{RESET} {badge}\n")
+
+            sys.stdout.write(f"  [{global_idx}] {icon} {BOLD}{name:<24}{RESET} {badge}\n")
             for dline in textwrap.wrap(f"➔ {desc}", width=64):
-                sys.stdout.write(f"     {dline}\n")
+                sys.stdout.write(f"      {dline}\n")
+
+            if code in ["spray", "chrono"]:
+                c_info = app.engine.get_armory_charge_info(code)
+                c_cnt = c_info["charges"]
+                if c_cnt >= 3:
+                    sys.stdout.write(f"      {GREEN}Recharge: [████████████████████] FULLY CHARGED (3/3 MAX){RESET}\n")
+                else:
+                    bar = '█' * (c_info['pct'] // 5) + '░' * (20 - (c_info['pct'] // 5))
+                    p_str = format_tokens(c_info['progress'])
+                    t_str = format_tokens(c_info['target'])
+                    sys.stdout.write(f"      {CYAN}Recharge: [{bar}] {p_str}/{t_str} ({c_info['pct']}%){RESET}\n")
         else:
             badge = f"{BOLD}{RED}[LOCKED - {min_rank.upper()} REQUIRED]{RESET}"
-            sys.stdout.write(f"  ❓ {BOLD}{'??? ???':<28}{RESET} {badge}\n")
+            sys.stdout.write(f"  [{global_idx}] ❓ {BOLD}{'??? ???':<24}{RESET} {badge}\n")
             lock_msg = f"➔ Requires rank '{min_rank}' (Promoted via Covert Operations)."
             for dline in textwrap.wrap(lock_msg, width=64):
-                sys.stdout.write(f"     {YELLOW}{dline}{RESET}\n")
+                sys.stdout.write(f"      {YELLOW}{dline}{RESET}\n")
         sys.stdout.write("\n")
 
-    sys.stdout.write(f"  ➔ Clearance perks activate automatically upon rank promotion.\n\n")
+    if total_pages > 1:
+        sys.stdout.write(f"  ➔ Page {app.armory_page}/{total_pages} - Type '{BOLD}n{RESET}', '{BOLD}p{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")
+
+    if app.armory_page == 1:
+        sys.stdout.write(f"  ➔ Type '{BOLD}use mist{RESET}' to deploy Morale Mist.\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}use chrono{RESET}' to warp Bank CD timelines.\n\n")
+    else:
+        sys.stdout.write(f"  ➔ Type '{BOLD}requisition catalyst{RESET}' to store Dark Gene Catalyst in Bag.\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}claim authority{RESET}' to dispatch daily field agents.\n\n")
 
 def _resolve_armory_tech_code(raw: str) -> str:
     raw = raw.lower().strip()
-    if "pass" in raw:
+    if "pass" in raw or raw == "1":
         return "pass"
     if "spray" in raw or "mist" in raw or "morale" in raw:
         return "spray"
     if "chrono" in raw or "accelerator" in raw:
         return "chrono"
-    if "splitter" in raw:
+    if "splitter" in raw or raw == "4":
         return "splitter"
-    if "catalyst" in raw or "gene" in raw:
+    if "catalyst" in raw or "gene" in raw or raw == "5":
         return "catalyst"
-    if "authority" in raw:
+    if "authority" in raw or raw == "6":
         return "authority"
     return raw.split()[0] if raw.split() else raw
 
@@ -555,6 +591,21 @@ def handle_rocket_command(app, cmd: str):
             app.message = ""
         except ValueError:
             app.message = "Usage: page <number>"
+    elif subview == "armory" and cmd in ["n", "next"]:
+        if not hasattr(app, "armory_page"): app.armory_page = 1
+        app.armory_page += 1
+        app.message = ""
+    elif subview == "armory" and cmd in ["p", "prev"]:
+        if not hasattr(app, "armory_page"): app.armory_page = 1
+        app.armory_page = max(1, app.armory_page - 1)
+        app.message = ""
+    elif subview == "armory" and cmd.startswith("page "):
+        try:
+            p = int(cmd.split()[1])
+            app.armory_page = max(1, p)
+            app.message = ""
+        except ValueError:
+            app.message = "Usage: page <number>"
     elif cmd.startswith("read "):
         parts = cmd.split()
         if len(parts) >= 2 and parts[1].isdigit():
@@ -621,16 +672,52 @@ def handle_rocket_command(app, cmd: str):
     elif cmd in ["keep", "dismiss"]:
         ok, msg = app.engine.handle_authority_delivery(cmd)
         app.message = msg
+    elif cmd == "use" or cmd.startswith("use "):
+        parts = cmd.split(maxsplit=1)
+        if len(parts) < 2:
+            app.message = "Usage: use <mist|chrono> (e.g. 'use mist', 'use chrono')"
+            return
+        target_raw = parts[1].strip().lower()
+        if target_raw == "mist":
+            ok, msg = app.engine.use_rocket_armory_item("spray")
+            app.message = msg
+        elif target_raw == "chrono":
+            ok, msg = app.engine.use_rocket_armory_item("chrono")
+            app.message = msg
+        elif target_raw in ["2", "3"]:
+            app.message = "Unknown armory tech. Valid commands: 'use mist', 'use chrono'."
+        else:
+            tech_code = _resolve_armory_tech_code(target_raw)
+            if tech_code == "pass":
+                app.message = "Syndicate Black Pass is a passive clearance perk (always active)."
+            elif tech_code == "splitter":
+                app.message = "Corrupted EXP Splitter is a passive perk (automatically mirrors 25% XP)."
+            elif tech_code == "catalyst":
+                app.message = "Type 'requisition catalyst' to store Dark Gene Catalyst in Bag (Slot 63)."
+            elif tech_code == "authority":
+                app.message = "Type 'claim authority' to dispatch daily field agents."
+            else:
+                app.message = f"Unknown armory tech '{target_raw}'. Valid: 'use mist', 'use chrono'."
+    elif subview == "armory" and cmd in ["2", "3"]:
+        app.message = "Please use 'use mist' or 'use chrono'."
+    elif cmd.startswith("requisition "):
+        parts = cmd.split(maxsplit=1)
+        tech_code = _resolve_armory_tech_code(parts[1])
+        if tech_code in ["spray", "chrono"]:
+            app.message = "Please use 'use mist' or 'use chrono'."
+        else:
+            ok, msg = app.engine.buy_rocket_armory_item(tech_code)
+            app.message = msg
     elif (
         cmd == "buy"
         or cmd.startswith("buy ")
         or cmd.startswith("requisition")
         or cmd.startswith("get ")
-        or (subview == "armory" and cmd in ["pass", "spray", "chrono", "splitter", "catalyst", "authority"])
+        or (subview == "armory" and cmd in ["pass", "splitter", "catalyst", "authority", "1", "4", "5", "6"])
     ):
         app.message = "Covert Armory perks are automatically granted upon rank promotion! No purchase required."
     else:
-        app.message = "Rocket command options: 'start operation', 'engage', 'briefing', 'claim', 'attack', 'burst', 'read <id>', 'keep', 'dismiss'."
+        app.message = "Rocket commands: 'start operation', 'engage', 'briefing', 'claim', 'use <mist|chrono>', 'attack', 'burst'."
 
 def render_operation_dialogue(app, op_code: str):
     """Renders a full-screen, atmospheric mission briefing dialogue when starting an operation."""

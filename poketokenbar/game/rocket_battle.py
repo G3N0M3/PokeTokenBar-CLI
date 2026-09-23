@@ -76,22 +76,6 @@ ROCKET_BOSS_TEAMS: Dict[str, Dict[str, Any]] = {
         "location": "Route 10 Power Plant Reactor // Kanto Coast",
         "team": [
             {
-                "id": 100,
-                "name": "Cyber-Voltorb Swarm",
-                "title": "Perimeter Drone Swarm",
-                "type": "electric",
-                "max_hp": 80_000,
-                "moves": ["Thunderbolt", "Self-Destruct", "Discharge", "Sonic Boom"]
-            },
-            {
-                "id": 125,
-                "name": "Cyber-Electabuzz",
-                "title": "Synthesized Dynamo Unit",
-                "type": "electric",
-                "max_hp": 120_000,
-                "moves": ["Thunder Punch", "Cross Chop", "Iron Tail", "Overcharge"]
-            },
-            {
                 "id": 2013,
                 "name": "Cyber-Zapdos Core",
                 "title": "Oak's Mechanized Reactor Boss",
@@ -106,22 +90,6 @@ ROCKET_BOSS_TEAMS: Dict[str, Dict[str, Any]] = {
         "location": "Volcanic Magma Chamber // Cinnabar Island",
         "team": [
             {
-                "id": 139,
-                "name": "Fossil-Amalgam: Omataxi",
-                "title": "Reanimated Helix Chimera",
-                "type": "rock",
-                "max_hp": 120_000,
-                "moves": ["Ancient Power", "Hydro Pump", "Rock Slide", "Prehistoric Roar"]
-            },
-            {
-                "id": 142,
-                "name": "Shadow Aerodactyl",
-                "title": "Mutated Apex Predator",
-                "type": "flying",
-                "max_hp": 150_000,
-                "moves": ["Hyper Beam", "Wing Attack", "Dragon Claw", "Dark Eclipse"]
-            },
-            {
                 "id": 2014,
                 "name": "Apex Vanguard Mon-Omega",
                 "title": "Oak's Supreme Genetic Construct",
@@ -135,30 +103,6 @@ ROCKET_BOSS_TEAMS: Dict[str, Dict[str, Any]] = {
         "title": "The Himalayan Citadel: Arch-Director Samuel Oak",
         "location": "Mountaintop Fortress // Himalayan Range",
         "team": [
-            {
-                "id": 2003,
-                "name": "Augmented Venusaur",
-                "title": "Oak's Vanguard Legionnaire",
-                "type": "grass",
-                "max_hp": 140_000,
-                "moves": ["Frenzy Plant", "Solar Beam", "Sludge Bomb", "Cyber-Vines"]
-            },
-            {
-                "id": 2004,
-                "name": "Augmented Charizard",
-                "title": "Oak's Aerial Legionnaire",
-                "type": "fire",
-                "max_hp": 140_000,
-                "moves": ["Blast Burn", "Air Slash", "Dragon Pulse", "Overheat"]
-            },
-            {
-                "id": 2005,
-                "name": "Augmented Blastoise",
-                "title": "Oak's Heavy Citadel Defender",
-                "type": "water",
-                "max_hp": 160_000,
-                "moves": ["Hydro Cannon", "Flash Cannon", "Ice Beam", "Titanium Shell"]
-            },
             {
                 "id": 2001,
                 "name": "Arch-Director Samuel Oak & Master Core",

@@ -4,11 +4,13 @@ import time
 import random
 import datetime
 import math
+import re
 from typing import Optional, Tuple, Set, List
 
 from poketokenbar.tracker.manager import UsageManager
 from poketokenbar.game.companion import CompanionEngine
-from poketokenbar.game.models import ItemKind, Rarity, PokemonBalance
+from poketokenbar.game.models import ItemKind, Rarity, PokemonBalance, MonState
+from poketokenbar.game.storage import StorageManager
 from poketokenbar.sprite_renderer import SpriteRenderer
 from poketokenbar.utils.formatting import format_tokens, format_progress_bar
 
@@ -39,6 +41,7 @@ class PokeTokenBarTUI:
         self.expedition_picker_mode: bool = False
         self.picker_page: int = 1
         self.settings_page: int = 1
+        self.armory_page: int = 1
         self.pending_feed = None
         self.pending_buy = None
 
@@ -80,20 +83,123 @@ class PokeTokenBarTUI:
                 sys.stdout.write(f"  {BOLD}{YELLOW}{banner_title}{RESET}\n")
                 sys.stdout.write(f"{HEADER}{'='*72}{RESET}\n\n")
 
+                # 1. Parse target Pokémon species ID from the alert message
+                sp_id = None
+                m_ids = re.findall(r"#(\d+)", m_alert)
+                if m_ids:
+                    sp_id = int(m_ids[-1])
+                else:
+                    # Fallback for legacy alerts without (#id): try to match species name
+                    m_name = re.search(
+                        r"(?:Hatched! You got a|evolved into|Graduation!)\s+(?:✨\s*Shiny\s+)?([A-Za-z0-9\- ']+?)(?:\s*\(|\s+has graduated|\s*!|$)",
+                        m_alert,
+                    )
+                    if m_name:
+                        cand_name = m_name.group(1).strip()
+                        for d in self.engine.state.get("dex", []):
+                            cid = d.get("species_id") or d.get("base_id")
+                            if cid and self.engine.api.get_species_name(cid).lower() == cand_name.lower():
+                                sp_id = cid
+                                break
+                    if sp_id is None and self.engine.active_mon:
+                        sp_id = self.engine.active_mon.current_id
+
+                # 2. Determine shiny status
+                is_shiny = "Shiny" in m_alert
+
+                # 3. Locate target companion state or dex entry for stage and rarity
+                target_mon = None
+                target_entry = None
+                dex = self.engine.state.get("dex", [])
+
+                if sp_id:
+                    for d in dex:
+                        if d.get("species_id") == sp_id:
+                            target_entry = d
+                            m_data = d.get("mon_state")
+                            if m_data:
+                                target_mon = StorageManager.dict_to_mon(m_data)
+                            break
+
                 active = self.engine.active_mon
-                if active:
-                    sp_id = active.current_id
-                    sprite_path = self.engine.api.download_sprite(sp_id, is_shiny=active.is_shiny)
+                if target_mon is None and active and sp_id:
+                    if active.current_id == sp_id:
+                        target_mon = active
+                    elif active.base_id == sp_id and active.stage_index == 0:
+                        target_mon = active
+                    elif hasattr(active, "path_ids") and sp_id in active.path_ids:
+                        stage_idx = active.path_ids.index(sp_id)
+                        target_mon = MonState(
+                            base_id=active.base_id,
+                            path_ids=active.path_ids,
+                            planned_path_ids=active.planned_path_ids,
+                            stage_index=stage_idx,
+                            used_at_stage=0,
+                            rarity=active.rarity,
+                            total_forms=active.total_forms,
+                            is_shiny=active.is_shiny,
+                            happiness=active.happiness,
+                        )
+
+                if target_mon and not is_shiny:
+                    is_shiny = getattr(target_mon, "is_shiny", False)
+                elif target_entry and not is_shiny:
+                    is_shiny = bool(target_entry.get("is_shiny", False))
+
+                # 4. Determine stage_str and rarity_str
+                stage_str = ""
+                rarity_str = ""
+
+                if target_mon:
+                    if is_grad:
+                        stage_str = f"Final Form ({target_mon.total_forms}/{target_mon.total_forms})"
+                    else:
+                        stage_str = f"Form {target_mon.stage_index+1}/{target_mon.total_forms}"
+                    rarity_str = target_mon.rarity.value.upper()
+                elif target_entry:
+                    rarity_val = target_entry.get("rarity")
+                    if rarity_val:
+                        rarity_str = str(rarity_val).upper()
+                    if is_grad:
+                        stage_str = "Final Form (Graduated)"
+                    elif is_hatch:
+                        stage_str = "Form 1 (Hatched)"
+                    else:
+                        stage_str = "Evolved Form"
+
+                # Fallback for rarity if still missing
+                if not rarity_str:
+                    r_match = re.search(r"Rarity:\s*([A-Za-z+]+)", m_alert)
+                    if r_match:
+                        rarity_str = r_match.group(1).upper()
+                    elif sp_id:
+                        sp_data = self.engine.api.get_pokemon_species(sp_id)
+                        if sp_data:
+                            cap_rate = sp_data.get("capture_rate", 255)
+                            is_leg = sp_data.get("is_legendary", False) or sp_data.get("is_mythical", False)
+                            rarity_str = Rarity.from_capture_rate(cap_rate, is_leg).value.upper()
+
+                # Fallback for stage if still missing
+                if not stage_str:
+                    if is_grad:
+                        stage_str = "Final Form (Graduated)"
+                    elif is_hatch:
+                        stage_str = "Form 1 (Hatched)"
+                    else:
+                        stage_str = "Evolved Form"
+
+                if sp_id:
+                    sprite_path = self.engine.api.download_sprite(sp_id, is_shiny=is_shiny)
                     if sprite_path:
                         sprite_size = self.engine.state.get("sprite_size", 30)
                         ansi = SpriteRenderer.render_png_to_ansi(sprite_path, max_cols=sprite_size, center_width=72)
                         sys.stdout.write(ansi + "\n\n")
 
                 sys.stdout.write(f"  {BOLD}{GREEN}{m_alert}{RESET}\n\n")
-                if active:
-                    stage_str = f"Form {active.stage_index+1}/{active.total_forms}"
-                    rarity_str = active.rarity.value.upper()
+                if stage_str and rarity_str:
                     sys.stdout.write(f"  Stage: {stage_str}  |  Rarity: {YELLOW}{rarity_str}{RESET}\n\n")
+                elif stage_str:
+                    sys.stdout.write(f"  Stage: {stage_str}\n\n")
 
                 sys.stdout.write(f"  {BOLD}{CYAN}Press [Enter] to continue...{RESET} ")
                 sys.stdout.flush()
@@ -1200,6 +1306,10 @@ class PokeTokenBarTUI:
                 except ValueError:
                     self.message = "Usage: feed <#[id]|<=[pct]|<[pct]|[pct]|0> [qty] (e.g. 'feed <=70 2', 'feed =70', 'feed 0', 'feed #25 4')"
                     return
+
+        # If feeding active companion explicitly or on Tab 1, execute immediately without confirmation
+        if (target in ["active", "current"] or (target is None and self.current_tab == 1)) and self.engine.active_mon:
+            bypass_confirm = True
 
         plan = self.engine.get_feed_plan(target=target, qty=qty)
         if not plan.get("ok"):

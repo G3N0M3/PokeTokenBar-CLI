@@ -398,13 +398,19 @@ class FeedingMixin:
                     m_st["happiness"] = new_h
                 m["happiness"] = new_h
                 sp_id = m.get("species_id", m.get("final_id", m.get("base_id")))
-                if active and active.current_id == sp_id:
+                base_id = m.get("base_id", sp_id)
+                if active and (active.current_id == sp_id or active.base_id == base_id):
                     active.happiness = new_h
             elif hasattr(m, "happiness"):
                 m.happiness = new_h
+                sp_id = getattr(m, "current_id", getattr(m, "base_id", None))
+                base_id = getattr(m, "base_id", sp_id)
+                if active and (m is active or active.current_id == sp_id or active.base_id == base_id):
+                    active.happiness = new_h
                 for d in dex:
-                    sp_id = d.get("species_id", d.get("final_id", d.get("base_id")))
-                    if sp_id == m.current_id:
+                    d_sp_id = d.get("species_id", d.get("final_id", d.get("base_id")))
+                    d_base_id = d.get("base_id", d_sp_id)
+                    if d_sp_id == sp_id or (base_id is not None and d_base_id == base_id):
                         m_st = d.get("mon_state")
                         if isinstance(m_st, dict):
                             m_st["happiness"] = new_h
@@ -413,7 +419,7 @@ class FeedingMixin:
 
         items = plan.get("items", [])
         for item in items:
-            _apply_feed(item["mon"], item["give_berries"], item["boost"])
+            item["new_h"] = _apply_feed(item["mon"], item["give_berries"], item["boost"])
 
         inv["berry_oran"] = available_berries - total_berries
         if inv["berry_oran"] <= 0:
@@ -421,6 +427,7 @@ class FeedingMixin:
         self.state["inventory"] = inv
         if active:
             self.set_active_mon(active)
+            self.state["happiness"] = active.happiness
         self.save()
 
         # Generate return message

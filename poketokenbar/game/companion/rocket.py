@@ -58,7 +58,7 @@ ROCKET_OPERATION_DIALOGUES: Dict[str, Dict[str, Any]] = {
         ],
         "tactical_orders": [
             "• Infiltrate Sub-Basement B4 and engage Prototype Chimera-001.",
-            "• Neutralize the 15,000 HP construct using 'attack' or 'burst' commands."
+            "• Defeat Prototype Chimera-001 (150,000 HP) using 'attack' or 'burst'."
         ]
     },
     "4": {
@@ -111,8 +111,8 @@ ROCKET_OPERATION_DIALOGUES: Dict[str, Dict[str, Any]] = {
             "If we don't sever its core, our comms and satellite links will be completely fried. Breach the facility, Agent. Strike with precision or burn token bursts. Shut down the Cyber-Enforcer!\""
         ],
         "tactical_orders": [
-            "• Infiltrate the high-voltage reactor chamber of the Route 10 Power Plant.",
-            "• Neutralize the Cyber-Enforcer Unit (35,000 HP) using 'attack' or 'burst'."
+            "• Infiltrate high-voltage reactor chamber of Route 10 Power Plant.",
+            "• Defeat Cyber-Zapdos Core (200,000 HP) using 'attack' or 'burst'."
         ]
     },
     "7": {
@@ -166,7 +166,7 @@ ROCKET_OPERATION_DIALOGUES: Dict[str, Dict[str, Any]] = {
         ],
         "tactical_orders": [
             "• Breach the volcanic sub-foundry on Cinnabar Island.",
-            "• Neutralize Apex Vanguard: Mon-Omega (75,000 HP) using 'attack' or 'burst'."
+            "• Defeat Apex Vanguard: Mon-Omega (300,000 HP) with 'attack' or 'burst'."
         ]
     },
     "10": {
@@ -184,7 +184,7 @@ ROCKET_OPERATION_DIALOGUES: Dict[str, Dict[str, Any]] = {
         ],
         "tactical_orders": [
             "• Storm the inner sanctum of the Himalayan Citadel.",
-            "• Conquer Arch-Director Samuel Oak & The Augmented Legion (120,000 HP)."
+            "• Defeat Arch-Director Samuel Oak & Master Core (350,000 HP)."
         ]
     }
 }
@@ -264,6 +264,7 @@ class RocketMixin:
 
     def _update_rocket_operations(self, delta_tokens: int, events: List[str]):
         """Accumulates progress toward the active or available Rocket Operation."""
+        self._update_armory_charges(delta_tokens, events)
         ops_state = self.state.setdefault("rocket_ops", {})
         for op_id, op_info in ops_state.items():
             if op_info.get("status") in ["active", "available"] and not op_info.get("claimed", False):
@@ -890,6 +891,12 @@ class RocketMixin:
             self.state["permanent_black_market"] = True
         if cur_lvl >= 3:
             self.state["has_exp_splitter"] = True
+        if cur_lvl >= 2:
+            charges_st = self.state.setdefault("rocket_armory_charges", {})
+            for tech in ["spray", "chrono"]:
+                t_st = charges_st.setdefault(tech, {"charges": 0, "progress": 0, "target": 2_500_000})
+                if t_st.get("charges", 0) == 0:
+                    t_st["charges"] = 3
 
         perk_msg = ""
         if rank_order.get(new_rank, 1) > rank_order.get(old_rank, 1):
@@ -1137,9 +1144,146 @@ class RocketMixin:
             }
         ]
 
+    def get_armory_charge_info(self, tech_code: str) -> Dict[str, Any]:
+        """Returns charging status and available uses (up to 3) for armory devices."""
+        tech_code = tech_code.lower().strip()
+        if tech_code in ["mist", "morale", "morale mist"]:
+            tech_code = "spray"
+        elif tech_code in ["accelerator", "chrono accelerator"]:
+            tech_code = "chrono"
+
+        charges_st = self.state.setdefault("rocket_armory_charges", {})
+        rank_order = {"Informant": 1, "Operative": 2, "Special Agent": 3, "Executive": 4, "Commander": 5}
+        user_rank = self.state.get("rocket_rank", "Informant")
+        is_op = rank_order.get(user_rank, 1) >= 2
+        default_c = 3 if is_op else 0
+
+        if tech_code not in charges_st or not isinstance(charges_st[tech_code], dict):
+            charges_st[tech_code] = {
+                "charges": default_c,
+                "progress": 0,
+                "target": 2_500_000
+            }
+        t_info = charges_st[tech_code]
+        t_info.setdefault("charges", default_c)
+        t_info.setdefault("progress", 0)
+        t_info.setdefault("target", 2_500_000)
+
+        c = min(3, max(0, t_info["charges"]))
+        p = max(0, t_info["progress"])
+        t = max(1, t_info["target"])
+        pct = 100 if c >= 3 else min(99, int((p / t) * 100))
+        return {
+            "charges": c,
+            "max_charges": 3,
+            "progress": p,
+            "target": t,
+            "pct": pct
+        }
+
+    def _update_armory_charges(self, delta_tokens: int, events: List[str]):
+        """Charges experimental Armory devices based on coding tokens used."""
+        rank_order = {"Informant": 1, "Operative": 2, "Special Agent": 3, "Executive": 4, "Commander": 5}
+        user_rank = self.state.get("rocket_rank", "Informant")
+        if rank_order.get(user_rank, 1) < 2:
+            return
+
+        charges_st = self.state.setdefault("rocket_armory_charges", {})
+        for tech in ["spray", "chrono"]:
+            info = self.get_armory_charge_info(tech)
+            c = info["charges"]
+            if c >= 3:
+                charges_st[tech]["progress"] = 0
+                continue
+
+            target = info["target"]
+            p = info["progress"] + delta_tokens
+            recharged = 0
+            while p >= target and c < 3:
+                c += 1
+                p -= target
+                recharged += 1
+
+            if c >= 3:
+                p = 0
+
+            charges_st[tech]["charges"] = c
+            charges_st[tech]["progress"] = p
+
+            if recharged > 0:
+                name = "Syndicate Morale Mist" if tech == "spray" else "Chrono Accelerator"
+                icon = "💨" if tech == "spray" else "⌛"
+                events.append(f"{icon} Covert Armory: {name} recharged! ({c}/3 charges)")
+
+    def use_rocket_armory_item(self, tech_code: str) -> Tuple[bool, str]:
+        """Consumes a stored charge (up to 3) to deploy Morale Mist or Chrono Accelerator."""
+        tech_code = tech_code.lower().strip()
+        if tech_code in ["mist", "spray", "morale", "morale mist"]:
+            tech_code = "spray"
+        elif tech_code in ["chrono", "accelerator", "chrono accelerator"]:
+            tech_code = "chrono"
+
+        if tech_code not in ["spray", "chrono"]:
+            return False, f"Unknown chargeable tech '{tech_code}'. Valid: 'use mist', 'use chrono'."
+
+        rank_order = {"Informant": 1, "Operative": 2, "Special Agent": 3, "Executive": 4, "Commander": 5}
+        user_rank = self.state.get("rocket_rank", "Informant")
+        if rank_order.get(user_rank, 1) < 2:
+            name = "Syndicate Morale Mist" if tech_code == "spray" else "Chrono Accelerator"
+            return False, f"Clearance Denied! {name} requires rank 'Operative' (Your Rank: {user_rank})."
+
+        info = self.get_armory_charge_info(tech_code)
+        if info["charges"] <= 0:
+            name = "Syndicate Morale Mist" if tech_code == "spray" else "Chrono Accelerator"
+            p_str = format_tokens(info["progress"])
+            t_str = format_tokens(info["target"])
+            return False, f"⚠️ {name} has 0/3 charges! Coding: {p_str}/{t_str} ({info['pct']}%)."
+
+        # Consume 1 charge
+        charges_st = self.state.setdefault("rocket_armory_charges", {})
+        charges_st[tech_code]["charges"] = info["charges"] - 1
+        rem = charges_st[tech_code]["charges"]
+
+        if tech_code == "spray":
+            if self.active_mon:
+                m = self.active_mon
+                m.happiness = 100
+                self.set_active_mon(m)
+            self.state["happiness"] = 100
+            for d in self.state.get("dex", []):
+                if d.get("status") != "evolved":
+                    d["happiness"] = 100
+                    m_st = d.get("mon_state")
+                    if isinstance(m_st, dict):
+                        m_st["happiness"] = 100
+            self.save()
+            return True, f"💨 Deployed Syndicate Morale Mist! Squad at 100%! [{rem}/3 left]"
+
+        elif tech_code == "chrono":
+            cds = self.state.get("term_deposits", [])
+            active_cds = [c for c in cds if not c.get("matured")]
+            matured_count = 0
+            for cd in active_cds:
+                rate = cd.get("daily_rate", 0.08)
+                cd["current_value"] = int(cd["current_value"] * (1 + rate))
+                cd["days_elapsed"] = cd.get("days_elapsed", 0) + 1
+                if cd["days_elapsed"] >= cd["term_days"]:
+                    cd["matured"] = True
+                    matured_count += 1
+            self.state["term_deposits"] = cds
+            self.save()
+            if active_cds:
+                mat_str = f" ({matured_count} matured)" if matured_count > 0 else ""
+                return True, f"⌛ Chrono Accelerator: Advanced {len(active_cds)} CD(s) +1d{mat_str}! [{rem}/3 left]"
+            else:
+                return True, f"⌛ Chrono Accelerator warped (+1 day). No active CDs! [{rem}/3 left]"
+
     def buy_rocket_armory_item(self, item_code: str) -> Tuple[bool, str]:
         """Requisitions covert tech from the Rocket Armory with rank clearance checks (Free of charge)."""
         item_code = item_code.lower().strip()
+        if item_code in ["spray", "chrono", "mist", "accelerator"]:
+            return self.use_rocket_armory_item(item_code)
+
         catalog = {
             "pass": ("Syndicate Black Pass", 0, "Informant"),
             "spray": ("Syndicate Morale Mist", 0, "Operative"),
@@ -1203,37 +1347,6 @@ class RocketMixin:
             bm["natural_open"] = True
             self.state["black_market"] = bm
             msg = "📯 Clearance Authorized: Syndicate Black Pass active! 24/7 Black Market unlocked & all Grunt tolls waived!"
-
-        elif item_code == "spray":
-            if self.active_mon:
-                m = self.active_mon
-                m.happiness = 100
-                self.set_active_mon(m)
-            self.state["happiness"] = 100
-            for d in self.state.get("dex", []):
-                if d.get("status") != "evolved":
-                    d["happiness"] = 100
-                    m_st = d.get("mon_state")
-                    if isinstance(m_st, dict):
-                        m_st["happiness"] = 100
-            msg = "🌫️ Clearance Authorized: Deployed Syndicate Morale Mist! Restored 100% Happiness to all Pokémon across your squad!"
-
-        elif item_code == "chrono":
-            cds = self.state.get("term_deposits", [])
-            active_cds = [c for c in cds if not c.get("matured")]
-            matured_count = 0
-            for cd in active_cds:
-                rate = cd.get("daily_rate", 0.08)
-                cd["current_value"] = int(cd["current_value"] * (1 + rate))
-                cd["days_elapsed"] = cd.get("days_elapsed", 0) + 1
-                if cd["days_elapsed"] >= cd["term_days"]:
-                    cd["matured"] = True
-                    matured_count += 1
-            self.state["term_deposits"] = cds
-            if active_cds:
-                msg = f"⏱️ Clearance Authorized: Activated Chrono Accelerator! Advanced {len(active_cds)} active CD(s) by +1 day ({matured_count} matured)!"
-            else:
-                msg = "⏱️ Clearance Authorized: Chrono Accelerator timeline warped (+1 day), but no active CDs were locked."
 
         elif item_code == "splitter":
             self.state["has_exp_splitter"] = True

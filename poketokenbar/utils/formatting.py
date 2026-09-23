@@ -3,7 +3,13 @@ def format_tokens(num: float) -> str:
     val = float(num)
     sign = "-" if val < 0 else ""
     abs_val = abs(val)
-    if abs_val >= 1_000_000_000:
+    if abs_val >= 1_000_000_000_000_000:
+        truncated = int(abs_val / 100_000_000_000_000) / 10.0
+        return f"{sign}{truncated:.1f}Q"
+    elif abs_val >= 1_000_000_000_000:
+        truncated = int(abs_val / 100_000_000_000) / 10.0
+        return f"{sign}{truncated:.1f}T"
+    elif abs_val >= 1_000_000_000:
         truncated = int(abs_val / 100_000_000) / 10.0
         return f"{sign}{truncated:.1f}B"
     elif abs_val >= 1_000_000:
@@ -22,7 +28,11 @@ def parse_tokens(amount_str: str) -> int:
     if not clean_str:
         return 0
     try:
-        if clean_str.endswith("b"):
+        if clean_str.endswith("q"):
+            return int(float(clean_str[:-1]) * 1_000_000_000_000_000)
+        elif clean_str.endswith("t"):
+            return int(float(clean_str[:-1]) * 1_000_000_000_000)
+        elif clean_str.endswith("b"):
             return int(float(clean_str[:-1]) * 1_000_000_000)
         elif clean_str.endswith("m"):
             return int(float(clean_str[:-1]) * 1_000_000)
