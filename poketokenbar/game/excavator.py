@@ -126,7 +126,7 @@ class ExcavatorEngine:
     def pick(self, row: int, col: int) -> Tuple[bool, str, List[Dict[str, Any]]]:
         """Use pickaxe on (row, col) (1-indexed). Costs 1 integrity, digs 1 layer."""
         if self.game_state != "digging":
-            return False, "No active excavation wall! Type 'dig' or 'mine' to start.", []
+            return False, "No active excavation wall! Type 'dig' to start.", []
 
         if not (1 <= row <= self.ROWS and 1 <= col <= self.COLS):
             return False, f"Coordinates must be Row 1-{self.ROWS}, Col 1-{self.COLS}.", []
@@ -145,7 +145,7 @@ class ExcavatorEngine:
     def hammer(self, row: int, col: int) -> Tuple[bool, str, List[Dict[str, Any]]]:
         """Use sledgehammer on (row, col) (1-indexed). Costs 3 integrity, digs 2 layers center, 1 adjacent."""
         if self.game_state != "digging":
-            return False, "No active excavation wall! Type 'dig' or 'mine' to start.", []
+            return False, "No active excavation wall! Type 'dig' to start.", []
 
         if not (1 <= row <= self.ROWS and 1 <= col <= self.COLS):
             return False, f"Coordinates must be Row 1-{self.ROWS}, Col 1-{self.COLS}.", []

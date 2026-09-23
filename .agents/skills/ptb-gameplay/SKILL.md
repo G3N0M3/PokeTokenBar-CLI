@@ -52,6 +52,7 @@ When designing or extending gameplay features, follow the patterns established a
 
 When implementing new gameplay mechanics:
 - **Simple Command Model**: Keep input commands terse and natural (e.g., `<verb> <target> [qty]`).
+- **Single Canonical Command Policy**: Every system function or menu action MUST map to exactly ONE canonical command keyword. Never implement alternative command aliases, synonyms, or duplicate shortcuts (e.g., use only `dig`, never both `dig` and `mine`; use only `flip`, never both `flip` and `f`; use only `pick`, never both `pick` and `p`; use only `use mist`, never both `use mist` and `use 2`). Keep the CLI interface clean, unambiguous, and singular.
 - **Immediate Feedback**: Every player action must return a clear boolean status and user-facing feedback message.
 - **Non-blocking Execution**: Gameplay logic must never block the main TUI render loop with long synchronous operations.
 - **Theme Consistency**: Maintain the retro Pokémon aesthetic paired with subtle developer/coding humor.

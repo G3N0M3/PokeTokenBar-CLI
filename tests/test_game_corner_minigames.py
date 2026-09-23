@@ -285,7 +285,55 @@ class TestGameCornerMinigames(unittest.TestCase):
         ex_pipe_positions = [r.rfind("│") for r in clean_ex]
         self.assertEqual(len(set(ex_pipe_positions)), 1, f"Excavator grid rows are misaligned: {ex_pipe_positions}")
 
+    # -------------------------------------------------------------------------
+    # 7. Single Canonical Command Policy Verification Tests
+    # -------------------------------------------------------------------------
+    def test_single_canonical_command_enforcement(self):
+        # 1. Excavator error messages only suggest 'dig', never 'mine'
+        ex = ExcavatorEngine()
+        ok_p, msg_p, _ = ex.pick(1, 1)
+        self.assertFalse(ok_p)
+        self.assertIn("Type 'dig' to start.", msg_p)
+        self.assertNotIn("mine", msg_p)
+
+        ok_h, msg_h, _ = ex.hammer(1, 1)
+        self.assertFalse(ok_h)
+        self.assertIn("Type 'dig' to start.", msg_h)
+        self.assertNotIn("mine", msg_h)
+
+        # 2. TUI dispatch accepts only canonical commands
+        from poketokenbar.tui import PokeTokenBarTUI
+        from unittest.mock import patch, MagicMock
+        import io
+
+        tui = PokeTokenBarTUI()
+        tui.engine = self.engine
+        tui.current_tab = 9
+        tui.minigame_state = "excavator"
+
+        with patch("poketokenbar.tui.UsageManager") as mock_mgr:
+            instance = MagicMock()
+            instance.get_summary.return_value = {
+                "total_tokens": 100_000_000, "today_tokens": 0, "week_tokens": 0,
+                "month_tokens": 0, "antigravity_today": 0, "gemini_today": 0,
+                "claude_today": 0, "burn_rate_tpm": 0, "active_days": []
+            }
+            mock_mgr.return_value = instance
+
+            # 'mine' command should NOT trigger excavation
+            commands_mine = "\n".join(["mine", "q"]) + "\n"
+            with patch("sys.stdin", io.StringIO(commands_mine)), patch("sys.stdout"):
+                tui.run()
+            self.assertEqual(self.engine.excavator.game_state, "idle")
+
+            # Canonical 'dig' command DOES trigger excavation
+            commands_dig = "\n".join(["dig", "q"]) + "\n"
+            with patch("sys.stdin", io.StringIO(commands_dig)), patch("sys.stdout"):
+                tui.run()
+            self.assertEqual(self.engine.excavator.game_state, "digging")
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

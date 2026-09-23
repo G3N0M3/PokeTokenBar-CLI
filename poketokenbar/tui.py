@@ -654,22 +654,22 @@ class PokeTokenBarTUI:
                         elif game in ["2", "gacha"]:
                             self.minigame_state = "gacha"
                             self.message = ""
-                        elif game in ["3", "slot", "slots"]:
+                        elif game in ["3", "slot"]:
                             self.minigame_state = "slot"
                             self.message = ""
-                        elif game in ["4", "blackjack", "21"]:
+                        elif game in ["4", "blackjack"]:
                             self.minigame_state = "blackjack"
                             self.message = ""
-                        elif game in ["5", "voltorb", "flip"]:
+                        elif game in ["5", "voltorb"]:
                             self.minigame_state = "voltorb"
                             self.message = ""
-                        elif game in ["6", "excavator", "dig", "mine"]:
+                        elif game in ["6", "excavator"]:
                             self.minigame_state = "excavator"
                             self.message = ""
-                        elif game in ["7", "trivia", "quiz", "silhouette"]:
+                        elif game in ["7", "trivia"]:
                             self.minigame_state = "trivia"
                             self.message = ""
-                        elif game in ["8", "derby", "race", "stadium"]:
+                        elif game in ["8", "derby"]:
                             self.minigame_state = "derby"
                             self.message = ""
                         else:
@@ -700,7 +700,7 @@ class PokeTokenBarTUI:
                         self.message = "📯 Syndicate Black Pass recognized! You click the secret switch behind the poster and enter the Black Market directly!"
                     else:
                         self.message = "There's a suspicious poster near the Token Slots! (Type 'play 3')"
-                elif self.current_tab == 9 and getattr(self, "minigame_state", "menu") == "grunt_bribe" and cmd in ["bribe", "enter", "poster", "pass", "yes", "y", ""]:
+                elif self.current_tab == 9 and getattr(self, "minigame_state", "menu") == "grunt_bribe" and cmd in ["bribe", "enter"]:
                     ok, msg = self.engine.bribe_grunt_for_black_market()
                     if ok:
                         self.minigame_state = "menu"
@@ -748,14 +748,14 @@ class PokeTokenBarTUI:
                 elif cmd in ["hit", "stand", "double"] and getattr(self, "minigame_state", "menu") == "blackjack":
                     ok, msg = self.engine.play_blackjack_action(cmd)
                     self.message = msg
-                elif (cmd.startswith("flip ") or cmd.startswith("f ")) and getattr(self, "minigame_state", "menu") == "voltorb":
+                elif cmd.startswith("flip ") and getattr(self, "minigame_state", "menu") == "voltorb":
                     parts = cmd.split()
                     if len(parts) >= 3:
                         ok, msg = self.engine.play_voltorb_flip(parts[1], parts[2])
                         self.message = msg
                     else:
                         self.message = "Usage: flip <row 1-5> <col 1-5> (e.g. 'flip 1 3')"
-                elif (cmd.startswith("memo ") or cmd.startswith("m ")) and getattr(self, "minigame_state", "menu") == "voltorb":
+                elif cmd.startswith("memo ") and getattr(self, "minigame_state", "menu") == "voltorb":
                     parts = cmd.split()
                     if len(parts) >= 3:
                         note = parts[3] if len(parts) >= 4 else ""
@@ -766,36 +766,36 @@ class PokeTokenBarTUI:
                 elif cmd == "cashout" and getattr(self, "minigame_state", "menu") == "voltorb":
                     ok, msg = self.engine.play_voltorb_cashout()
                     self.message = msg
-                elif (cmd.startswith("pick ") or cmd.startswith("p ")) and getattr(self, "minigame_state", "menu") == "excavator":
+                elif cmd.startswith("pick ") and getattr(self, "minigame_state", "menu") == "excavator":
                     parts = cmd.split()
                     if len(parts) >= 3:
                         ok, msg = self.engine.play_excavator_pick(parts[1], parts[2])
                         self.message = msg
                     else:
                         self.message = "Usage: pick <row 1-6> <col 1-9> (e.g. 'pick 2 4')"
-                elif (cmd.startswith("hammer ") or cmd.startswith("h ")) and getattr(self, "minigame_state", "menu") == "excavator":
+                elif cmd.startswith("hammer ") and getattr(self, "minigame_state", "menu") == "excavator":
                     parts = cmd.split()
                     if len(parts) >= 3:
                         ok, msg = self.engine.play_excavator_hammer(parts[1], parts[2])
                         self.message = msg
                     else:
                         self.message = "Usage: hammer <row 1-6> <col 1-9> (e.g. 'hammer 3 5')"
-                elif (cmd.startswith("dig") or cmd.startswith("mine")) and getattr(self, "minigame_state", "menu") == "excavator":
+                elif cmd.startswith("dig") and getattr(self, "minigame_state", "menu") == "excavator":
                     parts = cmd.split()
                     cost = parts[1] if len(parts) >= 2 else "500k"
                     ok, msg = self.engine.play_excavator_start(cost)
                     self.message = msg
-                elif (cmd.startswith("guess ") or cmd.startswith("g ")) and getattr(self, "minigame_state", "menu") == "trivia":
+                elif cmd.startswith("guess ") and getattr(self, "minigame_state", "menu") == "trivia":
                     guess_str = cmd.split(maxsplit=1)[1].strip() if len(cmd.split()) > 1 else ""
                     ok, msg = self.engine.play_trivia_guess(guess_str)
                     self.message = msg
                 elif cmd == "hint" and getattr(self, "minigame_state", "menu") == "trivia":
                     ok, msg = self.engine.play_trivia_hint()
                     self.message = msg
-                elif cmd in ["giveup", "pass"] and getattr(self, "minigame_state", "menu") == "trivia":
+                elif cmd == "giveup" and getattr(self, "minigame_state", "menu") == "trivia":
                     ok, msg = self.engine.play_trivia_pass()
                     self.message = msg
-                elif cmd in ["race", "start"] and getattr(self, "minigame_state", "menu") == "derby":
+                elif cmd == "race" and getattr(self, "minigame_state", "menu") == "derby":
                     if self.engine.derby.game_state == "bet_placed":
                         frames = self.engine.derby.simulate_race()
                         self.animate_derby_race(frames)

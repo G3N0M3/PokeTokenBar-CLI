@@ -373,7 +373,7 @@ def render_derby_tab(app):
 
     sys.stdout.write(f"  {BOLD}Commands:{RESET}\n")
     sys.stdout.write(f"   • '{BOLD}bet <lane 1-4> <amt>{RESET}' (e.g. 'bet 1 500k', 'bet 4 1m')\n")
-    sys.stdout.write(f"   • '{BOLD}race{RESET}' or '{BOLD}start{RESET}' to launch the race!\n")
+    sys.stdout.write(f"   • '{BOLD}race{RESET}' to launch the race!\n")
     sys.stdout.write(f"   • '{BOLD}back{RESET}' to return to Game Corner menu\n\n")
 
     sys.stdout.write(f"  {BOLD}Track [Hurdles: ║ at 8m, 16m]:{RESET}\n")

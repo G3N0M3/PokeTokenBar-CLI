@@ -98,7 +98,7 @@ ptb
 | `flip <r> <c>` / `memo` / `cashout` | Voltorb Flip card reveal, note annotations, and payout cashout |
 | `pick <r> <c>` / `hammer` / `dig` | Underground Fossil Excavator mining tools & cave excavation |
 | `guess <name>` / `hint` / `giveup` | "Who's That Pokémon?" silhouette trivia challenge |
-| `race` / `start` | Launch Pokémon Stadium 4-lane hurdle derby race |
+| `race` | Launch Pokémon Stadium 4-lane hurdle derby race |
 | `hold <1..5>` / `all` / `none` | Choose cards to hold in Video Poker |
 | `pull <qty>` | Pull Gacha capsules (e.g. `pull 1`, `pull 10`) |
 | `spin <amount>` | Spin the Slot Machine (e.g. `spin 250k`) |
