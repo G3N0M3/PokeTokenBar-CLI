@@ -214,10 +214,11 @@ def render_voltorb_tab(app):
         sys.stdout.write(f"  Status: {BOLD}{YELLOW}{v.game_state.replace('_', ' ').title()}{RESET}\n\n")
 
     sys.stdout.write(f"  {BOLD}Commands:{RESET}\n")
-    sys.stdout.write(f"   • '{BOLD}bet <amt>{RESET}' to start (e.g. 'bet 500k', 'bet 1m')\n")
-    sys.stdout.write(f"   • '{BOLD}flip <r> <c>{RESET}' to uncover (e.g. 'flip 1 3')\n")
-    sys.stdout.write(f"   • '{BOLD}memo <r> <c> <note>{RESET}' to mark notes (e.g. 'memo 2 4 v')\n")
-    sys.stdout.write(f"   • '{BOLD}cashout{RESET}' to bank payout | '{BOLD}back{RESET}' to exit\n\n")
+    sys.stdout.write(f"   • '{BOLD}bet <amt> [lvl 1-8]{RESET}' - Start game (e.g. 'bet 500k', 'bet 1m 5')\n")
+    sys.stdout.write(f"   • '{BOLD}flip <r> <c>{RESET}'       - Uncover card (e.g. 'flip 1 3')\n")
+    sys.stdout.write(f"   • '{BOLD}memo <r> <c> <note>{RESET}' - Mark notes (e.g. 'memo 2 4 v')\n")
+    sys.stdout.write(f"   • '{BOLD}cashout{RESET}'             - Bank payout | '{BOLD}back{RESET}' to exit\n")
+    sys.stdout.write(f"  💡 {YELLOW}Clear all 2s & 3s to advance, or pick level via 'bet <amt> <1-8>'.{RESET}\n\n")
 
     if v.board:
         sys.stdout.write("        1     2     3     4     5\n")

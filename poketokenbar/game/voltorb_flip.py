@@ -46,7 +46,9 @@ class VoltorbFlipEngine:
         if self.game_state == "playing":
             return False, "You already have an active Voltorb Flip game! Flip cards or type 'cashout'."
 
-        if level is not None and 1 <= level <= 8:
+        if level is not None:
+            if not (1 <= level <= 8):
+                return False, f"Invalid level '{level}'! Voltorb Flip levels range from 1 to 8."
             self.current_level = level
 
         spec = self.LEVEL_SPECS.get(self.current_level, self.LEVEL_SPECS[1])

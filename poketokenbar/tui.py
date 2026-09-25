@@ -700,7 +700,13 @@ class PokeTokenBarTUI:
                         elif mg_state == "blackjack":
                             ok, msg = self.engine.play_blackjack_bet(parts[1])
                         elif mg_state == "voltorb":
-                            lvl = int(parts[2]) if len(parts) >= 3 and parts[2].isdigit() else None
+                            lvl = None
+                            if len(parts) >= 3:
+                                if parts[2].isdigit():
+                                    lvl = int(parts[2])
+                                else:
+                                    self.message = "Invalid level! Usage: bet <amount> [level 1-8] (e.g. 'bet 500k 3')"
+                                    return
                             ok, msg = self.engine.play_voltorb_bet(parts[1], lvl)
                         elif mg_state == "trivia":
                             ok, msg = self.engine.play_trivia_start(parts[1])
@@ -715,7 +721,10 @@ class PokeTokenBarTUI:
                             ok, msg = False, "You must open a Game Corner game to bet!"
                         self.message = msg
                     else:
-                        self.message = "Usage: bet <amount> (e.g. 'bet 500k', 'bet 1m')"
+                        if getattr(self, "minigame_state", "menu") == "voltorb":
+                            self.message = "Usage: bet <amount> [level 1-8] (e.g. 'bet 500k', 'bet 1m 5')"
+                        else:
+                            self.message = "Usage: bet <amount> (e.g. 'bet 500k', 'bet 1m')"
                 elif cmd.startswith("spin") and getattr(self, "minigame_state", "menu") == "slot":
                     parts = cmd.split()
                     if len(parts) >= 2:

@@ -105,6 +105,23 @@ class TestGameCornerMinigames(unittest.TestCase):
         self.assertEqual(winnings, 200_000)
         self.assertEqual(v.game_state, "cashed_out")
 
+    def test_voltorb_direct_level_selection_and_validation(self):
+        v = VoltorbFlipEngine()
+        # Direct valid level selection (e.g. level 5)
+        ok, msg = v.start_game(100_000, level=5)
+        self.assertTrue(ok)
+        self.assertEqual(v.current_level, 5)
+        v.game_state = "idle"
+
+        # Invalid level selection rejected
+        ok_high, msg_high = v.start_game(100_000, level=9)
+        self.assertFalse(ok_high)
+        self.assertIn("Invalid level '9'", msg_high)
+
+        ok_low, msg_low = v.start_game(100_000, level=0)
+        self.assertFalse(ok_low)
+        self.assertIn("Invalid level '0'", msg_low)
+
     # -------------------------------------------------------------------------
     # 2. Excavator Tests
     # -------------------------------------------------------------------------
