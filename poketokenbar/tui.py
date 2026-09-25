@@ -641,42 +641,25 @@ class PokeTokenBarTUI:
                         self.message = msg
                     else:
                         self.message = "Usage: pass <idx>"
-                elif self.current_tab == 9 and cmd in ["slot", "slots"]:
-                    self.minigame_state = "slot"
-                    self.message = ""
-                elif cmd.startswith("play "):
+                elif cmd.startswith("play ") or (self.current_tab == 9 and cmd == "play"):
                     parts = cmd.split()
                     if len(parts) >= 2:
-                        game = parts[1].lower()
-                        if game in ["1", "poker"]:
-                            self.minigame_state = "poker"
-                            self.message = ""
-                        elif game in ["2", "gacha"]:
-                            self.minigame_state = "gacha"
-                            self.message = ""
-                        elif game in ["3", "slot"]:
-                            self.minigame_state = "slot"
-                            self.message = ""
-                        elif game in ["4", "blackjack"]:
-                            self.minigame_state = "blackjack"
-                            self.message = ""
-                        elif game in ["5", "voltorb"]:
-                            self.minigame_state = "voltorb"
-                            self.message = ""
-                        elif game in ["6", "excavator"]:
-                            self.minigame_state = "excavator"
-                            self.message = ""
-                        elif game in ["7", "trivia"]:
-                            self.minigame_state = "trivia"
-                            self.message = ""
-                        elif game in ["8", "derby"]:
-                            self.minigame_state = "derby"
+                        game = parts[1].strip()
+                        game_map = {
+                            "1": "poker",
+                            "2": "gacha",
+                            "3": "slot",
+                            "4": "blackjack",
+                            "5": "voltorb",
+                            "6": "excavator",
+                            "7": "trivia",
+                            "8": "derby",
+                        }
+                        if game in game_map:
+                            self.minigame_state = game_map[game]
                             self.message = ""
                         else:
-                            self.message = (
-                                "Game not found! Type 'play 1' for Poker, "
-                                "'play 5' for Voltorb Flip, etc."
-                            )
+                            self.message = "Game not found! Type 'play <1-8>' (e.g. 'play 1' to 'play 8')."
                     else:
                         self.message = "Usage: play <idx> (e.g. 'play 1' to 'play 8')"
                 elif self.current_tab == 9 and getattr(self, "minigame_state", "menu") == "slot" and cmd == "poster":

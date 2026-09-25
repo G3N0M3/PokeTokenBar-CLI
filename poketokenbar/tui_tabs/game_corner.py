@@ -47,7 +47,7 @@ def render_game_corner_menu(app):
     sys.stdout.write(f"   {CYAN}6. Underground Dig{RESET}  - Sledgehammer excavation for rare fossils.\n")
     sys.stdout.write(f"   {CYAN}7. Silhouette Quiz{RESET}  - Who's That Pokémon trivia challenge!\n")
     sys.stdout.write(f"   {CYAN}8. Stadium Derby{RESET}    - 4-lane hurdle track race betting.\n\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}play <1-8>{RESET}' to start (e.g. 'play 5' or 'play voltorb').\n\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}play <1-8>{RESET}' to start (e.g. 'play 1' to 'play 8').\n\n")
     
 def render_slot_tab(app):
     avail = app.engine.available_tokens

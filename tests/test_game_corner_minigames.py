@@ -332,6 +332,53 @@ class TestGameCornerMinigames(unittest.TestCase):
                 tui.run()
             self.assertEqual(self.engine.excavator.game_state, "digging")
 
+    def test_game_corner_play_command_requires_index(self):
+        from poketokenbar.tui import PokeTokenBarTUI
+        from unittest.mock import patch, MagicMock
+        import io
+
+        tui = PokeTokenBarTUI()
+        tui.engine = self.engine
+        tui.current_tab = 9
+        tui.minigame_state = "menu"
+
+        with patch("poketokenbar.tui.UsageManager") as mock_mgr:
+            instance = MagicMock()
+            instance.get_summary.return_value = {
+                "total_tokens": 100_000_000, "today_tokens": 0, "week_tokens": 0,
+                "month_tokens": 0, "antigravity_today": 0, "gemini_today": 0,
+                "claude_today": 0, "burn_rate_tpm": 0, "active_days": []
+            }
+            mock_mgr.return_value = instance
+
+            # 1. Numbered indices 1-8 should succeed
+            idx_map = {
+                "1": "poker", "2": "gacha", "3": "slot", "4": "blackjack",
+                "5": "voltorb", "6": "excavator", "7": "trivia", "8": "derby"
+            }
+            for idx, expected_state in idx_map.items():
+                commands = f"play {idx}\nq\n"
+                tui.minigame_state = "menu"
+                with patch("sys.stdin", io.StringIO(commands)), patch("sys.stdout"):
+                    tui.run()
+                self.assertEqual(tui.minigame_state, expected_state)
+
+            # 2. Game names must be rejected
+            for name in ["poker", "voltorb", "slot", "blackjack", "excavator", "trivia", "derby"]:
+                commands = f"play {name}\nq\n"
+                tui.minigame_state = "menu"
+                with patch("sys.stdin", io.StringIO(commands)), patch("sys.stdout"):
+                    tui.run()
+                self.assertEqual(tui.minigame_state, "menu")
+                self.assertIn("Type 'play <1-8>'", tui.message)
+
+            # 3. Direct name commands like 'slot' on tab 9 must not switch state
+            commands_slot = "slot\nq\n"
+            tui.minigame_state = "menu"
+            with patch("sys.stdin", io.StringIO(commands_slot)), patch("sys.stdout"):
+                tui.run()
+            self.assertEqual(tui.minigame_state, "menu")
+
 
 if __name__ == "__main__":
     unittest.main()
