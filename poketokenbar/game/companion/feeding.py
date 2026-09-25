@@ -38,7 +38,34 @@ class FeedingMixin:
             held = m.held_item
         return 50 if held == "soothe_bell" else 25
 
-    def _get_roster_and_active_candidates(self) -> List[Any]:
+    def _get_companion_species_id(self, m: Any) -> Optional[int]:
+        if isinstance(m, dict):
+            sp = m.get("species_id", m.get("final_id", m.get("base_id")))
+        elif hasattr(m, "current_id"):
+            sp = m.current_id
+        elif hasattr(m, "base_id"):
+            sp = m.base_id
+        else:
+            sp = None
+        if sp is not None:
+            try:
+                return int(sp)
+            except (ValueError, TypeError):
+                return None
+        return None
+
+    def _get_expedition_species_ids(self) -> set:
+        exp_ids = set()
+        for e in self.state.get("expeditions", []):
+            sp = e.get("sp_id")
+            if sp is not None:
+                try:
+                    exp_ids.add(int(sp))
+                except (ValueError, TypeError):
+                    exp_ids.add(sp)
+        return exp_ids
+
+    def _get_roster_and_active_candidates(self, exclude_expeditions: bool = False) -> List[Any]:
         dex = self.state.get("dex", [])
         roster = [d for d in dex if d.get("status") != "evolved"]
         active = self.active_mon
@@ -47,6 +74,9 @@ class FeedingMixin:
             active_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in roster}
             if active.current_id not in active_sp_ids:
                 candidates.append(active)
+        if exclude_expeditions:
+            exp_ids = self._get_expedition_species_ids()
+            candidates = [c for c in candidates if self._get_companion_species_id(c) not in exp_ids]
         return candidates
 
     def get_feed_threshold_plan(self, max_happiness: int, qty: Optional[int] = None, op: str = "<=") -> Dict[str, Any]:
@@ -62,7 +92,7 @@ class FeedingMixin:
         elif op in ["=", "==", "eq"]:
             norm_op = "="
 
-        candidates = self._get_roster_and_active_candidates()
+        candidates = self._get_roster_and_active_candidates(exclude_expeditions=True)
         if norm_op == "<":
             target_mons = [c for c in candidates if self._get_companion_happiness(c) < max_happiness and self._get_companion_happiness(c) < 100]
         elif norm_op == "=":
@@ -71,6 +101,19 @@ class FeedingMixin:
             target_mons = [c for c in candidates if self._get_companion_happiness(c) <= max_happiness and self._get_companion_happiness(c) < 100]
 
         if not target_mons:
+            all_candidates = self._get_roster_and_active_candidates(exclude_expeditions=False)
+            if norm_op == "<":
+                deployed_targets = [c for c in all_candidates if self._get_companion_happiness(c) < max_happiness and self._get_companion_happiness(c) < 100]
+            elif norm_op == "=":
+                deployed_targets = [c for c in all_candidates if self._get_companion_happiness(c) == max_happiness and self._get_companion_happiness(c) < 100]
+            else:
+                deployed_targets = [c for c in all_candidates if self._get_companion_happiness(c) <= max_happiness and self._get_companion_happiness(c) < 100]
+
+            if deployed_targets:
+                if max_happiness == 0:
+                    return {"ok": False, "error": "All exhausted Pokémon are currently deployed on expeditions and cannot be fed until they return."}
+                return {"ok": False, "error": f"All matching Pokémon ({norm_op}{max_happiness}%) are currently deployed on expeditions and cannot be fed."}
+
             if max_happiness == 0:
                 return {"ok": False, "error": "No Pokémon in your roster currently have 0% Happiness! All companions are in high spirits."}
             if norm_op == "=":
@@ -210,12 +253,14 @@ class FeedingMixin:
                     elif qty is None:
                         qty = 1
                 else:
-                    exhausted_count = len([c for c in candidates if self._get_companion_happiness(c) == 0])
+                    candidates_avail = self._get_roster_and_active_candidates(exclude_expeditions=True)
+                    exhausted_count = len([c for c in candidates_avail if self._get_companion_happiness(c) == 0])
                     if exhausted_count > 0:
                         return {"ok": False, "error": f"Active companion is already at 100% Happiness! You have {exhausted_count} exhausted Pokémon (0% Happiness) in your roster. Type 'feed 0' to restore them all to 100%!"}
                     return {"ok": False, "error": "Active companion is already at 100% Happiness! Usage: feed <#[id]|<=[pct]|<[pct]|[pct]|0> [qty]"}
             else:
-                exhausted_count = len([c for c in candidates if self._get_companion_happiness(c) == 0])
+                candidates_avail = self._get_roster_and_active_candidates(exclude_expeditions=True)
+                exhausted_count = len([c for c in candidates_avail if self._get_companion_happiness(c) == 0])
                 if exhausted_count > 0:
                     return {"ok": False, "error": f"No active companion selected! You have {exhausted_count} exhausted Pokémon in your roster. Type 'feed 0' to restore them all to 100%!"}
                 return {"ok": False, "error": "No active companion! Usage: feed <#[id]|<=[pct]|<[pct]|[pct]|0> [qty]"}
@@ -252,7 +297,7 @@ class FeedingMixin:
                 if raw_sp.isdigit():
                     t_sp_id = int(raw_sp)
                     for c in candidates:
-                        sp = c.get("species_id", c.get("final_id", c.get("base_id"))) if isinstance(c, dict) else c.current_id
+                        sp = self._get_companion_species_id(c)
                         if sp == t_sp_id:
                             matched = c
                             break
@@ -265,11 +310,20 @@ class FeedingMixin:
                 return {"ok": False, "error": f"Invalid target '{target}'. For species ID, use '#{target}'. For happiness percentage, specify 0-100 (e.g. '<=70', '=70', '70%')."}
             return {"ok": False, "error": f"Pokémon '{target}' not found in your Roster! Use species ID (e.g. '#25'), 'active', '0' for exhausted, or happiness percentage (e.g. '<=50%', '<70', '=70', '70%')."}
 
+        exp_ids = self._get_expedition_species_ids()
+
         # Single target
         if len(matched_targets) == 1:
             mon = matched_targets[0]
-            cur_h = self._get_companion_happiness(mon)
+            mon_sp_id = self._get_companion_species_id(mon)
             name = self._get_companion_name(mon)
+            if mon_sp_id in exp_ids:
+                msg = f"Cannot feed {name}! They are currently deployed on an expedition."
+                if len(msg) > 72:
+                    msg = f"Cannot feed {name}! Deployed on an expedition."
+                return {"ok": False, "error": msg}
+
+            cur_h = self._get_companion_happiness(mon)
             boost = self._get_companion_boost_per_berry(mon)
             needed = math.ceil((100 - cur_h) / boost)
             user_qty = (4 if cur_h == 0 else 1) if qty is None else max(1, int(qty))
@@ -313,9 +367,15 @@ class FeedingMixin:
             }
 
         # Multiple targets
+        deployed_matched = [m for m in matched_targets if self._get_companion_species_id(m) in exp_ids]
+        if len(deployed_matched) == len(matched_targets):
+            return {"ok": False, "error": "All targeted Pokémon are currently deployed on expeditions and cannot be fed."}
+
         plan_items = []
         rem_berries = available_berries
         for mon in matched_targets:
+            if self._get_companion_species_id(mon) in exp_ids:
+                continue
             if rem_berries <= 0:
                 break
             cur_h = self._get_companion_happiness(mon)

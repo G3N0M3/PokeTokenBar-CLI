@@ -5607,6 +5607,108 @@ class TestOranBerryFeeding(unittest.TestCase):
         self.assertIn("Req:", plan_single["prompt"])
         self.assertIn("Bag:", plan_single["prompt"])
 
+    def test_feed_rejects_pokemon_on_active_expedition(self):
+        self.engine.hatch_egg(0)
+        self.engine.state["inventory"] = {"berry_oran": 5}
+        self.engine.state["dex"].append({
+            "id": "sp_25",
+            "species_id": 25,
+            "base_id": 25,
+            "chain_order": [25, 26],
+            "rarity": "uncommon",
+            "status": "inactive",
+            "mon_state": {"base_id": 25, "current_id": 25, "happiness": 50, "stage_index": 0, "total_forms": 2},
+            "happiness": 50
+        })
+        self.engine.state["expeditions"] = [{
+            "sp_id": 25,
+            "area": "Viridian Forest",
+            "progress": 0,
+            "target": 5000000,
+            "reward": "rare_candy"
+        }]
+
+        ok, msg = self.engine.feed_pokemon("#25", 1)
+        self.assertFalse(ok)
+        self.assertIn("deployed on an expedition", msg)
+        self.assertLessEqual(len(msg), 72)
+
+    def test_feed_threshold_excludes_pokemon_on_active_expedition(self):
+        self.engine.hatch_egg(0)
+        active = self.engine.active_mon
+        active.happiness = 100
+        self.engine.set_active_mon(active)
+        self.engine.state["inventory"] = {"berry_oran": 10}
+
+        # Mon with 0% happiness is currently deployed on expedition
+        self.engine.state["dex"].append({
+            "id": "sp_25",
+            "species_id": 25,
+            "base_id": 25,
+            "chain_order": [25, 26],
+            "rarity": "uncommon",
+            "status": "inactive",
+            "mon_state": {"base_id": 25, "current_id": 25, "happiness": 0, "stage_index": 0, "total_forms": 2},
+            "happiness": 0
+        })
+        self.engine.state["expeditions"] = [{
+            "sp_id": 25,
+            "area": "Viridian Forest",
+            "progress": 0,
+            "target": 5000000,
+            "reward": "rare_candy"
+        }]
+
+        plan = self.engine.get_feed_plan("0")
+        self.assertFalse(plan["ok"])
+        self.assertIn("All exhausted Pokémon are currently deployed on expeditions and cannot be fed until they return.", plan["error"])
+
+    def test_feed_batch_targets_excludes_expeditions(self):
+        self.engine.hatch_egg(0)
+        active = self.engine.active_mon
+        active.happiness = 100
+        self.engine.set_active_mon(active)
+        self.engine.state["inventory"] = {"berry_oran": 10}
+
+        self.engine.state["dex"].append({
+            "id": "sp_25",
+            "species_id": 25,
+            "base_id": 25,
+            "chain_order": [25, 26],
+            "rarity": "uncommon",
+            "status": "inactive",
+            "mon_state": {"base_id": 25, "current_id": 25, "happiness": 50, "stage_index": 0, "total_forms": 2},
+            "happiness": 50
+        })
+        self.engine.state["dex"].append({
+            "id": "sp_1",
+            "species_id": 1,
+            "base_id": 1,
+            "chain_order": [1, 2, 3],
+            "rarity": "starter",
+            "status": "inactive",
+            "mon_state": {"base_id": 1, "current_id": 1, "happiness": 50, "stage_index": 0, "total_forms": 3},
+            "happiness": 50
+        })
+        # 25 is on expedition, 1 is available
+        self.engine.state["expeditions"] = [{
+            "sp_id": 25,
+            "area": "Viridian Forest",
+            "progress": 0,
+            "target": 5000000,
+            "reward": "rare_candy"
+        }]
+
+        # All targets deployed returns error
+        plan_all_exp = self.engine.get_feed_plan("#25")
+        self.assertFalse(plan_all_exp["ok"])
+
+        # Multiple targets feeds available mon and ignores expedition mon
+        plan_batch = self.engine.get_feed_plan("#25,#1", qty=1)
+        self.assertTrue(plan_batch["ok"])
+        self.assertEqual(len(plan_batch["items"]), 1)
+        self.assertEqual(plan_batch["items"][0]["name"], self.engine.api.get_species_name(1))
+
 class TestBankDailyInterest(unittest.TestCase):
     def setUp(self):
         import tempfile
