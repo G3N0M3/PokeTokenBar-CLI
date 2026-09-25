@@ -345,25 +345,25 @@ class ShareholderTier:
 
 SHAREHOLDER_TIERS: List[ShareholderTier] = [
     ShareholderTier(0, "None", 0, 0, "0 sh"),
-    ShareholderTier(1, "Retail", 1, 4, "1-4 sh"),
-    ShareholderTier(2, "Preferred", 5, 14, "5-14 sh"),
-    ShareholderTier(3, "Strategic", 15, 29, "15-29 sh"),
-    ShareholderTier(4, "Majority", 30, None, "30+ sh"),
+    ShareholderTier(1, "Retail", 1, 10, "1-10 sh"),
+    ShareholderTier(2, "Preferred", 11, 20, "11-20 sh"),
+    ShareholderTier(3, "Strategic", 21, 30, "21-30 sh"),
+    ShareholderTier(4, "Majority", 31, None, "31+ sh"),
 ]
 
 def get_shareholder_rank(shares: int) -> Tuple[int, str]:
     """Returns (rank_id, rank_name) for a given number of shares.
     Rank 0: None (0 sh)
-    Rank 1: Retail (1-4 sh)
-    Rank 2: Preferred (5-14 sh)
-    Rank 3: Strategic (15-29 sh)
-    Rank 4: Majority (30+ sh)
+    Rank 1: Retail (1-10 sh)
+    Rank 2: Preferred (11-20 sh)
+    Rank 3: Strategic (21-30 sh)
+    Rank 4: Majority (31+ sh)
     """
-    if shares >= 30:
+    if shares >= 31:
         return 4, "Majority"
-    elif shares >= 15:
+    elif shares >= 21:
         return 3, "Strategic"
-    elif shares >= 5:
+    elif shares >= 11:
         return 2, "Preferred"
     elif shares >= 1:
         return 1, "Retail"

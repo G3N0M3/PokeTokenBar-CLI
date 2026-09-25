@@ -897,6 +897,11 @@ class RocketMixin:
                 t_st = charges_st.setdefault(tech, {"charges": 0, "progress": 0, "target": 2_500_000})
                 if t_st.get("charges", 0) == 0:
                     t_st["charges"] = 3
+        if cur_lvl >= 4:
+            charges_st = self.state.setdefault("rocket_armory_charges", {})
+            t_st = charges_st.setdefault("catalyst", {"charges": 0, "progress": 0, "target": 2_500_000})
+            if t_st.get("charges", 0) == 0:
+                t_st["charges"] = 3
 
         perk_msg = ""
         if rank_order.get(new_rank, 1) > rank_order.get(old_rank, 1):
@@ -1151,12 +1156,17 @@ class RocketMixin:
             tech_code = "spray"
         elif tech_code in ["accelerator", "chrono accelerator"]:
             tech_code = "chrono"
+        elif tech_code in ["catalyst", "gene", "dark gene", "dark gene catalyst"]:
+            tech_code = "catalyst"
 
         charges_st = self.state.setdefault("rocket_armory_charges", {})
         rank_order = {"Informant": 1, "Operative": 2, "Special Agent": 3, "Executive": 4, "Commander": 5}
         user_rank = self.state.get("rocket_rank", "Informant")
-        is_op = rank_order.get(user_rank, 1) >= 2
-        default_c = 3 if is_op else 0
+        user_lvl = rank_order.get(user_rank, 1)
+
+        req_lvl = 4 if tech_code == "catalyst" else 2
+        is_unlocked = user_lvl >= req_lvl
+        default_c = 3 if is_unlocked else 0
 
         if tech_code not in charges_st or not isinstance(charges_st[tech_code], dict):
             charges_st[tech_code] = {
@@ -1185,11 +1195,16 @@ class RocketMixin:
         """Charges experimental Armory devices based on coding tokens used."""
         rank_order = {"Informant": 1, "Operative": 2, "Special Agent": 3, "Executive": 4, "Commander": 5}
         user_rank = self.state.get("rocket_rank", "Informant")
-        if rank_order.get(user_rank, 1) < 2:
+        user_lvl = rank_order.get(user_rank, 1)
+        if user_lvl < 2:
             return
 
         charges_st = self.state.setdefault("rocket_armory_charges", {})
-        for tech in ["spray", "chrono"]:
+        tech_list = ["spray", "chrono"]
+        if user_lvl >= 4:
+            tech_list.append("catalyst")
+
+        for tech in tech_list:
             info = self.get_armory_charge_info(tech)
             c = info["charges"]
             if c >= 3:
@@ -1211,8 +1226,12 @@ class RocketMixin:
             charges_st[tech]["progress"] = p
 
             if recharged > 0:
-                name = "Syndicate Morale Mist" if tech == "spray" else "Chrono Accelerator"
-                icon = "💨" if tech == "spray" else "⌛"
+                if tech == "spray":
+                    name, icon = "Syndicate Morale Mist", "💨"
+                elif tech == "chrono":
+                    name, icon = "Chrono Accelerator", "⌛"
+                else:
+                    name, icon = "Dark Gene Catalyst", "🧬"
                 events.append(f"{icon} Covert Armory: {name} recharged! ({c}/3 charges)")
 
     def use_rocket_armory_item(self, tech_code: str) -> Tuple[bool, str]:
@@ -1222,22 +1241,47 @@ class RocketMixin:
             tech_code = "spray"
         elif tech_code in ["chrono", "accelerator", "chrono accelerator"]:
             tech_code = "chrono"
+        elif tech_code in ["catalyst", "gene", "dark gene", "dark gene catalyst"]:
+            tech_code = "catalyst"
 
-        if tech_code not in ["spray", "chrono"]:
-            return False, f"Unknown chargeable tech '{tech_code}'. Valid: 'use mist', 'use chrono'."
+        if tech_code not in ["spray", "chrono", "catalyst"]:
+            return False, f"Unknown chargeable tech '{tech_code}'. Valid: 'use mist', 'use chrono', 'use catalyst'."
 
         rank_order = {"Informant": 1, "Operative": 2, "Special Agent": 3, "Executive": 4, "Commander": 5}
         user_rank = self.state.get("rocket_rank", "Informant")
-        if rank_order.get(user_rank, 1) < 2:
-            name = "Syndicate Morale Mist" if tech_code == "spray" else "Chrono Accelerator"
-            return False, f"Clearance Denied! {name} requires rank 'Operative' (Your Rank: {user_rank})."
+        user_lvl = rank_order.get(user_rank, 1)
+
+        req_lvl = 4 if tech_code == "catalyst" else 2
+        req_rank = "Executive" if tech_code == "catalyst" else "Operative"
+        if user_lvl < req_lvl:
+            name = (
+                "Dark Gene Catalyst" if tech_code == "catalyst"
+                else ("Syndicate Morale Mist" if tech_code == "spray" else "Chrono Accelerator")
+            )
+            return False, f"Clearance Denied! {name} requires rank '{req_rank}' (Your Rank: {user_rank})."
 
         info = self.get_armory_charge_info(tech_code)
         if info["charges"] <= 0:
-            name = "Syndicate Morale Mist" if tech_code == "spray" else "Chrono Accelerator"
+            if tech_code == "spray":
+                name = "Syndicate Morale Mist"
+            elif tech_code == "chrono":
+                name = "Chrono Accelerator"
+            else:
+                name = "Dark Gene Catalyst"
             p_str = format_tokens(info["progress"])
             t_str = format_tokens(info["target"])
             return False, f"⚠️ {name} has 0/3 charges! Coding: {p_str}/{t_str} ({info['pct']}%)."
+
+        if tech_code == "catalyst":
+            ok, evo_msg = self.apply_dark_gene_catalyst()
+            if not ok:
+                return False, evo_msg
+
+            charges_st = self.state.setdefault("rocket_armory_charges", {})
+            charges_st["catalyst"]["charges"] = info["charges"] - 1
+            rem = charges_st["catalyst"]["charges"]
+            self.save()
+            return True, f"🧬 Dark Gene Catalyst deployed! [Charges: {rem}/3]\n  {evo_msg}"
 
         # Consume 1 charge
         charges_st = self.state.setdefault("rocket_armory_charges", {})
@@ -1257,7 +1301,7 @@ class RocketMixin:
                     if isinstance(m_st, dict):
                         m_st["happiness"] = 100
             self.save()
-            return True, f"💨 Deployed Syndicate Morale Mist! Squad at 100%! [{rem}/3 left]"
+            return True, f"💨 Deployed Syndicate Morale Mist! Squad at 100%! [Charges: {rem}/3]"
 
         elif tech_code == "chrono":
             cds = self.state.get("term_deposits", [])
@@ -1274,9 +1318,9 @@ class RocketMixin:
             self.save()
             if active_cds:
                 mat_str = f" ({matured_count} matured)" if matured_count > 0 else ""
-                return True, f"⌛ Chrono Accelerator: Advanced {len(active_cds)} CD(s) +1d{mat_str}! [{rem}/3 left]"
+                return True, f"⌛ Chrono Accelerator: Advanced {len(active_cds)} CD(s) +1d{mat_str}! [Charges: {rem}/3]"
             else:
-                return True, f"⌛ Chrono Accelerator warped (+1 day). No active CDs! [{rem}/3 left]"
+                return True, f"⌛ Chrono Accelerator warped (+1 day). No active CDs! [Charges: {rem}/3]"
 
     def buy_rocket_armory_item(self, item_code: str) -> Tuple[bool, str]:
         """Requisitions covert tech from the Rocket Armory with rank clearance checks (Free of charge)."""
@@ -1353,11 +1397,7 @@ class RocketMixin:
             msg = "⚡ Clearance Authorized: Corrupted EXP Splitter active! 25% of coding XP is now mirrored to all inactive roster Pokémon!"
 
         elif item_code == "catalyst":
-            inv = self.state.setdefault("inventory", {})
-            inv["dark_gene_catalyst"] = inv.get("dark_gene_catalyst", 0) + 1
-            if isinstance(inv.get("items"), dict):
-                inv["items"]["dark_gene_catalyst"] = inv["dark_gene_catalyst"]
-            msg = "🧬 Clearance Authorized: Requisitioned Dark Gene Catalyst! Stored in Bag inventory (Slot 63)."
+            return self.use_rocket_armory_item("catalyst")
 
         elif item_code == "authority":
             chosen_id = random.choice(candidates)

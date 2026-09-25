@@ -171,15 +171,17 @@ class CompanionEngine(
         # Initialize or migrate Covert Armory charges
         charges_st = self.state.setdefault("rocket_armory_charges", {})
         is_op = cur_lvl >= 2
-        for tech in ["spray", "chrono"]:
+        is_exec = cur_lvl >= 4
+        for tech in ["spray", "chrono", "catalyst"]:
+            init_c = 3 if (is_exec if tech == "catalyst" else is_op) else 0
             if tech not in charges_st or not isinstance(charges_st[tech], dict):
                 charges_st[tech] = {
-                    "charges": 3 if is_op else 0,
+                    "charges": init_c,
                     "progress": 0,
                     "target": 2_500_000
                 }
             else:
-                charges_st[tech].setdefault("charges", 3 if is_op else 0)
+                charges_st[tech].setdefault("charges", init_c)
                 charges_st[tech].setdefault("progress", 0)
                 charges_st[tech].setdefault("target", 2_500_000)
 

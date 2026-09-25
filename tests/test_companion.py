@@ -1249,7 +1249,7 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertIn("Boss raids", CORPORATIONS["macro"].perk_desc)
 
         # Test Devon perk: dynamic tiered discount on Shop Rare Candy
-        # With 2 shares owned (Retail tier: 1-4 shares), discount is 5%
+        # With 2 shares owned (Retail tier: 1-10 shares), discount is 5%
         self.assertEqual(self.engine.get_corp_rank("devon")[1], "Retail")
         rc_base = ItemKind.RARE_CANDY.price_for(self.engine.current_difficulty)
         expected_cost_bronze = int(rc_base * 0.95)
@@ -1258,8 +1258,8 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertTrue(ok_buy)
         self.assertEqual(tokens_before_rc - self.engine.available_tokens, expected_cost_bronze)
 
-        # Reach Preferred tier (5+ shares) for 10% discount
-        ok_silver, _ = self.engine.invest_corporate("DEVON", "3")
+        # Reach Preferred tier (11+ shares) for 10% discount
+        ok_silver, _ = self.engine.invest_corporate("DEVON", "9")
         self.assertTrue(ok_silver)
         self.assertEqual(self.engine.get_corp_rank("devon")[1], "Preferred")
         expected_cost_silver = int(rc_base * 0.90)
@@ -1583,14 +1583,18 @@ class TestCompanionEngine(unittest.TestCase):
         # Boundary tests
         self.assertEqual(get_shareholder_rank(0), (0, "None"))
         self.assertEqual(get_shareholder_rank(1), (1, "Retail"))
-        self.assertEqual(get_shareholder_rank(4), (1, "Retail"))
-        self.assertEqual(get_shareholder_rank(5), (2, "Preferred"))
-        self.assertEqual(get_shareholder_rank(14), (2, "Preferred"))
-        self.assertEqual(get_shareholder_rank(15), (3, "Strategic"))
-        self.assertEqual(get_shareholder_rank(29), (3, "Strategic"))
-        self.assertEqual(get_shareholder_rank(30), (4, "Majority"))
+        self.assertEqual(get_shareholder_rank(10), (1, "Retail"))
+        self.assertEqual(get_shareholder_rank(11), (2, "Preferred"))
+        self.assertEqual(get_shareholder_rank(20), (2, "Preferred"))
+        self.assertEqual(get_shareholder_rank(21), (3, "Strategic"))
+        self.assertEqual(get_shareholder_rank(30), (3, "Strategic"))
+        self.assertEqual(get_shareholder_rank(31), (4, "Majority"))
         self.assertEqual(get_shareholder_rank(100), (4, "Majority"))
         self.assertEqual(len(SHAREHOLDER_TIERS), 5)
+        self.assertEqual(SHAREHOLDER_TIERS[1].range_label, "1-10 sh")
+        self.assertEqual(SHAREHOLDER_TIERS[2].range_label, "11-20 sh")
+        self.assertEqual(SHAREHOLDER_TIERS[3].range_label, "21-30 sh")
+        self.assertEqual(SHAREHOLDER_TIERS[4].range_label, "31+ sh")
 
     def test_shareholder_perk_multipliers(self):
         self.engine.state["investments"] = {
@@ -1605,13 +1609,13 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertEqual(self.engine.get_macro_multiplier(), 1.0)
         self.assertEqual(self.engine.get_viridian_dividend_bonus(), 0.0)
 
-        # Rank 1 (Retail: 1-4 shares)
-        self.engine.state["investments"]["silph"] = 2
-        self.engine.state["investments"]["devon"] = 4
+        # Rank 1 (Retail: 1-10 shares)
+        self.engine.state["investments"]["silph"] = 5
+        self.engine.state["investments"]["devon"] = 10
         self.engine.state["investments"]["aether"] = 1
-        self.engine.state["investments"]["mauville"] = 3
-        self.engine.state["investments"]["macro"] = 2
-        self.engine.state["investments"]["viridian"] = 4
+        self.engine.state["investments"]["mauville"] = 8
+        self.engine.state["investments"]["macro"] = 3
+        self.engine.state["investments"]["viridian"] = 7
         self.assertEqual(self.engine.get_silph_multipliers(), (1.10, 1.10))
         self.assertEqual(self.engine.get_devon_multiplier(), 0.95)
         self.assertEqual(self.engine.get_devon_discount_pct(), 5)
@@ -1620,8 +1624,8 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertEqual(self.engine.get_macro_multiplier(), 1.10)
         self.assertEqual(self.engine.get_viridian_dividend_bonus(), 0.005)
 
-        # Rank 2 (Preferred: 5-14 shares)
-        self.engine.state["investments"] = {k: 5 for k in self.engine.state["investments"]}
+        # Rank 2 (Preferred: 11-20 shares)
+        self.engine.state["investments"] = {k: 15 for k in self.engine.state["investments"]}
         self.assertEqual(self.engine.get_silph_multipliers(), (1.15, 1.15))
         self.assertEqual(self.engine.get_devon_multiplier(), 0.90)
         self.assertEqual(self.engine.get_devon_discount_pct(), 10)
@@ -1630,8 +1634,8 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertEqual(self.engine.get_macro_multiplier(), 1.20)
         self.assertEqual(self.engine.get_viridian_dividend_bonus(), 0.010)
 
-        # Rank 3 (Strategic: 15-29 shares)
-        self.engine.state["investments"] = {k: 20 for k in self.engine.state["investments"]}
+        # Rank 3 (Strategic: 21-30 shares)
+        self.engine.state["investments"] = {k: 25 for k in self.engine.state["investments"]}
         self.assertEqual(self.engine.get_silph_multipliers(), (1.20, 1.20))
         self.assertEqual(self.engine.get_devon_multiplier(), 0.85)
         self.assertEqual(self.engine.get_devon_discount_pct(), 15)
@@ -1640,7 +1644,7 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertEqual(self.engine.get_macro_multiplier(), 1.30)
         self.assertEqual(self.engine.get_viridian_dividend_bonus(), 0.015)
 
-        # Rank 4 (Majority: 30+ shares)
+        # Rank 4 (Majority: 31+ shares)
         self.engine.state["investments"] = {k: 35 for k in self.engine.state["investments"]}
         self.assertEqual(self.engine.get_silph_multipliers(), (1.25, 1.25))
         self.assertEqual(self.engine.get_devon_multiplier(), 0.80)
@@ -1660,9 +1664,9 @@ class TestCompanionEngine(unittest.TestCase):
         app = MagicMock()
         app.engine = self.engine
 
-        # Test each corporation across all 5 ranks (0, 2, 7, 20, 35 shares)
+        # Test each corporation across all 5 ranks (0, 5, 15, 25, 35 shares)
         for corp_key in ["silph", "devon", "aether", "mauville", "macro", "viridian"]:
-            for share_count in [0, 2, 7, 20, 35]:
+            for share_count in [0, 5, 15, 25, 35]:
                 self.engine.state["investments"][corp_key] = share_count
                 trap = io.StringIO()
                 with patch("sys.stdout", trap):
@@ -2342,6 +2346,68 @@ class TestCompanionEngine(unittest.TestCase):
         info_spray4 = self.engine.get_armory_charge_info("spray")
         self.assertEqual(info_spray4["charges"], 3)
 
+        # Promote to Executive -> initializes catalyst with 3/3 charges
+        self.engine.state["rocket_rank"] = "Executive"
+        charges_st = self.engine.state.setdefault("rocket_armory_charges", {})
+        charges_st["catalyst"] = {"charges": 3, "progress": 0, "target": 2_500_000}
+        info_cat = self.engine.get_armory_charge_info("catalyst")
+        self.assertEqual(info_cat["charges"], 3)
+        self.assertEqual(info_cat["max_charges"], 3)
+
+        # Setup active Squirtle (ID: 7 -> 8 -> 9)
+        squirtle = MonState(
+            base_id=7, path_ids=[7, 8, 9], planned_path_ids=[7, 8, 9], stage_index=0,
+            used_at_stage=0, rarity=Rarity.COMMON, total_forms=3, happiness=100
+        )
+        self.engine.set_active_mon(squirtle)
+        self.engine.state["dex"] = []
+
+        # 1st use: Squirtle -> Wartortle (charges 3 -> 2)
+        ok_c1, msg_c1 = self.engine.use_rocket_armory_item("catalyst")
+        self.assertTrue(ok_c1)
+        self.assertIn("Charges: 2/3", msg_c1)
+        self.assertEqual(self.engine.active_mon.current_id, 8)
+        self.assertNotIn("dark_gene_catalyst", self.engine.state.get("inventory", {}))
+
+        # 2nd use: Wartortle -> Blastoise (charges 2 -> 1)
+        ok_c2, msg_c2 = self.engine.use_rocket_armory_item("catalyst")
+        self.assertTrue(ok_c2)
+        self.assertIn("Charges: 1/3", msg_c2)
+        self.assertEqual(self.engine.active_mon.current_id, 9)
+        self.assertNotIn("dark_gene_catalyst", self.engine.state.get("inventory", {}))
+
+        # Blastoise is final stage -> attempt fails and DOES NOT consume charge (stays 1/3)
+        ok_fail, msg_fail = self.engine.use_rocket_armory_item("catalyst")
+        self.assertFalse(ok_fail)
+        self.assertIn("already reached its final evolutionary stage", msg_fail)
+        self.assertEqual(self.engine.get_armory_charge_info("catalyst")["charges"], 1)
+
+        # Setup another companion: Bulbasaur (ID: 1 -> 2)
+        bulbasaur = MonState(
+            base_id=1, path_ids=[1, 2, 3], planned_path_ids=[1, 2, 3], stage_index=0,
+            used_at_stage=0, rarity=Rarity.COMMON, total_forms=3, happiness=100
+        )
+        self.engine.set_active_mon(bulbasaur)
+        ok_c3, msg_c3 = self.engine.use_rocket_armory_item("catalyst")
+        self.assertTrue(ok_c3)
+        self.assertIn("Charges: 0/3", msg_c3)
+        self.assertEqual(self.engine.active_mon.current_id, 2)
+
+        # 4th use rejected due to 0 charges
+        ok_c4, msg_c4 = self.engine.use_rocket_armory_item("catalyst")
+        self.assertFalse(ok_c4)
+        self.assertIn("0/3 charges", msg_c4)
+
+        # Simulate coding usage: 2.5M tokens -> +1 charge for catalyst
+        self.engine.process_usage(27_500_000)
+        info_cat2 = self.engine.get_armory_charge_info("catalyst")
+        self.assertEqual(info_cat2["charges"], 1)
+
+        # Another 5M tokens -> reaches 3/3 max
+        self.engine.process_usage(32_500_000)
+        info_cat3 = self.engine.get_armory_charge_info("catalyst")
+        self.assertEqual(info_cat3["charges"], 3)
+
     def test_covert_armory_use_command_tui(self):
         """Verify 'use mist', 'use chrono', and direct commands in Covert Armory TUI."""
         from poketokenbar.tui import PokeTokenBarTUI
@@ -2366,15 +2432,17 @@ class TestCompanionEngine(unittest.TestCase):
         handle_rocket_command(app, "use chrono")
         self.assertIn("Chrono Accelerator", app.message)
 
-        # Test 'use 2' and 'use 3' are rejected (no alternative numeric commands)
+        # Test 'use 2', 'use 3', and 'use 5' are rejected (no alternative numeric commands)
         handle_rocket_command(app, "use 2")
-        self.assertIn("Unknown armory tech. Valid commands: 'use mist', 'use chrono'.", app.message)
+        self.assertIn("Unknown armory tech. Valid commands: 'use mist', 'use chrono', 'use catalyst'.", app.message)
         handle_rocket_command(app, "use 3")
-        self.assertIn("Unknown armory tech. Valid commands: 'use mist', 'use chrono'.", app.message)
+        self.assertIn("Unknown armory tech. Valid commands: 'use mist', 'use chrono', 'use catalyst'.", app.message)
+        handle_rocket_command(app, "use 5")
+        self.assertIn("Unknown armory tech. Valid commands: 'use mist', 'use chrono', 'use catalyst'.", app.message)
 
         # Test bare numbers and bare names are rejected (strict single command)
         handle_rocket_command(app, "2")
-        self.assertIn("Please use 'use mist' or 'use chrono'.", app.message)
+        self.assertIn("Please use 'use mist', 'use chrono', or 'use catalyst'.", app.message)
         handle_rocket_command(app, "chrono")
         self.assertIn("Rocket commands:", app.message)
 
@@ -2406,8 +2474,41 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertIn("Team Rocket Authority", out2)
         self.assertNotIn("Syndicate Black Pass", out2)
         self.assertIn("Page 2/2", out2)
-        self.assertIn("requisition catalyst", out2)
-        self.assertIn("claim authority", out2)
+        self.assertIn("use catalyst", out2)
+        self.assertNotIn("requisition catalyst", out2)
+        # 6th item is locked for Operative rank; hint should only appear when 6th item is opened
+        self.assertNotIn("claim authority", out2)
+
+        # Promote to Commander (6th item opened) -> claim authority hint appears
+        self.engine.state["rocket_rank"] = "Commander"
+        trap_cmd = io.StringIO()
+        with patch("sys.stdout", trap_cmd):
+            render_rocket_tab(app)
+        out_cmd = trap_cmd.getvalue()
+        self.assertIn("claim authority", out_cmd)
+
+        # Test 'use catalyst' in TUI with active Wartortle
+        self.engine.state["rocket_rank"] = "Executive"
+        wartortle = MonState(
+            base_id=7, path_ids=[7, 8, 9], planned_path_ids=[7, 8, 9], stage_index=1,
+            used_at_stage=0, rarity=Rarity.COMMON, total_forms=3, happiness=100
+        )
+        self.engine.set_active_mon(wartortle)
+        self.engine.state["dex"] = []
+        charges_st = self.engine.state.setdefault("rocket_armory_charges", {})
+        charges_st["catalyst"] = {"charges": 2, "progress": 0, "target": 2_500_000}
+        handle_rocket_command(app, "use catalyst")
+        self.assertIn("Dark Gene Catalyst", app.message)
+        self.assertIn("Charges: 1/3", app.message)
+        self.assertEqual(self.engine.active_mon.current_id, 9)
+        self.assertNotIn("dark_gene_catalyst", self.engine.state.get("inventory", {}))
+
+        # Test 'claim authority' in TUI
+        self.engine.state["rocket_rank"] = "Commander"
+        handle_rocket_command(app, "claim authority")
+        self.assertIn("Team Rocket Authority", app.message)
+
+        self.engine.state["rocket_rank"] = "Operative"
 
         # Page backwards
         handle_rocket_command(app, "p")
@@ -2469,11 +2570,8 @@ class TestCompanionEngine(unittest.TestCase):
         self.engine.state["used_since_install"] = 100_000_000
         self.engine.state["spent_tokens"] = 0
         self.engine.state["rocket_rank"] = "Executive"
-
-        # Buy catalyst
-        ok_buy, msg_buy = self.engine.buy_rocket_armory_item("catalyst")
-        self.assertTrue(ok_buy)
-        self.assertEqual(self.engine.state["inventory"].get("dark_gene_catalyst"), 1)
+        charges_st = self.engine.state.setdefault("rocket_armory_charges", {})
+        charges_st["catalyst"] = {"charges": 3, "progress": 0, "target": 2_500_000}
 
         # Active Wartortle (ID: 8)
         wartortle = MonState(
@@ -2483,12 +2581,28 @@ class TestCompanionEngine(unittest.TestCase):
         self.engine.set_active_mon(wartortle)
         self.assertEqual(self.engine.active_mon.current_id, 8)
 
-        # Use Dark Gene Catalyst
-        ok_use, msg_use = self.engine.use_item("dark_gene_catalyst")
+        # Directly deploy Dark Gene Catalyst from Armory onto active companion
+        ok_use, msg_use = self.engine.use_rocket_armory_item("catalyst")
         self.assertTrue(ok_use)
         self.assertIn("Dark Gene Catalyst", msg_use)
         self.assertEqual(self.engine.active_mon.current_id, 9)
         self.assertEqual(self.engine.active_mon.stage_index, 2)
+        # Not stored in bag
+        self.assertNotIn("dark_gene_catalyst", self.engine.state.get("inventory", {}))
+        self.assertEqual(charges_st["catalyst"]["charges"], 2)
+
+        # Also verify use_item fallback if an item exists in bag
+        inv = self.engine.state.setdefault("inventory", {})
+        inv["dark_gene_catalyst"] = 1
+        squirtle = MonState(
+            base_id=7, path_ids=[7, 8, 9], planned_path_ids=[7, 8, 9], stage_index=0,
+            used_at_stage=0, rarity=Rarity.COMMON, total_forms=3, happiness=100
+        )
+        self.engine.set_active_mon(squirtle)
+        self.engine.state["dex"] = []
+        ok_bag, msg_bag = self.engine.use_item("dark_gene_catalyst")
+        self.assertTrue(ok_bag)
+        self.assertEqual(self.engine.active_mon.current_id, 8)
         self.assertEqual(self.engine.state["inventory"].get("dark_gene_catalyst", 0), 0)
 
     def test_team_rocket_authority_delivery_and_recruitment(self):

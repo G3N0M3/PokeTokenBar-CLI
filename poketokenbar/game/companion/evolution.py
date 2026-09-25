@@ -497,3 +497,91 @@ class EvolutionMixin:
 
         self.set_active_mon(active)
         return True, msg
+
+    def apply_dark_gene_catalyst(self) -> Tuple[bool, str]:
+        """Directly triggers cellular evolution on the active companion Pokémon."""
+        active = self.active_mon
+        if not active:
+            return False, "You need an active Pokémon companion to use Dark Gene Catalyst!"
+        if getattr(active, "held_item", None) == "everstone":
+            return False, "Your companion is holding an Everstone! It cannot evolve."
+
+        target_evo_id = None
+        if active.stage_index < len(active.path_ids) - 1:
+            target_evo_id = self.get_next_evolution_id(active)
+        else:
+            # Check for branching evolutions in PokeAPI evolution chain
+            sp_data = self.api.get_pokemon_species(active.current_id)
+            if sp_data and "evolution_chain" in sp_data:
+                try:
+                    chain_url = sp_data["evolution_chain"]["url"]
+                    chain_id = int(chain_url.rstrip("/").split("/")[-1])
+                    evo_data = self.api.get_evolution_chain(chain_id)
+                    if evo_data:
+                        tod = self.get_current_time_of_day()
+                        def find_next(node, tid):
+                            nid = int(node["species"]["url"].rstrip("/").split("/")[-1])
+                            if nid == tid:
+                                if tid in TIME_BASED_BRANCH_OVERRIDES:
+                                    target_tod = TIME_BASED_BRANCH_OVERRIDES[tid].get(tod)
+                                    for b in node.get("evolves_to", []):
+                                        if int(b["species"]["url"].rstrip("/").split("/")[-1]) == target_tod:
+                                            return target_tod
+                                for b in node.get("evolves_to", []):
+                                    for det in b.get("evolution_details", []):
+                                        if det.get("time_of_day") == tod:
+                                            return int(b["species"]["url"].rstrip("/").split("/")[-1])
+                                for b in node.get("evolves_to", []):
+                                    return int(b["species"]["url"].rstrip("/").split("/")[-1])
+                                return None
+                            for b in node.get("evolves_to", []):
+                                res = find_next(b, tid)
+                                if res: return res
+                            return None
+                        target_evo_id = find_next(evo_data["chain"], active.current_id)
+                except Exception:
+                    pass
+
+        if not target_evo_id:
+            curr_name = self.api.get_species_name(active.current_id)
+            return False, f"{curr_name} has already reached its final evolutionary stage!"
+
+        # Block evolution if target form already exists in Pokédex
+        dex = self.state.get("dex", [])
+        discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
+        if target_evo_id in discovered_sp_ids:
+            next_name = self.api.get_species_name(target_evo_id)
+            return False, f"Cannot evolve into {next_name}! {next_name} (#{target_evo_id}) already exists in your Pokédex."
+
+        prev_name = self.api.get_species_name(active.current_id)
+        active.stage_index += 1
+
+        if active.stage_index >= len(active.path_ids):
+            active.path_ids.append(target_evo_id)
+        else:
+            active.path_ids[active.stage_index] = target_evo_id
+            active.path_ids = active.path_ids[:active.stage_index + 1]
+
+        active.total_forms = len(active.path_ids)
+        new_name = self.api.get_species_name(target_evo_id)
+
+        sp_data = self.api.get_pokemon_species(target_evo_id)
+        if sp_data:
+            cap_rate = sp_data.get("capture_rate", 255)
+            is_leg = sp_data.get("is_legendary", False) or sp_data.get("is_mythical", False)
+            active.rarity = Rarity.from_capture_rate(cap_rate, is_leg)
+
+        active.used_at_stage = 0
+        self._register_to_dex(active, status="active")
+        self.set_active_mon(active)
+        self.save()
+
+        shiny_str = "✨ Shiny " if active.is_shiny else ""
+        quests_msg = ""
+        if hasattr(self, "_progress_quest_by_type"):
+            q_res = self._progress_quest_by_type("progression")
+            if q_res:
+                quests_msg = "\n  " + "\n  ".join(q_res)
+
+        msg = f"🎉 Amazing! {shiny_str}{prev_name} evolved into {shiny_str}{new_name} (#{target_evo_id})!{quests_msg}"
+        return True, msg

@@ -16,8 +16,8 @@ Every system function, game mechanic, menu selection, or user action in PokeToke
    - **Incorrect**: Accepting both `flip` and `f`.
    - **Correct**: Only `pick <r> <c>` and `hammer <r> <c>`.
    - **Incorrect**: Accepting single-letter aliases `p` or `h`.
-   - **Correct**: Only `use mist` and `use chrono` in the Covert Armory.
-   - **Incorrect**: Accepting numeric alternatives like `use 2` or `use 3`.
+   - **Correct**: Only `use mist`, `use chrono`, and `use catalyst` in the Covert Armory.
+   - **Incorrect**: Accepting numeric alternatives like `use 2`, `use 3`, or `use 5`, or verbose synonyms like `requisition catalyst`.
    - **Correct**: Only `race` to launch the stadium derby.
    - **Incorrect**: Accepting both `race` and `start`.
    - **Correct**: Only `giveup` to forfeit trivia.

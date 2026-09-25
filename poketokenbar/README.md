@@ -191,11 +191,10 @@ Tab [10] Bank provides three distinct financial services:
      - Macro Cosmos (`MACRO`): Galar conglomerate (+20% raid boss damage & token drops).
      - Viridian Dynamics (`VRDN`): Syndicate tech arm (+10% shiny encounter odds & token momentum).
    - **Tiered Shareholder Perks**: Holding larger share positions unlocks escalated corporate dividends and perks:
-     - **Retail** (< 10 sh): Base perk unlocked.
-     - **Preferred** (10+ sh): 1.5x perk multiplier.
-     - **Corporate** (50+ sh): 2x perk multiplier.
-     - **Board Member** (250+ sh): 3x perk multiplier.
-     - **Controlling** (1000+ sh): 4x maximum perk multiplier.
+     - **Retail** (1-10 sh): Tier 1 corporate perks unlocked.
+     - **Preferred** (11-20 sh): Tier 2 upgraded perks & discounts.
+     - **Strategic** (21-30 sh): Tier 3 advanced perks & enhanced dividends.
+     - **Majority** (31+ sh): Tier 4 maximum corporate benefits & syndicate ties.
    - **5 Pattern Cycles**: Stocks run on distinct pattern archetypes rather than random walks:
      - `bull_rally`: Consistent upward momentum, multi-day rallies, resistance testing.
      - `bear_decline`: Downward trends, short-seller pressure, oversold value bounce opportunities.

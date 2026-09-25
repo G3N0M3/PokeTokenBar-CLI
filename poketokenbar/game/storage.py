@@ -186,7 +186,8 @@ class StorageManager:
             "rocket_battle_state": {},
             "rocket_armory_charges": {
                 "spray": {"charges": 0, "progress": 0, "target": 2_500_000},
-                "chrono": {"charges": 0, "progress": 0, "target": 2_500_000}
+                "chrono": {"charges": 0, "progress": 0, "target": 2_500_000},
+                "catalyst": {"charges": 0, "progress": 0, "target": 2_500_000}
             }
         }
 

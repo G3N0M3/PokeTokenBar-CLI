@@ -372,7 +372,7 @@ def _render_armory_subtab(app):
         ("spray", "Syndicate Morale Mist", "Operative", "💨", "Instantly boosts happiness of all squad Pokémon to 100%"),
         ("chrono", "Chrono Accelerator", "Operative", "⌛", "Fast-forwards active Bank CDs, advancing maturity by +1 day"),
         ("splitter", "Corrupted EXP Splitter", "Special Agent", "⚡", "Mirrors 25% of coding XP to all inactive roster Pokémon"),
-        ("catalyst", "Dark Gene Catalyst", "Executive", "🧬", "Stored in Bag (Slot 63): Instantly evolves companion"),
+        ("catalyst", "Dark Gene Catalyst", "Executive", "🧬", "Instantly triggers cellular evolution on active companion"),
         ("authority", "Team Rocket Authority", "Commander", "👑", "Daily requisition of a random non-duplicate Gen 1 Pokémon"),
     ]
 
@@ -394,7 +394,7 @@ def _render_armory_subtab(app):
                 badge = f"{BOLD}{GREEN}[ACTIVE PERK]{RESET}"
             elif code == "splitter" and app.engine.state.get("has_exp_splitter", False):
                 badge = f"{BOLD}{GREEN}[ACTIVE PERK]{RESET}"
-            elif code in ["spray", "chrono"]:
+            elif code in ["spray", "chrono", "catalyst"]:
                 c_info = app.engine.get_armory_charge_info(code)
                 c_cnt = c_info["charges"]
                 color = GREEN if c_cnt > 0 else YELLOW
@@ -406,7 +406,7 @@ def _render_armory_subtab(app):
             for dline in textwrap.wrap(f"➔ {desc}", width=64):
                 sys.stdout.write(f"      {dline}\n")
 
-            if code in ["spray", "chrono"]:
+            if code in ["spray", "chrono", "catalyst"]:
                 c_info = app.engine.get_armory_charge_info(code)
                 c_cnt = c_info["charges"]
                 if c_cnt >= 3:
@@ -431,8 +431,10 @@ def _render_armory_subtab(app):
         sys.stdout.write(f"  ➔ Type '{BOLD}use mist{RESET}' to deploy Morale Mist.\n")
         sys.stdout.write(f"  ➔ Type '{BOLD}use chrono{RESET}' to warp Bank CD timelines.\n\n")
     else:
-        sys.stdout.write(f"  ➔ Type '{BOLD}requisition catalyst{RESET}' to store Dark Gene Catalyst in Bag.\n")
-        sys.stdout.write(f"  ➔ Type '{BOLD}claim authority{RESET}' to dispatch daily field agents.\n\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}use catalyst{RESET}' to evolve active companion.\n")
+        if user_lvl >= 5:
+            sys.stdout.write(f"  ➔ Type '{BOLD}claim authority{RESET}' to dispatch daily field agents.\n")
+        sys.stdout.write("\n")
 
 def _resolve_armory_tech_code(raw: str) -> str:
     raw = raw.lower().strip()
@@ -650,7 +652,11 @@ def handle_rocket_command(app, cmd: str):
         parts = cmd.split()
         if len(parts) >= 2:
             tech_code = _resolve_armory_tech_code(parts[1])
-            if tech_code in ["pass", "spray", "chrono", "splitter", "catalyst", "authority"]:
+            if tech_code == "authority":
+                ok, msg = app.engine.buy_rocket_armory_item("authority")
+                app.message = msg
+                return
+            if tech_code in ["pass", "spray", "chrono", "splitter", "catalyst"]:
                 app.message = "Covert Armory perks are automatically granted upon rank promotion! No claim or purchase required."
                 return
             ok, msg = app.engine.claim_rocket_operation(parts[1])
@@ -675,7 +681,7 @@ def handle_rocket_command(app, cmd: str):
     elif cmd == "use" or cmd.startswith("use "):
         parts = cmd.split(maxsplit=1)
         if len(parts) < 2:
-            app.message = "Usage: use <mist|chrono> (e.g. 'use mist', 'use chrono')"
+            app.message = "Usage: use <mist|chrono|catalyst> (e.g. 'use mist', 'use chrono', 'use catalyst')"
             return
         target_raw = parts[1].strip().lower()
         if target_raw == "mist":
@@ -684,27 +690,29 @@ def handle_rocket_command(app, cmd: str):
         elif target_raw == "chrono":
             ok, msg = app.engine.use_rocket_armory_item("chrono")
             app.message = msg
-        elif target_raw in ["2", "3"]:
-            app.message = "Unknown armory tech. Valid commands: 'use mist', 'use chrono'."
+        elif target_raw == "catalyst":
+            ok, msg = app.engine.use_rocket_armory_item("catalyst")
+            app.message = msg
+        elif target_raw in ["2", "3", "5"]:
+            app.message = "Unknown armory tech. Valid commands: 'use mist', 'use chrono', 'use catalyst'."
         else:
             tech_code = _resolve_armory_tech_code(target_raw)
             if tech_code == "pass":
                 app.message = "Syndicate Black Pass is a passive clearance perk (always active)."
             elif tech_code == "splitter":
                 app.message = "Corrupted EXP Splitter is a passive perk (automatically mirrors 25% XP)."
-            elif tech_code == "catalyst":
-                app.message = "Type 'requisition catalyst' to store Dark Gene Catalyst in Bag (Slot 63)."
             elif tech_code == "authority":
                 app.message = "Type 'claim authority' to dispatch daily field agents."
             else:
-                app.message = f"Unknown armory tech '{target_raw}'. Valid: 'use mist', 'use chrono'."
-    elif subview == "armory" and cmd in ["2", "3"]:
-        app.message = "Please use 'use mist' or 'use chrono'."
+                app.message = f"Unknown armory tech '{target_raw}'. Valid: 'use mist', 'use chrono', 'use catalyst'."
+    elif subview == "armory" and cmd in ["2", "3", "5"]:
+        app.message = "Please use 'use mist', 'use chrono', or 'use catalyst'."
     elif cmd.startswith("requisition "):
         parts = cmd.split(maxsplit=1)
         tech_code = _resolve_armory_tech_code(parts[1])
-        if tech_code in ["spray", "chrono"]:
-            app.message = "Please use 'use mist' or 'use chrono'."
+        if tech_code in ["spray", "chrono", "catalyst"]:
+            tech_cmd = "mist" if tech_code == "spray" else tech_code
+            app.message = f"Please use 'use {tech_cmd}'."
         else:
             ok, msg = app.engine.buy_rocket_armory_item(tech_code)
             app.message = msg
@@ -717,7 +725,7 @@ def handle_rocket_command(app, cmd: str):
     ):
         app.message = "Covert Armory perks are automatically granted upon rank promotion! No purchase required."
     else:
-        app.message = "Rocket commands: 'start operation', 'engage', 'briefing', 'claim', 'use <mist|chrono>', 'attack', 'burst'."
+        app.message = "Rocket commands: 'start operation', 'engage', 'briefing', 'claim', 'use <mist|chrono|catalyst>', 'attack', 'burst'."
 
 def render_operation_dialogue(app, op_code: str):
     """Renders a full-screen, atmospheric mission briefing dialogue when starting an operation."""
