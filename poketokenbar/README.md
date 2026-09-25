@@ -235,7 +235,7 @@ The Mt. Silver Red Battle is architecturally integrated into Tab [6] Battles:
 - **Dynamic Frequency Signal**: Broadcasts on encrypted frequency `131.55` as `[12] Secure Comm` when milestone thresholds are reached. Accepting the alliance (`accept`) unlocks full `[12] Rocket HQ`.
 - **10 Covert Operations (`ops`)**: Mission directives from Commander Petrel tracking multi-objective milestones (token burn, expeditions, battle wins, bank CDs, companion happiness, and syndicate boss battles). Deployed via `start operation <num>` with tactical briefings (`briefing`).
 - **Tactical Boss Combat Arena (`rocket_battle.py`)**:
-  - Enter the combat arena via `engage` or `fight` when an operation confrontation is active.
+  - Enter the combat arena via `fight` when an operation confrontation is active.
   - Battle experimental bosses (e.g. `Prototype Chimera-001`) with dynamic elemental stance cores (Fire, Ice, Electric, Water).
   - Boss health and remaining percentages persist across turns, battle retreats, and game restarts (`ops_st["boss_hp_remaining"]`).
   - Directional front-sprite horizontal flipping (`flip_h=True`) dynamically faces your companion toward the enemy when back sprites are missing.

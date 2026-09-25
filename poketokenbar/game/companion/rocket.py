@@ -328,7 +328,7 @@ class RocketMixin:
                 "name": "[BOSS 1] Silph Sub-Vault: Prototype Chimera-001",
                 "briefing": "Infiltrate Silph Co's sealed sub-basement and neutralize Oak's early bio-weapon prototype.",
                 "target": 0,
-                "target_desc": "Neutralize Sub-Vault bio-aberrations in tactical combat ('engage' / 'fight')",
+                "target_desc": "Neutralize Sub-Vault bio-aberrations in tactical combat ('fight')",
                 "reward_tokens": 40_000_000,
                 "reward_rank": "Operative",
                 "intel_id": "intel_003",
@@ -370,7 +370,7 @@ class RocketMixin:
                 "name": "[BOSS 2] Power Plant: Cyber-Enforcer Core",
                 "briefing": "Oak's automated enforcer construct has occupied the abandoned Power Plant to supercharge the grid.",
                 "target": 0,
-                "target_desc": "Neutralize Cyber-Enforcer Unit in tactical combat ('engage' / 'fight')",
+                "target_desc": "Neutralize Cyber-Enforcer Unit in tactical combat ('fight')",
                 "reward_tokens": 80_000_000,
                 "reward_rank": "Special Agent",
                 "intel_id": "intel_006",
@@ -412,7 +412,7 @@ class RocketMixin:
                 "name": "[BOSS 3] Cinnabar Caldera: Apex Vanguard Mon-Omega",
                 "briefing": "Storm the volcanic caldera facility where Oak's supreme tactical combat unit is being awakened.",
                 "target": 0,
-                "target_desc": "Neutralize Apex Vanguard: Mon-Omega in tactical combat ('engage' / 'fight')",
+                "target_desc": "Neutralize Apex Vanguard: Mon-Omega in tactical combat ('fight')",
                 "reward_tokens": 150_000_000,
                 "reward_rank": "Executive",
                 "intel_id": "intel_009",
@@ -426,7 +426,7 @@ class RocketMixin:
                 "name": "[FINAL BOSS] The Oak Citadel: Arch-Director Samuel Oak",
                 "briefing": "Full assault on Oak's Himalayan Citadel. Neutralize Oak to claim supreme Commander Authority and global courier control!",
                 "target": 0,
-                "target_desc": "Conquer Arch-Director Oak & The Augmented Legion in final combat ('engage' / 'fight')",
+                "target_desc": "Conquer Arch-Director Oak & The Augmented Legion in final combat ('fight')",
                 "reward_tokens": 200_000_000,
                 "reward_rank": "Commander",
                 "intel_id": "intel_010",
@@ -658,7 +658,7 @@ class RocketMixin:
                 if not has_won and hp_rem <= 0:
                     hp_rem = 150_000
                     st["boss_hp_remaining"] = hp_rem
-                msg = f"Boss remaining HP: {hp_rem:,}. Use 'engage' or 'fight'!"
+                msg = f"Boss remaining HP: {hp_rem:,}. Type 'fight'!"
 
         elif op_id == "op_4":
             cds = len(self.state.get("term_deposits", []))
@@ -691,7 +691,7 @@ class RocketMixin:
                 if not has_won and hp_rem <= 0:
                     hp_rem = 200_000
                     st["boss_hp_remaining"] = hp_rem
-                msg = f"Boss remaining HP: {hp_rem:,}. Use 'engage' or 'fight'!"
+                msg = f"Boss remaining HP: {hp_rem:,}. Type 'fight'!"
 
         elif op_id == "op_7":
             hap = self.active_mon.happiness if self.active_mon else self.state.get("happiness", 0)
@@ -734,7 +734,7 @@ class RocketMixin:
                 if not has_won and hp_rem <= 0:
                     hp_rem = 300_000
                     st["boss_hp_remaining"] = hp_rem
-                msg = f"Boss remaining HP: {hp_rem:,}. Use 'engage' or 'fight'!"
+                msg = f"Boss remaining HP: {hp_rem:,}. Type 'fight'!"
 
         elif op_id == "op_10":
             hp_rem = st.get("boss_hp_remaining", 350_000)
@@ -748,7 +748,7 @@ class RocketMixin:
                 if not has_won and hp_rem <= 0:
                     hp_rem = 350_000
                     st["boss_hp_remaining"] = hp_rem
-                msg = f"Boss remaining HP: {hp_rem:,}. Use 'engage' or 'fight'!"
+                msg = f"Boss remaining HP: {hp_rem:,}. Type 'fight'!"
 
         else:
             ok = True
@@ -804,7 +804,7 @@ class RocketMixin:
         self.save()
         msg = f"🚀 Operation {selected['code']} activated: {selected['name']}!"
         if selected["is_boss"]:
-            msg += f" Target: {selected['boss_name']}. Type 'engage' or 'fight' to enter the Vault Arena!"
+            msg += f" Target: {selected['boss_name']}. Type 'fight' to enter the Vault Arena!"
         return True, msg
 
     def attack_rocket_boss(self, burst: bool = False) -> Tuple[bool, str]:

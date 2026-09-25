@@ -229,7 +229,7 @@ class RocketBattleHandler:
         """Executes a combat turn where player attacks and boss retaliates."""
         st = self._get_state()
         if not st.get("player_team") or st.get("status") in ["win", "loss"]:
-            return False, "No active boss encounter. Type 'engage' or 'start operation' to deploy."
+            return False, "No active boss encounter. Type 'fight' or 'start operation' to deploy."
 
         p_idx = st["player_active_index"]
         if st["player_hps"][p_idx] <= 0:
@@ -355,7 +355,7 @@ class RocketBattleHandler:
             if all(hp <= 0 for hp in st["player_hps"]):
                 st["status"] = "loss"
                 logs.append("🚨 Strike Squad blacked out! Sub-vault security expelled your team.")
-                logs.append("➔ Type 'restart' or 'engage' to regroup and deploy again!")
+                logs.append("➔ Type 'restart' or 'fight' to regroup and deploy again!")
             else:
                 logs.append("➔ Swap to an active squad member with 'swap 1-6'!")
 
@@ -402,7 +402,7 @@ class RocketBattleHandler:
             logs.append(f"💀 {p_name} fainted!")
             if all(hp <= 0 for hp in st["player_hps"]):
                 st["status"] = "loss"
-                logs.append("🚨 Strike Squad blacked out! Type 'engage' to try again.")
+                logs.append("🚨 Strike Squad blacked out! Type 'fight' to try again.")
 
         existing_logs = st.get("turn_log", [])
         existing_logs.extend(logs)

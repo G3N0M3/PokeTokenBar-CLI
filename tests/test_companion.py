@@ -2518,12 +2518,37 @@ class TestCompanionEngine(unittest.TestCase):
         handle_rocket_command(app, "page 2")
         self.assertEqual(app.armory_page, 2)
 
+        # 6. Test tactical combat commands in operations subview: only 'fight', reject 'engage'
+        app.rocket_subview = "ops"
+        self.engine.state["rocket_ops"]["op_3"]["status"] = "active"
+        wartortle_leader = MonState(
+            base_id=7, path_ids=[7, 8, 9], planned_path_ids=[7, 8, 9], stage_index=1,
+            used_at_stage=0, rarity=Rarity.COMMON, total_forms=3, happiness=100
+        )
+        self.engine.set_active_mon(wartortle_leader)
+
+        # 'engage' is rejected under Single Canonical Command rule
+        handle_rocket_command(app, "engage")
+        self.assertIn("Please use 'fight' to enter the tactical combat arena.", app.message)
+
+        # 'fight' starts the boss encounter
+        handle_rocket_command(app, "fight")
+        self.assertIn("Deployed into", app.message)
+
+        # Verify status hints only display 'fight' and never 'engage'
+        trap_ops = io.StringIO()
+        with patch("sys.stdout", trap_ops):
+            render_rocket_tab(app)
+        out_ops = trap_ops.getvalue()
+        self.assertIn("fight", out_ops)
+        self.assertNotIn("engage", out_ops)
+
         # Test <= 72 column compliance across both pages
         ansi_regex = re.compile(r'\x1b\[[0-9;]*[mK]')
-        for out in [out1, out2]:
+        for out in [out1, out2, out_ops]:
             clean_out = ansi_regex.sub("", out)
             for line in clean_out.split("\n"):
-                self.assertLessEqual(len(line), 72, f"Armory line exceeds 72 cols: '{line}'")
+                self.assertLessEqual(len(line), 72, f"Rocket tab line exceeds 72 cols: '{line}'")
 
     def test_corrupted_exp_splitter_passive_xp_mirror(self):
         """Verify Corrupted EXP Splitter mirrors 25% of coding XP to inactive roster mons without unseating active mon."""

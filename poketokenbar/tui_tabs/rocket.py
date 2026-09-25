@@ -216,7 +216,7 @@ def _render_ops_subtab(app):
     elif b_st.get("status") == "loss" and active_op["is_boss"] and str(b_st.get("op_code")) == str(active_op["code"]):
         sys.stdout.write(f"  {BOLD}{RED}💀 STRIKE SQUAD BLACKED OUT 💀{RESET}\n")
         sys.stdout.write(f"  {YELLOW}The Sub-Vault bio-aberrations overwhelmed your strike squad.{RESET}\n\n")
-        sys.stdout.write(f"  ➔ Type '{BOLD}engage{RESET}' or '{BOLD}fight{RESET}' to deploy a fresh squad!\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}fight{RESET}' to deploy a fresh squad!\n")
         sys.stdout.write("  " + "-" * 68 + "\n\n")
     elif active_op["is_boss"] and active_op["boss_hp_remaining"] > 0 and not active_op["objective_done"]:
         b_name = active_op["boss_name"]
@@ -229,7 +229,7 @@ def _render_ops_subtab(app):
         sys.stdout.write(f"  HP: {BOLD}{YELLOW}{rem_hp:,}/{max_hp:,}{RESET} | {hp_bar}\n")
         mon_str = app.engine.api.get_species_name(app.engine.active_mon.current_id) if app.engine.active_mon else "None"
         sys.stdout.write(f"  Strike Squad Leader: {BOLD}{CYAN}{mon_str}{RESET} (Squad ready)\n")
-        sys.stdout.write(f"  ➔ Tactical Commands: '{BOLD}engage{RESET}' or '{BOLD}fight{RESET}' to enter combat arena!\n")
+        sys.stdout.write(f"  ➔ Tactical Commands: '{BOLD}fight{RESET}' to enter combat arena!\n")
         sys.stdout.write("  " + "-" * 68 + "\n\n")
 
     code = active_op["code"]
@@ -289,7 +289,7 @@ def _render_ops_subtab(app):
         sys.stdout.write(f"  ➔ Type '{BOLD}claim{RESET}' to collect your reward!\n\n")
     elif is_boss:
         sys.stdout.write(f"  ➔ Type '{BOLD}briefing{RESET}' to review tactical dialogue\n")
-        sys.stdout.write(f"  ➔ Boss Combat: '{BOLD}engage{RESET}' / '{BOLD}fight{RESET}' to enter tactical combat\n\n")
+        sys.stdout.write(f"  ➔ Boss Combat: '{BOLD}fight{RESET}' to enter tactical combat\n\n")
     else:
         sys.stdout.write(f"  ➔ Type '{BOLD}briefing{RESET}' to review tactical dialogue\n")
         sys.stdout.write(f"  ➔ Commands: '{BOLD}claim{RESET}' when task objectives are fulfilled\n\n")
@@ -525,7 +525,7 @@ def handle_rocket_command(app, cmd: str):
             app.message = "Reset tactical boss encounter."
             return
 
-    if (cmd in ["engage", "fight", "battle", "breach"] or cmd.startswith("engage ") or cmd.startswith("fight ") or cmd.startswith("battle ")) and subview == "ops":
+    if (cmd == "fight" or cmd.startswith("fight ")) and subview == "ops":
         parts = cmd.split()
         target_code = None
         if len(parts) >= 2 and parts[1].isdigit():
@@ -546,7 +546,11 @@ def handle_rocket_command(app, cmd: str):
             ok, msg = battle_handler.start_boss_battle(target_code)
             app.message = msg
         else:
-            app.message = "No Syndicate Boss encounter to engage."
+            app.message = "No Syndicate Boss encounter to fight."
+        return
+
+    if (cmd == "engage" or cmd.startswith("engage ")) and subview == "ops":
+        app.message = "Please use 'fight' to enter the tactical combat arena."
         return
 
     if cmd.startswith("squad ") and subview == "ops":
@@ -725,7 +729,7 @@ def handle_rocket_command(app, cmd: str):
     ):
         app.message = "Covert Armory perks are automatically granted upon rank promotion! No purchase required."
     else:
-        app.message = "Rocket commands: 'start operation', 'engage', 'briefing', 'claim', 'use <mist|chrono|catalyst>', 'attack', 'burst'."
+        app.message = "Rocket commands: 'start operation', 'fight', 'briefing', 'claim', 'use <mist|chrono|catalyst>', 'attack', 'burst'."
 
 def render_operation_dialogue(app, op_code: str):
     """Renders a full-screen, atmospheric mission briefing dialogue when starting an operation."""

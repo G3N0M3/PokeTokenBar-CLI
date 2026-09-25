@@ -22,6 +22,8 @@ Every system function, game mechanic, menu selection, or user action in PokeToke
    - **Incorrect**: Accepting both `race` and `start`.
    - **Correct**: Only `giveup` to forfeit trivia.
    - **Incorrect**: Accepting both `giveup` and `pass`.
+   - **Correct**: Only `fight` to enter tactical boss combat in Team Rocket Operations.
+   - **Incorrect**: Accepting both `engage` and `fight`.
 
 2. **Menu Selection**:
    - In submenus and Game Corner, each game or option has exactly one index/canonical name (e.g. `play 5` or `play voltorb`). Avoid registering long lists of informal aliases (`quiz`, `silhouette`, `mine`, `dig`, `stadium`).
