@@ -2606,10 +2606,12 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertNotIn("dark_gene_catalyst", self.engine.state.get("inventory", {}))
         self.assertEqual(charges_st["catalyst"]["charges"], 1)
 
-        # Verify dark_gene_catalyst is completely removed from BAG_CATALOG
-        from poketokenbar.tui_tabs.shop import BAG_CATALOG, handle_bag_use
+        # Verify dark_gene_catalyst is completely removed from BAG_CATALOG and index 63 is vacant
+        from poketokenbar.tui_tabs.shop import BAG_CATALOG, handle_bag_use, BAG_CATALOG_MAP
         catalog_keys = [k for _, k, _ in BAG_CATALOG]
         self.assertNotIn("dark_gene_catalyst", catalog_keys)
+        self.assertNotIn("catalyst", catalog_keys)
+        self.assertNotIn("63", BAG_CATALOG_MAP)
 
         # Verify handle_bag_use directly triggers catalyst without checking Bag
         charges_st["catalyst"]["charges"] = 1

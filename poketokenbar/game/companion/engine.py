@@ -185,6 +185,13 @@ class CompanionEngine(
                 charges_st[tech].setdefault("progress", 0)
                 charges_st[tech].setdefault("target", 2_500_000)
 
+        # Ensure any legacy indexed catalyst item is completely purged from bag inventory
+        inv = self.state.setdefault("inventory", {})
+        if "dark_gene_catalyst" in inv:
+            inv.pop("dark_gene_catalyst", None)
+        if "catalyst" in inv:
+            inv.pop("catalyst", None)
+
         unlocked_intel = self.state.setdefault("rocket_intel_unlocked", [])
         if "intel_red_autopsy" in unlocked_intel and "intel_001" not in unlocked_intel:
             unlocked_intel.append("intel_001")

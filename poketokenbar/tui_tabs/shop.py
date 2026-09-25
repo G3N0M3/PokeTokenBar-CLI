@@ -83,7 +83,7 @@ BAG_CATALOG = [
     ("61", "fake_focus_sash", "🎗️ \"Focus Sash\""),
     ("62", "fake_mega_stone", "🔮 \"Charizardite\""),
     # Special Rocket Bag items
-    ("63", "rocket_master_ball", "🔮 Rocket Master Ball"),
+    ("64", "rocket_master_ball", "🔮 Rocket Master Ball"),
 ]
 
 BAG_CATALOG_MAP = {cid: key for cid, key, _ in BAG_CATALOG}
@@ -628,10 +628,10 @@ def render_shop_tab(app):
             app.bag_id_map[k] = k
             seen_keys.add(k)
 
-    # Dynamic fallback for uncataloged items (excluding mega stones and legacy mint)
-    next_dyn_id = 65
+    # Dynamic fallback for uncataloged items (excluding mega stones, legacy mint, and armory tech)
+    next_dyn_id = max((int(cid) for cid, _, _ in BAG_CATALOG if cid.isdigit()), default=64) + 1
     for k, v in inv.items():
-        if k in seen_keys or k == "items" or k == "mint":
+        if k in seen_keys or k in ["items", "mint", "dark_gene_catalyst", "catalyst"]:
             continue
         if k == "mega_stone" or k.startswith("mega_stone_"):
             continue
