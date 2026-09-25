@@ -21,11 +21,11 @@ class ExcavatorEngine:
     ROWS = 6
     COLS = 9
     MAX_INTEGRITY = 25
-    ENTRY_COST = 500_000
+    DEFAULT_COST = 500_000
 
     def __init__(self):
         self.game_state: str = "idle"  # "idle", "digging", "collapsed", "cleared"
-        self.entry_cost: int = self.ENTRY_COST
+        self.entry_cost: int = self.DEFAULT_COST
         self.integrity: int = self.MAX_INTEGRITY
         self.strata: List[List[int]] = [[0] * self.COLS for _ in range(self.ROWS)]
         self.treasures: List[ExcavatorTreasure] = []
@@ -36,7 +36,7 @@ class ExcavatorEngine:
         if self.game_state == "digging":
             return False, "You already have an active excavation wall! Use 'pick <r> <c>' or 'hammer <r> <c>'."
 
-        self.entry_cost = self.ENTRY_COST
+        self.entry_cost = self.DEFAULT_COST
         self.integrity = self.MAX_INTEGRITY
         self.recovered_rewards = []
         self.last_action_msg = ""

@@ -236,7 +236,7 @@ class TestGameCornerMinigames(unittest.TestCase):
         self.assertTrue(ok_v)
         self.assertEqual(self.engine.available_tokens, avail_start - 200_000)
 
-        # Excavator start (fixed 500k default cost)
+        # Excavator start (fixed 500k cost)
         ok_ex, _ = self.engine.play_excavator_start()
         self.assertTrue(ok_ex)
         self.assertEqual(self.engine.available_tokens, avail_start - 700_000)
@@ -354,6 +354,22 @@ class TestGameCornerMinigames(unittest.TestCase):
             with patch("sys.stdin", io.StringIO(commands_mine)), patch("sys.stdout"):
                 tui.run()
             self.assertEqual(self.engine.excavator.game_state, "idle")
+
+            # 'dig 100k' with cost parameter is rejected with fixed cost guidance
+            commands_dig_cost = "\n".join(["dig 100k", "q"]) + "\n"
+            self.engine.excavator.game_state = "idle"
+            with patch("sys.stdin", io.StringIO(commands_dig_cost)), patch("sys.stdout"):
+                tui.run()
+            self.assertEqual(self.engine.excavator.game_state, "idle")
+            self.assertIn("fixed cost of 500K", tui.message)
+
+            # 'bet' on excavator is rejected with fixed cost guidance
+            commands_bet = "\n".join(["bet 500k", "q"]) + "\n"
+            self.engine.excavator.game_state = "idle"
+            with patch("sys.stdin", io.StringIO(commands_bet)), patch("sys.stdout"):
+                tui.run()
+            self.assertEqual(self.engine.excavator.game_state, "idle")
+            self.assertIn("fixed cost of 500K", tui.message)
 
             # Canonical 'dig' command DOES trigger excavation
             commands_dig = "\n".join(["dig", "q"]) + "\n"

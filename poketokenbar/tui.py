@@ -716,7 +716,7 @@ class PokeTokenBarTUI:
                             else:
                                 ok, msg = False, "Usage: bet <lane 1-4> <amount> (e.g. 'bet 1 500k')"
                         elif mg_state == "excavator":
-                            ok, msg = self.engine.play_excavator_start(parts[1])
+                            ok, msg = False, "Excavation has a fixed cost of 500K tokens. Type 'dig' to start!"
                         else:
                             ok, msg = False, "You must open a Game Corner game to bet!"
                         self.message = msg
@@ -772,9 +772,13 @@ class PokeTokenBarTUI:
                         self.message = msg
                     else:
                         self.message = "Usage: hammer <row 1-6> <col 1-9> (e.g. 'hammer 3 5')"
-                elif cmd.startswith("dig") and getattr(self, "minigame_state", "menu") == "excavator":
-                    ok, msg = self.engine.play_excavator_start()
-                    self.message = msg
+                elif (cmd == "dig" or cmd.startswith("dig ")) and getattr(self, "minigame_state", "menu") == "excavator":
+                    parts = cmd.split()
+                    if len(parts) > 1:
+                        self.message = "Excavation has a fixed cost of 500K tokens. Type 'dig' to start!"
+                    else:
+                        ok, msg = self.engine.play_excavator_start()
+                        self.message = msg
                 elif cmd.startswith("guess ") and getattr(self, "minigame_state", "menu") == "trivia":
                     guess_str = cmd.split(maxsplit=1)[1].strip() if len(cmd.split()) > 1 else ""
                     ok, msg = self.engine.play_trivia_guess(guess_str)

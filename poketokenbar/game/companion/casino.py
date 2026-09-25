@@ -345,7 +345,7 @@ class CasinoMixin:
     # ==========================================
     def play_excavator_start(self, cost_str: Optional[str] = None) -> Tuple[bool, str]:
         avail = self.available_tokens
-        cost = self.excavator.ENTRY_COST
+        cost = self.excavator.DEFAULT_COST
         if cost > avail:
             return False, f"Not enough tokens! Excavation requires {format_tokens(cost)} (you have {format_tokens(avail)})."
 
