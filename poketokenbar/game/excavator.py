@@ -21,21 +21,22 @@ class ExcavatorEngine:
     ROWS = 6
     COLS = 9
     MAX_INTEGRITY = 25
+    ENTRY_COST = 500_000
 
     def __init__(self):
         self.game_state: str = "idle"  # "idle", "digging", "collapsed", "cleared"
-        self.entry_cost: int = 500_000
+        self.entry_cost: int = self.ENTRY_COST
         self.integrity: int = self.MAX_INTEGRITY
         self.strata: List[List[int]] = [[0] * self.COLS for _ in range(self.ROWS)]
         self.treasures: List[ExcavatorTreasure] = []
         self.last_action_msg: str = ""
         self.recovered_rewards: List[Dict[str, Any]] = []
 
-    def start_game(self, cost: int = 500_000) -> Tuple[bool, str]:
+    def start_game(self, cost: Optional[int] = None) -> Tuple[bool, str]:
         if self.game_state == "digging":
             return False, "You already have an active excavation wall! Use 'pick <r> <c>' or 'hammer <r> <c>'."
 
-        self.entry_cost = max(100_000, cost)
+        self.entry_cost = self.ENTRY_COST
         self.integrity = self.MAX_INTEGRITY
         self.recovered_rewards = []
         self.last_action_msg = ""

@@ -343,15 +343,13 @@ class CasinoMixin:
     # ==========================================
     # 6. Underground Fossil Excavator
     # ==========================================
-    def play_excavator_start(self, cost_str: str = "500k") -> Tuple[bool, str]:
+    def play_excavator_start(self, cost_str: Optional[str] = None) -> Tuple[bool, str]:
         avail = self.available_tokens
-        cost = parse_tokens(cost_str) if cost_str.lower() != "all" else avail
-        if cost <= 0:
-            cost = 500_000
+        cost = self.excavator.ENTRY_COST
         if cost > avail:
             return False, f"Not enough tokens! Excavation requires {format_tokens(cost)} (you have {format_tokens(avail)})."
 
-        ok, msg = self.excavator.start_game(cost)
+        ok, msg = self.excavator.start_game()
         if ok:
             self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + cost
             self.save()

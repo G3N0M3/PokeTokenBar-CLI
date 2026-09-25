@@ -156,6 +156,18 @@ class TestGameCornerMinigames(unittest.TestCase):
         self.assertEqual(ex.game_state, "collapsed")
         self.assertIn("collapsed", msg_c)
 
+    def test_excavator_fixed_default_cost(self):
+        ex = ExcavatorEngine()
+        ok, msg = ex.start_game()
+        self.assertTrue(ok)
+        self.assertEqual(ex.entry_cost, 500_000)
+
+        # Custom cost argument is ignored and always uses 500_000
+        ex.game_state = "idle"
+        ok2, _ = ex.start_game(cost=1_000_000)
+        self.assertTrue(ok2)
+        self.assertEqual(ex.entry_cost, 500_000)
+
     # -------------------------------------------------------------------------
     # 3. Trivia Tests ("Who's That Pokémon?")
     # -------------------------------------------------------------------------
@@ -224,20 +236,20 @@ class TestGameCornerMinigames(unittest.TestCase):
         self.assertTrue(ok_v)
         self.assertEqual(self.engine.available_tokens, avail_start - 200_000)
 
-        # Excavator start
-        ok_ex, _ = self.engine.play_excavator_start("300k")
+        # Excavator start (fixed 500k default cost)
+        ok_ex, _ = self.engine.play_excavator_start()
         self.assertTrue(ok_ex)
-        self.assertEqual(self.engine.available_tokens, avail_start - 500_000)
+        self.assertEqual(self.engine.available_tokens, avail_start - 700_000)
 
         # Trivia start
         ok_tr, _ = self.engine.play_trivia_start("100k")
         self.assertTrue(ok_tr)
-        self.assertEqual(self.engine.available_tokens, avail_start - 600_000)
+        self.assertEqual(self.engine.available_tokens, avail_start - 800_000)
 
         # Derby bet
         ok_db, _ = self.engine.play_derby_bet("2", "400k")
         self.assertTrue(ok_db)
-        self.assertEqual(self.engine.available_tokens, avail_start - 1_000_000)
+        self.assertEqual(self.engine.available_tokens, avail_start - 1_200_000)
 
     # -------------------------------------------------------------------------
     # 6. Grid TUI Alignment Verification Tests

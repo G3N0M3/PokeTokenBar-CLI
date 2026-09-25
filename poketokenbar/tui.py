@@ -773,9 +773,7 @@ class PokeTokenBarTUI:
                     else:
                         self.message = "Usage: hammer <row 1-6> <col 1-9> (e.g. 'hammer 3 5')"
                 elif cmd.startswith("dig") and getattr(self, "minigame_state", "menu") == "excavator":
-                    parts = cmd.split()
-                    cost = parts[1] if len(parts) >= 2 else "500k"
-                    ok, msg = self.engine.play_excavator_start(cost)
+                    ok, msg = self.engine.play_excavator_start()
                     self.message = msg
                 elif cmd.startswith("guess ") and getattr(self, "minigame_state", "menu") == "trivia":
                     guess_str = cmd.split(maxsplit=1)[1].strip() if len(cmd.split()) > 1 else ""

@@ -276,7 +276,7 @@ def render_excavator_tab(app):
     sys.stdout.write(f"  {BOLD}Excavation Controls:{RESET}\n")
     sys.stdout.write(f"   • '{BOLD}pick <r 1-6> <c 1-9>{RESET}'  - 1 tile: 1 hit, costs 1 integrity\n")
     sys.stdout.write(f"   • '{BOLD}hammer <r 1-6> <c 1-9>{RESET}' - Blast area: 3 hits, costs 3 integrity\n")
-    sys.stdout.write(f"   • '{BOLD}dig [cost]{RESET}'           - Start new wall (costs 500K tokens)\n")
+    sys.stdout.write(f"   • '{BOLD}dig{RESET}'                  - Start new wall (costs 500K tokens)\n")
     sys.stdout.write(f"   • '{BOLD}back{RESET}'                 - Return to Game Corner menu\n\n")
 
     if ex.strata:
