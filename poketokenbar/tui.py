@@ -960,6 +960,15 @@ class PokeTokenBarTUI:
                         handle_red_command(self, cmd)
                     else:
                         self.message = "Invalid command. Type a tab number (1-11), or battle command (assemble, fight, swap, run, restart)."
+                elif cmd == "use catalyst" or cmd.startswith("use catalyst"):
+                    ok, msg = self.engine.use_rocket_armory_item("catalyst")
+                    self.message = msg
+                elif cmd == "use mist" or cmd.startswith("use mist") or cmd in ["use spray", "use morale mist"]:
+                    ok, msg = self.engine.use_rocket_armory_item("spray")
+                    self.message = msg
+                elif cmd == "use chrono" or cmd.startswith("use chrono"):
+                    ok, msg = self.engine.use_rocket_armory_item("chrono")
+                    self.message = msg
                 elif self.current_tab == 4 and cmd.startswith("buy"):
                     self.handle_shop_buy(cmd)
                 elif self.current_tab == 4 and (cmd.startswith("use") or cmd.startswith("unequip")):

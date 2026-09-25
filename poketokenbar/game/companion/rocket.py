@@ -1280,6 +1280,8 @@ class RocketMixin:
             charges_st = self.state.setdefault("rocket_armory_charges", {})
             charges_st["catalyst"]["charges"] = info["charges"] - 1
             rem = charges_st["catalyst"]["charges"]
+            if "dark_gene_catalyst" in self.state.get("inventory", {}):
+                self.state["inventory"].pop("dark_gene_catalyst", None)
             self.save()
             return True, f"🧬 Dark Gene Catalyst deployed! [Charges: {rem}/3]\n  {evo_msg}"
 

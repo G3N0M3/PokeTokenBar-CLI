@@ -113,6 +113,9 @@ class ItemsMixin:
         item_name = item_kind.name_en if isinstance(item_kind, ItemKind) else item_val.replace("_", " ").title()
         item_emoji = item_kind.emoji if isinstance(item_kind, ItemKind) else "📦"
 
+        if item_val in ["dark_gene_catalyst", "catalyst"]:
+            return self.use_rocket_armory_item("catalyst")
+
         inv = self.state.get("inventory", {})
         count = inv.get(item_val, 0)
         if count < qty:
@@ -217,18 +220,6 @@ class ItemsMixin:
             if quests_msg:
                 msg += f"\n{quests_msg}"
             return True, msg
-
-        # Special Rocket Consumable: Dark Gene Catalyst
-        elif item_val == "dark_gene_catalyst":
-            ok, msg = self.apply_dark_gene_catalyst()
-            if ok:
-                inv[item_val] -= 1
-                if inv[item_val] <= 0:
-                    del inv[item_val]
-                self.state["inventory"] = inv
-                self.save()
-                return True, f"🧬 Dark Gene Catalyst triggered cellular mutation!\n  {msg}"
-            return False, msg
 
         # 3. Consumables (Tonics, Ash, Whistle, Radar, Insurance)
         elif item_val == "revitalizing_tonic":

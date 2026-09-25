@@ -83,8 +83,7 @@ BAG_CATALOG = [
     ("61", "fake_focus_sash", "🎗️ \"Focus Sash\""),
     ("62", "fake_mega_stone", "🔮 \"Charizardite\""),
     # Special Rocket Bag items
-    ("63", "dark_gene_catalyst", "🧬 Dark Gene Catalyst"),
-    ("64", "rocket_master_ball", "🔮 Rocket Master Ball"),
+    ("63", "rocket_master_ball", "🔮 Rocket Master Ball"),
 ]
 
 BAG_CATALOG_MAP = {cid: key for cid, key, _ in BAG_CATALOG}
@@ -525,13 +524,6 @@ ITEM_DESCRIPTIONS: Dict[str, Dict[str, str]] = {
         "desc": "Cheap resin replica. Does not trigger Mega Evolution.",
         "usage": "Type 'sell <id>' to dispose for 1 token.",
     },
-    "dark_gene_catalyst": {
-        "name": "🧬 Dark Gene Catalyst",
-        "clean_name": "Dark Gene Catalyst",
-        "category": "Rocket Tech",
-        "desc": "Mutates active companion into its next evolutionary stage.",
-        "usage": "Type 'use <id>' with active companion to force evolution.",
-    },
     "rocket_master_ball": {
         "name": "🔮 Rocket Master Ball",
         "clean_name": "Rocket Master Ball",
@@ -908,6 +900,19 @@ def handle_bag_use(app, cmd: str):
         return
         
     choice = parts[1] if len(parts) > 1 else ""
+    if choice in ["catalyst", "dark_gene_catalyst"]:
+        ok, msg = app.engine.use_rocket_armory_item("catalyst")
+        app.message = msg
+        return
+    if choice in ["mist", "spray", "morale_mist", "morale mist"]:
+        ok, msg = app.engine.use_rocket_armory_item("spray")
+        app.message = msg
+        return
+    if choice in ["chrono", "accelerator", "chrono_accelerator"]:
+        ok, msg = app.engine.use_rocket_armory_item("chrono")
+        app.message = msg
+        return
+
     qty = 1
     if len(parts) > 2:
         try:
@@ -921,12 +926,6 @@ def handle_bag_use(app, cmd: str):
 
     target_key = resolve_bag_item(app, choice)
     if not target_key:
-        if choice in ["mist", "spray", "morale_mist", "morale mist"]:
-            app.message = "Morale Mist is deployed from Tab [12] Armory! Type '12' -> 'use mist'."
-            return
-        if choice in ["chrono", "accelerator", "chrono_accelerator"]:
-            app.message = "Chrono Accelerator is deployed from Tab [12] Armory! Type '12' -> 'use chrono'."
-            return
         if choice.startswith("mega_stone") or choice == "mega_stone":
             app.message = "Mega Stones must be used from Tab [8] Mega Evolution!"
         else:

@@ -2591,7 +2591,7 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertNotIn("dark_gene_catalyst", self.engine.state.get("inventory", {}))
         self.assertEqual(charges_st["catalyst"]["charges"], 2)
 
-        # Also verify use_item fallback if an item exists in bag
+        # Also verify use_item forwards to armory charges and cleans up any legacy bag inventory
         inv = self.engine.state.setdefault("inventory", {})
         inv["dark_gene_catalyst"] = 1
         squirtle = MonState(
@@ -2603,7 +2603,60 @@ class TestCompanionEngine(unittest.TestCase):
         ok_bag, msg_bag = self.engine.use_item("dark_gene_catalyst")
         self.assertTrue(ok_bag)
         self.assertEqual(self.engine.active_mon.current_id, 8)
-        self.assertEqual(self.engine.state["inventory"].get("dark_gene_catalyst", 0), 0)
+        self.assertNotIn("dark_gene_catalyst", self.engine.state.get("inventory", {}))
+        self.assertEqual(charges_st["catalyst"]["charges"], 1)
+
+        # Verify dark_gene_catalyst is completely removed from BAG_CATALOG
+        from poketokenbar.tui_tabs.shop import BAG_CATALOG, handle_bag_use
+        catalog_keys = [k for _, k, _ in BAG_CATALOG]
+        self.assertNotIn("dark_gene_catalyst", catalog_keys)
+
+        # Verify handle_bag_use directly triggers catalyst without checking Bag
+        charges_st["catalyst"]["charges"] = 1
+        bulba = MonState(
+            base_id=1, path_ids=[1, 2, 3], planned_path_ids=[1, 2, 3], stage_index=0,
+            used_at_stage=0, rarity=Rarity.COMMON, total_forms=3, happiness=100
+        )
+        self.engine.set_active_mon(bulba)
+        class MockApp:
+            def __init__(self, engine):
+                self.engine = engine
+                self.message = ""
+        mock_app = MockApp(self.engine)
+        handle_bag_use(mock_app, "use catalyst")
+        self.assertIn("Dark Gene Catalyst", mock_app.message)
+        self.assertEqual(self.engine.active_mon.current_id, 2)
+        self.assertEqual(charges_st["catalyst"]["charges"], 0)
+        self.assertNotIn("dark_gene_catalyst", self.engine.state.get("inventory", {}))
+
+        # Verify global TUI dispatch on Tab 1 (Companion View)
+        from poketokenbar.tui import PokeTokenBarTUI
+        from unittest.mock import patch, MagicMock
+        import io
+        charges_st["catalyst"]["charges"] = 1
+        charmander = MonState(
+            base_id=4, path_ids=[4, 5, 6], planned_path_ids=[4, 5, 6], stage_index=0,
+            used_at_stage=0, rarity=Rarity.COMMON, total_forms=3, happiness=100
+        )
+        self.engine.set_active_mon(charmander)
+        tui = PokeTokenBarTUI()
+        tui.engine = self.engine
+        tui.current_tab = 1
+        with patch("poketokenbar.tui.UsageManager") as mock_mgr:
+            instance = MagicMock()
+            instance.get_summary.return_value = {
+                "total_tokens": 100_000_000, "today_tokens": 0, "week_tokens": 0,
+                "month_tokens": 0, "antigravity_today": 0, "gemini_today": 0,
+                "claude_today": 0, "burn_rate_tpm": 0, "active_days": []
+            }
+            mock_mgr.return_value = instance
+            commands = "\n".join(["use catalyst", "q"]) + "\n"
+            with patch("sys.stdin", io.StringIO(commands)), patch("sys.stdout"):
+                tui.run()
+        self.assertIn("Dark Gene Catalyst deployed!", tui.message)
+        self.assertEqual(self.engine.active_mon.current_id, 5)
+        self.assertEqual(charges_st["catalyst"]["charges"], 0)
+        self.assertNotIn("dark_gene_catalyst", self.engine.state.get("inventory", {}))
 
     def test_team_rocket_authority_delivery_and_recruitment(self):
         """Verify Team Rocket Authority costs 100 tokens, delivers non-duplicate species, and supports keep/dismiss."""
