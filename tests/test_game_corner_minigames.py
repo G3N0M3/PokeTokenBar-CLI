@@ -477,6 +477,7 @@ class TestGameCornerMinigames(unittest.TestCase):
                 sys.stdout = old_stdout
 
             output = buf.getvalue()
+            self.assertNotIn("Track [Hurdles", output)
             for line in output.splitlines():
                 clean_line = re.sub(r"\033\[[0-9;]*m", "", line)
                 self.assertLessEqual(

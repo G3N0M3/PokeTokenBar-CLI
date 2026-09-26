@@ -378,22 +378,6 @@ def render_derby_tab(app):
     sys.stdout.write(f"   • '{BOLD}race{RESET}' to launch the race!\n")
     sys.stdout.write(f"   • '{BOLD}back{RESET}' to return to Game Corner menu\n\n")
 
-    sys.stdout.write(f"  {BOLD}Track [Hurdles: ║ at 12m, 24m]:{RESET}\n")
-    for r in db.racers:
-        pos = min(db.TRACK_LENGTH, r.position)
-        track_chars = []
-        for i in range(db.TRACK_LENGTH + 1):
-            if i == pos:
-                track_chars.append(f"{YELLOW}●{RESET}")
-            elif i in db.HURDLES:
-                track_chars.append(f"{RED}║{RESET}")
-            else:
-                track_chars.append("─")
-        track_str = "".join(track_chars)
-        flag = "🚩" if pos >= db.TRACK_LENGTH else "🏁"
-        sys.stdout.write(f"   {r.lane} [{r.icon} {r.name:<8}] {track_str}{flag} ({pos:>2}m)\n")
-    sys.stdout.write("\n")
-
     if db.race_frames and len(db.race_frames) > 1:
         last_evts = db.race_frames[-1].get("events", [])
         if last_evts:
