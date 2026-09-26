@@ -494,7 +494,7 @@ class TestGameCornerMinigames(unittest.TestCase):
             {"positions": {1: 24, 2: 18, 3: 20, 4: 2}, "events": ["Finish!"]},
         ]
 
-        with patch("time.sleep") as mock_sleep, patch("sys.stdout"), patch.object(tui, "render_header"), patch.object(tui, "render_tabs"), patch.object(tui, "render_footer"):
+        with patch("time.sleep") as mock_sleep, patch("sys.stdout"):
             tui.animate_derby_race(mock_frames)
 
             sleep_calls = [call.args[0] for call in mock_sleep.call_args_list]
@@ -503,6 +503,62 @@ class TestGameCornerMinigames(unittest.TestCase):
             self.assertEqual(sleep_calls[1], 0.45)
             self.assertEqual(sleep_calls[2], 0.45)
             self.assertEqual(sleep_calls[3], 0.80)
+
+    def test_derby_vertical_screen_rendering(self):
+        import io
+        import sys
+        import re
+        import unicodedata
+        from poketokenbar.tui_tabs.game_corner import render_derby_race_screen
+
+        class MockApp:
+            def __init__(self, engine):
+                self.engine = engine
+
+        app = MockApp(self.engine)
+        self.engine.derby.place_bet(1, 500_000)
+
+        # Test initial gate, mid-race, and finish frames
+        test_frames = [
+            {"positions": {1: 0, 2: 0, 3: 0, 4: 0}, "events": ["GONG! Race has begun!"]},
+            {"positions": {1: 8, 2: 7, 3: 16, 4: 2}, "events": ["Jolteon used AGILITY!", "Ponyta jumped hurdle!"]},
+            {"positions": {1: 24, 2: 20, 3: 22, 4: 4}, "events": ["Ponyta crosses the finish line!"]},
+        ]
+
+        def display_width(s):
+            return sum(2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in s)
+
+        for idx, frame in enumerate(test_frames):
+            buf = io.StringIO()
+            old_stdout = sys.stdout
+            try:
+                sys.stdout = buf
+                render_derby_race_screen(app, frame, idx, len(test_frames))
+            finally:
+                sys.stdout = old_stdout
+
+            output = buf.getvalue()
+            lines = output.splitlines()
+            self.assertGreater(len(lines), 15)
+            for line_idx, line in enumerate(lines):
+                clean_line = re.sub(r"\033\[[0-9;]*m", "", line)
+                w = display_width(clean_line)
+                self.assertLessEqual(
+                    w, 72,
+                    f"Derby vertical screen line {line_idx} exceeds 72 cols on frame {idx}: '{clean_line}' (width {w})"
+                )
+
+            # Check that all 4 lanes and distance markers are present
+            self.assertIn("Lane 1", output)
+            self.assertIn("Lane 2", output)
+            self.assertIn("Lane 3", output)
+            self.assertIn("Lane 4", output)
+            self.assertIn("24m", output)
+            self.assertIn("16m", output)
+            self.assertIn("8m", output)
+            self.assertIn("0m", output)
+            self.assertIn("Standings:", output)
+            self.assertIn("Live Commentary:", output)
 
 
 if __name__ == "__main__":

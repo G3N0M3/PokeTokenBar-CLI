@@ -405,3 +405,111 @@ def render_derby_tab(app):
     if db.last_result:
         sys.stdout.write(f"  {BOLD}Final Result:{RESET}\n  {db.last_result}\n\n")
 
+def render_derby_race_screen(app, frame, frame_idx: int, total_frames: int):
+    """Renders the standalone vertical track stadium screen during race animation."""
+    db = app.engine.derby
+    positions = frame.get("positions", {})
+    events = frame.get("events", [])
+    bet_lane = db.bet_lane
+    bet_amount = db.bet_amount
+    racers = db.racers
+
+    chosen = next((r for r in racers if r.lane == bet_lane), racers[0])
+
+    sys.stdout.write(f"\n  {BOLD}{HEADER}🏟️  POKÉMON STADIUM DERBY — LIVE HURDLE RACE 🏟️{RESET}\n")
+    turn_str = f"Turn {frame_idx + 1}/{total_frames}" if total_frames > 0 else "Live Race"
+    sys.stdout.write(f"  {turn_str} | Bet: {BOLD}{YELLOW}{format_tokens(bet_amount)}{RESET} on Lane {bet_lane} [{chosen.icon} {chosen.name}] ({chosen.odds:.1f}x)\n\n")
+
+    pfx = "           "
+    sys.stdout.write(f"{pfx}┌────────────┬────────────┬────────────┬────────────┐\n")
+
+    # Row 1: Lane numbers
+    sys.stdout.write(f"{pfx}│" + "".join(f"   {CYAN}Lane {r.lane}{RESET}   │" for r in racers) + "\n")
+
+    # Row 2: Racer names (each formatted to exactly 12 display columns)
+    name_cells = [
+        " 🐴 Ponyta  ",
+        " 🐦 Dodrio  ",
+        " ⚡ Jolteon ",
+        "🐢 Slowpoke ",
+    ]
+    sys.stdout.write(f"{pfx}│" + "".join(f"{BOLD}{name_cells[r.lane - 1]}{RESET}│" for r in racers) + "\n")
+
+    # Row 3: Pick indicator or odds (each formatted to exactly 12 display columns)
+    odds_cells = []
+    for r in racers:
+        if r.lane == bet_lane:
+            odds_cells.append(f" {GREEN}★YOUR BET★{RESET} ")
+        else:
+            odds_cells.append(f"  ({r.odds:>4.1f}x)   ")
+    sys.stdout.write(f"{pfx}│" + "│".join(odds_cells) + "│\n")
+
+    sys.stdout.write(f"{pfx}├────────────┼────────────┼────────────┼────────────┤\n")
+
+    # Prefixes for each of the 13 vertical track rows (12 down to 0)
+    prefixes = {
+        12: f"  24m {YELLOW}🏁{RESET} ──│",
+        11: "  22m    ──│",
+        10: "  20m    ──│",
+         9: "  18m    ──│",
+         8: f"  16m {RED}||{RESET} ──│",
+         7: "  14m    ──│",
+         6: "  12m    ──│",
+         5: "  10m    ──│",
+         4: f"   8m {RED}||{RESET} ──│",
+         3: "   6m    ──│",
+         2: "   4m    ──│",
+         1: "   2m    ──│",
+         0: f"   0m {CYAN}🚩{RESET} ──│",
+    }
+
+    # Render each vertical row from finish line (24m) down to start line (0m)
+    for row in range(12, -1, -1):
+        line = prefixes[row]
+        for r in racers:
+            pos = positions.get(r.lane, 0)
+            r_row = min(12, max(0, pos // 2))
+            is_pick = (r.lane == bet_lane)
+            if row == r_row:
+                if pos >= 24:
+                    is_winner = (db.winner and db.winner.lane == r.lane) or (pos == max(positions.values()))
+                    if is_winner:
+                        cell = f" {YELLOW}🏆 WIN (24m){RESET}"
+                    else:
+                        cell = f" {GREEN}🏁 FIN (24m){RESET}"
+                else:
+                    star = f"{GREEN}*" if is_pick else " "
+                    cell = f"{star}{r.icon} ({pos:>2}m)   {RESET}"
+            else:
+                if row == 12:
+                    cell = f"{YELLOW} ═ ═ ═ ═ ═  {RESET}"
+                elif row in (8, 4):
+                    cell = f"{RED} ═══[||]═══ {RESET}"
+                elif row == 0:
+                    cell = f"{CYAN} ══════════ {RESET}"
+                else:
+                    cell = f"{DARK_GRAY}     ·      {RESET}"
+            line += cell + "│"
+        sys.stdout.write(line + "\n")
+
+    sys.stdout.write(f"{pfx}└────────────┴────────────┴────────────┴────────────┘\n")
+
+    # Live Standings
+    sorted_r = sorted(racers, key=lambda r: (positions.get(r.lane, 0), -r.lane), reverse=True)
+    medals = ["1st", "2nd", "3rd", "4th"]
+    st_parts = []
+    for idx_m, r in enumerate(sorted_r):
+        p = positions.get(r.lane, 0)
+        star = "*" if r.lane == bet_lane else ""
+        st_parts.append(f"{medals[idx_m]}: {r.icon}{star} {p}m")
+    sys.stdout.write(f"  {BOLD}Standings:{RESET} " + " | ".join(st_parts) + "\n")
+
+    # Live Commentary
+    if events:
+        sys.stdout.write(f"  {BOLD}Live Commentary:{RESET}\n")
+        for ev in events[:2]:
+            sys.stdout.write(f"   📢 {ev}\n")
+    else:
+        sys.stdout.write(f"  {BOLD}Live Commentary:{RESET}\n   📢 💨 Racers thunder down the stadium hurdle track!\n")
+
+

@@ -1525,8 +1525,7 @@ class PokeTokenBarTUI:
 
     def animate_derby_race(self, frames):
         import io
-        cached_summary = self.tracker.get_summary()
-        from poketokenbar.tui_tabs.game_corner import render_game_corner_tab
+        from poketokenbar.tui_tabs.game_corner import render_derby_race_screen
         total_frames = len(frames)
         for idx, frame in enumerate(frames):
             for r in self.engine.derby.racers:
@@ -1536,10 +1535,7 @@ class PokeTokenBarTUI:
             old_stdout = sys.stdout
             sys.stdout = buf
 
-            self.render_header(cached_summary)
-            self.render_tabs()
-            render_game_corner_tab(self)
-            self.render_footer()
+            render_derby_race_screen(self, frame, idx, total_frames)
 
             sys.stdout = old_stdout
             frame_str = buf.getvalue().replace("\n", "\033[K\n")
