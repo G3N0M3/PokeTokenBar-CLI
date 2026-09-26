@@ -794,7 +794,7 @@ class PokeTokenBarTUI:
                         frames = self.engine.derby.simulate_race()
                         self.animate_derby_race(frames)
                         ok, msg = self.engine.play_derby_race()
-                        self.message = msg
+                        self.message = "" if ok else msg
                     else:
                         self.message = "Place a bet first! Type 'bet <lane 1-4> <amount>'."
                 elif cmd == "start" and getattr(self, "minigame_state", "menu") == "derby":

@@ -396,6 +396,8 @@ class TestGameCornerMinigames(unittest.TestCase):
             with patch("sys.stdin", io.StringIO(commands_race)), patch("sys.stdout"), patch.object(tui, "animate_derby_race"):
                 tui.run()
             self.assertEqual(self.engine.derby.game_state, "finished")
+            self.assertEqual(tui.message, "")
+            self.assertTrue(bool(self.engine.derby.last_result))
 
     def test_game_corner_play_command_requires_index(self):
         from poketokenbar.tui import PokeTokenBarTUI
