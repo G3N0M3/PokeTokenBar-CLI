@@ -35,6 +35,8 @@ class DerbyEngine:
         self.bet_amount: int = 0
         self.racers: List[DerbyRacer] = []
         self.winner: Optional[DerbyRacer] = None
+        self.winners: List[DerbyRacer] = []
+        self.is_dead_heat: bool = False
         self.last_result: str = ""
         self.last_winnings: int = 0
         self.race_frames: List[Dict[str, Any]] = []
@@ -55,6 +57,8 @@ class DerbyEngine:
             for lane, name, icon, odds, style in self.RACER_TEMPLATES
         ]
         self.winner = None
+        self.winners = []
+        self.is_dead_heat = False
 
     def place_bet(self, lane: int, amount: int) -> Tuple[bool, str]:
         if not (1 <= lane <= 4):
@@ -139,19 +143,25 @@ class DerbyEngine:
                 if event:
                     turn_events.append(event)
 
+            # Check if any racer reached the finish line
+            finishers = [r for r in self.racers if r.position >= self.TRACK_LENGTH]
+            if finishers:
+                race_over = True
+                max_pos = max(r.position for r in finishers)
+                top_finishers = [r for r in finishers if r.position == max_pos]
+                self.winners = top_finishers
+                self.winner = top_finishers[0]
+                self.is_dead_heat = len(top_finishers) > 1
+
+                if self.is_dead_heat:
+                    names_str = " & ".join(f"{w.icon} {w.name}" for w in top_finishers)
+                    turn_events.append(f"📸 DEAD HEAT! {names_str} tie at the finish line!")
+
             # Record turn frame
             frames.append({
                 "positions": {r.lane: r.position for r in self.racers},
                 "events": turn_events if turn_events else ["💨 Racers thunder down the homestretch!"],
             })
-
-            # Check if any racer reached the finish line
-            finishers = [r for r in self.racers if r.position >= self.TRACK_LENGTH]
-            if finishers:
-                race_over = True
-                # Winner is finisher with highest position / tiebreak
-                finishers.sort(key=lambda r: (r.position, -r.lane), reverse=True)
-                self.winner = finishers[0]
 
         self.race_frames = frames
         return frames
@@ -160,24 +170,43 @@ class DerbyEngine:
         if self.game_state != "bet_placed":
             return False, "No active bet placed! Type 'bet <lane 1-4> <amount>'.", 0
 
-        if not self.race_frames or self.winner is None:
+        if not self.race_frames or not self.winners:
             self.simulate_race()
         self.game_state = "finished"
 
-        winner = self.winner or self.racers[0]
-        won_bet = winner.lane == self.bet_lane
+        winning_lanes = [w.lane for w in self.winners]
+        won_bet = self.bet_lane in winning_lanes
 
-        if won_bet:
-            self.last_winnings = int(self.bet_amount * winner.odds)
-            self.last_result = (
-                f"🏆 WINNER! Lane {winner.lane} [{winner.icon} {winner.name}] takes 1st Place!\n"
-                f"  Payout: {winner.odds:.1f}x! You won {format_tokens(self.last_winnings)} tokens!"
-            )
-            return True, self.last_result, self.last_winnings
+        if self.is_dead_heat:
+            winners_str = " & ".join(f"Lane {w.lane} [{w.icon} {w.name}]" for w in self.winners)
+            if won_bet:
+                chosen = next(w for w in self.winners if w.lane == self.bet_lane)
+                self.last_winnings = int(self.bet_amount * chosen.odds)
+                self.last_result = (
+                    f"🏆 DEAD HEAT! {winners_str} tied for 1st Place!\n"
+                    f"  Your pick [{chosen.icon} {chosen.name}] won! Payout: {chosen.odds:.1f}x! You won {format_tokens(self.last_winnings)} tokens!"
+                )
+                return True, self.last_result, self.last_winnings
+            else:
+                self.last_winnings = 0
+                self.last_result = (
+                    f"💀 DEAD HEAT! {winners_str} tied for 1st Place!\n"
+                    f"  Your racer on Lane {self.bet_lane} lost. Surrendered {format_tokens(self.bet_amount)} tokens."
+                )
+                return True, self.last_result, 0
         else:
-            self.last_winnings = 0
-            self.last_result = (
-                f"💀 Lane {winner.lane} [{winner.icon} {winner.name}] crossed the finish line first!\n"
-                f"  Your racer on Lane {self.bet_lane} lost. Surrendered {format_tokens(self.bet_amount)} tokens."
-            )
-            return True, self.last_result, 0
+            winner = self.winner or self.racers[0]
+            if won_bet:
+                self.last_winnings = int(self.bet_amount * winner.odds)
+                self.last_result = (
+                    f"🏆 WINNER! Lane {winner.lane} [{winner.icon} {winner.name}] takes 1st Place!\n"
+                    f"  Payout: {winner.odds:.1f}x! You won {format_tokens(self.last_winnings)} tokens!"
+                )
+                return True, self.last_result, self.last_winnings
+            else:
+                self.last_winnings = 0
+                self.last_result = (
+                    f"💀 Lane {winner.lane} [{winner.icon} {winner.name}] crossed the finish line first!\n"
+                    f"  Your racer on Lane {self.bet_lane} lost. Surrendered {format_tokens(self.bet_amount)} tokens."
+                )
+                return True, self.last_result, 0

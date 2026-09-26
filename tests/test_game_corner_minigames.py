@@ -589,6 +589,88 @@ class TestGameCornerMinigames(unittest.TestCase):
             self.assertIn("Standings:", output)
             self.assertIn("Live Commentary:", output)
 
+    def test_derby_dead_heat_logic(self):
+        db = DerbyEngine()
+        db.place_bet(3, 500_000)
+
+        # Force a dead heat between Lane 1 (Ponyta, 2.0x) and Lane 3 (Jolteon, 5.0x)
+        # Simulate last turn where both reach 36m
+        db.racers[0].position = 36
+        db.racers[1].position = 28
+        db.racers[2].position = 36
+        db.racers[3].position = 8
+
+        # Manually trigger winner resolution as done in simulate_race
+        finishers = [r for r in db.racers if r.position >= db.TRACK_LENGTH]
+        self.assertEqual(len(finishers), 2)
+        max_pos = max(r.position for r in finishers)
+        top_finishers = [r for r in finishers if r.position == max_pos]
+        db.winners = top_finishers
+        db.winner = top_finishers[0]
+        db.is_dead_heat = len(top_finishers) > 1
+
+        self.assertTrue(db.is_dead_heat)
+        self.assertEqual(len(db.winners), 2)
+        self.assertEqual({w.lane for w in db.winners}, {1, 3})
+
+        # Test payout when player bet on Lane 3 (one of the co-winners)
+        ok, msg, winnings = db.resolve_race()
+        self.assertTrue(ok)
+        self.assertEqual(winnings, int(500_000 * 5.0))
+        self.assertIn("DEAD HEAT", db.last_result)
+        self.assertIn("Your pick", db.last_result)
+
+        # Test payout when player bet on Lane 2 (lost)
+        db.game_state = "bet_placed"
+        db.bet_lane = 2
+        ok2, msg2, winnings2 = db.resolve_race()
+        self.assertTrue(ok2)
+        self.assertEqual(winnings2, 0)
+        self.assertIn("DEAD HEAT", db.last_result)
+        self.assertIn("lost", db.last_result)
+
+    def test_derby_dead_heat_rendering(self):
+        import io
+        import sys
+        import re
+        import unicodedata
+        from poketokenbar.tui_tabs.game_corner import render_derby_race_screen
+
+        class MockApp:
+            def __init__(self, engine):
+                self.engine = engine
+
+        app = MockApp(self.engine)
+        self.engine.derby.place_bet(3, 500_000)
+        self.engine.derby.is_dead_heat = True
+        self.engine.derby.winners = [self.engine.derby.racers[0], self.engine.derby.racers[2]]
+
+        dead_heat_frame = {
+            "positions": {1: 36, 2: 26, 3: 36, 4: 8},
+            "events": ["📸 DEAD HEAT! 🐴 Ponyta & ⚡ Jolteon tie at the finish line!"]
+        }
+
+        buf = io.StringIO()
+        old_stdout = sys.stdout
+        try:
+            sys.stdout = buf
+            render_derby_race_screen(app, dead_heat_frame, 8, 9)
+        finally:
+            sys.stdout = old_stdout
+
+        output = buf.getvalue()
+        # Verify both winners have WIN (36m)
+        self.assertEqual(output.count("WIN (36m)"), 2)
+        self.assertIn("DEAD HEAT!", output)
+
+        def display_width(s):
+            return sum(2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in s)
+
+        for line_idx, line in enumerate(output.splitlines()):
+            clean = re.sub(r"\033\[[0-9;]*m", "", line)
+            w = display_width(clean)
+            self.assertLessEqual(w, 72, f"Line {line_idx} exceeds 72 cols: '{clean}' (width {w})")
+
 
 if __name__ == "__main__":
     unittest.main()

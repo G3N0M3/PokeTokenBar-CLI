@@ -488,7 +488,8 @@ def render_derby_race_screen(app, frame, frame_idx: int, total_frames: int, coun
             is_pick = (r.lane == bet_lane)
             if row == r_row:
                 if pos >= 36:
-                    is_winner = (db.winner and db.winner.lane == r.lane) or (pos == max(positions.values()))
+                    winners = getattr(db, "winners", [])
+                    is_winner = (r in winners) if winners else ((db.winner and db.winner.lane == r.lane) or (pos == max(positions.values())))
                     if is_winner:
                         cell = f" {YELLOW}🏆 WIN (36m){RESET}"
                     else:
@@ -510,14 +511,20 @@ def render_derby_race_screen(app, frame, frame_idx: int, total_frames: int, coun
 
     sys.stdout.write(f"{pfx}└────────────┴────────────┴────────────┴────────────┘\n")
 
-    # Live Standings
+    # Live Standings (handles shared ranks on ties / dead heat)
     sorted_r = sorted(racers, key=lambda r: (positions.get(r.lane, 0), -r.lane), reverse=True)
     medals = ["1st", "2nd", "3rd", "4th"]
     st_parts = []
+    prev_pos = None
+    curr_rank = 1
     for idx_m, r in enumerate(sorted_r):
         p = positions.get(r.lane, 0)
+        if idx_m > 0 and p < prev_pos:
+            curr_rank = idx_m + 1
+        prev_pos = p
+        rank_str = medals[curr_rank - 1] if curr_rank <= 4 else f"{curr_rank}th"
         star = "*" if r.lane == bet_lane else ""
-        st_parts.append(f"{medals[idx_m]}: {r.icon}{star} {p}m")
+        st_parts.append(f"{rank_str}: {r.icon}{star} {p}m")
     sys.stdout.write(f"  {BOLD}Standings:{RESET} " + " | ".join(st_parts) + "\n")
 
     # Live Commentary
