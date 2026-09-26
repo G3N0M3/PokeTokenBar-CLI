@@ -211,6 +211,8 @@ class TestGameCornerMinigames(unittest.TestCase):
         ok_b, msg_b = db.place_bet(1, 500_000)
         self.assertTrue(ok_b)
         self.assertEqual(db.game_state, "bet_placed")
+        self.assertEqual(db.TRACK_LENGTH, 36)
+        self.assertEqual(db.HURDLES, [12, 24])
         self.assertIn("Type 'race' to drop the starting flag!", msg_b)
         self.assertNotIn("start", msg_b)
 
@@ -489,20 +491,27 @@ class TestGameCornerMinigames(unittest.TestCase):
 
         mock_frames = [
             {"positions": {1: 0, 2: 0, 3: 0, 4: 0}, "events": ["Start!"]},
-            {"positions": {1: 5, 2: 6, 3: 4, 4: 2}, "events": ["Mid 1"]},
-            {"positions": {1: 15, 2: 12, 3: 16, 4: 2}, "events": ["Mid 2"]},
-            {"positions": {1: 24, 2: 18, 3: 20, 4: 2}, "events": ["Finish!"]},
+            {"positions": {1: 8, 2: 9, 3: 6, 4: 2}, "events": ["Mid 1"]},
+            {"positions": {1: 22, 2: 20, 3: 24, 4: 4}, "events": ["Mid 2"]},
+            {"positions": {1: 36, 2: 28, 3: 32, 4: 6}, "events": ["Finish!"]},
         ]
 
         with patch("time.sleep") as mock_sleep, patch("sys.stdout"):
             tui.animate_derby_race(mock_frames)
 
             sleep_calls = [call.args[0] for call in mock_sleep.call_args_list]
-            self.assertEqual(len(sleep_calls), 4)
-            self.assertEqual(sleep_calls[0], 0.50)
-            self.assertEqual(sleep_calls[1], 0.45)
-            self.assertEqual(sleep_calls[2], 0.45)
-            self.assertEqual(sleep_calls[3], 0.80)
+            # 4 countdown steps (0.75, 0.75, 0.75, 0.85) + 4 race frames (3 intermediate @ 0.70 + 1 finish @ 1.50)
+            self.assertEqual(len(sleep_calls), 8)
+            # Countdown
+            self.assertEqual(sleep_calls[0], 0.75)
+            self.assertEqual(sleep_calls[1], 0.75)
+            self.assertEqual(sleep_calls[2], 0.75)
+            self.assertEqual(sleep_calls[3], 0.85)
+            # Race turns
+            self.assertEqual(sleep_calls[4], 0.70)
+            self.assertEqual(sleep_calls[5], 0.70)
+            self.assertEqual(sleep_calls[6], 0.70)
+            self.assertEqual(sleep_calls[7], 1.50)
 
     def test_derby_vertical_screen_rendering(self):
         import io
@@ -521,13 +530,33 @@ class TestGameCornerMinigames(unittest.TestCase):
         # Test initial gate, mid-race, and finish frames
         test_frames = [
             {"positions": {1: 0, 2: 0, 3: 0, 4: 0}, "events": ["GONG! Race has begun!"]},
-            {"positions": {1: 8, 2: 7, 3: 16, 4: 2}, "events": ["Jolteon used AGILITY!", "Ponyta jumped hurdle!"]},
-            {"positions": {1: 24, 2: 20, 3: 22, 4: 4}, "events": ["Ponyta crosses the finish line!"]},
+            {"positions": {1: 12, 2: 10, 3: 24, 4: 2}, "events": ["Jolteon used AGILITY!", "Ponyta jumped hurdle!"]},
+            {"positions": {1: 36, 2: 30, 3: 32, 4: 6}, "events": ["Ponyta crosses the finish line!"]},
         ]
 
         def display_width(s):
             return sum(2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in s)
 
+        # 1. Test countdown stage rendering
+        for stage in ["3", "2", "1", "GO!"]:
+            buf = io.StringIO()
+            old_stdout = sys.stdout
+            try:
+                sys.stdout = buf
+                render_derby_race_screen(app, test_frames[0], 0, len(test_frames), countdown_stage=stage)
+            finally:
+                sys.stdout = old_stdout
+
+            output = buf.getvalue()
+            for line_idx, line in enumerate(output.splitlines()):
+                clean_line = re.sub(r"\033\[[0-9;]*m", "", line)
+                w = display_width(clean_line)
+                self.assertLessEqual(
+                    w, 72,
+                    f"Countdown stage {stage} line {line_idx} exceeds 72 cols: '{clean_line}' (width {w})"
+                )
+
+        # 2. Test race frame rendering
         for idx, frame in enumerate(test_frames):
             buf = io.StringIO()
             old_stdout = sys.stdout
@@ -539,7 +568,7 @@ class TestGameCornerMinigames(unittest.TestCase):
 
             output = buf.getvalue()
             lines = output.splitlines()
-            self.assertGreater(len(lines), 15)
+            self.assertGreater(len(lines), 18)
             for line_idx, line in enumerate(lines):
                 clean_line = re.sub(r"\033\[[0-9;]*m", "", line)
                 w = display_width(clean_line)
@@ -548,14 +577,14 @@ class TestGameCornerMinigames(unittest.TestCase):
                     f"Derby vertical screen line {line_idx} exceeds 72 cols on frame {idx}: '{clean_line}' (width {w})"
                 )
 
-            # Check that all 4 lanes and distance markers are present
+            # Check that all 4 lanes and 36m distance markers are present
             self.assertIn("Lane 1", output)
             self.assertIn("Lane 2", output)
             self.assertIn("Lane 3", output)
             self.assertIn("Lane 4", output)
+            self.assertIn("36m", output)
             self.assertIn("24m", output)
-            self.assertIn("16m", output)
-            self.assertIn("8m", output)
+            self.assertIn("12m", output)
             self.assertIn("0m", output)
             self.assertIn("Standings:", output)
             self.assertIn("Live Commentary:", output)

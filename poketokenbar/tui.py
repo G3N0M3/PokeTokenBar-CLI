@@ -1526,6 +1526,28 @@ class PokeTokenBarTUI:
     def animate_derby_race(self, frames):
         import io
         from poketokenbar.tui_tabs.game_corner import render_derby_race_screen
+
+        # 1. Countdown Sequence at Starting Gate
+        countdown_steps = [
+            ("3", ["🚦 Drivers take your marks! Starting in 3..."], 0.75),
+            ("2", ["🚦 Engines revving! Racers tense in the gates... 2..."], 0.75),
+            ("1", ["🚦 Flag raised high... 1..."], 0.75),
+            ("GO!", ["🚩 GONG! AND THEY'RE OFF! Racers burst from the gates!"], 0.85),
+        ]
+        start_frame = frames[0] if frames else {"positions": {1: 0, 2: 0, 3: 0, 4: 0}, "events": []}
+        for stage, evts, delay in countdown_steps:
+            c_frame = {"positions": start_frame["positions"], "events": evts}
+            buf = io.StringIO()
+            old_stdout = sys.stdout
+            sys.stdout = buf
+            render_derby_race_screen(self, c_frame, 0, len(frames), countdown_stage=stage)
+            sys.stdout = old_stdout
+            frame_str = buf.getvalue().replace("\n", "\033[K\n")
+            sys.stdout.write("\033[H" + frame_str + "\033[J")
+            sys.stdout.flush()
+            time.sleep(delay)
+
+        # 2. Race Turn Animation
         total_frames = len(frames)
         for idx, frame in enumerate(frames):
             for r in self.engine.derby.racers:
@@ -1542,12 +1564,10 @@ class PokeTokenBarTUI:
             sys.stdout.write("\033[H" + frame_str + "\033[J")
             sys.stdout.flush()
 
-            if idx == 0:
-                time.sleep(0.50)
-            elif idx == total_frames - 1:
-                time.sleep(0.80)
+            if idx == total_frames - 1:
+                time.sleep(1.50)
             else:
-                time.sleep(0.45)
+                time.sleep(0.70)
 
 def main():
     tui = PokeTokenBarTUI()

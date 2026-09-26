@@ -19,14 +19,14 @@ class DerbyRacer:
 class DerbyEngine:
     """Engine for Pokémon Stadium Derby 4-lane hurdle race betting."""
 
-    TRACK_LENGTH = 24
-    HURDLES = [8, 16]
+    TRACK_LENGTH = 36
+    HURDLES = [12, 24]
 
     RACER_TEMPLATES = [
-        (1, "Ponyta", "🐴", 2.0, "Steady 2-4 pace with rare hurdle stumbles."),
-        (2, "Dodrio", "🐦", 3.5, "Fast 3-5 pace, but heads argue occasionally."),
+        (1, "Ponyta", "🐴", 2.0, "Steady 3-5 pace with rare hurdle stumbles."),
+        (2, "Dodrio", "🐦", 3.5, "Fast 3-6 pace, but heads argue occasionally."),
         (3, "Jolteon", "⚡", 5.0, "High volatility with huge Agility bursts."),
-        (4, "Slowpoke", "🐢", 20.0, "Mostly naps (0-2 pace), but 10% Teleport leap!"),
+        (4, "Slowpoke", "🐢", 20.0, "Mostly naps (0-2 pace), but 5% Teleport leap!"),
     ]
 
     def __init__(self):
@@ -88,7 +88,7 @@ class DerbyEngine:
 
         race_over = False
         turn = 0
-        max_turns = 20
+        max_turns = 30
 
         while not race_over and turn < max_turns:
             turn += 1
@@ -103,31 +103,31 @@ class DerbyEngine:
                 event = ""
 
                 if r.lane == 1:  # Ponyta
-                    step = random.randint(2, 4)
+                    step = random.randint(3, 5)
                     if r.position in self.HURDLES and random.random() < 0.15:
                         step = max(1, step - 1)
                         event = f"{r.icon} Ponyta nicked a hurdle!"
 
                 elif r.lane == 2:  # Dodrio
-                    if random.random() < 0.18:
+                    if random.random() < 0.15:
                         step = 0
                         event = f"{r.icon} Dodrio's heads started arguing! Paused!"
                     else:
-                        step = random.randint(3, 5)
-                        if r.position in self.HURDLES and random.random() < 0.25:
+                        step = random.randint(3, 6)
+                        if r.position in self.HURDLES and random.random() < 0.20:
                             step = max(1, step - 2)
                             event = f"{r.icon} Dodrio stumbled over a hurdle!"
 
                 elif r.lane == 3:  # Jolteon
-                    if random.random() < 0.22:
-                        step = random.randint(6, 8)
+                    if random.random() < 0.16:
+                        step = random.randint(7, 9)
                         event = f"{r.icon} Jolteon used AGILITY! Rocket surge!"
                     else:
-                        step = random.randint(1, 5)
+                        step = random.randint(2, 4)
 
                 elif r.lane == 4:  # Slowpoke
-                    if random.random() < 0.10:
-                        step = random.randint(12, 16)
+                    if random.random() < 0.05:
+                        step = random.randint(18, 22)
                         event = f"{r.icon} 🌀 SLOWPOKE USED TELEPORT! Quantum leap forward!"
                     elif random.random() < 0.50:
                         step = 0

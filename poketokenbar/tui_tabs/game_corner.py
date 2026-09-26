@@ -378,7 +378,7 @@ def render_derby_tab(app):
     sys.stdout.write(f"   • '{BOLD}race{RESET}' to launch the race!\n")
     sys.stdout.write(f"   • '{BOLD}back{RESET}' to return to Game Corner menu\n\n")
 
-    sys.stdout.write(f"  {BOLD}Track [Hurdles: ║ at 8m, 16m]:{RESET}\n")
+    sys.stdout.write(f"  {BOLD}Track [Hurdles: ║ at 12m, 24m]:{RESET}\n")
     for r in db.racers:
         pos = min(db.TRACK_LENGTH, r.position)
         track_chars = []
@@ -405,7 +405,7 @@ def render_derby_tab(app):
     if db.last_result:
         sys.stdout.write(f"  {BOLD}Final Result:{RESET}\n  {db.last_result}\n\n")
 
-def render_derby_race_screen(app, frame, frame_idx: int, total_frames: int):
+def render_derby_race_screen(app, frame, frame_idx: int, total_frames: int, countdown_stage=None):
     """Renders the standalone vertical track stadium screen during race animation."""
     db = app.engine.derby
     positions = frame.get("positions", {})
@@ -417,8 +417,18 @@ def render_derby_race_screen(app, frame, frame_idx: int, total_frames: int):
     chosen = next((r for r in racers if r.lane == bet_lane), racers[0])
 
     sys.stdout.write(f"\n  {BOLD}{HEADER}🏟️  POKÉMON STADIUM DERBY — LIVE HURDLE RACE 🏟️{RESET}\n")
-    turn_str = f"Turn {frame_idx + 1}/{total_frames}" if total_frames > 0 else "Live Race"
-    sys.stdout.write(f"  {turn_str} | Bet: {BOLD}{YELLOW}{format_tokens(bet_amount)}{RESET} on Lane {bet_lane} [{chosen.icon} {chosen.name}] ({chosen.odds:.1f}x)\n\n")
+    if countdown_stage:
+        stage_icons = {
+            "3": f"{RED}🔴 3{RESET}",
+            "2": f"{YELLOW}🟡 2{RESET}",
+            "1": f"{YELLOW}🟡 1{RESET}",
+            "GO!": f"{GREEN}🟢 GO!{RESET}",
+        }
+        sig = stage_icons.get(countdown_stage, countdown_stage)
+        status_str = f"🚦 [ {sig} ]"
+    else:
+        status_str = f"Turn {frame_idx + 1}/{total_frames}" if total_frames > 0 else "Live Race"
+    sys.stdout.write(f"  {status_str} | Bet: {BOLD}{YELLOW}{format_tokens(bet_amount)}{RESET} on Lane {bet_lane} [{chosen.icon} {chosen.name}] ({chosen.odds:.1f}x)\n\n")
 
     pfx = "           "
     sys.stdout.write(f"{pfx}┌────────────┬────────────┬────────────┬────────────┐\n")
@@ -446,44 +456,50 @@ def render_derby_race_screen(app, frame, frame_idx: int, total_frames: int):
 
     sys.stdout.write(f"{pfx}├────────────┼────────────┼────────────┼────────────┤\n")
 
-    # Prefixes for each of the 13 vertical track rows (12 down to 0)
+    # Prefixes for each of the 19 vertical track rows (18 down to 0 for 36m track)
     prefixes = {
-        12: f"  24m {YELLOW}🏁{RESET} ──│",
+        18: f"  36m {YELLOW}🏁{RESET} ──│",
+        17: "  34m    ──│",
+        16: "  32m    ──│",
+        15: "  30m    ──│",
+        14: "  28m    ──│",
+        13: "  26m    ──│",
+        12: f"  24m {RED}||{RESET} ──│",
         11: "  22m    ──│",
         10: "  20m    ──│",
          9: "  18m    ──│",
-         8: f"  16m {RED}||{RESET} ──│",
+         8: "  16m    ──│",
          7: "  14m    ──│",
-         6: "  12m    ──│",
+         6: f"  12m {RED}||{RESET} ──│",
          5: "  10m    ──│",
-         4: f"   8m {RED}||{RESET} ──│",
+         4: "   8m    ──│",
          3: "   6m    ──│",
          2: "   4m    ──│",
          1: "   2m    ──│",
          0: f"   0m {CYAN}🚩{RESET} ──│",
     }
 
-    # Render each vertical row from finish line (24m) down to start line (0m)
-    for row in range(12, -1, -1):
+    # Render each vertical row from finish line (36m) down to start line (0m)
+    for row in range(18, -1, -1):
         line = prefixes[row]
         for r in racers:
             pos = positions.get(r.lane, 0)
-            r_row = min(12, max(0, pos // 2))
+            r_row = min(18, max(0, pos // 2))
             is_pick = (r.lane == bet_lane)
             if row == r_row:
-                if pos >= 24:
+                if pos >= 36:
                     is_winner = (db.winner and db.winner.lane == r.lane) or (pos == max(positions.values()))
                     if is_winner:
-                        cell = f" {YELLOW}🏆 WIN (24m){RESET}"
+                        cell = f" {YELLOW}🏆 WIN (36m){RESET}"
                     else:
-                        cell = f" {GREEN}🏁 FIN (24m){RESET}"
+                        cell = f" {GREEN}🏁 FIN (36m){RESET}"
                 else:
                     star = f"{GREEN}*" if is_pick else " "
                     cell = f"{star}{r.icon} ({pos:>2}m)   {RESET}"
             else:
-                if row == 12:
+                if row == 18:
                     cell = f"{YELLOW} ═ ═ ═ ═ ═  {RESET}"
-                elif row in (8, 4):
+                elif row in (12, 6):
                     cell = f"{RED} ═══[||]═══ {RESET}"
                 elif row == 0:
                     cell = f"{CYAN} ══════════ {RESET}"
