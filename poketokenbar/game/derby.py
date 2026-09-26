@@ -23,10 +23,10 @@ class DerbyEngine:
     HURDLES = [8, 16]
 
     RACER_TEMPLATES = [
-        (1, "Ponyta", "🐴", 2.0, "Steady Stride - Consistent 2-4 pace, rare stumble."),
-        (2, "Dodrio", "🐦", 3.5, "Triple Sprint - 3-5 pace, but heads might argue!"),
-        (3, "Jolteon", "⚡", 5.0, "Thunder Surge - Wild speed bursts & Agility boosts."),
-        (4, "Slowpoke", "🐢", 20.0, "Cosmic Underdog - Mostly naps, but 10% Teleport!"),
+        (1, "Ponyta", "🐴", 2.0, "Steady 2-4 pace with rare hurdle stumbles."),
+        (2, "Dodrio", "🐦", 3.5, "Fast 3-5 pace, but heads argue occasionally."),
+        (3, "Jolteon", "⚡", 5.0, "High volatility with huge Agility bursts."),
+        (4, "Slowpoke", "🐢", 20.0, "Mostly naps (0-2 pace), but 10% Teleport leap!"),
     ]
 
     def __init__(self):
@@ -72,7 +72,7 @@ class DerbyEngine:
         chosen = self.racers[lane - 1]
         return True, (
             f"🏇 Bet of {format_tokens(amount)} placed on Lane {lane}: {chosen.icon} {chosen.name} ({chosen.odds:.1f}x)!\n"
-            f"  ➔ Type 'race' or 'start' to drop the starting flag!"
+            f"  ➔ Type 'race' to drop the starting flag!"
         )
 
     def simulate_race(self) -> List[Dict[str, Any]]:

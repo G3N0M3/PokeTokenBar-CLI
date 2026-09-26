@@ -797,6 +797,8 @@ class PokeTokenBarTUI:
                         self.message = msg
                     else:
                         self.message = "Place a bet first! Type 'bet <lane 1-4> <amount>'."
+                elif cmd == "start" and getattr(self, "minigame_state", "menu") == "derby":
+                    self.message = "Use 'race' to launch the derby race!"
                 elif cmd.startswith("pull"):
                     parts = cmd.split()
                     pull_type = parts[1] if len(parts) >= 2 else "1"
@@ -1525,7 +1527,8 @@ class PokeTokenBarTUI:
         import io
         cached_summary = self.tracker.get_summary()
         from poketokenbar.tui_tabs.game_corner import render_game_corner_tab
-        for frame in frames:
+        total_frames = len(frames)
+        for idx, frame in enumerate(frames):
             for r in self.engine.derby.racers:
                 r.position = frame["positions"].get(r.lane, r.position)
 
@@ -1542,7 +1545,13 @@ class PokeTokenBarTUI:
             frame_str = buf.getvalue().replace("\n", "\033[K\n")
             sys.stdout.write("\033[H" + frame_str + "\033[J")
             sys.stdout.flush()
-            time.sleep(0.18)
+
+            if idx == 0:
+                time.sleep(0.50)
+            elif idx == total_frames - 1:
+                time.sleep(0.80)
+            else:
+                time.sleep(0.45)
 
 def main():
     tui = PokeTokenBarTUI()

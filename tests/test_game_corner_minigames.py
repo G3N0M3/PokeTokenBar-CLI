@@ -211,6 +211,8 @@ class TestGameCornerMinigames(unittest.TestCase):
         ok_b, msg_b = db.place_bet(1, 500_000)
         self.assertTrue(ok_b)
         self.assertEqual(db.game_state, "bet_placed")
+        self.assertIn("Type 'race' to drop the starting flag!", msg_b)
+        self.assertNotIn("start", msg_b)
 
         frames = db.simulate_race()
         self.assertGreater(len(frames), 1)
@@ -377,6 +379,22 @@ class TestGameCornerMinigames(unittest.TestCase):
                 tui.run()
             self.assertEqual(self.engine.excavator.game_state, "digging")
 
+            # 3. Derby canonical command enforcement
+            # 'start' command should NOT launch race and should guide user to 'race'
+            tui.minigame_state = "derby"
+            self.engine.derby.place_bet(1, 500_000)
+            commands_start = "\n".join(["start", "q"]) + "\n"
+            with patch("sys.stdin", io.StringIO(commands_start)), patch("sys.stdout"):
+                tui.run()
+            self.assertEqual(self.engine.derby.game_state, "bet_placed")
+            self.assertIn("Use 'race' to launch the derby race!", tui.message)
+
+            # Canonical 'race' command DOES launch the race
+            commands_race = "\n".join(["race", "q"]) + "\n"
+            with patch("sys.stdin", io.StringIO(commands_race)), patch("sys.stdout"), patch.object(tui, "animate_derby_race"):
+                tui.run()
+            self.assertEqual(self.engine.derby.game_state, "finished")
+
     def test_game_corner_play_command_requires_index(self):
         from poketokenbar.tui import PokeTokenBarTUI
         from unittest.mock import patch, MagicMock
@@ -423,6 +441,68 @@ class TestGameCornerMinigames(unittest.TestCase):
             with patch("sys.stdin", io.StringIO(commands_slot)), patch("sys.stdout"):
                 tui.run()
             self.assertEqual(tui.minigame_state, "menu")
+
+    def test_derby_tab_width_limit(self):
+        import io
+        import sys
+        import re
+        from poketokenbar.tui_tabs.game_corner import render_derby_tab
+
+        class MockApp:
+            def __init__(self, engine):
+                self.engine = engine
+
+        app = MockApp(self.engine)
+
+        for state in ["idle", "bet_placed", "finished"]:
+            if state == "idle":
+                self.engine.derby._reset_racers()
+                self.engine.derby.game_state = "idle"
+            elif state == "bet_placed":
+                self.engine.derby.place_bet(1, 500_000)
+            elif state == "finished":
+                self.engine.derby.place_bet(1, 500_000)
+                self.engine.derby.resolve_race()
+
+            buf = io.StringIO()
+            old_stdout = sys.stdout
+            try:
+                sys.stdout = buf
+                render_derby_tab(app)
+            finally:
+                sys.stdout = old_stdout
+
+            output = buf.getvalue()
+            for line in output.splitlines():
+                clean_line = re.sub(r"\033\[[0-9;]*m", "", line)
+                self.assertLessEqual(
+                    len(clean_line), 72,
+                    f"Derby line exceeds 72 cols in state '{state}': '{clean_line}' (len {len(clean_line)})"
+                )
+
+    def test_derby_animation_pacing(self):
+        from poketokenbar.tui import PokeTokenBarTUI
+        from unittest.mock import patch, MagicMock
+
+        tui = PokeTokenBarTUI()
+        tui.engine = self.engine
+
+        mock_frames = [
+            {"positions": {1: 0, 2: 0, 3: 0, 4: 0}, "events": ["Start!"]},
+            {"positions": {1: 5, 2: 6, 3: 4, 4: 2}, "events": ["Mid 1"]},
+            {"positions": {1: 15, 2: 12, 3: 16, 4: 2}, "events": ["Mid 2"]},
+            {"positions": {1: 24, 2: 18, 3: 20, 4: 2}, "events": ["Finish!"]},
+        ]
+
+        with patch("time.sleep") as mock_sleep, patch("sys.stdout"), patch.object(tui, "render_header"), patch.object(tui, "render_tabs"), patch.object(tui, "render_footer"):
+            tui.animate_derby_race(mock_frames)
+
+            sleep_calls = [call.args[0] for call in mock_sleep.call_args_list]
+            self.assertEqual(len(sleep_calls), 4)
+            self.assertEqual(sleep_calls[0], 0.50)
+            self.assertEqual(sleep_calls[1], 0.45)
+            self.assertEqual(sleep_calls[2], 0.45)
+            self.assertEqual(sleep_calls[3], 0.80)
 
 
 if __name__ == "__main__":

@@ -368,8 +368,9 @@ def render_derby_tab(app):
 
     sys.stdout.write(f"  {BOLD}Racers & Track Odds:{RESET}\n")
     for r in db.racers:
-        tag = f"{GREEN}[YOUR PICK]{RESET} " if db.game_state == "bet_placed" and r.lane == db.bet_lane else ""
-        sys.stdout.write(f"   {CYAN}Lane {r.lane}:{RESET} {r.icon} {BOLD}{r.name:<8}{RESET} ({YELLOW}{r.odds:>4.1f}x{RESET}) - {r.style} {tag}\n")
+        tag = f" {GREEN}[YOUR PICK]{RESET}" if db.game_state == "bet_placed" and r.lane == db.bet_lane else ""
+        sys.stdout.write(f"   {CYAN}Lane {r.lane}:{RESET} {r.icon} {BOLD}{r.name:<8}{RESET} ({YELLOW}{r.odds:>4.1f}x{RESET}){tag}\n")
+        sys.stdout.write(f"     {DARK_GRAY}└─ {r.style}{RESET}\n")
     sys.stdout.write("\n")
 
     sys.stdout.write(f"  {BOLD}Commands:{RESET}\n")
