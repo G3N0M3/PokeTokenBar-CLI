@@ -85,7 +85,7 @@ class TestOranBerryFeeding(unittest.TestCase):
         self.assertTrue(ok)
         self.assertIn("Fed 3 Oran Berries", msg)
         self.assertEqual(self.engine.active_mon.happiness, 75)
-        self.assertNotIn("berry_oran", self.engine.state["inventory"])
+        self.assertEqual(self.engine.state["inventory"].get("berry_oran", 0), 0)
 
     def test_feed_saves_excess_berries_at_max_happiness(self):
         self.engine.hatch_egg(0)

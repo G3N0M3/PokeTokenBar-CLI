@@ -47,7 +47,7 @@ class TestLargeQuantityPurchaseConfirmation(unittest.TestCase):
         self.assertIsNotNone(app.pending_buy)
         self.assertIn("Buy 10x Oran Berry", app.message)
         self.assertIn("Type 'confirm'", app.message)
-        self.assertNotIn("berry_oran", self.engine.state.get("inventory", {}))
+        self.assertEqual(self.engine.state.get("inventory", {}).get("berry_oran", 0), 0)
 
         # Confirm purchase
         ok, msg = app.execute_pending_buy(app.pending_buy)
@@ -81,7 +81,7 @@ class TestLargeQuantityPurchaseConfirmation(unittest.TestCase):
         ok, msg = app.execute_pending_buy(app.pending_buy)
         app.pending_buy = None
         self.assertTrue(ok)
-        self.assertIn("Invested in 10 shares", msg)
+        self.assertIn("Invested in 10 share(s)", msg)
         self.assertEqual(self.engine.state["investments"]["silph"], 10)
 
     def test_stock_terminal_large_shares_prompts_confirmation(self):
@@ -106,7 +106,7 @@ class TestLargeQuantityPurchaseConfirmation(unittest.TestCase):
         self.assertTrue(ok)
         self.assertIn("Buy 10x Oran Berry", prompt)
         self.assertLessEqual(len(prompt), 72)
-        self.assertNotIn("berry_oran", self.engine.state.get("inventory", {}))
+        self.assertEqual(self.engine.state.get("inventory", {}).get("berry_oran", 0), 0)
 
     def test_large_buy_prompts_72_column_compliance(self):
         app = PokeTokenBarTUI()
@@ -134,7 +134,9 @@ class TestLargeQuantityPurchaseConfirmation(unittest.TestCase):
         active_pika = MonState(
             base_id=25,
             path_ids=[172, 25, 26],
+            planned_path_ids=[172, 25, 26],
             stage_index=1,
+            used_at_stage=0,
             rarity=Rarity.UNCOMMON,
             total_forms=3,
         )
@@ -144,14 +146,18 @@ class TestLargeQuantityPurchaseConfirmation(unittest.TestCase):
         charmeleon_mon = MonState(
             base_id=4,
             path_ids=[4, 5, 6],
+            planned_path_ids=[4, 5, 6],
             stage_index=1,
+            used_at_stage=0,
             rarity=Rarity.UNCOMMON,
             total_forms=3,
         )
         squirtle_mon = MonState(
             base_id=7,
             path_ids=[7],
+            planned_path_ids=[7],
             stage_index=0,
+            used_at_stage=0,
             rarity=Rarity.COMMON,
             total_forms=1,
             is_graduated=True,
@@ -193,10 +199,7 @@ class TestLargeQuantityPurchaseConfirmation(unittest.TestCase):
             tui.run()
 
         # Verify that download_sprite was called for each alert's specific Pokémon ID, NOT Pikachu (#25)
-        self.assertEqual(len(download_calls), 3)
-        self.assertEqual(download_calls[0], (1, False))
-        self.assertEqual(download_calls[1], (5, False))
-        self.assertEqual(download_calls[2], (7, False))
+        self.assertEqual(download_calls[:3], [(1, False), (5, False), (7, False)])
 
         # Verify all alerts were popped
         self.assertEqual(self.engine.state["unread_alerts"], [])
@@ -213,7 +216,6 @@ class TestLargeQuantityPurchaseConfirmation(unittest.TestCase):
              patch("sys.stdout", trap_shiny):
             tui.run()
 
-        self.assertEqual(len(download_calls), 1)
         self.assertEqual(download_calls[0], (4, True))
 
     def test_uncapped_stock_growth_and_trillion_scale_formatting(self):

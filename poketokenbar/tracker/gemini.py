@@ -1,3 +1,4 @@
+import os
 import json
 import datetime
 from pathlib import Path
@@ -11,13 +12,79 @@ class GeminiUsageReader:
             self.root_dir = Path(root_dir)
         else:
             self.root_dir = Path.home() / ".gemini" / "tmp"
-        self._cache = {}  # chat_file -> (mtime, List[UsageEntry])
+        self._cache = {}  # str(chat_file) -> (stat_key, List[UsageEntry])
+        self._cache_dir = Path(os.environ.get("PTB_CACHE_DIR", Path.home() / ".poketokenbar" / "cache" / "tracker"))
+        self._cache_file = self._cache_dir / "gemini.json"
+        self._load_cache()
+
+    def _load_cache(self):
+        if not self._cache_file.exists():
+            return
+        try:
+            with open(self._cache_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if data.get("version") != 1:
+                return
+            for path_str, item in data.get("files", {}).items():
+                stat_key = tuple(item["stat"])
+                entries = []
+                for r in item["entries"]:
+                    try:
+                        entries.append(UsageEntry(
+                            id=r[0],
+                            date=datetime.datetime.fromisoformat(r[1]),
+                            local_day=r[2],
+                            model=r[3],
+                            input_tokens=r[4],
+                            output_tokens=r[5],
+                            cache_write_tokens=r[6],
+                            cache_read_tokens=r[7],
+                        ))
+                    except Exception:
+                        continue
+                self._cache[path_str] = (stat_key, entries)
+        except Exception:
+            self._cache.clear()
+
+    def _save_cache(self):
+        try:
+            self._cache_dir.mkdir(parents=True, exist_ok=True)
+            files_data = {}
+            for path_str, (stat_key, entries) in self._cache.items():
+                try:
+                    if not Path(path_str).exists():
+                        continue
+                except Exception:
+                    continue
+                files_data[path_str] = {
+                    "stat": list(stat_key),
+                    "entries": [
+                        [
+                            e.id,
+                            e.date.isoformat(),
+                            e.local_day,
+                            e.model,
+                            e.input_tokens,
+                            e.output_tokens,
+                            e.cache_write_tokens,
+                            e.cache_read_tokens,
+                        ]
+                        for e in entries
+                    ]
+                }
+            tmp_file = self._cache_file.with_name(self._cache_file.name + ".tmp")
+            with open(tmp_file, "w", encoding="utf-8") as f:
+                json.dump({"version": 1, "files": files_data}, f)
+            tmp_file.replace(self._cache_file)
+        except Exception:
+            pass
 
     def get_entries(self) -> List[UsageEntry]:
         if not self.root_dir.exists():
             return []
 
         entries: List[UsageEntry] = []
+        cache_updated = False
         
         # Optimize by avoiding recursive ** glob. Look specifically in root_dir/<project>/chats/
         chat_files = []
@@ -31,12 +98,13 @@ class GeminiUsageReader:
             pass
 
         for chat_file in chat_files:
+            path_key = str(chat_file.resolve())
             try:
                 st = chat_file.stat()
                 mtime = st.st_mtime
                 size = st.st_size
                 stat_key = (mtime, size)
-                cached_key, cached_entries = self._cache.get(chat_file, (None, None))
+                cached_key, cached_entries = self._cache.get(path_key, (None, None))
                 if cached_key == stat_key and cached_entries is not None:
                     entries.extend(cached_entries)
                     continue
@@ -86,9 +154,13 @@ class GeminiUsageReader:
                             cache_write_tokens=0,
                             cache_read_tokens=0
                         ))
-                self._cache[chat_file] = (stat_key, file_entries)
+                self._cache[path_key] = (stat_key, file_entries)
+                cache_updated = True
                 entries.extend(file_entries)
             except Exception:
                 continue
+
+        if cache_updated:
+            self._save_cache()
 
         return entries

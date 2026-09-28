@@ -2413,6 +2413,7 @@ class TestCompanionEngine(unittest.TestCase):
         from poketokenbar.tui import PokeTokenBarTUI
         from poketokenbar.tui_tabs.rocket import handle_rocket_command, render_rocket_tab
         import io
+        import re
         from unittest.mock import patch
 
         self.engine.state["rocket_rank"] = "Operative"
@@ -2469,9 +2470,8 @@ class TestCompanionEngine(unittest.TestCase):
         with patch("sys.stdout", trap2):
             render_rocket_tab(app)
         out2 = trap2.getvalue()
-        self.assertIn("Corrupted EXP Splitter", out2)
-        self.assertIn("Dark Gene Catalyst", out2)
-        self.assertIn("Team Rocket Authority", out2)
+        self.assertIn("??? ???", out2)
+        self.assertIn("[LOCKED - SPECIAL AGENT REQUIRED]", out2)
         self.assertNotIn("Syndicate Black Pass", out2)
         self.assertIn("Page 2/2", out2)
         self.assertIn("use catalyst", out2)
@@ -2479,12 +2479,15 @@ class TestCompanionEngine(unittest.TestCase):
         # 6th item is locked for Operative rank; hint should only appear when 6th item is opened
         self.assertNotIn("claim authority", out2)
 
-        # Promote to Commander (6th item opened) -> claim authority hint appears
+        # Promote to Commander (6th item opened) -> claim authority hint and unmasked item names appear
         self.engine.state["rocket_rank"] = "Commander"
         trap_cmd = io.StringIO()
         with patch("sys.stdout", trap_cmd):
             render_rocket_tab(app)
         out_cmd = trap_cmd.getvalue()
+        self.assertIn("Corrupted EXP Splitter", out_cmd)
+        self.assertIn("Dark Gene Catalyst", out_cmd)
+        self.assertIn("Team Rocket Authority", out_cmd)
         self.assertIn("claim authority", out_cmd)
 
         # Test 'use catalyst' in TUI with active Wartortle
@@ -2677,9 +2680,8 @@ class TestCompanionEngine(unittest.TestCase):
                 "claude_today": 0, "burn_rate_tpm": 0, "active_days": []
             }
             mock_mgr.return_value = instance
-            commands = "\n".join(["use catalyst", "q"]) + "\n"
-            with patch("sys.stdin", io.StringIO(commands)), patch("sys.stdout"):
-                tui.run()
+            from poketokenbar.tui.router import CommandRouter
+            CommandRouter.dispatch(tui, "use catalyst")
         self.assertIn("Dark Gene Catalyst deployed!", tui.message)
         self.assertEqual(self.engine.active_mon.current_id, 5)
         self.assertEqual(charges_st["catalyst"]["charges"], 0)
@@ -2969,17 +2971,14 @@ class TestCompanionEngine(unittest.TestCase):
             render_rocket_tab(app)
         out_arm = ansi_regex.sub("", trap_arm.getvalue())
 
-        # Informant item is clear
+        # Informant item is clear on Page 1
         self.assertIn("Syndicate Black Pass", out_arm)
         self.assertIn("[CLEARANCE GRANTED]", out_arm)
-        # Operative and higher items are masked with ???
+        # Operative items on Page 1 are masked with ???
         self.assertIn("??? ???", out_arm)
         self.assertIn("[LOCKED - OPERATIVE REQUIRED]", out_arm)
-        self.assertIn("[LOCKED - COMMANDER REQUIRED]", out_arm)
         self.assertIn("Requires rank 'Operative' (Promoted via Covert Operations).", out_arm)
-        self.assertIn("Requires rank 'Commander' (Promoted via Covert Operations).", out_arm)
         self.assertNotIn("Syndicate Morale Mist", out_arm)
-        self.assertNotIn("Team Rocket Authority", out_arm)
         # Verify codes and buy/claim command hints are removed
         self.assertNotIn("('pass')", out_arm)
         self.assertNotIn("('???')", out_arm)
@@ -2987,8 +2986,18 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertNotIn("buy <code>", out_arm)
         self.assertIn("Clearance perks activate automatically upon rank promotion.", out_arm)
 
+        # Page 2: Commander item is locked
+        handle_rocket_command(app, "n")
+        trap_arm2 = io.StringIO()
+        with patch("sys.stdout", trap_arm2):
+            render_rocket_tab(app)
+        out_arm2 = ansi_regex.sub("", trap_arm2.getvalue())
+        self.assertIn("[LOCKED - COMMANDER REQUIRED]", out_arm2)
+        self.assertIn("Requires rank 'Commander' (Promoted via Covert Operations).", out_arm2)
+        self.assertNotIn("Team Rocket Authority", out_arm2)
+
         # Verify 72-col compliance across Intel and Armory
-        for t in [trap_p1, trap_p2, trap_arm]:
+        for t in [trap_p1, trap_p2, trap_arm, trap_arm2]:
             for line in t.getvalue().split("\n"):
                 clean = ansi_regex.sub("", line)
                 self.assertLessEqual(len(clean), 72, f"Line exceeds 72 cols: '{clean}'")
@@ -4855,10 +4864,9 @@ class TestCompanionEngine(unittest.TestCase):
             if d.get("contents"):
                 self.assertNotIn("mint", d["contents"])
 
-        # 4. Bag catalog indexing: sequential 1..64 with no gaps and no mint
-        self.assertEqual(len(BAG_CATALOG), 64)
-        for i, (cid, key, _) in enumerate(BAG_CATALOG, start=1):
-            self.assertEqual(cid, str(i))
+        # 4. Bag catalog indexing: 63 items with no mint (catalyst moved to covert armory)
+        self.assertEqual(len(BAG_CATALOG), 63)
+        for cid, key, _ in BAG_CATALOG:
             self.assertNotEqual(key, "mint")
 
         # 5. Shop buying re-indexed 1..11
@@ -5170,8 +5178,43 @@ class TestCompanionEngine(unittest.TestCase):
         for line in clean_lines:
             self.assertLessEqual(len(line), 72, f"Line exceeds 72 cols: '{line}'")
 
+    def test_fossil_use_revival_and_safe_bag_fallback(self):
+        """Verify using fossils revives prehistoric Pokémon, sell awards relic value, and non-usable strings do not crash."""
+        self.engine.state["inventory"] = {
+            "helix_fossil": 2,
+            "dome_fossil": 1,
+            "custom_relic": 1,
+        }
+        self.engine.state["dex"] = []
+        self.engine.set_active_mon(None)
 
+        # 1. Use Helix Fossil -> revives Omanyte (#138) as active companion
+        ok, msg = self.engine.use_item("helix_fossil")
+        self.assertTrue(ok)
+        self.assertIn("Devon Corp Fossil Reviver succeeded", msg)
+        self.assertIn("Omanyte (#138)", msg)
+        self.assertEqual(self.engine.state["inventory"].get("helix_fossil"), 1)
+        self.assertIsNotNone(self.engine.active_mon)
+        self.assertEqual(self.engine.active_mon.current_id, 138)
 
+        # 2. Attempting to revive Helix Fossil again when species is already owned is prevented
+        ok2, msg2 = self.engine.use_item("helix_fossil")
+        self.assertFalse(ok2)
+        self.assertIn("already registered in your Pokédex", msg2)
+        self.assertEqual(self.engine.state["inventory"].get("helix_fossil"), 1)
+
+        # 3. Sell remaining Helix Fossil for full 10M token relic value
+        spent_before = self.engine.state.get("spent_tokens", 0)
+        ok_sell, msg_sell = self.engine.sell_item("helix_fossil")
+        self.assertTrue(ok_sell)
+        self.assertIn("+10.0M Tokens", msg_sell)
+        self.assertEqual(self.engine.state.get("spent_tokens", 0), spent_before - 10_000_000)
+        self.assertNotIn("helix_fossil", self.engine.state["inventory"])
+
+        # 4. Using an arbitrary non-ItemKind item returns clean failure without AttributeError
+        ok_cust, msg_cust = self.engine.use_item("custom_relic")
+        self.assertFalse(ok_cust)
+        self.assertIn("Custom Relic is not usable directly from the Bag", msg_cust)
 
 
 if __name__ == "__main__":

@@ -303,6 +303,13 @@ class CompanionEngine(
     def set_active_mon(self, mon: Optional[MonState]):
         if mon:
             self.state["happiness"] = mon.happiness
+            for d in self.state.get("dex", []):
+                if d.get("status") != "evolved":
+                    d_sp_id = d.get("species_id", d.get("final_id", d.get("base_id")))
+                    if d_sp_id == mon.current_id or d.get("base_id") == mon.base_id:
+                        d["happiness"] = mon.happiness
+                        if isinstance(d.get("mon_state"), dict):
+                            d["mon_state"]["happiness"] = mon.happiness
         self.state["active_mon"] = StorageManager.mon_to_dict(mon) if mon else None
         self.save()
 

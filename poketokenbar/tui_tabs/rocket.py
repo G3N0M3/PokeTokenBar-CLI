@@ -352,7 +352,8 @@ def _render_read_intel(app):
 
 def _render_armory_subtab(app):
     sys.stdout.write(f"  {BOLD}🛡️ Team Rocket Covert Tech Armory{RESET}\n")
-    sys.stdout.write(f"  Skunkworks experimental equipment gated by operative clearance.\n\n")
+    sys.stdout.write(f"  Skunkworks experimental equipment gated by operative clearance.\n")
+    sys.stdout.write(f"  Clearance perks activate automatically upon rank promotion.\n\n")
 
     pending = app.engine.state.get("pending_authority_delivery")
     if pending:
@@ -711,15 +712,6 @@ def handle_rocket_command(app, cmd: str):
                 app.message = f"Unknown armory tech '{target_raw}'. Valid: 'use mist', 'use chrono', 'use catalyst'."
     elif subview == "armory" and cmd in ["2", "3", "5"]:
         app.message = "Please use 'use mist', 'use chrono', or 'use catalyst'."
-    elif cmd.startswith("requisition "):
-        parts = cmd.split(maxsplit=1)
-        tech_code = _resolve_armory_tech_code(parts[1])
-        if tech_code in ["spray", "chrono", "catalyst"]:
-            tech_cmd = "mist" if tech_code == "spray" else tech_code
-            app.message = f"Please use 'use {tech_cmd}'."
-        else:
-            ok, msg = app.engine.buy_rocket_armory_item(tech_code)
-            app.message = msg
     elif (
         cmd == "buy"
         or cmd.startswith("buy ")

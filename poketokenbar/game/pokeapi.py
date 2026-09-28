@@ -1,11 +1,20 @@
+import os
 import json
 import urllib.request
 import urllib.error
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 
-CACHE_DIR = Path.home() / ".poketokenbar" / "cache" / "pokeapi"
-SPRITE_DIR = Path.home() / ".poketokenbar" / "cache" / "sprites"
+_ptb_cache = os.environ.get("PTB_CACHE_DIR")
+if _ptb_cache:
+    _base_cache = Path(_ptb_cache)
+    if _base_cache.name == "tracker":
+        _base_cache = _base_cache.parent
+else:
+    _base_cache = Path.home() / ".poketokenbar" / "cache"
+
+CACHE_DIR = _base_cache / "pokeapi"
+SPRITE_DIR = _base_cache / "sprites"
 
 class PokeAPIClient:
     """Client for PokéAPI with local filesystem caching."""
@@ -18,17 +27,28 @@ class PokeAPIClient:
         if cache_file.exists():
             try:
                 with open(cache_file, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    if isinstance(data, dict) and data.get("_missing"):
+                        return None
+                    return data
             except Exception:
                 pass
 
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "PokeTokenBar/1.0"})
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=2.5) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 with open(cache_file, "w", encoding="utf-8") as f:
                     json.dump(data, f)
                 return data
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                try:
+                    with open(cache_file, "w", encoding="utf-8") as f:
+                        json.dump({"_missing": True}, f)
+                except Exception:
+                    pass
+            return None
         except Exception:
             return None
 
@@ -111,6 +131,15 @@ class PokeAPIClient:
         if target_path.exists():
             return target_path
 
+        missing_marker = SPRITE_DIR / f"{prefix}{target_id}.missing"
+        direct_missing = SPRITE_DIR / f"{prefix}{species_id}.missing"
+        if missing_marker.exists() or direct_missing.exists():
+            if is_back:
+                front_path = self.download_sprite(species_id, is_shiny=is_shiny, is_back=False)
+                if front_path and front_path.exists():
+                    return front_path
+            return None
+
         # 5. Attempt download from PokeAPI
         subfolder = "shiny/" if is_shiny else ""
         backfolder = "back/" if is_back else ""
@@ -118,11 +147,17 @@ class PokeAPIClient:
 
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "PokeTokenBar/1.0"})
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=2.5) as resp:
                 content = resp.read()
                 with open(target_path, "wb") as f:
                     f.write(content)
                 return target_path
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                try:
+                    missing_marker.touch()
+                except Exception:
+                    pass
         except Exception:
             pass
 

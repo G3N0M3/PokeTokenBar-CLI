@@ -16,7 +16,7 @@ class CommandRouter:
             return
 
         # 2. Interactive Expedition Picker Mode
-        if getattr(app, "expedition_picker_mode", False):
+        if getattr(app, "expedition_picker_mode", False) is True:
             CommandRouter._handle_expedition_picker(app, cmd)
             return
 

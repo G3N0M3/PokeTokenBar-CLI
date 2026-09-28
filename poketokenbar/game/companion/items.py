@@ -1,7 +1,7 @@
 import random
 from typing import Dict, List, Optional, Tuple, Any, Union
 
-from poketokenbar.game.models import ItemKind, Rarity, MEGA_STONES
+from poketokenbar.game.models import ItemKind, Rarity, MEGA_STONES, MonState
 from poketokenbar.utils.formatting import format_tokens
 from poketokenbar.game.companion.evolution import TIME_BASED_BRANCH_OVERRIDES
 from poketokenbar.game.economy.black_market import get_fake_item_fraud_message
@@ -77,10 +77,20 @@ class ItemsMixin:
         if count < qty:
             return False, f"You don't have {qty}x in your Bag to sell!"
 
+        fossil_prices = {
+            "helix_fossil": 10_000_000,
+            "dome_fossil": 10_000_000,
+            "old_amber": 25_000_000,
+        }
+
         if k.startswith("fake_"):
             sell_value = 1 * qty
             name_str = k.replace("fake_", "").replace("_", " ").title()
             emoji_str = "🪙"
+        elif k in fossil_prices:
+            sell_value = fossil_prices[k] * qty
+            name_str = k.replace("_", " ").title()
+            emoji_str = "🏺"
         elif isinstance(item_kind, ItemKind):
             cost = item_kind.price_for(self.current_difficulty)
             sell_value = max(1, int(cost * 0.8)) * qty
@@ -370,21 +380,21 @@ class ItemsMixin:
                 return False, "You need an active Pokémon companion to feed an Oran Berry!"
             return self.feed_pokemon("active", qty=qty)
 
-        elif item_kind == ItemKind.BERRY_GOLDEN:
+        elif item_kind == ItemKind.BERRY_GOLDEN or item_val == "berry_golden":
             if qty > 1:
                 return False, "You can only use one Golden Razz Berry at a time!"
-            inv[item_kind.value] -= 1
+            inv[item_val] -= 1
             self.state["golden_razz_active"] = True
             self.state["inventory"] = inv
             self.save()
             return True, "Used Golden Razz Berry 🍇! Shiny odds on your NEXT egg hatch boosted to 1/24! ✨"
 
-        elif item_kind == ItemKind.MEGA_STONE or item_val.startswith("mega_stone_"):
+        elif item_kind == ItemKind.MEGA_STONE or item_val.startswith("mega_stone_") or item_val == "mega_stone":
             if qty > 1:
                 return False, "You can only use one Mega Stone at a time!"
             return self.toggle_mega_evolution(target_stone_key=item_val if item_val.startswith("mega_stone_") else None)
 
-        elif item_kind.value.endswith("_stone") and item_kind != ItemKind.MEGA_STONE:
+        elif item_val.endswith("_stone") and item_val != "mega_stone":
             if qty > 1:
                 return False, "You can only use one Evolution Stone at a time!"
             active = self.active_mon
@@ -395,11 +405,11 @@ class ItemsMixin:
             if active.held_item == "everstone":
                 return False, "Your companion is holding an Everstone! It cannot evolve."
             
-            api_item_name = item_kind.value.replace("_", "-")
+            api_item_name = item_val.replace("_", "-")
             target_evo_id = self._find_stone_evolution(active.current_id, api_item_name)
             
             if not target_evo_id:
-                return False, f"The {item_kind.name_en} has no effect on {self.api.get_species_name(active.current_id)}!"
+                return False, f"The {item_name} has no effect on {self.api.get_species_name(active.current_id)}!"
 
             # Block stone evolution if target evolved form already exists in Pokédex
             dex = self.state.get("dex", [])
@@ -408,9 +418,9 @@ class ItemsMixin:
                 next_name = self.api.get_species_name(target_evo_id)
                 return False, f"Cannot evolve into {next_name}! {next_name} (#{target_evo_id}) already exists in your Pokédex."
                 
-            inv[item_kind.value] -= 1
-            if inv[item_kind.value] <= 0:
-                del inv[item_kind.value]
+            inv[item_val] -= 1
+            if inv[item_val] <= 0:
+                del inv[item_val]
                 
             prev_name = self.api.get_species_name(active.current_id)
             active.stage_index += 1
@@ -439,18 +449,79 @@ class ItemsMixin:
             
             shiny_str = "✨ Shiny " if active.is_shiny else ""
             quests_msg = "\n".join(self._progress_quest_by_type("progression"))
-            msg = f"🎉 Amazing! {shiny_str}{prev_name} evolved into {shiny_str}{new_name} using the {item_kind.name_en}!"
+            msg = f"🎉 Amazing! {shiny_str}{prev_name} evolved into {shiny_str}{new_name} using the {item_name}!"
             if quests_msg:
                 msg += f"\n{quests_msg}"
             return True, msg
 
-        elif item_kind == ItemKind.EXPEDITION_PASS:
+        # Prehistoric Relics / Fossils Revival
+        elif item_val in ["helix_fossil", "dome_fossil", "old_amber"]:
+            if qty > 1:
+                return False, f"You can only revive one {item_name} at a time!"
+
+            fossil_map = {
+                "helix_fossil": (138, "Omanyte", [138, 139], Rarity.RARE),
+                "dome_fossil": (140, "Kabuto", [140, 141], Rarity.RARE),
+                "old_amber": (142, "Aerodactyl", [142], Rarity.RARE),
+            }
+            base_id, sp_default_name, chain_ids, f_rarity = fossil_map[item_val]
+            sp_name = self.api.get_species_name(base_id) or sp_default_name
+
+            # Check if species or family is already owned in dex
+            dex = self.state.get("dex", [])
+            discovered_sp_ids = set()
+            for d in dex:
+                for k_id in ["species_id", "final_id", "base_id"]:
+                    val = d.get(k_id)
+                    if val:
+                        discovered_sp_ids.add(val)
+                for c_id in d.get("chain_order", []):
+                    discovered_sp_ids.add(c_id)
+
+            if any(cid in discovered_sp_ids for cid in chain_ids):
+                return False, f"Devon Corp Fossil Reviver detected that {sp_name} (#{base_id}) is already registered in your Pokédex! You can sell the {item_name} for tokens in your Bag ('sell {item_val}')."
+
+            inv[item_val] -= 1
+            if inv[item_val] <= 0:
+                del inv[item_val]
+
+            denom = 64
+            if self.state.get("golden_razz_active", False):
+                denom = 24
+                self.state["golden_razz_active"] = False
+            is_shiny = random.randint(1, denom) == 1
+            shiny_str = "✨ Shiny " if is_shiny else ""
+
+            mon = MonState(
+                base_id=base_id,
+                path_ids=chain_ids,
+                planned_path_ids=chain_ids,
+                stage_index=0,
+                used_at_stage=0,
+                rarity=f_rarity,
+                total_forms=len(chain_ids),
+                is_shiny=is_shiny
+            )
+
+            if self.active_mon is None:
+                self.set_active_mon(mon)
+                self._register_to_dex(mon, status="active")
+                msg = f"🧪 Devon Corp Fossil Reviver succeeded! Extracted prehistoric DNA from the {item_name} and revived {shiny_str}{sp_name} (#{base_id}) as your active companion!"
+            else:
+                self._register_to_dex(mon, status="inactive")
+                msg = f"🧪 Devon Corp Fossil Reviver succeeded! Extracted prehistoric DNA from the {item_name} and revived {shiny_str}{sp_name} (#{base_id})! Transferred to your Pokédex roster (use 'switch {base_id}' to partner up)!"
+
+            self.state["inventory"] = inv
+            self.save()
+            return True, msg
+
+        elif item_kind == ItemKind.EXPEDITION_PASS or item_val == "expedition_pass":
             if qty > 1:
                 return False, "You can only use one Expedition Pass at a time!"
             expeditions = self.state.get("expeditions", [])
             if not expeditions:
                 return False, "You have no active expeditions to complete!"
-            inv[item_kind.value] -= 1
+            inv[item_val] -= 1
             # Complete the first expedition instantly
             exp = expeditions[0]
             remaining_xp = max(0, exp.get("target", 0) - exp.get("progress", 0))
@@ -460,7 +531,7 @@ class ItemsMixin:
             self.save()
             return True, "\n".join(events)
 
-        elif item_kind == ItemKind.POKE_FLUTE:
+        elif item_kind == ItemKind.POKE_FLUTE or item_val == "poke_flute":
             if qty > 1:
                 return False, "You can only use one Poké Flute at a time!"
             if self.state.get("active_boss"):
@@ -496,12 +567,12 @@ class ItemsMixin:
                 "reward": b["reward"]
             }
             self.state["active_boss"] = active_boss
-            inv[item_kind.value] -= 1
+            inv[item_val] -= 1
             self.state["inventory"] = inv
             self.save()
             return True, f"🪈 You played the Poké Flute! A wild Gym Boss {b['name']} (#{b['sp_id']}) was summoned! (HP: {format_tokens(b['hp'])})"
 
-        elif item_kind == ItemKind.MASTER_BALL:
+        elif item_kind == ItemKind.MASTER_BALL or item_val == "master_ball":
             eggs = self.state.get("incubating_eggs", {})
             if not eggs:
                 # If they have an active legacy egg
@@ -511,7 +582,7 @@ class ItemsMixin:
                 else:
                     return False, "You need an incubating egg to use the Master Ball!"
             
-            inv[item_kind.value] -= 1
+            inv[item_val] -= 1
             
             # Find the egg with the most progress to hatch
             best_tier = max(eggs.keys(), key=lambda t: eggs[t])
@@ -529,14 +600,14 @@ class ItemsMixin:
             self.save()
             return True, f"Threw a Master Ball 🌟! Guaranteed Shiny hatch!\n" + "\n".join(events)
 
-        elif item_kind == ItemKind.EXPEDITION_LICENSE:
-            inv[item_kind.value] -= 1
+        elif item_kind == ItemKind.EXPEDITION_LICENSE or item_val == "expedition_license":
+            inv[item_val] -= 1
             self.state["expedition_slots"] = self.state.get("expedition_slots", 10) + 10
             self.state["inventory"] = inv
             self.save()
             return True, "📜 Used an Expedition License! You can now send 10 more Pokémon on expeditions simultaneously!"
 
-        return False, f"{item_kind.name_en} is not usable directly from the Bag."
+        return False, f"{item_name} is not usable directly from the Bag."
 
     def unequip_item(self) -> Tuple[bool, str]:
         active = self.active_mon

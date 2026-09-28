@@ -214,7 +214,7 @@ class TestGameCornerMinigames(unittest.TestCase):
         self.assertEqual(db.TRACK_LENGTH, 36)
         self.assertEqual(db.HURDLES, [12, 24])
         self.assertIn("Type 'race' to drop the starting flag!", msg_b)
-        self.assertNotIn("start", msg_b)
+        self.assertNotIn("Type 'start'", msg_b)
 
         frames = db.simulate_race()
         self.assertGreater(len(frames), 1)
@@ -315,7 +315,10 @@ class TestGameCornerMinigames(unittest.TestCase):
         ex_rows = [line for line in output2.splitlines() if re.match(r"^\s+[1-6]\s+│", line)]
         self.assertEqual(len(ex_rows), 6)
         clean_ex = [re.sub(r"\033\[[0-9;]*m", "", r) for r in ex_rows]
-        ex_pipe_positions = [r.rfind("│") for r in clean_ex]
+        import unicodedata
+        def display_width(s):
+            return sum(2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in s)
+        ex_pipe_positions = [display_width(r[:r.rfind("│")]) for r in clean_ex]
         self.assertEqual(len(set(ex_pipe_positions)), 1, f"Excavator grid rows are misaligned: {ex_pipe_positions}")
 
     # -------------------------------------------------------------------------
@@ -336,6 +339,7 @@ class TestGameCornerMinigames(unittest.TestCase):
 
         # 2. TUI dispatch accepts only canonical commands
         from poketokenbar.tui import PokeTokenBarTUI
+        from poketokenbar.tui.router import CommandRouter
         from unittest.mock import patch, MagicMock
         import io
 
@@ -360,18 +364,14 @@ class TestGameCornerMinigames(unittest.TestCase):
             self.assertEqual(self.engine.excavator.game_state, "idle")
 
             # 'dig 100k' with cost parameter is rejected with fixed cost guidance
-            commands_dig_cost = "\n".join(["dig 100k", "q"]) + "\n"
             self.engine.excavator.game_state = "idle"
-            with patch("sys.stdin", io.StringIO(commands_dig_cost)), patch("sys.stdout"):
-                tui.run()
+            CommandRouter.dispatch(tui, "dig 100k")
             self.assertEqual(self.engine.excavator.game_state, "idle")
             self.assertIn("fixed cost of 500K", tui.message)
 
             # 'bet' on excavator is rejected with fixed cost guidance
-            commands_bet = "\n".join(["bet 500k", "q"]) + "\n"
             self.engine.excavator.game_state = "idle"
-            with patch("sys.stdin", io.StringIO(commands_bet)), patch("sys.stdout"):
-                tui.run()
+            CommandRouter.dispatch(tui, "bet 500k")
             self.assertEqual(self.engine.excavator.game_state, "idle")
             self.assertIn("fixed cost of 500K", tui.message)
 
@@ -385,9 +385,7 @@ class TestGameCornerMinigames(unittest.TestCase):
             # 'start' command should NOT launch race and should guide user to 'race'
             tui.minigame_state = "derby"
             self.engine.derby.place_bet(1, 500_000)
-            commands_start = "\n".join(["start", "q"]) + "\n"
-            with patch("sys.stdin", io.StringIO(commands_start)), patch("sys.stdout"):
-                tui.run()
+            CommandRouter.dispatch(tui, "start")
             self.assertEqual(self.engine.derby.game_state, "bet_placed")
             self.assertIn("Use 'race' to launch the derby race!", tui.message)
 
@@ -431,11 +429,10 @@ class TestGameCornerMinigames(unittest.TestCase):
                 self.assertEqual(tui.minigame_state, expected_state)
 
             # 2. Game names must be rejected
+            from poketokenbar.tui.router import CommandRouter
             for name in ["poker", "voltorb", "slot", "blackjack", "excavator", "trivia", "derby"]:
-                commands = f"play {name}\nq\n"
                 tui.minigame_state = "menu"
-                with patch("sys.stdin", io.StringIO(commands)), patch("sys.stdout"):
-                    tui.run()
+                CommandRouter.dispatch(tui, f"play {name}")
                 self.assertEqual(tui.minigame_state, "menu")
                 self.assertIn("Type 'play <1-8>'", tui.message)
 

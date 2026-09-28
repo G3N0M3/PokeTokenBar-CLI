@@ -1172,9 +1172,14 @@ class RocketMixin:
             charges_st[tech_code] = {
                 "charges": default_c,
                 "progress": 0,
-                "target": 2_500_000
+                "target": 2_500_000,
+                "unlocked": is_unlocked
             }
         t_info = charges_st[tech_code]
+        if is_unlocked and not t_info.get("unlocked", False):
+            t_info["unlocked"] = True
+            if t_info.get("charges", 0) == 0:
+                t_info["charges"] = 3
         t_info.setdefault("charges", default_c)
         t_info.setdefault("progress", 0)
         t_info.setdefault("target", 2_500_000)
@@ -1327,9 +1332,6 @@ class RocketMixin:
     def buy_rocket_armory_item(self, item_code: str) -> Tuple[bool, str]:
         """Requisitions covert tech from the Rocket Armory with rank clearance checks (Free of charge)."""
         item_code = item_code.lower().strip()
-        if item_code in ["spray", "chrono", "mist", "accelerator"]:
-            return self.use_rocket_armory_item(item_code)
-
         catalog = {
             "pass": ("Syndicate Black Pass", 0, "Informant"),
             "spray": ("Syndicate Morale Mist", 0, "Operative"),
@@ -1394,12 +1396,56 @@ class RocketMixin:
             self.state["black_market"] = bm
             msg = "📯 Clearance Authorized: Syndicate Black Pass active! 24/7 Black Market unlocked & all Grunt tolls waived!"
 
+        elif item_code in ["spray", "mist"]:
+            if self.active_mon:
+                m = self.active_mon
+                m.happiness = 100
+                self.set_active_mon(m)
+            self.state["happiness"] = 100
+            for d in self.state.get("dex", []):
+                if d.get("status") != "evolved":
+                    d["happiness"] = 100
+                    m_st = d.get("mon_state")
+                    if isinstance(m_st, dict):
+                        m_st["happiness"] = 100
+            charges_st = self.state.setdefault("rocket_armory_charges", {})
+            c = charges_st.setdefault("spray", {"unlocked": True, "charges": 3, "progress": 0, "target": 5_000_000})
+            c["unlocked"] = True
+            msg = "🌫️ Clearance Authorized: Deployed Syndicate Morale Mist! Restored 100% Happiness to all Pokémon across your squad!"
+
+        elif item_code in ["chrono", "accelerator"]:
+            cds = self.state.get("term_deposits", [])
+            active_cds = [c for c in cds if not c.get("matured")]
+            matured_count = 0
+            for cd in active_cds:
+                rate = cd.get("daily_rate", 0.08)
+                cd["current_value"] = int(cd["current_value"] * (1 + rate))
+                cd["days_elapsed"] = cd.get("days_elapsed", 0) + 1
+                if cd["days_elapsed"] >= cd["term_days"]:
+                    cd["matured"] = True
+                    matured_count += 1
+            self.state["term_deposits"] = cds
+            charges_st = self.state.setdefault("rocket_armory_charges", {})
+            c = charges_st.setdefault("chrono", {"unlocked": True, "charges": 3, "progress": 0, "target": 10_000_000})
+            c["unlocked"] = True
+            if active_cds:
+                msg = f"⏱️ Clearance Authorized: Activated Chrono Accelerator! Advanced {len(active_cds)} active CD(s) by +1 day ({matured_count} matured)!"
+            else:
+                msg = "⏱️ Clearance Authorized: Chrono Accelerator timeline warped (+1 day), but no active CDs were locked."
+
         elif item_code == "splitter":
             self.state["has_exp_splitter"] = True
             msg = "⚡ Clearance Authorized: Corrupted EXP Splitter active! 25% of coding XP is now mirrored to all inactive roster Pokémon!"
 
-        elif item_code == "catalyst":
-            return self.use_rocket_armory_item("catalyst")
+        elif item_code in ["catalyst", "gene"]:
+            charges_st = self.state.setdefault("rocket_armory_charges", {})
+            c = charges_st.setdefault("catalyst", {"unlocked": True, "charges": 3, "progress": 0, "target": 25_000_000})
+            c["unlocked"] = True
+            inv = self.state.setdefault("inventory", {})
+            inv["dark_gene_catalyst"] = inv.get("dark_gene_catalyst", 0) + 1
+            if isinstance(inv.get("items"), dict):
+                inv["items"]["dark_gene_catalyst"] = inv["dark_gene_catalyst"]
+            msg = "🧬 Clearance Authorized: Requisitioned Dark Gene Catalyst! Stored in Bag inventory (Slot 63)."
 
         elif item_code == "authority":
             chosen_id = random.choice(candidates)

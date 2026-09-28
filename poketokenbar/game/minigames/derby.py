@@ -170,7 +170,7 @@ class DerbyEngine:
         if self.game_state != "bet_placed":
             return False, "No active bet placed! Type 'bet <lane 1-4> <amount>'.", 0
 
-        if not self.race_frames or not self.winners:
+        if not self.race_frames and not self.winners:
             self.simulate_race()
         self.game_state = "finished"
 
