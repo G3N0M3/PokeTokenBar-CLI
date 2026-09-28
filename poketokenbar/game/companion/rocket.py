@@ -814,7 +814,7 @@ class RocketMixin:
         if not active_op or not active_op["is_boss"]:
             return False, "No active Syndicate Boss encounter! Select an active boss operation first (Op 3, 6, 9, 10)."
 
-        from poketokenbar.game.rocket_battle import RocketBattleHandler
+        from poketokenbar.game.combat.rocket_battle import RocketBattleHandler
         handler = RocketBattleHandler(self)
         b_st = handler._get_state()
         if not b_st.get("player_team") or b_st.get("status") in ["win", "loss"] or b_st.get("op_code") != active_op["code"]:

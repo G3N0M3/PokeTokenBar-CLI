@@ -1,7 +1,7 @@
 from typing import Tuple
 
 from poketokenbar.utils.formatting import format_tokens, parse_tokens
-from poketokenbar.game.gacha import GachaEngine, GACHA_COST_SINGLE, GACHA_COST_MULTI
+from poketokenbar.game.minigames.gacha import GachaEngine, GACHA_COST_SINGLE, GACHA_COST_MULTI
 
 
 class CasinoMixin:

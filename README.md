@@ -1,6 +1,6 @@
 # 🐾 PokeTokenBar (Linux CLI Edition)
 
-[![Version](https://img.shields.io/badge/version-1.12.0-blue.svg)](https://github.com/G3N0M3/PokeTokenBar-CLI)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/G3N0M3/PokeTokenBar-CLI)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python: 3.8+](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 
@@ -26,7 +26,7 @@ Designed specifically for **Linux CLI** environments, with automated, real-time 
 - 🎲 **Game Corner & Black Market (Tabs [9] & [4])**: Play Video Poker, Gacha capsules, Slots, Blackjack, Voltorb Flip, Underground Digging, Silhouette Trivia, and Stadium Derby—or bribe your way into the clandestine Rocket Syndicate Black Market.
 - 🏦 **Token Bank & Stock Exchange (Tab [10])**: Compound daily checking interest (+5%), track loan deadlines with `D-<days>` countdowns, lock high-yield CDs, and trade 6 corporate stocks with lore-driven cycle trends.
 - 🚀 **Team Rocket Covert HQ (Tab [12])**: Intercept encrypted comms, deploy on 10 syndicate operations, and confront experimental prototype bosses in tactical combat.
-- ⚙️ **Grouped Settings & Customization (Tab [11])**: Configure table pagination, customize sprite resolution, calibrate monthly billing days, initialize token baselines, and generate shareable ASCII Trainer Profile Cards (`ptb card`).
+- ⚙️ **Grouped Settings & Customization (Tab [11])**: Configure table pagination, customize sprite resolution, calibrate monthly billing days, initialize token baselines, and display shareable ASCII Trainer Profile Cards (`card`).
 
 > 📖 **Developer & Architecture Reference**: For comprehensive system design, storage schemas, state persistence rules, and TUI 72-column formatting runbooks, see the [Technical Architecture Guide](poketokenbar/README.md).
 
@@ -127,18 +127,6 @@ ptb
 | `n` / `p` / `page <N>` | Navigate pages in tables |
 | `r` | Force immediate log re-scan and usage refresh |
 | `q` | Exit PokeTokenBar |
-
-### Command-Line Shortcuts
-```bash
-ptb status                  # 1-line status banner (ideal for tmux / prompt integration)
-ptb watch                   # Continuous live monitor loop with animated sprite
-ptb card                    # Shareable ASCII Trainer Profile Card
-ptb dex                     # Quick terminal Pokédex archive listing
-ptb shop                    # Quick Shop & Bag inventory listing
-ptb feed [target] [qty]     # Feed Oran Berries (e.g. 'ptb feed #25 4', 'ptb feed <=70 2', or 'ptb feed =70')
-ptb settings                # View or update tracking settings
-ptb settings --init-rocket  # Initialize or reset Team Rocket campaign & operations
-```
 
 ---
 

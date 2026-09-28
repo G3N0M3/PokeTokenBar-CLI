@@ -3,7 +3,7 @@ import textwrap
 import re
 from poketokenbar.utils.formatting import format_tokens, format_progress_bar
 from poketokenbar.sprite_renderer import SpriteRenderer
-from poketokenbar.game.rocket_battle import RocketBattleHandler, generate_player_moves
+from poketokenbar.game.combat.rocket_battle import RocketBattleHandler, generate_player_moves
 
 HEADER = "\033[95m\033[1m"
 BLUE = "\033[94m"

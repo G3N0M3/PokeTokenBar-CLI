@@ -6,7 +6,7 @@ GREEN = "\033[92m"
 YELLOW = "\033[93m"
 CYAN = "\033[96m"
 from poketokenbar.sprite_renderer import SpriteRenderer
-from poketokenbar.game.red_battle import RedBattleHandler, RED_TEAM, generate_player_moves
+from poketokenbar.game.combat.red_battle import RedBattleHandler, RED_TEAM, generate_player_moves
 
 def render_red_tab(app):
     

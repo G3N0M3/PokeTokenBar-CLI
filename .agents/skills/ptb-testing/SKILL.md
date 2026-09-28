@@ -47,12 +47,5 @@ PokeTokenBar enforces a strict **72-column terminal width** limit across all ren
 
 Before committing a release or tagging a new version:
 1. **Run Full Test Suite**: Verify zero failures or regressions (`pytest tests/`).
-2. **CLI Smoke Test**: Verify CLI subcommands run without uncaught exceptions:
-   ```bash
-   ptb status
-   ptb card
-   ptb dex
-   ptb shop
-   ```
-3. **Interactive TUI Smoke Test**: Launch `ptb`, cycle through tabs (1-11), test navigation (`n`/`p`), and exit cleanly (`q`).
-4. **Git Tagging**: Follow the `ptb-git-workflow` skill for semantic version bumping and release tagging.
+2. **Interactive TUI Smoke Test**: Launch `ptb`, cycle through tabs (1-11), test navigation (`n`/`p`), check settings (Tab 11), and exit cleanly (`q`).
+3. **Git Tagging**: Follow the `ptb-git-workflow` skill for semantic version bumping and release tagging.

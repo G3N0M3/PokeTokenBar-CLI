@@ -22,13 +22,15 @@ def get_settings_items(app):
     if tokens_init_ts or base_tokens > 0:
         date_info = f" (since {base_date})" if base_date else ""
         total_status = f"{BOLD}{GREEN}Initialized{date_info}{RESET}"
+        hint = f"      ➔ Type '{BOLD}tokens init{RESET}' (re-zero) or '{BOLD}tokens clear{RESET}' (lifetime)"
     else:
         total_status = f"{BOLD}{YELLOW}Uninitialized (lifetime tracking){RESET}"
+        hint = f"      ➔ Type '{BOLD}tokens init{RESET}' to clear all token metrics to 0"
     items.append((
         1,
         [
             f"  [1] Token Tracking Baseline:   {total_status}",
-            f"      ➔ Type '{BOLD}tokens init{RESET}' to clear all token metrics to 0"
+            hint
         ]
     ))
 

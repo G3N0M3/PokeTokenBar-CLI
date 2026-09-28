@@ -46,8 +46,8 @@ PokeTokenBar follows a clean separation of concerns between the **View/Controlle
 
 ```text
 poketokenbar/
-├── __init__.py           # Package version definition (v1.12.0)
-├── cli.py                # CLI entry point (ptb, ptb status, ptb watch, ptb card, ptb settings)
+├── __init__.py           # Package version definition (v2.0.0)
+├── cli.py                # CLI entry point (ptb launches interactive TUI)
 ├── tui.py                # PokeTokenBarTUI: 72-column terminal renderer and input dispatch loop
 ├── sprite_renderer.py    # SpriteRenderer: 24-bit TrueColor ANSI half-block renderer (with flip_h support)
 ├── game/

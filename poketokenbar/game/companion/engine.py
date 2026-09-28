@@ -7,13 +7,15 @@ from poketokenbar.game.models import (
 )
 from poketokenbar.game.pokeapi import PokeAPIClient
 from poketokenbar.game.storage import StorageManager
-from poketokenbar.game.poker import TexasHoldemEngine
-from poketokenbar.game.slots import SlotMachineEngine
-from poketokenbar.game.blackjack import BlackjackEngine
-from poketokenbar.game.voltorb_flip import VoltorbFlipEngine
-from poketokenbar.game.excavator import ExcavatorEngine
-from poketokenbar.game.trivia import TriviaEngine
-from poketokenbar.game.derby import DerbyEngine
+from poketokenbar.game.minigames import (
+    TexasHoldemEngine,
+    SlotMachineEngine,
+    BlackjackEngine,
+    VoltorbFlipEngine,
+    ExcavatorEngine,
+    TriviaEngine,
+    DerbyEngine,
+)
 
 from poketokenbar.game.companion.hatching import HatchingMixin
 from poketokenbar.game.companion.evolution import EvolutionMixin
