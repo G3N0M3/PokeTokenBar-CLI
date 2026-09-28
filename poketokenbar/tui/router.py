@@ -457,6 +457,48 @@ class CommandRouter:
                 app.message = "Usage: billing <1-31>"
             return True
 
+        if cmd.startswith("week start ") or cmd.startswith("week ") or cmd.startswith("weekday "):
+            parts = cmd.split()
+            day_target = parts[2] if (cmd.startswith("week start ") and len(parts) >= 3) else (parts[1] if len(parts) >= 2 else "")
+            if day_target:
+                ok, msg = app.engine.set_week_start_day(day_target)
+                app.message = msg
+                if ok:
+                    app.tracker.get_summary(force=True)
+            else:
+                app.message = "Usage: week start <monday|sunday|...|rolling>"
+            return True
+
+        if cmd.startswith("token file ") or cmd.startswith("tokens file "):
+            parts = cmd.split(maxsplit=2)
+            if len(parts) >= 3:
+                target_path = parts[2].strip()
+                ok, msg = app.engine.set_custom_token_file(target_path)
+                app.message = msg
+                if ok:
+                    app.tracker.get_summary(force=True)
+            else:
+                app.message = "Usage: token file <path|default>"
+            return True
+
+        if cmd.startswith("token add ") or cmd.startswith("token log ") or cmd.startswith("tokens add ") or cmd.startswith("tokens log "):
+            parts = cmd.split()
+            if len(parts) >= 3:
+                from poketokenbar.utils.formatting import parse_tokens
+                amt = parse_tokens(parts[2])
+                model = parts[3] if len(parts) >= 4 else "custom"
+                if amt > 0:
+                    ok, msg = app.engine.log_custom_tokens(amt, model)
+                    app.message = msg
+                    if ok:
+                        summary = app.tracker.get_summary(force=True)
+                        app.engine.process_usage(summary.get("raw_total_tokens", summary["total_tokens"]), summary.get("active_days"))
+                else:
+                    app.message = "Invalid token amount. Example: 'token add 25k gpt-4o' or 'token log 100000'"
+            else:
+                app.message = "Usage: token add <amount> [model] (e.g. 'token add 25k gpt-4o')"
+            return True
+
         if cmd in ["tokens init", "token init"]:
             summary = app.tracker.get_summary(force=True)
             raw_total = summary.get("raw_total_tokens", summary.get("total_tokens", 0))

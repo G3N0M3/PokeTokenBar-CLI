@@ -43,21 +43,50 @@ def get_settings_items(app):
         ]
     ))
 
-    # ── Group 2: Display & Interface ───────────────────────────────────
-    current_size = app.engine.state.get("sprite_size", 30)
+    week_start = app.engine.state.get("week_start_day", "monday").capitalize()
+    if week_start.lower() in ["rolling", "7d", "7days"]:
+        week_display = "Rolling (7 days)"
+    else:
+        week_display = f"{week_start} (resets each {week_start})"
     items.append((
         3,
         [
-            f"  [3] Sprite Resolution:         {BOLD}{current_size} columns{RESET}",
+            f"  [3] Weekly Cycle Start Day:    {BOLD}{week_display}{RESET}",
+            f"      ➔ Type '{BOLD}week start <monday|sunday|...|rolling>{RESET}' to adjust"
+        ]
+    ))
+
+    from pathlib import Path
+    from poketokenbar.tracker.custom import get_custom_file_path
+    custom_file = app.engine.state.get("custom_token_file")
+    active_path = Path(custom_file) if custom_file else get_custom_file_path()
+    status_str = "Found" if active_path.exists() else "Not Found"
+    short_path = str(active_path).replace(str(Path.home()), "~")
+    if len(short_path) > 25:
+        short_path = "..." + short_path[-22:]
+    items.append((
+        4,
+        [
+            f"  [4] Custom Usage File:         {BOLD}{short_path}{RESET} [{status_str}]",
+            f"      ➔ Type '{BOLD}token add <amt> [model]{RESET}' or '{BOLD}token file <path>{RESET}'"
+        ]
+    ))
+
+    # ── Group 2: Display & Interface ───────────────────────────────────
+    current_size = app.engine.state.get("sprite_size", 30)
+    items.append((
+        5,
+        [
+            f"  [5] Sprite Resolution:         {BOLD}{current_size} columns{RESET}",
             f"      ➔ Type '{BOLD}size <number>{RESET}' to adjust"
         ]
     ))
 
     settings_size = app.engine.state.get("page_size_settings", 6)
     items.append((
-        4,
+        6,
         [
-            f"  [4] Settings Tab Page Size:    {BOLD}{settings_size} items{RESET}",
+            f"  [6] Settings Tab Page Size:    {BOLD}{settings_size} items{RESET}",
             f"      ➔ Type '{BOLD}pagesize settings <number>{RESET}' to adjust"
         ]
     ))
@@ -65,54 +94,54 @@ def get_settings_items(app):
     # ── Group 3: Pagination & View Layouts ─────────────────────────────
     pokedex_size = app.engine.state.get("page_size_pokedex", 15)
     items.append((
-        5,
+        7,
         [
-            f"  [5] Pokédex Page Size:         {BOLD}{pokedex_size} items{RESET}",
+            f"  [7] Pokédex Page Size:         {BOLD}{pokedex_size} items{RESET}",
             f"      ➔ Type '{BOLD}pagesize dex <number>{RESET}' to adjust"
         ]
     ))
 
     roster_size = app.engine.state.get("page_size_roster", 14)
     items.append((
-        6,
+        8,
         [
-            f"  [6] Roster Page Size:          {BOLD}{roster_size} items{RESET}",
+            f"  [8] Roster Page Size:          {BOLD}{roster_size} items{RESET}",
             f"      ➔ Type '{BOLD}pagesize roster <number>{RESET}' to adjust"
         ]
     ))
 
     bag_size = app.engine.state.get("page_size_bag", 10)
     items.append((
-        7,
+        9,
         [
-            f"  [7] Bag Page Size:             {BOLD}{bag_size} items{RESET}",
+            f"  [9] Bag Page Size:             {BOLD}{bag_size} items{RESET}",
             f"      ➔ Type '{BOLD}pagesize bag <number>{RESET}' to adjust"
         ]
     ))
 
     expedition_size = app.engine.state.get("page_size_expedition", 10)
     items.append((
-        8,
+        10,
         [
-            f"  [8] Expeditions Page Size:     {BOLD}{expedition_size} items{RESET}",
+            f"  [10] Expeditions Page Size:    {BOLD}{expedition_size} items{RESET}",
             f"      ➔ Type '{BOLD}pagesize exp <number>{RESET}' to adjust"
         ]
     ))
 
     mega_size = app.engine.state.get("page_size_mega", 14)
     items.append((
-        9,
+        11,
         [
-            f"  [9] Mega Evo Page Size:        {BOLD}{mega_size} items{RESET}",
+            f"  [11] Mega Evo Page Size:       {BOLD}{mega_size} items{RESET}",
             f"      ➔ Type '{BOLD}pagesize mega <number>{RESET}' to adjust"
         ]
     ))
 
     cd_size = app.engine.state.get("page_size_cd", 5)
     items.append((
-        10,
+        12,
         [
-            f"  [10] Term Deposits Page Size:  {BOLD}{cd_size} items{RESET}",
+            f"  [12] Term Deposits Page Size:  {BOLD}{cd_size} items{RESET}",
             f"      ➔ Type '{BOLD}pagesize cd <number>{RESET}' to adjust"
         ]
     ))
@@ -125,17 +154,17 @@ def get_settings_items(app):
         status_tag = f"{BOLD}{YELLOW}UNINITIALIZED{RESET}"
 
     items.append((
-        11,
+        13,
         [
-            f"  [11] Team Rocket Process:      {status_tag}",
+            f"  [13] Team Rocket Process:      {status_tag}",
             f"      ➔ Type '{BOLD}rocket init{RESET}' to initialize / reset campaign"
         ]
     ))
 
     items.append((
-        12,
+        14,
         [
-            f"  [12] Reset Game Progress:      {BOLD}{RED}[DANGER]{RESET}",
+            f"  [14] Reset Game Progress:      {BOLD}{RED}[DANGER]{RESET}",
             f"      ➔ Type '{BOLD}reset{RESET}' to clear all progress & restart"
         ]
     ))

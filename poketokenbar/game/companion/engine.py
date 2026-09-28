@@ -556,3 +556,47 @@ class CompanionEngine(
         self.state.pop("tokens_init_ts", None)
         self.save()
         return True, "Total tokens baseline cleared. Now displaying lifetime total tokens."
+
+    def set_week_start_day(self, day: str) -> Tuple[bool, str]:
+        """Sets the weekly token cycle anchor day (monday-sunday or rolling)."""
+        clean_day = str(day or "").strip().lower()
+        valid_days = {
+            "monday": "Monday", "mon": "Monday",
+            "tuesday": "Tuesday", "tue": "Tuesday",
+            "wednesday": "Wednesday", "wed": "Wednesday",
+            "thursday": "Thursday", "thu": "Thursday",
+            "friday": "Friday", "fri": "Friday",
+            "saturday": "Saturday", "sat": "Saturday",
+            "sunday": "Sunday", "sun": "Sunday",
+            "rolling": "Rolling (7-day)", "7d": "Rolling (7-day)", "7days": "Rolling (7-day)"
+        }
+        if clean_day not in valid_days:
+            return False, "Invalid day. Choose Monday-Sunday or 'rolling' (e.g. 'week start monday')."
+
+        canonical = "rolling" if clean_day in ["rolling", "7d", "7days"] else valid_days[clean_day].lower()
+        self.state["week_start_day"] = canonical
+        self.save()
+        return True, f"Weekly token tracking anchor set to {valid_days[clean_day]}."
+
+    def get_week_start_day(self) -> str:
+        return self.state.get("week_start_day", "monday")
+
+    def set_custom_token_file(self, path_str: Optional[str]) -> Tuple[bool, str]:
+        """Configures or resets the custom token usage file path."""
+        from pathlib import Path
+        if not path_str or path_str.strip().lower() in ["default", "reset", "clear"]:
+            self.state["custom_token_file"] = None
+            self.save()
+            return True, "Custom token file reset to default (~/.poketokenbar/token_usage.json)."
+
+        p = Path(path_str).expanduser().resolve()
+        self.state["custom_token_file"] = str(p)
+        self.save()
+        return True, f"Custom token file set to {p}."
+
+    def log_custom_tokens(self, tokens: int, model: Optional[str] = None) -> Tuple[bool, str]:
+        """Appends custom tokens directly to the active custom token file."""
+        from pathlib import Path
+        from poketokenbar.tracker.custom import CustomUsageReader
+        target_path = Path(self.state.get("custom_token_file")) if self.state.get("custom_token_file") else None
+        return CustomUsageReader.log_entry(tokens, model=model or "custom", file_path=target_path)

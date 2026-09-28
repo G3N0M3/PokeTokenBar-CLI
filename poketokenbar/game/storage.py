@@ -73,6 +73,8 @@ class StorageManager:
             "used_since_install": 0,
             "spent_tokens": 0,
             "billing_cycle_day": 1,
+            "week_start_day": "monday",
+            "custom_token_file": None,
             "baseline_total_tokens": 0,
             "baseline_date": None,
             "egg_usage": 0,

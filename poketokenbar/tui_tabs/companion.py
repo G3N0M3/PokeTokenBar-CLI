@@ -29,7 +29,8 @@ def render(app, summary: dict):
             sys.stdout.write("  Keep spending tokens in Antigravity CLI to hatch your egg!\n\n")
         else:
             sys.stdout.write(f"\n  {BOLD}{RED}No active companion selected!{RESET}\n")
-            sys.stdout.write("  Visit the Roster tab (3) and type 'sel <number>' to select a companion to travel with you!\n\n")
+            sys.stdout.write("  Visit the Roster tab (3) and type 'sel <number>' to select\n")
+            sys.stdout.write("  a companion to travel with you!\n\n")
     else:
         # Active Pokémon
         sp_id = active.current_id
@@ -141,8 +142,24 @@ def render(app, summary: dict):
 
     sys.stdout.write("\n" + "-" * 72 + "\n")
     sys.stdout.write(f" {BOLD}📊 Token Usage Metrics:{RESET}\n")
-    sys.stdout.write(f"  • Today's Tokens: {BOLD}{CYAN}{format_tokens(summary.get('today_tokens', 0))}{RESET}  (Antigravity: {format_tokens(summary.get('antigravity_today', 0))})\n")
-    sys.stdout.write(f"  • 7-Day Tokens:   {format_tokens(summary.get('week_tokens', 0))}\n")
+    today_tok = format_tokens(summary.get('today_tokens', 0))
+    ag_tok = format_tokens(summary.get('antigravity_today', 0))
+    custom_tok = format_tokens(summary.get('custom_today', 0))
+    if summary.get('custom_today', 0) > 0:
+        source_tag = f"  (AG: {ag_tok} | Custom: {custom_tok})"
+    else:
+        source_tag = f"  (Antigravity: {ag_tok})"
+    sys.stdout.write(f"  • Today's Tokens: {BOLD}{CYAN}{today_tok}{RESET}{source_tag}\n")
+
+    week_mode = summary.get("week_mode_label", "Monday")
+    week_start_date = summary.get("week_start_date")
+    if week_mode == "rolling":
+        week_tag = "  (rolling 7-day)"
+        week_label = "7-Day Tokens:"
+    else:
+        week_tag = f"  (since {week_mode}, {week_start_date})" if week_start_date else f"  (since {week_mode})"
+        week_label = "Weekly Tokens:"
+    sys.stdout.write(f"  • {week_label:<16}{format_tokens(summary.get('week_tokens', 0))}{week_tag}\n")
 
     b_day = summary.get("billing_cycle_day", app.engine.state.get("billing_cycle_day", 1))
     cycle_start = summary.get("billing_cycle_start")

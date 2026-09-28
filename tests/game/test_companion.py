@@ -889,8 +889,8 @@ class TestCompanionEngine(unittest.TestCase):
             clean = ansi_regex.sub("", line)
             self.assertLessEqual(len(clean), 72, f"Settings tab page 1 line exceeds 72 cols: '{clean}' (len={len(clean)})")
 
-        # Page 2
-        app.settings_page = 2
+        # Page 3
+        app.settings_page = 3
         trap2 = io.StringIO()
         with patch("sys.stdout", trap2):
             render_settings_tab(app)
@@ -900,7 +900,7 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertIn("Reset Game Progress:", out2)
         for line in out2.split("\n"):
             clean = ansi_regex.sub("", line)
-            self.assertLessEqual(len(clean), 72, f"Settings tab page 2 line exceeds 72 cols: '{clean}' (len={len(clean)})")
+            self.assertLessEqual(len(clean), 72, f"Settings tab page 3 line exceeds 72 cols: '{clean}' (len={len(clean)})")
 
     def test_quests_tab_72_col_compliance_and_achievements_formatting(self):
         """Verify Quests tab and compact Achievements lines satisfy 72 cols with tight spacing."""
@@ -4339,14 +4339,14 @@ class TestCompanionEngine(unittest.TestCase):
         app = MagicMock()
         app.engine = self.engine
 
-        # Case 1: Uninitialized (Option 11 is on Page 2)
-        app.settings_page = 2
+        # Case 1: Uninitialized (Option 13 is on Page 3)
+        app.settings_page = 3
         self.engine.state["rocket_story_unlocked"] = False
         trap = io.StringIO()
         with patch("sys.stdout", trap):
             render_settings_tab(app)
         output = trap.getvalue()
-        self.assertIn("[11] Team Rocket Process:", output)
+        self.assertIn("[13] Team Rocket Process:", output)
         self.assertIn("UNINITIALIZED", output)
         self.assertIn("rocket init", output)
         for line in output.split("\n"):
@@ -4354,7 +4354,7 @@ class TestCompanionEngine(unittest.TestCase):
             self.assertLessEqual(len(clean), 72, f"Settings (uninitialized) exceeds 72 cols: '{clean}' (len={len(clean)})")
 
         # Case 2: Active
-        app.settings_page = 2
+        app.settings_page = 3
         self.engine.state["rocket_story_unlocked"] = True
         self.engine.state["rocket_rank"] = "Informant"
         self.engine.state["rocket_reputation"] = 3
@@ -4362,7 +4362,7 @@ class TestCompanionEngine(unittest.TestCase):
         with patch("sys.stdout", trap2):
             render_settings_tab(app)
         output2 = trap2.getvalue()
-        self.assertIn("[11] Team Rocket Process:", output2)
+        self.assertIn("[13] Team Rocket Process:", output2)
         self.assertIn("ACTIVE", output2)
         self.assertNotIn("Rep:", output2)
         self.assertNotIn("Informant", output2)
@@ -4399,11 +4399,11 @@ class TestCompanionEngine(unittest.TestCase):
         with patch("sys.stdout", trap1):
             render_settings_tab(app)
         out1 = trap1.getvalue()
-        self.assertIn("Page 1/2", out1)
+        self.assertIn("Page 1/3", out1)
         self.assertIn("[1] Token Tracking Baseline:", out1)
-        self.assertIn("[6] Roster Page Size:", out1)
-        self.assertNotIn("[7] Bag Page Size:", out1)
-        self.assertNotIn("[12] Reset Game Progress:", out1)
+        self.assertIn("[6] Settings Tab Page Size:", out1)
+        self.assertNotIn("[7] Pokédex Page Size:", out1)
+        self.assertNotIn("[14] Reset Game Progress:", out1)
 
         # Page 2: Items 7-12
         app.settings_page = 2
@@ -4411,19 +4411,30 @@ class TestCompanionEngine(unittest.TestCase):
         with patch("sys.stdout", trap2):
             render_settings_tab(app)
         out2 = trap2.getvalue()
-        self.assertIn("Page 2/2", out2)
+        self.assertIn("Page 2/3", out2)
         self.assertNotIn("[1] Token Tracking Baseline:", out2)
-        self.assertNotIn("[6] Roster Page Size:", out2)
-        self.assertIn("[7] Bag Page Size:", out2)
-        self.assertIn("[11] Team Rocket Process:", out2)
-        self.assertIn("[12] Reset Game Progress:", out2)
+        self.assertNotIn("[6] Settings Tab Page Size:", out2)
+        self.assertIn("[7] Pokédex Page Size:", out2)
+        self.assertIn("[12] Term Deposits Page Size:", out2)
+        self.assertNotIn("[13] Team Rocket Process:", out2)
+        self.assertNotIn("[14] Reset Game Progress:", out2)
 
-        # Out-of-bounds upper clamping (page 99 -> 2)
+        # Page 3: Items 13-14
+        app.settings_page = 3
+        trap_p3 = io.StringIO()
+        with patch("sys.stdout", trap_p3):
+            render_settings_tab(app)
+        out_p3 = trap_p3.getvalue()
+        self.assertIn("Page 3/3", out_p3)
+        self.assertIn("[13] Team Rocket Process:", out_p3)
+        self.assertIn("[14] Reset Game Progress:", out_p3)
+
+        # Out-of-bounds upper clamping (page 99 -> 3)
         app.settings_page = 99
         trap3 = io.StringIO()
         with patch("sys.stdout", trap3):
             render_settings_tab(app)
-        self.assertEqual(app.settings_page, 2)
+        self.assertEqual(app.settings_page, 3)
 
         # Out-of-bounds lower clamping (page -5 -> 1)
         app.settings_page = -5
@@ -4440,20 +4451,20 @@ class TestCompanionEngine(unittest.TestCase):
         app = MagicMock()
         app.engine = self.engine
 
-        # 4 items per page = 3 pages total
-        self.engine.state["page_size_settings"] = 4
+        # 5 items per page = 3 pages total (ceil(14/5) = 3)
+        self.engine.state["page_size_settings"] = 5
         app.settings_page = 3
         trap = io.StringIO()
         with patch("sys.stdout", trap):
             render_settings_tab(app)
         out = trap.getvalue()
         self.assertIn("Page 3/3", out)
-        self.assertIn("[9] Mega Evo Page Size:", out)
-        self.assertIn("[12] Reset Game Progress:", out)
+        self.assertIn("[11] Mega Evo Page Size:", out)
+        self.assertIn("[14] Reset Game Progress:", out)
         self.assertNotIn("[1] Token Tracking Baseline:", out)
 
-        # 12 items per page = 1 page total (no page tag)
-        self.engine.state["page_size_settings"] = 12
+        # 14 items per page = 1 page total (no page tag)
+        self.engine.state["page_size_settings"] = 14
         app.settings_page = 1
         trap_all = io.StringIO()
         with patch("sys.stdout", trap_all):
@@ -4461,7 +4472,7 @@ class TestCompanionEngine(unittest.TestCase):
         out_all = trap_all.getvalue()
         self.assertNotIn("Page 1/1", out_all)
         self.assertIn("[1] Token Tracking Baseline:", out_all)
-        self.assertIn("[12] Reset Game Progress:", out_all)
+        self.assertIn("[14] Reset Game Progress:", out_all)
 
     def test_tui_settings_page_and_pagesize_commands(self):
         """Verify TUI event loop handling for n/p/page and pagesize settings commands on tab 11."""

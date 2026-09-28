@@ -1,6 +1,6 @@
 # 🐾 PokeTokenBar (Linux CLI Edition)
 
-[![Version](https://img.shields.io/badge/version-2.0.1-blue.svg)](https://github.com/G3N0M3/PokeTokenBar-CLI)
+[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/G3N0M3/PokeTokenBar-CLI)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python: 3.8+](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 
@@ -10,6 +10,7 @@ Designed specifically for **Linux CLI** environments, with automated, real-time 
 - **Antigravity CLI** (`~/.gemini/antigravity-cli/conversations/*.db`)
 - **Gemini CLI** (`~/.gemini/tmp/**/chats/*.json*`)
 - **Claude Code** (`~/.claude/projects/**/*.jsonl`)
+- **Custom Usage File** (`~/.poketokenbar/token_usage.json` or custom path via `token file <path>`)
 
 ---
 
@@ -121,6 +122,9 @@ ptb
 | `accept` | Accept alliance with Team Rocket (when `[12] Secure Comm` signal appears) |
 | `tokens init <amount>` | Initialize token usage baseline, resetting all 4 metrics to 0 (Tab 11) |
 | `billing <1-31>` | Set monthly billing cycle anchor day (Tab 11) |
+| `week start <day>` | Set weekly token cycle anchor day (`monday`, `sunday`, etc., or `rolling`) (Tab 11) |
+| `token file <path>` | Configure custom token usage file path (Tab 11) |
+| `token add <amt> [model]` | Log custom token usage to file (e.g. `token add 25k gpt-4o`) (Tab 11) |
 | `rocket init` | Initialize or reset Team Rocket campaign and operations (Tab 11) |
 | `pagesize <tab> <num>` | Configure page size for `dex`, `roster`, `exp`, `bag`, `mega`, `cd`, or `settings` |
 | `card` | Display ASCII Trainer Profile Card |

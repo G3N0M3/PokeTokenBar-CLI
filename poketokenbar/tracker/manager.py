@@ -7,6 +7,7 @@ from poketokenbar.tracker.base import UsageEntry, DailyUsage, ProviderSnapshot
 from poketokenbar.tracker.antigravity import AntigravityUsageReader
 from poketokenbar.tracker.gemini import GeminiUsageReader
 from poketokenbar.tracker.claude import ClaudeUsageReader
+from poketokenbar.tracker.custom import CustomUsageReader
 
 
 def get_billing_cycle_start(now: datetime.datetime, billing_cycle_day: int = 1) -> datetime.datetime:
@@ -28,6 +29,30 @@ def get_billing_cycle_start(now: datetime.datetime, billing_cycle_day: int = 1) 
         return now.replace(year=prev_year, month=prev_month, day=effective_day_prev, hour=0, minute=0, second=0, microsecond=0)
 
 
+def get_week_start_datetime(now: datetime.datetime, week_start_day: str = "monday") -> Tuple[datetime.datetime, str]:
+    """Calculates the start datetime of the 7-day period based on anchor day (monday-sunday) or rolling 7-days."""
+    from typing import Tuple
+    mode = str(week_start_day or "monday").strip().lower()
+    day_map = {
+        "monday": 0, "mon": 0,
+        "tuesday": 1, "tue": 1,
+        "wednesday": 2, "wed": 2,
+        "thursday": 3, "thu": 3,
+        "friday": 4, "fri": 4,
+        "saturday": 5, "sat": 5,
+        "sunday": 6, "sun": 6,
+    }
+    if mode in ["rolling", "7d", "7days", "7-day"]:
+        start_dt = (now - datetime.timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+        return start_dt, "rolling"
+
+    target_idx = day_map.get(mode, 0)
+    days_since = (now.weekday() - target_idx) % 7
+    start_dt = (now - datetime.timedelta(days=days_since)).replace(hour=0, minute=0, second=0, microsecond=0)
+    canonical_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    return start_dt, canonical_days[target_idx]
+
+
 class UsageManager:
     """Aggregates usage entries from local log sources and computes period metrics."""
 
@@ -35,6 +60,7 @@ class UsageManager:
         self.antigravity_reader = AntigravityUsageReader()
         self.gemini_reader = GeminiUsageReader()
         self.claude_reader = ClaudeUsageReader()
+        self.custom_reader = CustomUsageReader()
         
         self._lock = threading.Lock()
         # Initial synchronous fetch so TUI has data immediately
@@ -63,6 +89,7 @@ class UsageManager:
         all_entries.extend(self.antigravity_reader.get_entries())
         all_entries.extend(self.gemini_reader.get_entries())
         all_entries.extend(self.claude_reader.get_entries())
+        all_entries.extend(self.custom_reader.get_entries())
 
         # Deduplicate across all readers by ID
         seen = {}
@@ -75,7 +102,8 @@ class UsageManager:
         self,
         entries: List[UsageEntry],
         billing_cycle_day: Optional[int] = None,
-        baseline_total: Optional[int] = None
+        baseline_total: Optional[int] = None,
+        week_start_day: Optional[str] = None
     ) -> Dict:
         from poketokenbar.game.storage import StorageManager
         try:
@@ -87,6 +115,8 @@ class UsageManager:
             billing_cycle_day = state.get("billing_cycle_day", 1)
         if baseline_total is None:
             baseline_total = state.get("baseline_total_tokens", 0)
+        if week_start_day is None:
+            week_start_day = state.get("week_start_day", "monday")
 
         now = datetime.datetime.now().astimezone()
         today_str = now.strftime("%Y-%m-%d")
@@ -104,8 +134,7 @@ class UsageManager:
             except Exception:
                 init_dt = None
 
-        # 7-day start (beginning of 6 days ago at 00:00:00)
-        week_start_dt = (now - datetime.timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start_dt, week_mode_label = get_week_start_datetime(now, week_start_day)
         cycle_start_dt = get_billing_cycle_start(now, billing_cycle_day)
 
         today_tokens = 0
@@ -120,6 +149,7 @@ class UsageManager:
         antigravity_today = 0
         gemini_today = 0
         claude_today = 0
+        custom_today = 0
 
         for entry in entries:
             t = entry.total_tokens
@@ -143,6 +173,8 @@ class UsageManager:
                     gemini_today += t
                 elif entry.id.startswith("claude|"):
                     claude_today += t
+                elif entry.id.startswith("custom|"):
+                    custom_today += t
 
             if e_dt >= week_start_dt:
                 week_tokens += t
@@ -173,6 +205,9 @@ class UsageManager:
         return {
             "today_tokens": today_tokens,
             "week_tokens": week_tokens,
+            "week_start_day": week_start_day,
+            "week_start_date": week_start_dt.strftime("%Y-%m-%d"),
+            "week_mode_label": week_mode_label,
             "month_tokens": month_tokens,
             "total_tokens": displayed_total,
             "raw_total_tokens": raw_total_tokens,
@@ -185,6 +220,9 @@ class UsageManager:
             "antigravity_today": antigravity_today,
             "gemini_today": gemini_today,
             "claude_today": claude_today,
+            "custom_today": custom_today,
+            "custom_file": str(self.custom_reader.target_file),
+            "custom_file_exists": self.custom_reader.target_file.exists(),
             "total_entries": len(entries),
             "active_days": active_days,
             "last_updated": now
@@ -197,14 +235,16 @@ class UsageManager:
         self,
         force: bool = False,
         billing_cycle_day: Optional[int] = None,
-        baseline_total: Optional[int] = None
+        baseline_total: Optional[int] = None,
+        week_start_day: Optional[str] = None
     ) -> Dict:
-        if force or billing_cycle_day is not None or baseline_total is not None:
+        if force or billing_cycle_day is not None or baseline_total is not None or week_start_day is not None:
             entries = self._fetch_all_entries_sync()
             summary = self._compute_summary(
                 entries,
                 billing_cycle_day=billing_cycle_day,
-                baseline_total=baseline_total
+                baseline_total=baseline_total,
+                week_start_day=week_start_day
             )
             with self._lock:
                 self._cached_summary = summary
