@@ -104,7 +104,7 @@ Key                          | Type            | Description
 `active_mon`                 | `Dict / None`   | Serialized `MonState` dictionary of currently active companion.
 `egg_tier`                   | `str / None`    | Tier of incubating egg (`"common"`, `"rare"`, `"legendary"`, etc.).
 `egg_usage`                  | `int`           | Progress tokens accumulated toward current egg hatch threshold.
-`pending_eggs`               | `List[str]`     | Queue of discovered eggs awaiting assignment/swap.
+`pending_eggs`               | `List[Dict]`    | Queue of discovered eggs resting in Egg Nursery reserves.
 `dex`                        | `List[Dict]`    | List of all registered Pokédex entries with form chains and graduation flags.
 `inventory`                  | `Dict[str,int]` | Bag inventory counts (`rare_candy`, `berry_oran`, `ice_stone`, etc.).
 `expeditions`                | `List[Dict]`    | Active expeditions (`sp_id`, `area`, `progress`, `target`, `is_mega`).

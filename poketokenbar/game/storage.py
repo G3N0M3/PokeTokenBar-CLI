@@ -79,6 +79,7 @@ class StorageManager:
             "baseline_date": None,
             "egg_usage": 0,
             "egg_tier": None,
+            "pending_eggs": [],
             "pending_hatch_id": None,
             "active_mon": None,
             "dex": [],
@@ -105,6 +106,7 @@ class StorageManager:
             "last_date": datetime.datetime.now().strftime("%Y-%m-%d"),
             "term_deposits": [],
             "cd_sort_criteria": "days",
+            "nursery_sort_criteria": "default",
             "investments": {
                 "silph": 0,
                 "devon": 0,
@@ -187,9 +189,9 @@ class StorageManager:
             "pending_authority_delivery": None,
             "rocket_battle_state": {},
             "rocket_armory_charges": {
-                "spray": {"charges": 0, "progress": 0, "target": 2_500_000},
-                "chrono": {"charges": 0, "progress": 0, "target": 2_500_000},
-                "catalyst": {"charges": 0, "progress": 0, "target": 2_500_000}
+                "spray": {"charges": 0, "progress": 0, "target": 15_000_000},
+                "chrono": {"charges": 0, "progress": 0, "target": 25_000_000},
+                "catalyst": {"charges": 0, "progress": 0, "target": 25_000_000}
             }
         }
 

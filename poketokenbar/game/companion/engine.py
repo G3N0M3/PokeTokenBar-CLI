@@ -86,6 +86,30 @@ class CompanionEngine(
             self.state["install_date"] = min(caught_dates) if caught_dates else datetime.datetime.now().strftime("%Y-%m-%d")
             self.save()
 
+        # Sanitize egg_tier and pending_eggs to unwrap any legacy/nested dicts
+        raw_egg = self.state.get("egg_tier")
+        if raw_egg is not None:
+            clean_t, clean_p = self.parse_egg_entry(raw_egg)
+            if self.active_mon is not None:
+                # Active companion is a Pokémon: stash clean egg into pending_eggs
+                self.state["egg_tier"] = None
+                self.state["egg_usage"] = 0
+                pending = self.state.setdefault("pending_eggs", [])
+                pending.insert(0, {"tier": clean_t, "progress": clean_p})
+            else:
+                self.state["egg_tier"] = clean_t
+                if clean_p > self.state.get("egg_usage", 0):
+                    self.state["egg_usage"] = clean_p
+
+        # Sanitize all pending eggs to prevent any nested dicts
+        if "pending_eggs" in self.state and isinstance(self.state["pending_eggs"], list):
+            cleaned_pending = []
+            for p in self.state["pending_eggs"]:
+                t, prog = self.parse_egg_entry(p)
+                cleaned_pending.append({"tier": t, "progress": prog})
+            self.state["pending_eggs"] = cleaned_pending
+        self.save()
+
         # Migrate Rocket expansion state
         ops_state = self.state.setdefault("rocket_ops", {})
         boss_hps = {3: 150_000, 6: 200_000, 9: 300_000, 10: 350_000}
@@ -174,18 +198,25 @@ class CompanionEngine(
         charges_st = self.state.setdefault("rocket_armory_charges", {})
         is_op = cur_lvl >= 2
         is_exec = cur_lvl >= 4
+        targets = {
+            "spray": 15_000_000,
+            "chrono": 25_000_000,
+            "catalyst": 25_000_000
+        }
         for tech in ["spray", "chrono", "catalyst"]:
             init_c = 3 if (is_exec if tech == "catalyst" else is_op) else 0
+            target_val = targets[tech]
             if tech not in charges_st or not isinstance(charges_st[tech], dict):
                 charges_st[tech] = {
                     "charges": init_c,
                     "progress": 0,
-                    "target": 2_500_000
+                    "target": target_val
                 }
             else:
                 charges_st[tech].setdefault("charges", init_c)
                 charges_st[tech].setdefault("progress", 0)
-                charges_st[tech].setdefault("target", 2_500_000)
+                if charges_st[tech].get("target") in [2_500_000, 5_000_000, 10_000_000] or "target" not in charges_st[tech]:
+                    charges_st[tech]["target"] = target_val
 
         # Ensure any legacy indexed catalyst item is completely purged from bag inventory
         inv = self.state.setdefault("inventory", {})
@@ -275,6 +306,7 @@ class CompanionEngine(
                     m_st.pop("nature", None)
                     cleaned_nature = True
         self.state.setdefault("cd_sort_criteria", "days")
+        self.state.setdefault("nursery_sort_criteria", "default")
         if cleaned_nature:
             self.save()
 
@@ -425,20 +457,8 @@ class CompanionEngine(
             # Check mini-trainer auto-battles
             self._check_trainer_battle(delta, events)
 
-        if active is None:
-            egg_tier = self.state.get("egg_tier")
-            if egg_tier is not None:
-                egg_usage = self.state.get("egg_usage", 0) + effective_xp
-                self.state["egg_usage"] = egg_usage
-
-                threshold = PokemonBalance.EGG_HATCH_THRESHOLD
-                if egg_usage >= threshold:
-                    mon, hatch_events = self.hatch_egg(initial_xp=egg_usage - threshold)
-                    events.extend(hatch_events)
-                    evo_events = self._check_growth(mon)
-                    events.extend(evo_events)
-                self.save()
-        else:
+        # 1. Active companion growth
+        if active is not None:
             active.used_at_stage += effective_xp
 
             # Check evolution / graduation threshold
@@ -460,6 +480,23 @@ class CompanionEngine(
                                 sub_evos = self._check_growth(sub_mon, is_active=False)
                                 events.extend(sub_evos)
                                 d["mon_state"] = StorageManager.mon_to_dict(sub_mon)
+        elif self.state.get("egg_tier") is not None and effective_xp > 0:
+            # 2. Incubating Egg Progress (Active companion is an Egg)
+            egg_tier = self.state["egg_tier"]
+            egg_usage = self.state.get("egg_usage", 0) + effective_xp
+            self.state["egg_usage"] = egg_usage
+
+            threshold = self.get_egg_hatch_threshold(egg_tier)
+            if egg_usage >= threshold:
+                overflow_xp = egg_usage - threshold
+                mon, hatch_events = self.hatch_egg(
+                    initial_xp=overflow_xp,
+                    preserve_active=False
+                )
+                events.extend(hatch_events)
+                evo_events = self._check_growth(mon)
+                events.extend(evo_events)
+        self.save()
 
         # Check Corrupted EXP Splitter armory item
         if self.state.get("has_exp_splitter", False) and effective_xp > 0:

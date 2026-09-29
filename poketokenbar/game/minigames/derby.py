@@ -178,19 +178,19 @@ class DerbyEngine:
         won_bet = self.bet_lane in winning_lanes
 
         if self.is_dead_heat:
-            winners_str = " & ".join(f"Lane {w.lane} [{w.icon} {w.name}]" for w in self.winners)
+            winners_str = " & ".join(f"Lane {w.lane} [{w.name}]" for w in self.winners)
             if won_bet:
                 chosen = next(w for w in self.winners if w.lane == self.bet_lane)
                 self.last_winnings = int(self.bet_amount * chosen.odds)
                 self.last_result = (
-                    f"🏆 DEAD HEAT! {winners_str} tied for 1st Place!\n"
+                    f"🏆 DEAD HEAT! {winners_str} tied for 1st!\n"
                     f"  Your pick [{chosen.icon} {chosen.name}] won! Payout: {chosen.odds:.1f}x! You won {format_tokens(self.last_winnings)} tokens!"
                 )
                 return True, self.last_result, self.last_winnings
             else:
                 self.last_winnings = 0
                 self.last_result = (
-                    f"💀 DEAD HEAT! {winners_str} tied for 1st Place!\n"
+                    f"💀 DEAD HEAT! {winners_str} tied for 1st!\n"
                     f"  Your racer on Lane {self.bet_lane} lost. Surrendered {format_tokens(self.bet_amount)} tokens."
                 )
                 return True, self.last_result, 0

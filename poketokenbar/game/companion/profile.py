@@ -377,22 +377,22 @@ class ProfileMixin:
             return set()
         return set(st.get("player_team", []))
 
+    def get_rocket_battle_active_pokemon_ids(self) -> Set[int]:
+        """Returns the set of Pokémon species IDs currently fighting Team Rocket bosses."""
+        st = self.state.get("rocket_battle_state", {})
+        if not st:
+            return set()
+        if st.get("status") in ["win", "loss"]:
+            return set()
+        return set(st.get("player_team", []))
+
     def select_active_from_dex(self, selection_input: str) -> Tuple[bool, str]:
         # Handle 'select egg' or 'select 0'
-        if selection_input.lower().startswith("egg") or selection_input == "0":
-            if not self.state.get("egg_tier"):
-                return False, "You don't own any Pokémon Eggs!"
-                
-            curr_active = self.active_mon
-            if curr_active:
-                prev_status = "graduated" if (getattr(curr_active, "is_graduated", False) or f"{curr_active.base_id}_{curr_active.current_id}" in self.state.get("collected_finals", [])) else "inactive"
-                self._register_to_dex(curr_active, status=prev_status)
-            
-            self.set_active_mon(None)
-            egg_usage = self.state.get("egg_usage", 0)
-            threshold = self.current_difficulty.hatch_threshold
-            pct = (egg_usage / threshold) * 100 if threshold > 0 else 0
-            return True, f"Switched active companion to Incubating Egg! ({pct:.1f}% hatched)"
+        s_lower = selection_input.strip().lower()
+        if s_lower.startswith("egg") or s_lower == "0":
+            parts = s_lower.split()
+            requested_target = parts[1] if len(parts) > 1 else "1"
+            return self.select_nursery_egg(requested_target)
 
         dex = self.state.get("dex", [])
         roster = [d for d in dex if d.get("status") != "evolved"]
@@ -448,6 +448,11 @@ class ProfileMixin:
         if sp_id in red_team_ids:
             return False, f"Cannot select {sp_name}! They are currently in battle with Red on Mt. Silver."
 
+        # Prevent selecting a companion currently in battle with Team Rocket
+        rocket_team_ids = self.get_rocket_battle_active_pokemon_ids()
+        if sp_id in rocket_team_ids:
+            return False, f"Cannot select {sp_name}! They are currently in tactical combat with Team Rocket."
+
         # Prevent selecting a companion that has already evolved into a higher form
         entry_status = target_entry.get("status", "")
         chain = target_entry.get("chain_order", [])
@@ -465,6 +470,16 @@ class ProfileMixin:
         if curr_active:
             prev_status = "graduated" if (getattr(curr_active, "is_graduated", False) or f"{curr_active.base_id}_{curr_active.current_id}" in self.state.get("collected_finals", [])) else "inactive"
             self._register_to_dex(curr_active, status=prev_status)
+
+        # Stash any currently active incubating egg back to Nursery reserves
+        curr_egg = self.state.get("egg_tier")
+        if curr_egg:
+            curr_t, curr_prog = self.parse_egg_entry(curr_egg)
+            curr_prog = max(curr_prog, int(self.state.get("egg_usage", 0) or 0))
+            pending = self.state.setdefault("pending_eggs", [])
+            pending.append({"tier": curr_t, "progress": curr_prog})
+            self.state["egg_tier"] = None
+            self.state["egg_usage"] = 0
 
         # Load or reconstruct target MonState
         mon_data = target_entry.get("mon_state")
@@ -501,10 +516,10 @@ class ProfileMixin:
 
         # Check if this species is an already-evolved pre-evolution stage
         target_xp = PokemonBalance.phase_threshold(mon.rarity, mon.total_forms, mon.stage_index, diff)
-        discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
+        roster_sp_ids = self.get_roster_species_ids()
         next_evo_id = self.get_next_evolution_id(mon)
         is_already_evolved = is_already_grad or (target_entry.get("status") in ["evolved", "graduated"]) or \
-                            (next_evo_id is not None and next_evo_id in discovered_sp_ids)
+                            (next_evo_id is not None and next_evo_id in roster_sp_ids)
 
         if is_already_evolved:
             mon.used_at_stage = target_xp

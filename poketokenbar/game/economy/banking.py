@@ -98,7 +98,7 @@ class BankingMixin:
         else:
             amount = parse_tokens(amount_str)
             if amount < 0:
-                return False, "Invalid amount! Example: 'cd open 5m 7', 'cd open 10m 14', 'cd open all 3'."
+                return False, "Invalid amount! Example: 'open 5m 7', 'open 10m 14', 'open all 3'."
 
         if amount <= 0:
             return False, "Deposit amount must be greater than 0!"

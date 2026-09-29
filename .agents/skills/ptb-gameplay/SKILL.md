@@ -52,7 +52,21 @@ When designing or extending gameplay features, follow the patterns established a
 
 When implementing new gameplay mechanics:
 - **Simple Command Model**: Keep input commands terse and natural (e.g., `<verb> <target> [qty]`).
-- **Single Canonical Command Policy**: Every system function or menu action MUST map to exactly ONE canonical command keyword. Never implement alternative command aliases, synonyms, or duplicate shortcuts (e.g., use only `dig`, never both `dig` and `mine`; use only `flip`, never both `flip` and `f`; use only `pick`, never both `pick` and `p`; use only `use mist`, never both `use mist` and `use 2`). Keep the CLI interface clean, unambiguous, and singular.
+- **Strict Single Canonical Command Policy (One Command per Function Rule)**:
+  - Every system function, menu action, or subview capability MUST map to **EXACTLY ONE** canonical command.
+  - **Zero Aliases / Synonyms / Duplicate Shortcuts**: Never implement alternative command aliases, synonyms, or duplicate shortcuts in command routers.
+    - Example: In the Egg Nursery subview, selling an egg MUST be `sell <#>` ONLY, never `sell egg <#>`.
+    - Example: In the Egg Nursery subview, selecting an egg MUST be `sel <#>` ONLY, never `incubate <#>` or `load <#>`.
+    - Example: Subview navigation to return MUST be `back` ONLY, never `roster` or `menu` aliases.
+    - Example: Tab switching MUST use tab key or direct tab name, never multiple competing keywords.
+    - Example: Minigames must use singular verbs (use only `dig`, never both `dig` and `mine`; use only `flip`, never both `flip` and `f`; use only `pick`, never both `pick` and `p`; use only `use mist`, never both `use mist` and `use 2`).
+  - **Contextual Conciseness**: Commands in dedicated subviews operate in their own context—do not prepend redundant object nouns (e.g., inside the Nursery, type `sell 1`, NOT `sell egg 1`).
+- **Standard Subsystem Command Keywords**:
+  - `sel <#>`: Select companion or active entity by 1-based index.
+  - `sell <#>` / `sell all`: Sell or liquidate an entity by 1-based index or bulk sell.
+  - `sort <criteria>`: Sort table / subview items deterministically (e.g. `sort <tier|progress|value|default>`).
+  - `back`: Return from any subview or modal screen to its parent view.
+  - `n` / `p` / `page <N>`: Canonical pagination controls across all tables.
 - **Immediate Feedback**: Every player action must return a clear boolean status and user-facing feedback message.
 - **Non-blocking Execution**: Gameplay logic must never block the main TUI render loop with long synchronous operations.
 - **Theme Consistency**: Maintain the retro Pokémon aesthetic paired with subtle developer/coding humor.

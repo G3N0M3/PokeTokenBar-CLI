@@ -170,14 +170,14 @@ class CasinoMixin:
             elif r_type == "tokens":
                 self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - val
             elif r_type == "egg":
-                current_tier = self.state.get("egg_tier")
-                if current_tier is None:
-                    self.state["egg_tier"] = val
-                    self.state["egg_usage"] = 0
-                else:
-                    pending = self.state.get("pending_eggs", [])
-                    pending.append(val)
-                    self.state["pending_eggs"] = pending
+                ok_egg, msg_egg, cash_egg = self.obtain_egg(val)
+                if cash_egg:
+                    results_txt[-1] = results_txt[-1] + f" (Full Roster: Converted to {format_tokens(cash_egg)} tokens!)"
+                elif ok_egg and msg_egg:
+                    if "Nursery" in msg_egg or "Reserves" in msg_egg:
+                        results_txt[-1] = results_txt[-1] + " (Queued in Nursery)"
+                    else:
+                        results_txt[-1] = results_txt[-1] + " (Now Incubating)"
 
         self.state["inventory"] = inv
         self.save()

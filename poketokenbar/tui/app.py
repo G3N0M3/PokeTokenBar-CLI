@@ -14,7 +14,6 @@ from poketokenbar.game.storage import StorageManager
 from poketokenbar.sprite_renderer import SpriteRenderer
 from poketokenbar.utils.formatting import format_tokens, format_progress_bar
 from poketokenbar.tui.modals.celebration import check_and_render_celebration
-from poketokenbar.tui.modals.egg_swap import check_and_render_egg_swap
 from poketokenbar.tui.router import CommandRouter
 
 HEADER = "\033[95m\033[1m"
@@ -38,6 +37,7 @@ class PokeTokenBarTUI:
         self.pending_rocket_init = False
         self.pokedex_page = 1
         self.roster_page = 1
+        self.nursery_page = 1
         self.stock_page = 1
         self.stock_terminal = None
         self.selected_expedition_targets: Set[int] = set()
@@ -63,10 +63,8 @@ class PokeTokenBarTUI:
             summary = self.tracker.get_summary()
             self.engine.process_usage(summary.get("raw_total_tokens", summary["total_tokens"]), summary.get("active_days"))
 
-            # Check for celebration and egg swap modals
+            # Check for celebration modals
             if check_and_render_celebration(self):
-                continue
-            if check_and_render_egg_swap(self):
                 continue
 
             if self.engine.state.get("rocket_story_unlocked") and not self.engine.state.get("rocket_story_viewed"):
@@ -263,6 +261,7 @@ class PokeTokenBarTUI:
         avail_slots = max(0, slot_limit - len(expeditions))
         deployed_ids = {e.get("sp_id") for e in expeditions if "sp_id" in e}
         red_team_ids = self.engine.get_red_battle_active_pokemon_ids()
+        rocket_team_ids = self.engine.get_rocket_battle_active_pokemon_ids()
 
         toggled_on = []
         toggled_off = []
@@ -285,6 +284,9 @@ class PokeTokenBarTUI:
                     continue
                 if sp_id in red_team_ids:
                     skipped_reasons.append(f"{sp_name} (in Red battle)")
+                    continue
+                if sp_id in rocket_team_ids:
+                    skipped_reasons.append(f"{sp_name} (in Rocket battle)")
                     continue
                 mon_data = entry.get("mon_state", {})
                 hap = mon_data.get("happiness", 100) if isinstance(mon_data, dict) else 100

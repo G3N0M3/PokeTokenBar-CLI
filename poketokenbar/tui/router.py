@@ -33,6 +33,10 @@ class CommandRouter:
             app.minigame_state = "menu"
             app.message = "Returned to Game Corner menu."
             return
+        if app.current_tab == 3 and getattr(app, "roster_subview", "roster") == "eggs" and cmd == "back":
+            app.roster_subview = "roster"
+            app.message = "Returned to Caught Pokémon Roster."
+            return
 
         # 4. Secret developer Easter Egg
         if cmd == "250220":
@@ -49,6 +53,8 @@ class CommandRouter:
             app.black_market_session = False
             if getattr(app, "shop_view", "normal") == "black_market":
                 app.shop_view = "normal"
+            if getattr(app, "roster_subview", "roster") == "eggs":
+                app.roster_subview = "roster"
             app.current_tab = int(cmd)
             app.message = ""
             return
@@ -83,6 +89,39 @@ class CommandRouter:
         if cmd.startswith("feed ") or cmd == "feed":
             app.handle_feed_command(cmd)
             return
+
+        # 8b. Pokémon Nursery commands
+        if cmd == "eggs":
+            app.current_tab = 3
+            app.roster_subview = "eggs"
+            app.message = "Entered Pokémon Nursery & Egg Reserves."
+            return
+
+        if app.current_tab == 3 and getattr(app, "roster_subview", "roster") == "eggs":
+            if cmd.startswith("sel ") or cmd == "sel":
+                parts = cmd.split(maxsplit=1)
+                target = parts[1].strip() if len(parts) > 1 else "1"
+                ok, msg = app.engine.select_nursery_egg(target)
+                app.message = msg
+                return
+            if cmd.startswith("sell ") or cmd == "sell":
+                target = cmd[len("sell"):].strip() or "1"
+                if target.startswith("egg"):
+                    app.message = "Unknown command. Use 'sell <#>' or 'sell all' to sell an egg from the Nursery."
+                else:
+                    ok, msg, cash = app.engine.sell_nursery_egg(target)
+                    app.message = msg
+                return
+            if cmd.startswith("sort ") or cmd == "sort":
+                parts = cmd.split()
+                if len(parts) >= 2:
+                    ok, msg = app.engine.set_nursery_sort_criteria(parts[1])
+                    app.message = msg
+                    if ok:
+                        app.nursery_page = 1
+                else:
+                    app.message = "Usage: sort <tier|progress|value|default>"
+                return
 
         if cmd.startswith("sel ") or cmd == "sel":
             arg = cmd.split(maxsplit=1)[1].strip() if " " in cmd else ""
@@ -344,6 +383,9 @@ class CommandRouter:
             elif app.current_tab == 12:
                 if not hasattr(app, "intel_page"): app.intel_page = 1
                 app.intel_page += 1
+            elif app.current_tab == 3 and getattr(app, "roster_subview", "roster") == "eggs":
+                if not hasattr(app, "nursery_page"): app.nursery_page = 1
+                app.nursery_page += 1
             else:
                 app.roster_page += 1
             app.message = ""
@@ -373,6 +415,9 @@ class CommandRouter:
             elif app.current_tab == 12:
                 if not hasattr(app, "intel_page"): app.intel_page = 1
                 app.intel_page = max(1, app.intel_page - 1)
+            elif app.current_tab == 3 and getattr(app, "roster_subview", "roster") == "eggs":
+                if not hasattr(app, "nursery_page"): app.nursery_page = 1
+                app.nursery_page = max(1, app.nursery_page - 1)
             else:
                 app.roster_page = max(1, app.roster_page - 1)
             app.message = ""
@@ -394,6 +439,8 @@ class CommandRouter:
                     app.settings_page = page
                 elif app.current_tab == 12:
                     app.intel_page = page
+                elif app.current_tab == 3 and getattr(app, "roster_subview", "roster") == "eggs":
+                    app.nursery_page = page
                 else:
                     app.roster_page = page
                 app.message = ""
@@ -823,7 +870,7 @@ class CommandRouter:
                     days = int(parts[3])
                     ok, msg = app.engine.open_cd(parts[2], days)
                 except ValueError:
-                    ok, msg = False, "Term days must be 3, 7, or 14. E.g. 'cd open 10m 7'"
+                    ok, msg = False, "Term days must be 3, 7, or 14. E.g. 'open 10m 7'"
             elif action == "claim":
                 target = parts[2] if len(parts) >= 3 else "all"
                 ok, msg = app.engine.claim_cd(target)
@@ -832,12 +879,12 @@ class CommandRouter:
             elif action == "sort" and len(parts) >= 3:
                 ok, msg = app.engine.set_cd_sort_criteria(parts[2])
             else:
-                ok, msg = False, "CD Usage: 'cd open <amt> <3|7|14>', 'cd claim <id|all>', 'cd break <id>', or 'cd sort <days|amount|term>'"
+                ok, msg = False, "CD Usage: 'open <amt> <3|7|14>', 'claim <id|all>', 'break <id>', or 'sort <days|amount|term>'"
             app.message = msg
             return True
 
         if app.current_tab == 10 and getattr(app, "bank_subtab", "") == "cd":
-            if cmd.startswith("open "):
+            if cmd == "open" or cmd.startswith("open "):
                 parts = cmd.split()
                 if len(parts) >= 3:
                     try:
@@ -846,27 +893,21 @@ class CommandRouter:
                     except ValueError:
                         ok, msg = False, "Term days must be 3, 7, or 14. E.g. 'open 10m 7'"
                 else:
-                    ok, msg = False, "Usage: cd open <amt> <3|7|14>"
+                    ok, msg = False, "Usage: open <amt> <3|7|14> (e.g. 'open 10m 7')"
                 app.message = msg
                 return True
-            if cmd.startswith("break "):
+            if cmd == "break" or cmd.startswith("break "):
                 parts = cmd.split()
                 if len(parts) >= 2:
                     ok, msg = app.engine.break_cd(parts[1])
                 else:
-                    ok, msg = False, "Usage: cd break <id>"
+                    ok, msg = False, "Usage: break <id>"
                 app.message = msg
                 return True
-            if cmd.startswith("claim "):
+            if cmd == "claim" or cmd.startswith("claim "):
                 parts = cmd.split()
-                if len(parts) >= 2:
-                    ok, msg = app.engine.claim_cd(parts[1])
-                else:
-                    ok, msg = False, "Usage: cd claim <id|all>"
-                app.message = msg
-                return True
-            if cmd == "claim":
-                ok, msg = app.engine.claim_cd("all")
+                target = parts[1] if len(parts) >= 2 else "all"
+                ok, msg = app.engine.claim_cd(target)
                 app.message = msg
                 return True
             if cmd.startswith("sort ") or cmd == "sort":

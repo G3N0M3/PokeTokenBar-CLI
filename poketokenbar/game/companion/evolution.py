@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Tuple, Any
 
 from poketokenbar.game.models import MonState, Rarity, PokemonBalance, MEGA_STONES
 from poketokenbar.game.storage import StorageManager
+from poketokenbar.utils.formatting import format_tokens
 
 
 TIME_BASED_BRANCH_OVERRIDES: Dict[int, Dict[str, int]] = {
@@ -200,8 +201,7 @@ class EvolutionMixin:
     def _check_growth(self, mon: MonState, is_active: bool = True, now: Optional[datetime.datetime] = None) -> List[str]:
         events = []
         diff = self.current_difficulty
-        dex = self.state.get("dex", [])
-        discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
+        roster_sp_ids = self.get_roster_species_ids()
 
         target_xp = PokemonBalance.phase_threshold(mon.rarity, mon.total_forms, mon.stage_index, diff)
 
@@ -212,10 +212,10 @@ class EvolutionMixin:
                 self.set_active_mon(mon)
             return events
 
-        # If next evolution stage already exists in Pokédex, automatically halt evolution
+        # If next evolution stage already exists in active Roster, automatically halt evolution
         if mon.stage_index < len(mon.path_ids) - 1:
             next_sp_id = self.get_next_evolution_id(mon, now=now)
-            if next_sp_id in discovered_sp_ids:
+            if next_sp_id in roster_sp_ids:
                 mon.used_at_stage = min(mon.used_at_stage, target_xp)
                 if is_active:
                     self.set_active_mon(mon)
@@ -224,7 +224,7 @@ class EvolutionMixin:
         while mon.used_at_stage >= target_xp:
             if mon.stage_index < len(mon.path_ids) - 1:
                 next_sp_id = self.get_next_evolution_id(mon, now=now)
-                if next_sp_id in discovered_sp_ids:
+                if next_sp_id in roster_sp_ids:
                     mon.used_at_stage = min(mon.used_at_stage, target_xp)
                     if is_active:
                         self.set_active_mon(mon)
@@ -283,14 +283,24 @@ class EvolutionMixin:
                 if is_active:
                     # Reset to new egg
                     self.set_active_mon(None)
-                    pending = self.state.get("pending_eggs", [])
-                    if pending:
-                        next_egg = pending.pop(0)
-                        self.state["egg_tier"] = next_egg
-                        self.state["pending_eggs"] = pending
-                        events.append(f"🥚 Next in queue: Now incubating your {next_egg.replace('_', ' ').title()} Egg!")
+                    curr_egg = self.state.get("egg_tier")
+                    if curr_egg:
+                        events.append(f"🥚 Roster Egg: Now incubating your held {curr_egg.replace('_', ' ').title()} Egg!")
                     else:
-                        self.state["egg_tier"] = None
+                        pending = self.state.get("pending_eggs", [])
+                        if pending:
+                            next_egg = pending.pop(0)
+                            if self.is_roster_full():
+                                cash = self.get_egg_token_value(next_egg)
+                                self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - cash
+                                events.append(f"🌟 Living Roster Full! Your queued {next_egg.replace('_', ' ').title()} Egg was converted into {format_tokens(cash)} tokens!")
+                                self.state["egg_tier"] = None
+                            else:
+                                self.state["egg_tier"] = next_egg
+                                events.append(f"🥚 Next in queue: Now incubating your {next_egg.replace('_', ' ').title()} Egg!")
+                            self.state["pending_eggs"] = pending
+                        else:
+                            self.state["egg_tier"] = None
                     self.state["egg_usage"] = 0
                     self.save()
                 return events
@@ -546,12 +556,11 @@ class EvolutionMixin:
             curr_name = self.api.get_species_name(active.current_id)
             return False, f"{curr_name} has already reached its final evolutionary stage!"
 
-        # Block evolution if target form already exists in Pokédex
-        dex = self.state.get("dex", [])
-        discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
-        if target_evo_id in discovered_sp_ids:
+        # Block evolution if target form already exists in active Roster
+        roster_sp_ids = self.get_roster_species_ids()
+        if target_evo_id in roster_sp_ids:
             next_name = self.api.get_species_name(target_evo_id)
-            return False, f"Cannot evolve into {next_name}! {next_name} (#{target_evo_id}) already exists in your Pokédex."
+            return False, f"Cannot evolve into {next_name}! {next_name} (#{target_evo_id}) already exists in your Pokédex (active Roster)."
 
         prev_name = self.api.get_species_name(active.current_id)
         active.stage_index += 1

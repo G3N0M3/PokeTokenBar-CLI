@@ -190,12 +190,11 @@ class ItemsMixin:
                 valid_species = ", ".join([self.api.get_species_name(sid) for sid in compat_map.keys()])
                 return False, f"The {item_name} has no effect on {self.api.get_species_name(active.current_id)}! (Compatible with: {valid_species})"
 
-            # Check if target evolved form already exists in Pokédex
-            dex = self.state.get("dex", [])
-            discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
-            if target_evo_id in discovered_sp_ids:
+            # Check if target evolved form already exists in active Roster
+            roster_sp_ids = self.get_roster_species_ids()
+            if target_evo_id in roster_sp_ids:
                 next_name = self.api.get_species_name(target_evo_id)
-                return False, f"Cannot evolve into {next_name}! {next_name} (#{target_evo_id}) already exists in your Pokédex."
+                return False, f"Cannot evolve into {next_name}! {next_name} (#{target_evo_id}) already exists in your Pokédex (active Roster)."
 
             inv[item_val] -= 1
             if inv[item_val] <= 0: del inv[item_val]
@@ -411,12 +410,11 @@ class ItemsMixin:
             if not target_evo_id:
                 return False, f"The {item_name} has no effect on {self.api.get_species_name(active.current_id)}!"
 
-            # Block stone evolution if target evolved form already exists in Pokédex
-            dex = self.state.get("dex", [])
-            discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
-            if target_evo_id in discovered_sp_ids:
+            # Block stone evolution if target evolved form already exists in active Roster
+            roster_sp_ids = self.get_roster_species_ids()
+            if target_evo_id in roster_sp_ids:
                 next_name = self.api.get_species_name(target_evo_id)
-                return False, f"Cannot evolve into {next_name}! {next_name} (#{target_evo_id}) already exists in your Pokédex."
+                return False, f"Cannot evolve into {next_name}! {next_name} (#{target_evo_id}) already exists in your Pokédex (active Roster)."
                 
             inv[item_val] -= 1
             if inv[item_val] <= 0:
@@ -467,19 +465,10 @@ class ItemsMixin:
             base_id, sp_default_name, chain_ids, f_rarity = fossil_map[item_val]
             sp_name = self.api.get_species_name(base_id) or sp_default_name
 
-            # Check if species or family is already owned in dex
-            dex = self.state.get("dex", [])
-            discovered_sp_ids = set()
-            for d in dex:
-                for k_id in ["species_id", "final_id", "base_id"]:
-                    val = d.get(k_id)
-                    if val:
-                        discovered_sp_ids.add(val)
-                for c_id in d.get("chain_order", []):
-                    discovered_sp_ids.add(c_id)
-
-            if any(cid in discovered_sp_ids for cid in chain_ids):
-                return False, f"Devon Corp Fossil Reviver detected that {sp_name} (#{base_id}) is already registered in your Pokédex! You can sell the {item_name} for tokens in your Bag ('sell {item_val}')."
+            # Check if fossil species is already in active Roster
+            roster_sp_ids = self.get_roster_species_ids()
+            if base_id in roster_sp_ids:
+                return False, f"Devon Corp Fossil Reviver detected that {sp_name} (#{base_id}) is already registered in your Pokédex (active Roster)! You can sell the {item_name} for tokens in your Bag ('sell {item_val}')."
 
             inv[item_val] -= 1
             if inv[item_val] <= 0:

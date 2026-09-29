@@ -89,7 +89,7 @@ def _render_cd_view(app, avail: int):
 
     sys.stdout.write(f"  {BOLD}Active Term Deposits ({len(cds)} active | Sort: {sort_label}):{RESET}\n")
     if not cds:
-        sys.stdout.write("  (No active Term Deposits. Open one with 'cd open <amount> <days>')\n\n")
+        sys.stdout.write("  (No active Term Deposits. Open one with 'open <amount> <days>')\n\n")
     else:
         page_size = app.engine.state.get("page_size_cd", 5)
         total_pages = max(1, (len(cds) - 1) // page_size + 1)
@@ -117,8 +117,8 @@ def _render_cd_view(app, avail: int):
         sys.stdout.write("\n")
 
     sys.stdout.write(f"  {BOLD}Commands:{RESET}\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}cd open <amount> <3|7|14>{RESET}' (e.g. 'cd open 10m 7')\n")
-    sys.stdout.write(f"  ➔ Type '{BOLD}cd claim <id|all>{RESET}' / '{BOLD}cd break <id>{RESET}' (10% penalty)\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}open <amount> <3|7|14>{RESET}' (e.g. 'open 10m 7')\n")
+    sys.stdout.write(f"  ➔ Type '{BOLD}claim <id|all>{RESET}' / '{BOLD}break <id>{RESET}' (10% penalty)\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}sort <days|amount|term>{RESET}' to change sort criteria\n\n")
 
 SPARK_CHARS = [" ", "▂", "▃", "▄", "▅", "▆", "▇", "█"]

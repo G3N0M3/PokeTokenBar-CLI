@@ -76,9 +76,9 @@ When adding or extending features:
 2. **Logic**: Add state mutation methods in `companion.py` or a dedicated game sub-engine.
 3. **Persistence**: Ensure state changes are recorded and saved through `self.save()`.
 4. **UI**: Render new interface elements in the appropriate `tui_tabs/<tab>.py` module.
-5. **Input**: Wire command parsing in `tui.py`.
+5. **Input**: Wire command parsing in `router.py` strictly enforcing the **Single Canonical Command Policy**: map each function or subview action to **EXACTLY ONE** command keyword; never add aliases, synonyms, or duplicate shortcuts (e.g., `sell <#>` only, never `sell egg <#>`; `sel <#>` only, never `incubate` or `load`; `back` only, never `roster`).
 6. **Constraints**: Verify strict $\le 72$-column formatting (`len(strip_ansi(line)) <= 72`).
-7. **Test**: Write isolated unit tests in `tests/test_companion.py`.
+7. **Test**: Write isolated unit tests in `tests/`.
 
 ---
 

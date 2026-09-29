@@ -20,13 +20,14 @@ def render(app, summary: dict):
         egg_tier = app.engine.state.get("egg_tier")
         if egg_tier:
             # Egg state
+            tier_name = egg_tier.replace("_", " ").title()
             egg_usage = app.engine.state.get("egg_usage", 0)
-            threshold = PokemonBalance.EGG_HATCH_THRESHOLD
+            threshold = app.engine.get_egg_hatch_threshold(egg_tier)
             bar = format_progress_bar(egg_usage, threshold)
 
-            sys.stdout.write(f"\n  {YELLOW}🥚 Pokémon Egg Incubating...{RESET}\n")
+            sys.stdout.write(f"\n  {YELLOW}🥚 {tier_name} Pokémon Egg Incubating...{RESET}\n")
             sys.stdout.write(f"  Incubation: {bar} ({format_tokens(egg_usage)} / {format_tokens(threshold)} tokens)\n")
-            sys.stdout.write("  Keep spending tokens in Antigravity CLI to hatch your egg!\n\n")
+            sys.stdout.write("  Spend tokens in Antigravity CLI to hatch your egg!\n\n")
         else:
             sys.stdout.write(f"\n  {BOLD}{RED}No active companion selected!{RESET}\n")
             sys.stdout.write("  Visit the Roster tab (3) and type 'sel <number>' to select\n")
@@ -114,8 +115,7 @@ def render(app, summary: dict):
                 tod = app.engine.get_current_time_of_day()
                 time_tag = " (☀️ Day)" if tod == "day" else " (🌙 Night)"
             bar = format_progress_bar(active.used_at_stage, target_xp, width=12)
-            dex = app.engine.state.get("dex", [])
-            discovered_sp_ids = {d.get("species_id", d.get("final_id", d.get("base_id"))) for d in dex}
+            roster_sp_ids = app.engine.get_roster_species_ids()
 
             evo_label = f"  Evo -> {next_name}{time_tag}: "
             status_tag = ""
@@ -123,9 +123,9 @@ def render(app, summary: dict):
             if active.held_item == "everstone":
                 status_tag = f" {YELLOW}[EVERSTONE]{RESET}"
                 status_clean = " [EVERSTONE]"
-            elif next_id in discovered_sp_ids:
-                status_tag = f" {YELLOW}[OWNED]{RESET}"
-                status_clean = " [OWNED]"
+            elif next_id in roster_sp_ids:
+                status_tag = f" {YELLOW}[IN ROSTER]{RESET}"
+                status_clean = " [IN ROSTER]"
 
             base_str = f"{evo_label}{bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)})"
             if len(base_str) + len(status_clean) > 72:
@@ -134,11 +134,15 @@ def render(app, summary: dict):
                 base_str = f"{evo_label}{bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)})"
                 if len(base_str) + len(status_clean) > 72:
                     evo_label = f"  Evo -> {next_name}: "
+                    base_str = f"{evo_label}{bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)})"
+                    if len(base_str) + len(status_clean) > 72:
+                        bar = format_progress_bar(active.used_at_stage, target_xp, width=8)
 
             sys.stdout.write(f"{evo_label}{bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)}){status_tag}\n")
         else:
             bar = format_progress_bar(active.used_at_stage, target_xp, width=12)
             sys.stdout.write(f"  Graduation: {bar} ({format_tokens(active.used_at_stage)} / {format_tokens(target_xp)})\n")
+
 
     sys.stdout.write("\n" + "-" * 72 + "\n")
     sys.stdout.write(f" {BOLD}📊 Token Usage Metrics:{RESET}\n")

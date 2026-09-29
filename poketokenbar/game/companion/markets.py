@@ -463,6 +463,9 @@ class MarketsMixin:
             if qty > 1:
                 return False, f"You can only purchase 1 {deal['name']}!"
 
+        if deal_type == "egg" and self.is_roster_full():
+            return False, "Your Roster is completely full! You already own every Pokémon across all evolutionary stages."
+
         if deal.get("stock", 0) < qty:
             return False, f"Not enough stock! Deal #{deal_id} only has {deal.get('stock', 0)} in stock."
 
@@ -498,14 +501,8 @@ class MarketsMixin:
             msg = f"Purchased {qty}x {deal['name']} for {format_tokens(total_cost)} tokens! Added to your Bag."
         elif deal_type == "egg":
             tier = deal["egg_tier"]
-            if not self.state.get("egg_tier"):
-                self.state["egg_tier"] = tier
-                self.state["egg_usage"] = 0
-                msg = f"Purchased {deal['name']} for {format_tokens(total_cost)} tokens! Now incubating your fresh {tier.replace('_', ' ').title()} Egg."
-            else:
-                pending = self.state.setdefault("pending_eggs", [])
-                pending.append(tier)
-                msg = f"Purchased {deal['name']} for {format_tokens(total_cost)} tokens! Added to your Egg Reserves."
+            ok_egg, egg_msg, cash = self.obtain_egg(tier)
+            msg = f"Purchased {deal['name']} for {format_tokens(total_cost)} tokens! {egg_msg}"
         elif deal_type == "mega_stone":
             s_id = deal["stone_id"]
             k = f"mega_stone_{s_id}"
@@ -533,11 +530,7 @@ class MarketsMixin:
                 if c_tokens > 0:
                     self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - c_tokens
                 if c_egg:
-                    if not self.state.get("egg_tier"):
-                        self.state["egg_tier"] = c_egg
-                        self.state["egg_usage"] = 0
-                    else:
-                        self.state.setdefault("pending_eggs", []).append(c_egg)
+                    self.obtain_egg(c_egg)
             msg = f"Purchased {deal['name']} for {format_tokens(total_cost)} tokens! {last_desc}"
         else:
             msg = f"Purchased {deal['name']}!"
