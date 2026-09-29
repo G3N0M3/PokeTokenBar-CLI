@@ -9,19 +9,58 @@ This document outlines the standard Git commands and practices used to manage th
 
 ---
 
-## 1. Standard Commits
-Use semantic commit messages when contributing to the codebase:
-- `feat: <description>` (for new features)
-- `fix: <description>` (for bug fixes)
-- `docs: <description>` (for documentation updates)
-- `chore: <description>` (for maintenance tasks)
+## 1. Commit Standards & Workflow
 
-**Example Workflow:**
+### A. Semantic Commit Messages with Scopes
+Use structured semantic commit messages with explicit subsystem scopes (`<type>(<scope>): <description>`):
+- **Types**:
+  - `feat`: New user-facing mechanics, subviews, or major systems.
+  - `fix`: Bug fixes, state corruption healings, or layout adjustments.
+  - `test`: Adding or updating test suites and integration verification.
+  - `docs`: Documentation, README, or agent skill updates.
+  - `chore`: Maintenance tasks, dependencies, or backward-compatibility cleanup.
+- **Common Scopes**:
+  - `combat`: Red battle, Rocket battle, Strike Squads, boss retaliation.
+  - `nursery`: Egg incubation, nursery subview, paging, egg sorting.
+  - `roster`: Companion profile, active companion selection, happiness, living dex.
+  - `economy`: Token bank, stocks, term deposits, betting minigames.
+  - `expeditions`: Companion dispatches, area rewards, multi-select picker.
+  - `skills`: Agent guidelines, architecture, and developer skill files.
+
+*Example:* `feat(nursery): redesign egg handling with interactive nursery subview, pagination, and multi-key sorting`
+
+---
+
+### B. Multi-Commit Atomic Staging Strategy
+When committing a body of work containing multiple features or subsystem changes:
+1. **Never Default to Blanket `git add .`**: Avoid monolithic commits that lump unrelated subsystems together.
+2. **Inspect Unstaged Changes**: Run `git status -s` to analyze modified and untracked files.
+3. **Stage Targeted Files Incrementally**:
+   ```bash
+   git add <subsystem_file_1> <subsystem_file_2>
+   ```
+4. **Verify Staged Diff Before Committing**:
+   ```bash
+   git diff --cached --stat
+   ```
+5. **Commit Incrementally**: Create cohesive, self-contained atomic commits covering one distinct domain at a time (e.g. Combat System ➔ Nursery Subsystem ➔ Battle Encounters ➔ Tests).
+
+---
+
+### C. Pre-Commit Static Compilation Verification
+Before creating commits containing Python code, perform a fast static syntax compilation to prevent committing broken syntax or import errors:
 ```bash
-git add .
-git commit -m "feat: implement token bank system"
-git push origin main
+python -m py_compile <modified_python_files>
 ```
+*(Note: Static compilation verifies Python syntax without executing scripts or test suites, fully complying with the `script-execution-policy`.)*
+
+---
+
+### D. Clean Module Deletion Protocol
+When deprecating or removing obsolete modules (e.g., removing a legacy modal dialog):
+1. Remove or stage the deletion cleanly (`git rm <file>` or `rm <file> && git add <file>`).
+2. Ensure all package export points (`__init__.py`), callers in the main loop (`app.py`), and test imports are completely decoupled in the same commit.
+3. Verify with `git status` that no dangling untracked remnants or stale `.pyc` files remain.
 
 ---
 
