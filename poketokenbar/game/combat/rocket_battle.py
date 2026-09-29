@@ -138,11 +138,14 @@ class RocketBattleHandler:
         earned = max(0, current - baseline)
         return 25_000_000 + earned - st.get("rocket_spent_tokens", 0)
 
-    def auto_assemble_squad(self) -> List[int]:
-        """Automatically builds a 6-member Strike Squad starting with active companion."""
+    def auto_assemble_squad(self, size: int = 3) -> List[int]:
+        """Automatically builds a 3-member Strike Squad excluding companions on expeditions."""
         squad_ids = []
+        expeditions = self.engine.state.get("expeditions", [])
+        exp_ids = {e.get("sp_id") for e in expeditions if "sp_id" in e}
+
         active = self.engine.active_mon
-        if active:
+        if active and active.current_id not in exp_ids:
             squad_ids.append(active.current_id)
 
         dex_list = self.engine.state.get("dex", [])
@@ -152,15 +155,100 @@ class RocketBattleHandler:
 
         sorted_dex = sorted(dex_list, key=get_xp, reverse=True)
         for d in sorted_dex:
+            if d.get("status") == "evolved":
+                continue
             pid = d.get("species_id", d.get("final_id", d.get("base_id")))
-            if pid and pid not in squad_ids:
+            if pid and pid not in exp_ids and pid not in squad_ids:
                 squad_ids.append(pid)
-                if len(squad_ids) >= 6:
+                if len(squad_ids) >= size:
                     break
 
-        if not squad_ids:
-            squad_ids = [4, 1, 7, 25, 143, 149] # Safe fallback
-        return squad_ids
+        if len(squad_ids) < size:
+            fallbacks = [4, 1, 7, 25, 143, 149]
+            for fb in fallbacks:
+                if fb not in exp_ids and fb not in squad_ids:
+                    squad_ids.append(fb)
+                    if len(squad_ids) >= size:
+                        break
+        return squad_ids[:size]
+
+    def parse_squad_selection(self, args: List[str]) -> Tuple[bool, Any]:
+        """Parses and validates a user's 3-member Strike Squad selection.
+        
+        Accepts species IDs (e.g. '6 9 25' or '#6 #9 #25'), 1-based roster indices
+        (e.g. '1 2 3'), or species names (e.g. 'charizard blastoise pikachu').
+        Rejects companions on active expeditions, duplicates, and invalid entries.
+        """
+        clean_tokens = [str(a).strip().strip(",") for a in args if str(a).strip().strip(",")]
+        if len(clean_tokens) != 3:
+            return False, f"You must choose exactly 3 Pokémon for the Strike Squad! (Specified {len(clean_tokens)})."
+
+        dex_list = self.engine.state.get("dex", [])
+        roster = [d for d in dex_list if d.get("status") != "evolved"]
+        expeditions = self.engine.state.get("expeditions", [])
+        exp_ids = {e.get("sp_id") for e in expeditions if "sp_id" in e}
+
+        squad: List[int] = []
+        for token in clean_tokens:
+            target_entry = None
+            if token.startswith("#"):
+                target_sp = token[1:]
+                for d in roster:
+                    sp_id = str(d.get("species_id", d.get("base_id")))
+                    if target_sp == sp_id:
+                        target_entry = d
+                        break
+            else:
+                # 1. Match by 1-based roster index
+                try:
+                    idx = int(token)
+                    if 1 <= idx <= len(roster):
+                        target_entry = roster[idx - 1]
+                except ValueError:
+                    pass
+
+                # 2. Fallback: match by species_id across roster
+                if target_entry is None:
+                    for d in roster:
+                        sp_id = str(d.get("species_id", d.get("base_id")))
+                        if token == sp_id:
+                            target_entry = d
+                            break
+
+                # 3. Fallback: match by species name across roster
+                if target_entry is None:
+                    t_lower = token.lower()
+                    for d in roster:
+                        sp_id = d.get("species_id", d.get("base_id"))
+                        if t_lower == self.engine.api.get_species_name(sp_id).lower():
+                            target_entry = d
+                            break
+
+                # 4. Fallback: check active companion
+                if target_entry is None and self.engine.active_mon:
+                    act_id = self.engine.active_mon.current_id
+                    act_name = self.engine.api.get_species_name(act_id).lower()
+                    if token == str(act_id) or token.lower() == act_name:
+                        for d in dex_list:
+                            if d.get("species_id", d.get("base_id")) == act_id:
+                                target_entry = d
+                                break
+
+            if target_entry is None:
+                return False, f"Pokémon '{token}' not found in active Roster! (Use roster index 1..{len(roster)}, species ID, or name)."
+
+            sp_id = target_entry.get("species_id", target_entry.get("base_id"))
+            sp_name = self.engine.api.get_species_name(sp_id)
+
+            if sp_id in exp_ids:
+                return False, f"Cannot deploy {sp_name}! They are currently on an expedition."
+
+            if sp_id in squad:
+                return False, f"Cannot select duplicate Pokémon ({sp_name}) in Strike Squad!"
+
+            squad.append(sp_id)
+
+        return True, squad
 
     def start_boss_battle(self, op_code: str, custom_squad: Optional[List[int]] = None) -> Tuple[bool, str]:
         """Initializes a tactical boss encounter for a given operation code."""
@@ -169,7 +257,21 @@ class RocketBattleHandler:
             return False, f"Operation {clean_code} is not a Syndicate Boss encounter."
 
         boss_def = ROCKET_BOSS_TEAMS[clean_code]
-        team_ids = custom_squad if custom_squad else self.auto_assemble_squad()
+
+        if custom_squad is not None:
+            if len(custom_squad) != 3:
+                return False, "You must select exactly 3 Pokémon for the Strike Squad."
+            if len(set(custom_squad)) != len(custom_squad):
+                return False, "You cannot select duplicate Pokémon in your Strike Squad."
+            expeditions = self.engine.state.get("expeditions", [])
+            exp_ids = {e.get("sp_id") for e in expeditions if "sp_id" in e}
+            for pid in custom_squad:
+                if pid in exp_ids:
+                    sp_name = self.engine.api.get_species_name(pid)
+                    return False, f"Cannot deploy {sp_name}! They are currently on an expedition."
+            team_ids = list(custom_squad)
+        else:
+            team_ids = self.auto_assemble_squad(size=3)
 
         dex_list = self.engine.state.get("dex", [])
         dex_map = {d.get("species_id", d.get("final_id", d.get("base_id"))): d for d in dex_list}
@@ -233,7 +335,7 @@ class RocketBattleHandler:
 
         p_idx = st["player_active_index"]
         if st["player_hps"][p_idx] <= 0:
-            return False, "Active Pokémon has fainted! Use 'swap 1-6' to send in another squad member."
+            return False, "Active Pokémon has fainted! Use 'swap 1-3' to send in another squad member."
 
         r_idx = st["boss_active_index"]
         if st["boss_hps"][r_idx] <= 0:
@@ -357,7 +459,7 @@ class RocketBattleHandler:
                 logs.append("🚨 Strike Squad blacked out! Sub-vault security expelled your team.")
                 logs.append("➔ Type 'restart' or 'fight' to regroup and deploy again!")
             else:
-                logs.append("➔ Swap to an active squad member with 'swap 1-6'!")
+                logs.append("➔ Swap to an active squad member with 'swap 1-3'!")
 
         existing_logs = st.get("turn_log", [])
         existing_logs.extend(logs)

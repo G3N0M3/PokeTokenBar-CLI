@@ -28,6 +28,12 @@ class TestCompanionWeeklyAndCustomTokens(unittest.TestCase):
         self.token_file = self.temp_path / "token_usage.json"
         self.cache_dir = self.temp_path / "cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        real_pokeapi = Path.home() / ".poketokenbar" / "cache" / "pokeapi"
+        if real_pokeapi.exists():
+            try:
+                os.symlink(real_pokeapi, self.cache_dir / "pokeapi")
+            except Exception:
+                pass
 
         os.environ["PTB_STATE_FILE"] = str(self.state_file)
         os.environ["PTB_TOKEN_FILE"] = str(self.token_file)

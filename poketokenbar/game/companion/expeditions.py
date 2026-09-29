@@ -100,15 +100,11 @@ class ExpeditionsMixin:
                     inv["rare_candy"] = inv.get("rare_candy", 0) + 1
                     reward_str = "+1 Rare Candy 🍬"
                 elif reward == "legendary_egg":
-                    current_tier = self.state.get("egg_tier")
-                    if current_tier is None:
-                        self.state["egg_tier"] = "legendary"
-                        self.state["egg_usage"] = 0
+                    ok, msg, cash = self.obtain_egg("legendary")
+                    if cash:
+                        reward_str = f"a LEGENDARY EGG (converted to {format_tokens(cash)} tokens!)"
                     else:
-                        pending = self.state.get("pending_eggs", [])
-                        pending.append("legendary")
-                        self.state["pending_eggs"] = pending
-                    reward_str = "a LEGENDARY EGG 🌟!"
+                        reward_str = "a LEGENDARY EGG 🌟!"
                 elif reward == "evo_stone":
                     stone_types = [
                         "water_stone", "fire_stone", "thunder_stone", 
@@ -365,6 +361,10 @@ class ExpeditionsMixin:
             if sp_id in red_team_ids:
                 return False, f"Cannot dispatch {sp_name}! They are currently in battle with Red on Mt. Silver."
 
+            rocket_team_ids = self.get_rocket_battle_active_pokemon_ids()
+            if sp_id in rocket_team_ids:
+                return False, f"Cannot dispatch {sp_name}! They are currently in tactical combat with Team Rocket."
+
             mon_state_dict = target_entry.get("mon_state", {})
             if isinstance(mon_state_dict, dict) and "happiness" in mon_state_dict:
                 current_hap = mon_state_dict["happiness"]
@@ -448,6 +448,11 @@ class ExpeditionsMixin:
             red_team_ids = self.get_red_battle_active_pokemon_ids()
             if sp_id in red_team_ids:
                 skipped_notes.append(f"{sp_name} (in Red battle)")
+                continue
+
+            rocket_team_ids = self.get_rocket_battle_active_pokemon_ids()
+            if sp_id in rocket_team_ids:
+                skipped_notes.append(f"{sp_name} (in Rocket battle)")
                 continue
 
             mon_state_dict = entry.get("mon_state", {})

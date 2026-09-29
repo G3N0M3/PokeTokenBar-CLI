@@ -145,29 +145,31 @@ def _render_rocket_battle_screen(app, handler, st):
     b_type_core = f"{r_mon['type'].upper()} CORE" if "stances" in r_mon else r_mon["type"].upper()
     sys.stdout.write(f"  {CYAN}Type: {p_type.upper():<20}{RESET}{' ' * 18}{YELLOW}Type: {b_type_core:>20}{RESET}\n\n")
 
-    # Turn telemetry log (compact 2 entries to prevent vertical overflow)
-    sys.stdout.write(f"  {BOLD}Tactical Battle Log:{RESET}\n")
-    logs = st.get("turn_log", [])[-2:]
-    for log in logs:
-        for wline in textwrap.wrap(log, width=64):
-            sys.stdout.write(f"  > {wline}\n")
+    # Turn telemetry log (strictly single line)
+    logs = st.get("turn_log", [])
+    last_log = logs[-1] if logs else "Awaiting tactical commands..."
+    clean_last_log = ansi_clean.sub("", last_log)
+    max_log_len = 45
+    if len(clean_last_log) > max_log_len:
+        disp_log = clean_last_log[:max_log_len - 3] + "..."
+    else:
+        disp_log = last_log
+    sys.stdout.write(f"  {BOLD}Tactical Battle Log:{RESET} {disp_log}\n")
     sys.stdout.write("  " + "-" * 68 + "\n")
 
-    # Squad status (split into 2 lines for guaranteed <= 72 column compliance)
+    # Squad status (3 members on a single line)
     team_names = []
     for i, pid in enumerate(st["player_team"]):
         n = app.engine.api.get_species_name(pid)
+        if len(n) > 13:
+            n = n[:12] + "…"
         if st["player_hps"][i] <= 0:
             team_names.append(f"{RED}~~{n}~~{RESET}")
         elif i == p_idx:
             team_names.append(f"{BOLD}{GREEN}>{n}<{RESET}")
         else:
             team_names.append(n)
-    t1 = team_names[:3]
-    t2 = team_names[3:]
-    sys.stdout.write(f"  {BOLD}Squad (1-3):{RESET} " + " | ".join(t1) + "\n")
-    if t2:
-        sys.stdout.write(f"  {BOLD}Squad (4-6):{RESET} " + " | ".join(t2) + "\n")
+    sys.stdout.write(f"  {BOLD}Strike Squad (1-3):{RESET} " + " | ".join(team_names) + "\n")
 
     def format_short_tokens(val: int) -> str:
         if val >= 1_000_000:
@@ -216,7 +218,7 @@ def _render_ops_subtab(app):
     elif b_st.get("status") == "loss" and active_op["is_boss"] and str(b_st.get("op_code")) == str(active_op["code"]):
         sys.stdout.write(f"  {BOLD}{RED}💀 STRIKE SQUAD BLACKED OUT 💀{RESET}\n")
         sys.stdout.write(f"  {YELLOW}The Sub-Vault bio-aberrations overwhelmed your strike squad.{RESET}\n\n")
-        sys.stdout.write(f"  ➔ Type '{BOLD}fight{RESET}' to deploy a fresh squad!\n")
+        sys.stdout.write(f"  ➔ Type '{BOLD}fight <id1> <id2> <id3>{RESET}' to deploy a fresh squad!\n")
         sys.stdout.write("  " + "-" * 68 + "\n\n")
     elif active_op["is_boss"] and active_op["boss_hp_remaining"] > 0 and not active_op["objective_done"]:
         b_name = active_op["boss_name"]
@@ -227,9 +229,42 @@ def _render_ops_subtab(app):
         hp_bar = f"[{'█' * filled}{'░' * (12 - filled)}] {pct_left:.1f}% left"
         sys.stdout.write(f"  {BOLD}{RED}⚠️ ACTIVE BOSS CONFRONTATION:{RESET} {BOLD}{b_name}{RESET}\n")
         sys.stdout.write(f"  HP: {BOLD}{YELLOW}{rem_hp:,}/{max_hp:,}{RESET} | {hp_bar}\n")
-        mon_str = app.engine.api.get_species_name(app.engine.active_mon.current_id) if app.engine.active_mon else "None"
-        sys.stdout.write(f"  Strike Squad Leader: {BOLD}{CYAN}{mon_str}{RESET} (Squad ready)\n")
-        sys.stdout.write(f"  ➔ Tactical Commands: '{BOLD}fight{RESET}' to enter combat arena!\n")
+
+        expeditions = app.engine.state.get("expeditions", [])
+        exp_ids = {e.get("sp_id") for e in expeditions if "sp_id" in e}
+        dex = app.engine.state.get("dex", [])
+        roster = [d for d in dex if d.get("status") != "evolved"]
+        eligible = [d for d in roster if d.get("species_id", d.get("base_id")) not in exp_ids]
+
+        sys.stdout.write(f"  {BOLD}Strike Squad Deployment (Choose 3):{RESET}\n")
+        if not eligible:
+            sys.stdout.write(f"  {RED}⚠️ No eligible Pokémon available (all on expeditions)!{RESET}\n")
+        else:
+            tags = []
+            for d in eligible[:6]:
+                pid = d.get("species_id", d.get("base_id"))
+                pname = app.engine.api.get_species_name(pid)
+                if len(pname) > 11:
+                    pname = pname[:10] + "…"
+                r_idx = roster.index(d) + 1
+                tags.append(f"[{r_idx}] {pname} (#{pid})")
+
+            line = "  "
+            for t in tags:
+                if len(line) + len(t) + 2 > 68:
+                    sys.stdout.write(f"{line}\n")
+                    line = "  " + t
+                else:
+                    line = line + ("  " if line.strip() else "") + t
+            if line.strip():
+                sys.stdout.write(f"{line}\n")
+            if len(eligible) > 6:
+                sys.stdout.write(f"  {YELLOW}(+{len(eligible) - 6} more available in Roster [Tab 3]){RESET}\n")
+
+        on_exp_count = len(roster) - len(eligible)
+        if on_exp_count > 0:
+            sys.stdout.write(f"  {BLUE}ℹ️ {on_exp_count} Pokémon on expeditions are unavailable for battle.{RESET}\n")
+        sys.stdout.write(f"  ➔ Deploy Squad: '{BOLD}fight <id1> <id2> <id3>{RESET}' (e.g. fight 1 2 3)\n")
         sys.stdout.write("  " + "-" * 68 + "\n\n")
 
     code = active_op["code"]
@@ -289,7 +324,7 @@ def _render_ops_subtab(app):
         sys.stdout.write(f"  ➔ Type '{BOLD}claim{RESET}' to collect your reward!\n\n")
     elif is_boss:
         sys.stdout.write(f"  ➔ Type '{BOLD}briefing{RESET}' to review tactical dialogue\n")
-        sys.stdout.write(f"  ➔ Boss Combat: '{BOLD}fight{RESET}' to enter tactical combat\n\n")
+        sys.stdout.write(f"  ➔ Boss Combat: '{BOLD}fight <id1> <id2> <id3>{RESET}' to deploy Strike Squad\n\n")
     else:
         sys.stdout.write(f"  ➔ Type '{BOLD}briefing{RESET}' to review tactical dialogue\n")
         sys.stdout.write(f"  ➔ Commands: '{BOLD}claim{RESET}' when task objectives are fulfilled\n\n")
@@ -485,7 +520,8 @@ def handle_rocket_command(app, cmd: str):
                 ok, msg = battle_handler.swap_pokemon(slot)
                 app.message = msg.split("\n")[0]
             else:
-                app.message = "Usage: swap <1-6>"
+                squad_len = len(b_st.get("player_team", [1, 2, 3]))
+                app.message = f"Usage: swap <1-{squad_len}>"
             return
         elif cmd.startswith("fight ") or cmd.startswith("f "):
             parts = cmd.split()
@@ -526,11 +562,36 @@ def handle_rocket_command(app, cmd: str):
             app.message = "Reset tactical boss encounter."
             return
 
-    if (cmd == "fight" or cmd.startswith("fight ")) and subview == "ops":
+    is_fight_cmd = (
+        cmd == "fight" or cmd.startswith("fight ") or
+        cmd == "squad" or cmd.startswith("squad ") or
+        cmd == "team" or cmd.startswith("team ") or
+        cmd == "assemble" or cmd.startswith("assemble ")
+    )
+    if is_fight_cmd and subview == "ops":
         parts = cmd.split()
+        raw_args = [p.strip(",") for p in parts[1:] if p.strip(",")]
+
         target_code = None
-        if len(parts) >= 2 and parts[1].isdigit():
-            target_code = parts[1]
+        squad_args = []
+
+        if len(raw_args) == 4 and raw_args[0].replace("op_", "") in ["3", "6", "9", "10"]:
+            target_code = raw_args[0].replace("op_", "")
+            squad_args = raw_args[1:]
+        elif len(raw_args) == 3:
+            squad_args = raw_args
+        elif len(raw_args) == 0:
+            operations = app.engine.get_rocket_operations()
+            curr = next((op for op in operations if op["status"] in ["available", "active"] and not op["claimed"] and op["is_boss"]), None)
+            if not curr:
+                app.message = "No Syndicate Boss encounter to fight."
+            else:
+                app.message = "Choose 3 Pokémon for the Strike Squad! Usage: fight <id1> <id2> <id3> (e.g. fight 6 9 25 or roster indices)"
+            return
+        else:
+            app.message = f"Please select exactly 3 Pokémon for the Strike Squad! Usage: fight <id1> <id2> <id3> (Specified {len(raw_args)})."
+            return
+
         if not target_code:
             operations = app.engine.get_rocket_operations()
             curr = next((op for op in operations if op["status"] in ["available", "active"] and not op["claimed"] and op["is_boss"]), None)
@@ -539,37 +600,27 @@ def handle_rocket_command(app, cmd: str):
             else:
                 target_code = "3"
 
-        if target_code:
-            op_id = f"op_{target_code}"
-            op_st = app.engine.state.setdefault("rocket_ops", {}).get(op_id, {})
-            if op_st.get("status") == "available":
-                app.engine.start_rocket_operation(target_code)
-            ok, msg = battle_handler.start_boss_battle(target_code)
-            app.message = msg
-        else:
-            app.message = "No Syndicate Boss encounter to fight."
+        if target_code not in ["3", "6", "9", "10"]:
+            app.message = f"Operation {target_code} is not an active Syndicate Boss encounter."
+            return
+
+        ok, squad_or_err = battle_handler.parse_squad_selection(squad_args)
+        if not ok:
+            app.message = squad_or_err
+            return
+
+        op_id = f"op_{target_code}"
+        op_st = app.engine.state.setdefault("rocket_ops", {}).get(op_id, {})
+        if op_st.get("status") == "available":
+            app.engine.start_rocket_operation(target_code)
+        ok, msg = battle_handler.start_boss_battle(target_code, custom_squad=squad_or_err)
+        app.message = msg
         return
 
     if (cmd == "engage" or cmd.startswith("engage ")) and subview == "ops":
-        app.message = "Please use 'fight' to enter the tactical combat arena."
+        app.message = "Please use 'fight <id1> <id2> <id3>' to enter the tactical combat arena."
         return
 
-    if cmd.startswith("squad ") and subview == "ops":
-        parts = cmd.split()[1:]
-        ids = [int(p) for p in parts if p.isdigit()]
-        if len(ids) >= 1:
-            operations = app.engine.get_rocket_operations()
-            curr = next((op for op in operations if op["status"] in ["available", "active"] and not op["claimed"] and op["is_boss"]), None)
-            if curr:
-                if curr["status"] == "available":
-                    app.engine.start_rocket_operation(curr["code"])
-                ok, msg = battle_handler.start_boss_battle(curr["code"], custom_squad=ids)
-                app.message = msg
-            else:
-                app.message = "No active Syndicate Boss encounter to assemble squad for."
-        else:
-            app.message = "Usage: squad <id1> <id2> ... (e.g. 'squad 6 3 9 25')"
-        return
 
     if cmd in ["o", "ops", "operations"]:
         app.rocket_subview = "ops"

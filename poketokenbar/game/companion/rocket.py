@@ -1168,11 +1168,18 @@ class RocketMixin:
         is_unlocked = user_lvl >= req_lvl
         default_c = 3 if is_unlocked else 0
 
+        armory_targets = {
+            "spray": 15_000_000,
+            "chrono": 25_000_000,
+            "catalyst": 25_000_000
+        }
+        default_target = armory_targets.get(tech_code, 15_000_000)
+
         if tech_code not in charges_st or not isinstance(charges_st[tech_code], dict):
             charges_st[tech_code] = {
                 "charges": default_c,
                 "progress": 0,
-                "target": 2_500_000,
+                "target": default_target,
                 "unlocked": is_unlocked
             }
         t_info = charges_st[tech_code]
@@ -1182,7 +1189,8 @@ class RocketMixin:
                 t_info["charges"] = 3
         t_info.setdefault("charges", default_c)
         t_info.setdefault("progress", 0)
-        t_info.setdefault("target", 2_500_000)
+        if t_info.get("target") in [2_500_000, 5_000_000, 10_000_000] or "target" not in t_info:
+            t_info["target"] = default_target
 
         c = min(3, max(0, t_info["charges"]))
         p = max(0, t_info["progress"])
@@ -1365,24 +1373,7 @@ class RocketMixin:
             if self.state.get("last_authority_date") == today_str:
                 return False, "Authority requisition already dispatched today! Field logistics reset tomorrow."
             # Check available non-duplicate candidates
-            roster_ids = set()
-            if self.active_mon:
-                roster_ids.add(self.active_mon.current_id)
-                roster_ids.add(self.active_mon.base_id)
-            for d in self.state.get("dex", []):
-                if d.get("status") != "evolved":
-                    sp_id = d.get("species_id", d.get("base_id"))
-                    if sp_id:
-                        roster_ids.add(int(sp_id))
-                    base_id = d.get("base_id")
-                    if base_id:
-                        roster_ids.add(int(base_id))
-                    m_st = d.get("mon_state")
-                    if isinstance(m_st, dict):
-                        if m_st.get("base_id"):
-                            roster_ids.add(int(m_st["base_id"]))
-                        if m_st.get("current_id"):
-                            roster_ids.add(int(m_st["current_id"]))
+            roster_ids = self.get_roster_species_ids()
             candidates = [i for i in range(1, 152) if i not in roster_ids]
             if not candidates:
                 return False, "Your Roster already commands every Gen 1 Pokémon species in the region!"
@@ -1409,8 +1400,9 @@ class RocketMixin:
                     if isinstance(m_st, dict):
                         m_st["happiness"] = 100
             charges_st = self.state.setdefault("rocket_armory_charges", {})
-            c = charges_st.setdefault("spray", {"unlocked": True, "charges": 3, "progress": 0, "target": 5_000_000})
+            c = charges_st.setdefault("spray", {"unlocked": True, "charges": 3, "progress": 0, "target": 15_000_000})
             c["unlocked"] = True
+            c["target"] = 15_000_000
             msg = "🌫️ Clearance Authorized: Deployed Syndicate Morale Mist! Restored 100% Happiness to all Pokémon across your squad!"
 
         elif item_code in ["chrono", "accelerator"]:
@@ -1426,8 +1418,9 @@ class RocketMixin:
                     matured_count += 1
             self.state["term_deposits"] = cds
             charges_st = self.state.setdefault("rocket_armory_charges", {})
-            c = charges_st.setdefault("chrono", {"unlocked": True, "charges": 3, "progress": 0, "target": 10_000_000})
+            c = charges_st.setdefault("chrono", {"unlocked": True, "charges": 3, "progress": 0, "target": 25_000_000})
             c["unlocked"] = True
+            c["target"] = 25_000_000
             if active_cds:
                 msg = f"⏱️ Clearance Authorized: Activated Chrono Accelerator! Advanced {len(active_cds)} active CD(s) by +1 day ({matured_count} matured)!"
             else:
@@ -1479,6 +1472,9 @@ class RocketMixin:
             return True, f"📦 Requisitioned {sp_name} (#{sp_id}) was dismissed back into the wild."
 
         # choice == "keep"
+        if sp_id in self.get_roster_species_ids():
+            self.save()
+            return False, f"Delivery cancelled: {sp_name} (#{sp_id}) already exists in your active Roster!"
         chain_ids = [sp_id]
         rarity = Rarity.RARE
         sp_data = self.api.get_pokemon_species(sp_id)
