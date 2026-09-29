@@ -116,7 +116,7 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertNotEqual(mon.base_id, 151)
         self.assertEqual(mon.rarity, Rarity.LEGENDARY)
 
-    def test_red_battle_first_win_recruits_mew_directly_without_egg(self):
+    def test_red_battle_first_win_grants_mysterious_fetal_egg(self):
         from poketokenbar.game.red_battle import RedBattleHandler
         red = RedBattleHandler(self.engine)
         self.engine.state["red_wins"] = 0
@@ -140,16 +140,17 @@ class TestCompanionEngine(unittest.TestCase):
         ok, msg = red.execute_turn(0)
         self.assertTrue(ok)
 
-        # No egg should be assigned
-        self.assertIsNone(self.engine.state.get("egg_tier"))
+        # Mysterious fetal form egg should be obtained
+        all_eggs = self.engine.get_all_nursery_eggs()
+        self.assertTrue(any(e["tier"] == "mysterious fetal form" for e in all_eggs))
 
-        # Mew must be directly recruited into dex/roster
+        # Mew is not yet hatched in dex/roster
         dex_sp_ids = {d.get("species_id") for d in self.engine.state.get("dex", [])}
-        self.assertIn(151, dex_sp_ids)
+        self.assertNotIn(151, dex_sp_ids)
 
         # Check turn log message
         st_after = red._get_state()
-        self.assertTrue(any("Mew was touched by your bond" in log for log in st_after.get("turn_log", [])))
+        self.assertTrue(any("shining god-like being" in log for log in st_after.get("turn_log", [])))
 
     def test_red_battle_win_when_mew_already_owned_does_not_duplicate(self):
         from poketokenbar.game.red_battle import RedBattleHandler
@@ -2331,25 +2332,25 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertFalse(ok4)
         self.assertIn("0/3 charges", msg4)
 
-        # Simulate coding usage: 2.5M tokens -> +1 charge
-        self.engine.process_usage(12_500_000)
+        # Simulate coding usage: 15M tokens -> +1 charge
+        self.engine.process_usage(25_000_000)
         info_spray2 = self.engine.get_armory_charge_info("spray")
         self.assertEqual(info_spray2["charges"], 1)
 
-        # Simulate another 5.0M tokens -> reaches max 3/3 charges
-        self.engine.process_usage(17_500_000)
+        # Simulate another 30M tokens -> reaches max 3/3 charges
+        self.engine.process_usage(55_000_000)
         info_spray3 = self.engine.get_armory_charge_info("spray")
         self.assertEqual(info_spray3["charges"], 3)
 
         # Further tokens do not exceed 3
-        self.engine.process_usage(25_000_000)
+        self.engine.process_usage(80_000_000)
         info_spray4 = self.engine.get_armory_charge_info("spray")
         self.assertEqual(info_spray4["charges"], 3)
 
         # Promote to Executive -> initializes catalyst with 3/3 charges
         self.engine.state["rocket_rank"] = "Executive"
         charges_st = self.engine.state.setdefault("rocket_armory_charges", {})
-        charges_st["catalyst"] = {"charges": 3, "progress": 0, "target": 2_500_000}
+        charges_st["catalyst"] = {"charges": 3, "progress": 0, "target": 25_000_000}
         info_cat = self.engine.get_armory_charge_info("catalyst")
         self.assertEqual(info_cat["charges"], 3)
         self.assertEqual(info_cat["max_charges"], 3)
@@ -4131,7 +4132,7 @@ class TestCompanionEngine(unittest.TestCase):
 
         handler = RocketBattleHandler(self.engine)
         squad = handler.auto_assemble_squad()
-        self.assertEqual(len(squad), 6)
+        self.assertEqual(len(squad), 3)
 
         # 3. Start boss battle
         ok, msg = handler.start_boss_battle("3")

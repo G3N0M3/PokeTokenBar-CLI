@@ -1,5 +1,6 @@
 import random
 from typing import Tuple, List, Dict
+from poketokenbar.utils.formatting import format_tokens
 
 # Type Matchup Chart (Simplified)
 # Format: "attacking_type": {"super": [defending_types], "weak": [defending_types], "immune": [defending_types]}
@@ -297,44 +298,38 @@ class RedBattleHandler:
                 else:
                     if st.get("arceus_phase"):
                         logs.append("You defeated Arceus! You are a Pokémon God!")
-                        # Grant Arceus
-                        from poketokenbar.game.models import MonState
-                        arceus_mon = MonState(
-                            base_id=493,
-                            current_id=493,
-                            rarity="legendary",
-                            path_ids=[493],
-                            stage_index=0,
-                            is_shiny=False,
-                            nickname="Arceus",
-                            generation=1
-                        )
-                        self.engine._register_to_dex(arceus_mon, status="graduated")
-                        logs.append("Arceus has acknowledged your strength and joined your roster!")
+                        # Grant Arceus if not in active roster
+                        owns_arceus = 493 in self.engine.get_roster_species_ids()
+                        if not owns_arceus:
+                            from poketokenbar.game.models import MonState
+                            arceus_mon = MonState(
+                                base_id=493,
+                                current_id=493,
+                                rarity="legendary",
+                                path_ids=[493],
+                                stage_index=0,
+                                is_shiny=False,
+                                nickname="Arceus",
+                                generation=1
+                            )
+                            self.engine._register_to_dex(arceus_mon, status="graduated")
+                            logs.append("Arceus has acknowledged your strength and joined your roster!")
+                        else:
+                            logs.append("Arceus acknowledges your divine strength! (Arceus already in Roster)")
                     else:
                         logs.append("You defeated PKMN Trainer Red! You are a Pokémon Master!")
                         if self.engine.state.get("red_wins", 0) == 0:
-                            dex = self.engine.state.get("dex", [])
-                            owns_mew = any(
-                                (d.get("species_id") == 151 or d.get("base_id") == 151 or 151 in d.get("chain_order", []))
-                                for d in dex
-                            ) or (self.engine.active_mon and self.engine.active_mon.base_id == 151)
+                            owns_mew = 151 in self.engine.get_roster_species_ids()
 
                             if not owns_mew:
-                                from poketokenbar.game.models import MonState, Rarity
-                                mew_mon = MonState(
-                                    base_id=151,
-                                    path_ids=[151],
-                                    planned_path_ids=[151],
-                                    stage_index=0,
-                                    used_at_stage=0,
-                                    rarity=Rarity.LEGENDARY,
-                                    total_forms=1,
-                                    is_shiny=False,
-                                    happiness=100
-                                )
-                                self.engine._register_to_dex(mew_mon, status="inactive")
-                                logs.append("Mew was touched by your bond on Mt. Silver and joined your roster!")
+                                ok_egg, msg_egg, cash_egg = self.engine.obtain_egg("mysterious fetal form")
+                                if cash_egg:
+                                    logs.append("A shining god-like being descended from the heavens...")
+                                    logs.append(f"Moved by your bond, it granted an egg! (Roster Full: +{format_tokens(cash_egg)} tokens)")
+                                else:
+                                    logs.append("A shining god-like being descended from the heavens...")
+                                    logs.append("Moved by the strong bond with your Pokémon on Mt. Silver,")
+                                    logs.append("it granted a Mysterious Fetal Form Egg to your Nursery!")
                             else:
                                 logs.append("Red nods in silent respect of your victory! (Mew already registered in Pokédex)")
                         else:
