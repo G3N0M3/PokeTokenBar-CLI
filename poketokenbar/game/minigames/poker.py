@@ -1,6 +1,6 @@
 import random
 import itertools
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple
 
 SUITS = ["♠", "♥", "♦", "♣"]
 RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
@@ -36,43 +36,66 @@ class TexasHoldemEngine:
         self.player_hole: List[Card] = []
         self.dealer_hole: List[Card] = []
         self.community_cards: List[Card] = []
+        self.community_revealed: int = 0
         self.current_bet = 0
-        self.game_state = "idle" # "idle", "preflop", "flop", "turn", "showdown"
+        self.game_state = "idle"  # "idle", "preflop", "flop", "turn"
+        self.last_outcome: str = ""
+        self.last_p_rank: str = ""
+        self.last_d_rank: str = ""
+        self.last_winnings: int = 0
+        self.last_net: str = ""
+
+    @property
+    def player_hand(self) -> List[Card]:
+        return self.player_hole
+
+    @player_hand.setter
+    def player_hand(self, cards: List[Card]):
+        self.player_hole = cards
+
+    @property
+    def dealer_hand(self) -> List[Card]:
+        return self.dealer_hole
+
+    @dealer_hand.setter
+    def dealer_hand(self, cards: List[Card]):
+        self.dealer_hole = cards
 
     def start_hand(self, bet_amount: int) -> Tuple[bool, str]:
+        if self.game_state != "idle":
+            return False, "A hand is already in progress! Type 'check', 'raise', 'allin', or 'fold'."
         if bet_amount <= 0:
             return False, "Bet amount must be greater than 0!"
         self.deck = Deck()
         self.player_hole = self.deck.draw(2)
         self.dealer_hole = self.deck.draw(2)
         self.community_cards = self.deck.draw(5)
+        self.community_revealed = 0
         self.current_bet = bet_amount
         self.game_state = "preflop"
-
-        p_cards = " ".join([str(c) for c in self.player_hole])
-        return True, f"♠️ TEXAS HOLD'EM DEALT!\n  Your Hole: {p_cards}\n  Board:     [?] [?] [?] [?] [?]\n  ➔ Type 'check', 'raise', 'allin', or 'fold'."
+        self.last_outcome = ""
+        return True, "♠️ Hand dealt!"
 
     def play_flop(self) -> Tuple[bool, str]:
         if self.game_state != "preflop":
             return False, "Not in Pre-Flop phase! Start a hand with 'bet <amount>' first."
 
+        self.community_revealed = 3
         self.game_state = "flop"
-        p_cards = " ".join([str(c) for c in self.player_hole])
-        flop_cards = " ".join([str(c) for c in self.community_cards[:3]])
-        return True, f"♦️ THE FLOP REVEALED!\n  Your Hole: {p_cards}\n  Board:     {flop_cards} [?] [?]\n  ➔ Type 'check', 'raise', 'allin', or 'fold'."
+        return True, "♦️ Flop revealed!"
 
     def play_turn(self) -> Tuple[bool, str]:
         if self.game_state != "flop":
-            return False, "Not in Flop phase! Type 'call' first."
+            return False, "Not in Flop phase! Type 'check' first."
 
+        self.community_revealed = 4
         self.game_state = "turn"
-        p_cards = " ".join([str(c) for c in self.player_hole])
-        turn_cards = " ".join([str(c) for c in self.community_cards[:4]])
-        return True, f"♦️ THE TURN REVEALED!\n  Your Hole: {p_cards}\n  Board:     {turn_cards} [?]\n  ➔ Type 'check' for Showdown, 'raise', 'allin', or 'fold'."
+        return True, "♦️ Turn revealed!"
 
     def play_fold(self) -> Tuple[str, int]:
         """Player surrenders current hand."""
         self.game_state = "idle"
+        self.last_outcome = "FOLD"
         lost_amount = self.current_bet
         return "FOLD", lost_amount
 
@@ -81,13 +104,14 @@ class TexasHoldemEngine:
         Evaluates best 5-card hands out of 7, and returns:
         (outcome, player_rank_name, dealer_rank_name, multiplier, total_winnings)
         """
+        self.community_revealed = 5
         self.game_state = "idle"
 
         player_all = self.player_hole + self.community_cards
         dealer_all = self.dealer_hole + self.community_cards
 
-        p_rank_name, p_score, p_best = self.best_5_card_hand(player_all)
-        d_rank_name, d_score, d_best = self.best_5_card_hand(dealer_all)
+        p_rank_name, p_score, _ = self.best_5_card_hand(player_all)
+        d_rank_name, d_score, _ = self.best_5_card_hand(dealer_all)
 
         if p_score > d_score:
             mult = self._get_win_multiplier(p_rank_name)
@@ -102,7 +126,41 @@ class TexasHoldemEngine:
             outcome = "LOSS"
             winnings = 0
 
+        self.last_outcome = outcome
+        self.last_p_rank = p_rank_name
+        self.last_d_rank = d_rank_name
+        self.last_winnings = winnings
         return outcome, p_rank_name, d_rank_name, mult, winnings
+
+    def get_hand_type(self, hole_cards: List[Card], community_cards: List[Card] = None) -> str:
+        """
+        Returns the human-readable poker hand type (e.g. 'One Pair', 'Flush')
+        for the given hole cards combined with currently revealed community cards.
+        """
+        if not hole_cards:
+            return ""
+        if community_cards is None:
+            revealed = 5 if self.game_state == "idle" else self.community_revealed
+            comm = self.community_cards[:revealed]
+        else:
+            comm = community_cards
+
+        cards = list(hole_cards) + list(comm)
+        if len(cards) < 5:
+            ranks = [c.rank for c in cards]
+            counts = {r: ranks.count(r) for r in set(ranks)}
+            max_count = max(counts.values()) if counts else 1
+            if max_count == 4:
+                return "Four of a Kind"
+            elif max_count == 3:
+                return "Three of a Kind"
+            elif max_count == 2:
+                pair_count = sum(1 for c in counts.values() if c == 2)
+                return "Two Pair" if pair_count >= 2 else "One Pair"
+            return "High Card"
+
+        name, _, _ = self.best_5_card_hand(cards)
+        return name
 
     @classmethod
     def best_5_card_hand(cls, cards7: List[Card]) -> Tuple[str, int, List[Card]]:
@@ -128,10 +186,6 @@ class TexasHoldemEngine:
             "Full House": 5,
             "Flush": 4,
             "Straight": 3,
-            "Three of a Kind": 2,
-            "Two Pair": 2,
-            "One Pair": 2,
-            "High Card": 2
         }
         return multipliers.get(rank_name, 2)
 

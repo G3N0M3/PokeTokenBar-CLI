@@ -153,40 +153,59 @@ def render_poker_tab(app):
     sys.stdout.write(f"  Available Tokens to Bet: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n\n")
 
     sys.stdout.write(f"  {BOLD}🃏 Rules & Payout Multipliers:{RESET}\n")
-    sys.stdout.write(f"   • Receive 2 Hole Cards. Beat the House Dealer's best 5-card hand!\n")
-    sys.stdout.write(f"   • Winning Bonus Multipliers: Royal Flush [50x] | Straight Flush [15x]\n")
-    sys.stdout.write(f"   • Four of a Kind [8x] | Full House [5x] | Flush [4x] | Straight [3x]\n\n")
+    sys.stdout.write(f"   • Receive 2 cards in hand. Beat the Dealer's best 5-card hand!\n")
+    sys.stdout.write(f"   • Royal Flush [50x] | Str. Flush [15x] | 4-of-a-Kind [8x]\n")
+    sys.stdout.write(f"   • Full House [5x] | Flush [4x] | Straight [3x] | Pair/High [2x]\n\n")
 
-    sys.stdout.write(f"  ➔ Step 1: Type '{BOLD}bet <amount>{RESET}' to deal 2 Hole Cards (e.g. 'bet 1m').\n")
-    sys.stdout.write(f"  ➔ Step 2: Type '{BOLD}check{RESET}' to reveal community cards, or '{BOLD}fold{RESET}'\n")
-    sys.stdout.write(f"  ➔ Step 3: Type '{BOLD}raise{RESET}' to double your bet, or '{BOLD}allin{RESET}' to bet EVERYTHING!\n")
-    sys.stdout.write(f"  ➔ Note: You can raise multiple times in a single hand.\n")
+    sys.stdout.write(f"  ➔ Step 1: Type '{BOLD}bet <amount>{RESET}' to deal your hand (e.g. 'bet 1m').\n")
+    sys.stdout.write(f"  ➔ Step 2: Type '{BOLD}check{RESET}' to advance street, or '{BOLD}fold{RESET}' to surrender.\n")
+    sys.stdout.write(f"  ➔ Step 3: Type '{BOLD}raise{RESET}' to double bet, or '{BOLD}allin{RESET}' to bet all.\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return to the Game Corner Menu.\n\n")
 
     if app.engine.poker.player_hole:
-        p_hole = " ".join([str(c) for c in app.engine.poker.player_hole])
+        p_hand_str = " ".join([str(c) for c in app.engine.poker.player_hole])
+        p_type = app.engine.poker.get_hand_type(app.engine.poker.player_hole)
+        p_badge = f"  ({CYAN}{p_type}{RESET})" if p_type else ""
+
         if app.engine.poker.game_state == "preflop":
             board = "[?] [?] [?] [?] [?]"
-            d_hole = "[?] [?]"
-            state_str = "Pre-Flop (Type 'check', 'raise', 'allin', or 'fold')"
+            d_hand_str = "[?] [?]"
+            d_badge = ""
+            state_str = "Pre-Flop (check / raise / allin / fold)"
         elif app.engine.poker.game_state == "flop":
             board = " ".join([str(c) for c in app.engine.poker.community_cards[:3]]) + " [?] [?]"
-            d_hole = "[?] [?]"
-            state_str = "The Flop (Type 'check', 'raise', 'allin', or 'fold')"
+            d_hand_str = "[?] [?]"
+            d_badge = ""
+            state_str = "The Flop (check / raise / allin / fold)"
         elif app.engine.poker.game_state == "turn":
             board = " ".join([str(c) for c in app.engine.poker.community_cards[:4]]) + " [?]"
-            d_hole = "[?] [?]"
-            state_str = "The Turn (Type 'check' for Showdown, 'raise', 'allin', or 'fold')"
+            d_hand_str = "[?] [?]"
+            d_badge = ""
+            state_str = "The Turn (check for Showdown / raise / allin / fold)"
         else:
             board = " ".join([str(c) for c in app.engine.poker.community_cards])
-            d_hole = " ".join([str(c) for c in app.engine.poker.dealer_hole])
-            state_str = "Showdown Completed"
+            d_hand_str = " ".join([str(c) for c in app.engine.poker.dealer_hole])
+            d_type = app.engine.poker.get_hand_type(app.engine.poker.dealer_hole)
+            d_badge = f"  ({YELLOW}{d_type}{RESET})" if d_type else ""
+            state_str = "Hand Folded" if getattr(app.engine.poker, "last_outcome", "") == "FOLD" else "Showdown Completed"
 
         sys.stdout.write(f"  {BOLD}Active Table [{state_str}]:{RESET}\n")
-        sys.stdout.write(f"   🎴 Your Hole Cards:  {p_hole}\n")
-        sys.stdout.write(f"   ♦️ Community Board: {board}\n")
-        sys.stdout.write(f"   🏠 House Hole:       {d_hole}\n")
-        sys.stdout.write(f"   Current Bet: {BOLD}{YELLOW}{format_tokens(app.engine.poker.current_bet)}{RESET} tokens\n\n")
+        sys.stdout.write(f"   🎴 Your Hand:  {p_hand_str}{p_badge}\n")
+        sys.stdout.write(f"   ♦️ Board:      {board}\n")
+        sys.stdout.write(f"   🏠 House Hand: {d_hand_str}{d_badge}\n")
+        sys.stdout.write(f"   Current Bet: {BOLD}{YELLOW}{format_tokens(app.engine.poker.current_bet)}{RESET} tokens\n")
+
+        if app.engine.poker.game_state == "idle" and getattr(app.engine.poker, "last_outcome", ""):
+            outcome = app.engine.poker.last_outcome
+            if outcome == "WIN":
+                sys.stdout.write(f"   {BOLD}{GREEN}🏆 Result: YOU BEAT THE HOUSE! ({app.engine.poker.last_p_rank} vs {app.engine.poker.last_d_rank}){RESET}\n")
+            elif outcome == "PUSH":
+                sys.stdout.write(f"   {BOLD}{YELLOW}🤝 Result: TIE / PUSH! ({app.engine.poker.last_p_rank}){RESET}\n")
+            elif outcome == "FOLD":
+                sys.stdout.write(f"   {BOLD}{RED}🏳️ Result: FOLDED! Surrendered bet.{RESET}\n")
+            else:
+                sys.stdout.write(f"   {BOLD}{RED}💀 Result: HOUSE WINS! ({app.engine.poker.last_d_rank} beats {app.engine.poker.last_p_rank}){RESET}\n")
+        sys.stdout.write("\n")
 
 def render_gacha_tab(app):
     avail = app.engine.available_tokens

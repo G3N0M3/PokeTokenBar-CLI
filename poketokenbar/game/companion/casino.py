@@ -8,6 +8,8 @@ class CasinoMixin:
     """Manages Game Corner casino games: Texas Hold'em Poker, Slots, Blackjack, and Capsule Gacha."""
 
     def play_poker_bet(self, amount_str: str) -> Tuple[bool, str]:
+        if self.poker.game_state != "idle":
+            return False, "A hand is already in progress! Type 'check', 'raise', 'allin', or 'fold'."
         clean_str = amount_str.lower().strip()
         if clean_str in ["all", "all-in"]:
             bet = self.available_tokens
@@ -27,67 +29,62 @@ class CasinoMixin:
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + bet
         self.save()
 
-        ok, msg = self.poker.start_hand(bet)
-        p_cards = " ".join([str(c) for c in self.poker.player_hole])
-        return True, f"♠️ TEXAS HOLD'EM BET {format_tokens(bet)} TOKENS!\n  Your Hole Cards: {p_cards}\n  Community Board: [?] [?] [?] [?] [?]\n  ➔ Type 'check' to reveal the 3 Flop cards!"
+        self.poker.start_hand(bet)
+        return True, f"♠️ Dealt {format_tokens(bet)} tokens! Type 'check' to reveal Flop, 'raise', 'allin', or 'fold'."
 
-    def play_poker_hold(self, hold_str: str) -> Tuple[bool, str]:
-        cmd = hold_str.lower().strip()
+    def play_poker_action(self, action_str: str) -> Tuple[bool, str]:
+        cmd = action_str.lower().strip()
         if self.poker.game_state == "idle":
             return False, "No active Texas Hold'em hand! Type 'bet <amount>' to start a hand."
 
         if cmd == "fold":
             outcome, lost = self.poker.play_fold()
             self._record_catalyst("casino_net_pnl", -lost)
-            return True, f"🏳️ \033[1m\033[31mYOU FOLDED!\033[0m Surrendered {format_tokens(lost)} tokens to the House."
+            return True, f"🏳️ YOU FOLDED! Surrendered {format_tokens(lost)} tokens to the House."
         elif cmd == "check":
             if self.poker.game_state == "preflop":
-                return self.poker.play_flop()
+                self.poker.play_flop()
+                return True, "♦️ Flop revealed! Type 'check' for Turn, 'raise', 'allin', or 'fold'."
             elif self.poker.game_state == "flop":
-                return self.poker.play_turn()
+                self.poker.play_turn()
+                return True, "♦️ Turn revealed! Type 'check' for Showdown, 'raise', 'allin', or 'fold'."
             elif self.poker.game_state == "turn":
                 return self._format_poker_showdown()
             else:
                 return False, "Game already over."
         elif cmd in ["raise", "allin"]:
             avail = self.available_tokens
-            
-            if cmd == "raise":
-                bet_amount = self.poker.current_bet
-            else:
-                bet_amount = avail
-                
+            bet_amount = self.poker.current_bet if cmd == "raise" else avail
+
             if bet_amount <= 0:
                 return False, "You don't have any more tokens to bet!"
-                
             if avail < bet_amount:
                 return False, f"Not enough tokens to double bet! Needed: {format_tokens(bet_amount)}"
-                
-            # Deduct raise bet (increase spent_tokens)
+
             self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + bet_amount
             self.poker.current_bet += bet_amount
             self.save()
-            
+
             verb = "ALL-IN!" if cmd == "allin" else "Raised!"
-            
-            # Advance state automatically after raising
             if self.poker.game_state == "preflop":
-                msg = self.poker.play_flop()[1]
-                return True, f"💰 {verb} " + msg
+                self.poker.play_flop()
+                return True, f"💰 {verb} Flop revealed! Type 'check' for Turn, 'raise', 'allin', or 'fold'."
             elif self.poker.game_state == "flop":
-                msg = self.poker.play_turn()[1]
-                return True, f"💰 {verb} " + msg
+                self.poker.play_turn()
+                return True, f"💰 {verb} Turn revealed! Type 'check' for Showdown, 'raise', 'allin', or 'fold'."
             elif self.poker.game_state == "turn":
                 ok, showdown_msg = self._format_poker_showdown()
-                return True, f"💰 {verb}\n" + showdown_msg
+                return True, f"💰 {verb} {showdown_msg}"
             else:
                 return False, "Game already over."
         else:
-            return False, "Invalid poker action."
+            return False, "Invalid poker action. Valid: 'check', 'raise', 'allin', or 'fold'."
+
+    play_poker_hold = play_poker_action
 
     def _format_poker_showdown(self) -> Tuple[bool, str]:
         outcome, p_rank, d_rank, mult, winnings = self.poker.play_showdown()
-        
+
         mauv_mult = self.get_mauville_multiplier()
         if winnings > 0 and outcome == "WIN" and mauv_mult > 1.0:
             winnings = int(winnings * mauv_mult)
@@ -97,23 +94,19 @@ class CasinoMixin:
             self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - winnings
             self.save()
 
-        p_hole = " ".join([str(c) for c in self.poker.player_hole])
-        d_hole = " ".join([str(c) for c in self.poker.dealer_hole])
-        board = " ".join([str(c) for c in self.poker.community_cards])
-
         bet = self.poker.current_bet
         net_change = winnings - bet
         self._record_catalyst("casino_net_pnl", net_change)
         profit_str = f"+{format_tokens(net_change)}" if net_change >= 0 else f"-{format_tokens(abs(net_change))}"
 
-        res_header = f"♦️ TEXAS HOLD'EM SHOWDOWN!\n  Community Board: {board}\n  🎴 YOUR HOLE:  {p_hole} (\033[1m\033[32m{p_rank}\033[0m)\n  🏠 HOUSE HOLE: {d_hole} (\033[1m\033[31m{d_rank}\033[0m)\n"
+        self.poker.last_net = profit_str
 
         if outcome == "WIN":
-            return True, res_header + f"  🏆 Result: \033[1m\033[32mYOU BEAT THE HOUSE!\033[0m ({mult}x Payout! Won \033[1m\033[36m{format_tokens(winnings)}\033[0m Tokens! Net: {profit_str})"
+            return True, f"🏆 YOU BEAT THE HOUSE! ({p_rank} vs {d_rank}) Won {format_tokens(winnings)} Tokens! (Net: {profit_str})"
         elif outcome == "PUSH":
-            return True, res_header + f"  🤝 Result: \033[1m\033[33mTIE / PUSH!\033[0m Bet of {format_tokens(bet)} Tokens returned."
+            return True, f"🤝 TIE / PUSH! ({p_rank}) Bet of {format_tokens(bet)} Tokens returned."
         else:
-            return True, res_header + f"  💀 Result: \033[1m\033[31mHOUSE WINS!\033[0m Lost {format_tokens(bet)} Tokens."
+            return True, f"💀 HOUSE WINS! ({d_rank} beats {p_rank}) Lost {format_tokens(bet)} Tokens."
 
     def play_gacha(self, pull_type: str = "1") -> Tuple[bool, str]:
         try:
