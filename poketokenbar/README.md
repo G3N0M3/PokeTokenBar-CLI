@@ -35,8 +35,8 @@ PokeTokenBar follows a clean separation of concerns between the **View/Controlle
                        └───────────────────────────┘
 ```
 
-- **TUI (`poketokenbar/tui.py`)**: Responsible for terminal lifecycle, ANSI escape sequences, screen refreshes, active tab navigation, interactive submodes (Stock Terminal, Minigames, Expedition Picker), and parsing raw user input.
-- **Engine (`poketokenbar/game/companion.py`)**: The `CompanionEngine` acts as the central state machine and coordinator. It manages companion progression, inventory, banking, expeditions, stock trading, and calls `self.save()` to persist data.
+- **TUI (`poketokenbar/tui/`)**: Responsible for terminal lifecycle, ANSI escape sequences, screen refreshes, active tab navigation, interactive submodes (Stock Terminal, Minigames, Expedition Picker), and parsing raw user input.
+- **Engine (`poketokenbar/game/companion/`)**: The `CompanionEngine` acts as the central state machine and coordinator. It manages companion progression, inventory, banking, expeditions, stock trading, and calls `self.save()` to persist data.
 - **Storage (`poketokenbar/game/storage.py`)**: Handles atomic JSON serialization, rolling backups (`state.json.bak`), and strict test runner sandboxing.
 - **Tracker (`poketokenbar/tracker/manager.py`)**: Aggregates token usage across multiple local AI assistant logs without external network requests.
 
@@ -48,21 +48,30 @@ PokeTokenBar follows a clean separation of concerns between the **View/Controlle
 poketokenbar/
 ├── __init__.py           # Package version definition (v2.0.0)
 ├── cli.py                # CLI entry point (ptb launches interactive TUI)
-├── tui.py                # PokeTokenBarTUI: 72-column terminal renderer and input dispatch loop
 ├── sprite_renderer.py    # SpriteRenderer: 24-bit TrueColor ANSI half-block renderer (with flip_h support)
+├── tui/                  # TUI framework: app lifecycle, input router, modals
+│   ├── app.py            # Main application lifecycle, state loop, view dispatcher
+│   ├── router.py         # Subtab routing, modal handling, command dispatch
+│   └── modals/           # Interactive modals (expedition picker, buy confirm, etc.)
 ├── game/
-│   ├── companion.py      # CompanionEngine: Core progression, evolution, expeditions, bank, repossession
-│   ├── stock_market.py   # StockMarketEngine: 5 pattern cycles, lore hints, shareholder perks
-│   ├── black_market.py   # BlackMarketEngine: 100 contraband pool, sealed troves, counterfeit logic
+│   ├── companion/        # CompanionEngine modular mixins
+│   │   ├── engine.py     # Base CompanionEngine coordinating progression and state
+│   │   ├── penthouse.py  # PenthouseMixin: 100B qualification, wings, decor perks, transmutation
+│   │   ├── markets.py    # Banking, stocks, dividends, loans, and repossession
+│   │   ├── expeditions.py# Expedition dispatching, progress tracking, and reward calculation
+│   │   ├── rocket.py     # Syndicate operations, covert rank progression, and intel decrypt
+│   │   ├── casino.py     # Minigame wager execution, jackpot payouts, and statistics
+│   │   ├── evolution.py  # Level, stone, friendship, and Mega evolution state transitions
+│   │   ├── feeding.py    # Individual and threshold berry feeding logic
+│   │   ├── hatching.py   # Egg tier roll probabilities and step-based hatching
+│   │   ├── items.py      # Inventory item usage, stone compatibility, and bag management
+│   │   └── profile.py    # ASCII Trainer Card generation and lifetime milestone tracking
+│   ├── economy/          # StockMarketEngine, Banking, BlackMarketEngine
+│   ├── combat/           # RocketBattleHandler, RedBattleHandler, Gym Raids
+│   ├── minigames/        # Poker, Gacha, Slots, Blackjack, Voltorb Flip, Derby, Excavator
 │   ├── models.py         # Static data, dataclasses (MonState, ItemKind, Corporation, PokemonBalance)
 │   ├── storage.py        # StorageManager: Atomic save, .bak rolling backup, sandbox redirect
-│   ├── pokeapi.py        # PokeAPIClient: Local sprite & metadata caching (~/.poketokenbar/cache/)
-│   ├── rocket_battle.py  # RocketBattleHandler: Tactical boss combat engine, stance cores & persistent HP
-│   ├── red_battle.py     # RedBattleHandler: Mt. Silver 6v6 turn-based RPG battle engine & Arceus fight
-│   ├── gacha.py          # GachaEngine: Drop table probability and capsule pull logic
-│   ├── poker.py          # TexasHoldemEngine: 5-card draw Video Poker engine
-│   ├── slots.py          # SlotMachineEngine: 3-reel weighted slot machine with animation
-│   └── blackjack.py      # BlackjackEngine: Classic 21 logic, card dealer, and double down
+│   └── pokeapi.py        # PokeAPIClient: Local sprite & metadata caching (~/.poketokenbar/cache/)
 ├── tracker/
 │   ├── manager.py        # UsageManager: Aggregator of active tokens, daily streak, and burn rates
 │   ├── antigravity.py    # AntigravityUsageReader: Protobuf reader for Antigravity SQLite DBs
@@ -80,6 +89,7 @@ poketokenbar/
 │   ├── mega_evo.py       # Tab [8] Mega Evolution chamber & form reversal
 │   ├── game_corner.py    # Tab [9] Casino Hub (Poker, Gacha, Slots, Blackjack)
 │   ├── bank.py           # Tab [10] Token Bank (Checking, CDs, and Dynamic Stock Market)
+│   ├── penthouse.py      # Tab [10] Subtab [P] Resort Area Executive Penthouse
 │   ├── settings.py       # Tab [11] Grouped preferences, sprite resolution, page sizes, tokens init
 │   ├── rocket.py         # Tab [12] Team Rocket Covert HQ: Operations, Tactical Combat, Armory
 │   └── red.py            # Mt. Silver Summit battle interface (called from Tab [6])
@@ -131,6 +141,7 @@ Key                          | Type            | Description
 `rocket_ops`                 | `Dict[str,Dict]`| 10 Covert Operations status, multi-objective progress, boss HP remaining, and claim state.
 `rocket_battle_state`        | `Dict / None`   | Active tactical combat arena state against Syndicate prototype bosses.
 `rocket_intel_unlocked`      | `List[str]`     | Decrypted Syndicate Intel Dossier IDs (`"intel_001"` through `"intel_010"`).
+`penthouse`                  | `Dict`          | Executive Penthouse state (`invitation_sent`, `invitation_pending`, `vip_fee_paid`, `unlocked`, `facilities`, `decor`).
 `page_size_*`                | `int`           | Configurable table page sizes (`page_size_roster`, `page_size_expedition`, `page_size_cd`, etc.).
 
 ### Automatic Rolling Backup (`state.json.bak`)
@@ -190,11 +201,17 @@ Tab [10] Bank provides three distinct financial services:
      - Mauville Energy (`MAUV`): Hoenn power utility (+10% casino payout boost).
      - Macro Cosmos (`MACRO`): Galar conglomerate (+20% raid boss damage & token drops).
      - Viridian Dynamics (`VRDN`): Syndicate tech arm (+10% shiny encounter odds & token momentum).
-   - **Tiered Shareholder Perks**: Holding larger share positions unlocks escalated corporate dividends and perks:
-     - **Retail** (1-10 sh): Tier 1 corporate perks unlocked.
+   - **Tiered Shareholder Perks**: Holding larger share positions unlocks escalated corporate dividends and perks across 10 progressive tiers:
+     - **Retail** (1-10 sh): Tier 1 entry corporate perks unlocked.
      - **Preferred** (11-20 sh): Tier 2 upgraded perks & discounts.
      - **Strategic** (21-30 sh): Tier 3 advanced perks & enhanced dividends.
-     - **Majority** (31+ sh): Tier 4 maximum corporate benefits & syndicate ties.
+     - **Corporate** (31-40 sh): Tier 4 expanded expedition, shop & casino yields.
+     - **Venture** (41-50 sh): Tier 5 institutional partner status.
+     - **Principal** (51-60 sh): Tier 6 major stakeholder privileges.
+     - **Majority** (61-70 sh): Tier 7 controlling interest & syndicate ties.
+     - **Director** (71-80 sh): Tier 8 board-level dividend yields & discounts.
+     - **Executive** (81-90 sh): Tier 9 executive committee governance authority.
+     - **Chairman** (91+ sh): Tier 10 supreme corporate ownership (+60% expeditions, -45% shop discount, +100% raid tokens, +5.0% div yield).
    - **5 Pattern Cycles**: Stocks run on distinct pattern archetypes rather than random walks:
      - `bull_rally`: Consistent upward momentum, multi-day rallies, resistance testing.
      - `bear_decline`: Downward trends, short-seller pressure, oversold value bounce opportunities.
@@ -274,6 +291,47 @@ To safeguard players against accidental large purchases or keystroke errors:
   - Confirming with `y`, `yes`, or `confirm` finalizes the purchase and debits tokens; typing `n`, `no`, or any other command immediately cancels the staged order without mutating state.
   - Supports non-interactive bypass via `-y` flag or programmatic `confirm=True` calls.
 
+### 4.10 Resort Area Executive Penthouse (Tab [10])
+The Resort Area Executive Penthouse serves as the ultimate multi-trillion token sink and endgame estate for high-net-worth trainers:
+
+- **Endgame Qualification & Access Loop (`CompanionEngine.check_penthouse_qualification`)**:
+  - **Wealth Verification**: Assesses the trainer's comprehensive financial net worth:
+    $$\text{Total Wealth} = \text{Available Tokens} + \text{Bank Balance} + \sum (\text{Shares} \times \text{Price}) + \sum \text{CD Value}$$
+    Once net worth reaches $\ge 100,000,000,000$ (100.0B tokens), `penthouse["invitation_pending"]` is automatically flagged.
+  - **Madame Vivienne's Diplomatic Invitation (`invite`)**: Renders a luxury gold-foil diplomatic letter with custom ASCII art from the Ribbon Syndicate of Sinnoh's Resort Area.
+  - **VIP Concierge Verification Fee (`pay`)**: A non-refundable 500,000,000 (500.0M) token clearance fee to gain private viewing rights (`vip_fee_paid = True`).
+  - **Penthouse Deed Acquisition (`acquire`)**: Requires an upfront investment of 1,000,000,000,000 (1.0T) tokens to transfer ownership (`unlocked = True`). Accessible anytime via the `P` hotkey or Tab [10] Bank subtab navigation (`b`/`c`/`s`/`p`).
+
+- **Executive Wings Infrastructure (`facilities` dict, `upgrade wing <1-4>`, `help wing <1-4>`)**:
+  Trainers can construct and level up four high-technology wings:
+  1. **Automated Cryo-Nursery** (`nursery`, Costs: 200B / 500B / 1.0T):
+     - *Level 1*: Incubates 1 egg from reserve reserves in the background as coding tokens are generated.
+     - *Level 2*: Expands capacity to 3 concurrent background eggs.
+     - *Level 3*: Incubates all queued reserve eggs concurrently at 2x token incubation velocity.
+  2. **Hot Springs & Berry Grove** (`springs`, Costs: 250B / 600B / 1.2T):
+     - *Level 1*: Autonomous daily gourmet berry feeder restoring party happiness on first daily session.
+     - *Level 2*: Permanently reduces hourly companion happiness decay rate by 50%.
+     - *Level 3*: Grants complete immunity to happiness decay and provides a +50% coding EXP boost for all companions.
+  3. **Quantum Trading Terminal** (`trading_desk`, Costs: 500B / 1.5T / 3.0T):
+     - *Level 1*: Markov model real-time market telemetry, displaying next-day transition probabilities, market sentiment, and price forecast projections.
+     - *Level 2*: Autonomous dividend reinvestment engine (auto-compounds corporate dividends into highest-yielding equities).
+     - *Level 3*: Whale Catalyst trading desk (`catalyst <corp>`). Injects 1.0T tokens into any of the 6 corporate stocks (`SILPH`, `DEVN`, `AETHR`, `MAUV`, `MACRO`, `VRDN`) to force an immediate Bull Rally cycle (`bull_rally`) lasting 5–7 days.
+  4. **Chromatic Resonator** (`chromatic_lab`, Cost: 2.0T):
+     - *Level 1*: Nanoscale quantum lattice aligning standard pigmentation to generate Shiny companions (`transmute <idx>`). Unlocks custom shiny sparkles and special titles.
+
+- **Luxury Furnishings & Interactive Decor (`decor` list, `furnish <1-6>`, `interact <1-6>`)**:
+  Installing all 6 luxury amenities unlocks the prestigious `👑 Sovereign Tycoon` profile title:
+  1. **Grand Piano** (`piano`, 50B): Passive +5 morning happiness; interactive mini-concert (`interact 1`) grants immediate +10 happiness.
+  2. **Crystal Chandelier** (`chandelier`, 100B): Passive +5% token yield bonus across all active Pokédex expeditions.
+  3. **Golden Arceus Statue** (`statue`, 250B): Passive +10% token reward bonus from Gym Leader and Raid Boss victories.
+  4. **Holographic Globe** (`globe`, 500B): Passive +5% payout boost on all Game Corner casino minigames.
+  5. **Obsidian Fountain** (`fountain`, 750B): Interactive tranquil immersion (`interact 5`) fully restores active companion to 100% happiness and locks happiness decay floor at 60%.
+  6. **Sovereign Throne** (`throne`, 1.0T): Interactive audience (`interact 6`) grants +10% corporate dividend yield across all equity holdings and formalizes the `👑 Sovereign Tycoon` title.
+
+- **Inspection & Layout Engineering**:
+  - `help wing <1-4>` displays single-wing technical architecture, upgrade costs, and mechanical specs without screen clutter.
+  - Visual single-line status bars with Unicode level badges (`[Lv 0]` through `[Lv 3]`) and dynamic formatting ensuring strict 72-column adherence.
+
 ---
 
 ## 5. TUI Rendering Pipeline & Layout Constraints
@@ -302,7 +360,7 @@ or with unittest:
 PTB_STATE_FILE=/tmp/ptb_test.json python -m unittest discover tests
 ```
 
-The test suite contains **137 passing unit and integration tests** (133 companion, banking, and combat tests in `tests/test_companion.py`, and 4 telemetry parser tests in `tests/test_antigravity.py`) verifying sprite rendering, economy calculations, repossession waterfall, stock cycle transitions, Red battle logic, tactical boss combat, CD criteria sorting, happiness threshold and equality feeding, large-quantity transaction safeguards, and strict TUI 72-column formatting constraints.
+The test suite contains comprehensive unit and integration tests across game subsystems (`test_companion.py`, `test_penthouse.py`, `test_roster_and_evolution.py`, `test_poker.py`, etc.) and telemetry readers (`test_antigravity.py`), verifying sprite rendering, economy calculations, repossession waterfall, stock cycle transitions, Penthouse qualification, wing upgrades, decor perks, Red battle logic, tactical boss combat, CD criteria sorting, happiness threshold and equality feeding, large-quantity transaction safeguards, and strict TUI 72-column formatting constraints.
 
 ### Adding a New TUI Command
 1. If the command belongs to an existing submode (e.g. Expeditions, Stocks, Minigames, Rocket HQ), handle it in the appropriate conditional block in `PokeTokenBarTUI.run()`.

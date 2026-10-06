@@ -24,8 +24,9 @@ Designed specifically for **Linux CLI** environments, with automated, real-time 
 - ⚔️ **Gym Raids & Mt. Silver Summit (Tab [6])**: Defeat all 8 Kanto Gym Leaders, earn badges, and assemble a 6-Pokémon team for the turn-based RPG battle against Trainer Red to recruit Mew.
 - 📜 **Daily Quests & Happiness Streaks (Tab [7])**: Maintain daily coding streaks for up to +20% bonus XP, restore exhausted companions with berry feeding (`feed <#[id]|<=[pct]|[pct]|0> [qty]`), and complete daily milestones.
 - ✨ **Mega Evolution Chamber (Tab [8])**: Equip Mega Stones on eligible final forms for glowing terminal titles, accelerated expeditions, and a permanent +50% XP boost.
-- 🎲 **Game Corner & Black Market (Tabs [9] & [4])**: Play Video Poker, Gacha capsules, Slots, Blackjack, Voltorb Flip, Underground Digging, Silhouette Trivia, and Stadium Derby—or bribe your way into the clandestine Rocket Syndicate Black Market.
+- 🎲 **Game Corner & Black Market (Tabs [9] & [4])**: Play Texas Hold'em Poker, Gacha capsules, Slots, Blackjack, Voltorb Flip, Underground Digging, Silhouette Trivia, and Stadium Derby—or bribe your way into the clandestine Rocket Syndicate Black Market.
 - 🏦 **Token Bank & Stock Exchange (Tab [10])**: Compound daily checking interest (+5%), track loan deadlines with `D-<days>` countdowns, lock high-yield CDs, and trade 6 corporate stocks with lore-driven cycle trends.
+- 🏰 **Resort Area Executive Penthouse (Tab [10])**: Exclusive multi-trillion token endgame sink unlocked upon reaching 100B total wealth. Receive a gold-foil diplomatic invitation from Madame Vivienne, pay the 500M VIP concierge clearance fee, and acquire the 1.0T Penthouse deed. Construct and inspect 4 executive wings via `help wing <1-4>`: Cryo-Nurseries (parallel egg incubation), Hot Springs & Berry Grove (+50% coding EXP, decay immunity), Quantum Trading Terminals (live telemetry, dividend auto-compounding, Whale Catalyst), and Chromatic Resonators (transmute companions to Shiny). Install and interact with 6 luxury decor items (`interact <1-6>`) for passive bonuses and claim the title `👑 Sovereign Tycoon`.
 - 🚀 **Team Rocket Covert HQ (Tab [12])**: Intercept encrypted comms, deploy on 10 syndicate operations, and confront experimental prototype bosses in tactical combat.
 - ⚙️ **Grouped Settings & Customization (Tab [11])**: Configure table pagination, customize sprite resolution, calibrate monthly billing days, initialize token baselines, and display shareable ASCII Trainer Profile Cards (`card`).
 
@@ -89,7 +90,16 @@ ptb
 | `sort <days\|amount\|term>` | Change CD sorting criteria (**Days Left**, **Amount**, or **Term**) |
 | `claim <id>` / `break <id>` | Claim matured CD payout or break CD early with penalty (dynamic display index) |
 | `claim all` | Claim all matured CDs at once |
-| `b` / `c` / `s` | Switch Bank subtabs (Checking, Certificate of Deposit, Stocks) |
+| `b` / `c` / `s` / `p` | Switch Bank subtabs (Checking, CDs, Stocks, Penthouse) |
+| `pay` | Pay 500.0M VIP Concierge fee to gain Penthouse viewing clearance |
+| `invite` | Re-read the formal luxury invitation from the Ribbon Syndicate |
+| `acquire` | Purchase the Resort Area Executive Penthouse Deed (1.0T tokens) |
+| `help wing <1-4>` | Inspect technical specifications and upgrade tiers for a Penthouse wing |
+| `upgrade <1-4>` / `upgrade wing <1-4>` | Upgrade Penthouse wings (Nursery, Springs, Trading Desk, Chromatic Lab) |
+| `furnish <1-6>` | Install luxury decor items to earn the `👑 Sovereign Tycoon` title |
+| `interact <1-6>` | Interact with luxury decor items (Piano happiness, Fountain healing, etc.) |
+| `transmute <idx>` | Transmute companion from Roster into a brilliant Shiny |
+| `catalyst <corp>` | Deploy 1.0T tokens from Trading Desk Lv 3 to trigger a guaranteed Bull Rally |
 | `stock <idx\|sym>` | Open Trade Terminal (`SILPH`, `DEVN`, `AETHR`, `MAUV`, `MACRO`, `VRDN`) |
 | `buy <qty>` / `sell <qty>` | Buy or sell shares in active stock terminal (confirms if > 5 shares) |
 | `black` | Access Rocket Syndicate Black Market (when open or etched 'R' found) |
@@ -100,7 +110,7 @@ ptb
 | `pick <r> <c>` / `hammer` / `dig` | Underground Fossil Excavator mining tools & cave excavation |
 | `guess <name>` / `hint` / `giveup` | "Who's That Pokémon?" silhouette trivia challenge |
 | `race` | Launch Pokémon Stadium 4-lane hurdle derby race |
-| `hold <1..5>` / `all` / `none` | Choose cards to hold in Video Poker |
+| `check` / `raise` / `allin` / `fold` | Casino Texas Hold'em poker actions |
 | `pull <qty>` | Pull Gacha capsules (e.g. `pull 1`, `pull 10`) |
 | `spin <amount>` | Spin the Slot Machine (e.g. `spin 250k`) |
 | `poster` | Inspect secret switch behind the Slot Machine poster (Tab 9) |
