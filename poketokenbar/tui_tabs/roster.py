@@ -134,6 +134,11 @@ def render(app):
             status = entry.get("status", "graduated")
             mon_data = entry.get("mon_state", {})
             hap_val = mon_data.get("happiness", 100) if isinstance(mon_data, dict) else 100
+            is_mega = bool(isinstance(mon_data, dict) and mon_data.get("is_mega"))
+            if is_mega:
+                mega_form = mon_data.get("mega_form")
+                m_suffix = f" {mega_form}" if mega_form in ["X", "Y"] else ""
+                name = f"Mega {name}{m_suffix}"
 
             if sp_id in exp_map:
                 exp_info = exp_map[sp_id]
@@ -146,6 +151,8 @@ def render(app):
                 status_badge = f"{BOLD}{RED}[BATTLE w/RED]{RESET}"
             elif sp_id in rocket_team_ids:
                 status_badge = f"{BOLD}{RED}[ROCKET BTL]{RESET}"
+            elif is_mega:
+                status_badge = f"{BOLD}{HEADER}[MEGA ACTIVE]{RESET}" if (status == "active" and active is not None) else f"{BOLD}{HEADER}[MEGA]{RESET}"
             elif status == "active" and active is not None:
                 status_badge = f"{BOLD}{GREEN}[ACTIVE]{RESET}"
             elif status == "inactive":

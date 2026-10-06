@@ -463,10 +463,10 @@ class TestRosterAndEvolution(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("duplicate", err.lower())
 
-        # 8. Reject companion currently on expedition
-        ok, err = handler.parse_squad_selection(["1", "4", "7"])
-        self.assertFalse(ok)
-        self.assertIn("expedition", err.lower())
+        # 8. Companion currently on expedition CAN be selected for Strike Squad
+        ok, squad = handler.parse_squad_selection(["1", "4", "7"])
+        self.assertTrue(ok)
+        self.assertEqual(squad, [1, 4, 7])
 
         # 9. Reject non-existent companion
         ok, err = handler.parse_squad_selection(["999", "1", "4"])
@@ -480,12 +480,21 @@ class TestRosterAndEvolution(unittest.TestCase):
         self.assertEqual(len(st["player_team"]), 3)
         self.assertEqual(st["player_team"], [1, 4, 25])
 
-        # 11. start_boss_battle rejects custom squad with member on expedition
-        ok_fail, msg_fail = handler.start_boss_battle("3", custom_squad=[1, 4, 7])
-        self.assertFalse(ok_fail)
-        self.assertIn("expedition", msg_fail.lower())
+        # 11. start_boss_battle allows custom squad with member on expedition
+        ok_exp, msg_exp = handler.start_boss_battle("3", custom_squad=[1, 4, 7])
+        self.assertTrue(ok_exp)
+        st = handler._get_state()
+        self.assertEqual(st["player_team"], [1, 4, 7])
 
-        # 12. auto_assemble_squad produces exactly 3 members and excludes expedition
+        # 12. start_boss_battle rejects duplicate or invalid size custom squad
+        ok_dup, msg_dup = handler.start_boss_battle("3", custom_squad=[1, 1, 4])
+        self.assertFalse(ok_dup)
+        self.assertIn("duplicate", msg_dup.lower())
+        ok_len, msg_len = handler.start_boss_battle("3", custom_squad=[1, 4])
+        self.assertFalse(ok_len)
+        self.assertIn("exactly 3", msg_len.lower())
+
+        # 13. auto_assemble_squad produces exactly 3 members and excludes expedition
         squad_auto = handler.auto_assemble_squad(size=3)
         self.assertEqual(len(squad_auto), 3)
         self.assertNotIn(7, squad_auto)
@@ -787,6 +796,132 @@ class TestRosterAndEvolution(unittest.TestCase):
         self.assertEqual(self.engine.state.get("pending_eggs"), ["normal"])
 
 
+    def test_mega_evolution_does_not_remove_hatched_pre_evolution_from_roster(self):
+        """Verifies that mega evolving an evolved Pokémon does not mark its living pre-evolution as evolved."""
+        from poketokenbar.tui_tabs.roster import render_roster_tab
+        # 1. Setup Manectric (#310) in roster
+        manectric = MonState(
+            base_id=309,
+            path_ids=[309, 310],
+            planned_path_ids=[309, 310],
+            stage_index=1,
+            used_at_stage=1000,
+            rarity=Rarity.RARE,
+            total_forms=2,
+            happiness=100
+        )
+        # 2. Setup living Electrike (#309) in roster
+        electrike = MonState(
+            base_id=309,
+            path_ids=[309, 310],
+            planned_path_ids=[309, 310],
+            stage_index=0,
+            used_at_stage=0,
+            rarity=Rarity.UNCOMMON,
+            total_forms=2,
+            happiness=100
+        )
+        self.engine.state["dex"] = [
+            {
+                "id": "sp_309",
+                "species_id": 309,
+                "base_id": 309,
+                "chain_order": [309, 310],
+                "status": "inactive",
+                "mon_state": StorageManager.mon_to_dict(electrike),
+                "rarity": "uncommon",
+                "happiness": 100
+            },
+            {
+                "id": "sp_310",
+                "species_id": 310,
+                "base_id": 309,
+                "chain_order": [309, 310],
+                "status": "inactive",
+                "mon_state": StorageManager.mon_to_dict(manectric),
+                "rarity": "rare",
+                "happiness": 100
+            }
+        ]
+        self.engine.state["inventory"] = {"mega_stone_310": 1}
+
+        # Verify both are in active roster
+        roster_ids = self.engine.get_roster_species_ids()
+        self.assertIn(309, roster_ids)
+        self.assertIn(310, roster_ids)
+
+        # 3. Select Manectric (#310) as active companion
+        ok, msg = self.engine.select_active_from_dex("310")
+        self.assertTrue(ok)
+        self.assertEqual(self.engine.active_mon.current_id, 310)
+
+        # 4. Mega-Evolve Manectric
+        ok_mega, msg_mega = self.engine.toggle_mega_evolution("mega_stone_310")
+        self.assertTrue(ok_mega)
+        self.assertTrue(self.engine.active_mon.is_mega)
+
+        # 5. Verify Electrike (#309) is STILL in roster and NOT marked as evolved
+        roster_ids_after = self.engine.get_roster_species_ids()
+        self.assertIn(309, roster_ids_after, "Electrike #309 must not disappear from roster!")
+        self.assertIn(310, roster_ids_after, "Manectric #310 must remain in roster!")
+
+        entry_309 = next(d for d in self.engine.state["dex"] if d["species_id"] == 309)
+        self.assertEqual(entry_309["status"], "inactive", "Electrike status must remain inactive!")
+
+        # 6. Verify Roster UI renders Mega Manectric
+        app = AppState()
+        app.engine = self.engine
+        app.roster_page = 1
+        trap = io.StringIO()
+        with patch("sys.stdout", trap):
+            render_roster_tab(app)
+        out = ANSI_REGEX.sub("", trap.getvalue())
+        self.assertIn("Mega Manectric (#310)", out)
+        self.assertIn("Electrike (#309)", out)
+
+    def test_companion_engine_repairs_erroneously_evolved_309(self):
+        """Verifies that CompanionEngine.__init__ auto-repairs pre-evolution #309 erroneously marked as evolved."""
+        st = StorageManager.default_state()
+        st["dex"] = [
+            {
+                "id": "sp_309",
+                "species_id": 309,
+                "base_id": 309,
+                "chain_order": [309, 310],
+                "status": "evolved",
+                "mon_state": {
+                    "base_id": 309,
+                    "path_ids": [309, 310],
+                    "planned_path_ids": [309, 310],
+                    "stage_index": 0,
+                    "used_at_stage": 41666667,
+                    "rarity": "uncommon",
+                    "total_forms": 2,
+                    "is_shiny": False,
+                    "ditto_disguise": None,
+                    "ditto_revealed": False,
+                    "is_mega": False,
+                    "mega_form": None,
+                    "happiness": 70,
+                    "held_item": None,
+                    "is_graduated": True
+                },
+                "happiness": 70
+            }
+        ]
+        StorageManager.save_state(st)
+
+        # Initialize engine which triggers migration
+        new_engine = CompanionEngine()
+        entry_309 = next(d for d in new_engine.state["dex"] if d["species_id"] == 309)
+        self.assertEqual(entry_309["status"], "inactive")
+        self.assertEqual(entry_309["happiness"], 100)
+        self.assertEqual(entry_309["mon_state"]["used_at_stage"], 0)
+        self.assertFalse(entry_309["mon_state"]["is_graduated"])
+        self.assertIn(309, new_engine.get_roster_species_ids())
+
+
 if __name__ == "__main__":
     unittest.main()
+
 

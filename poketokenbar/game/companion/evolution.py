@@ -231,11 +231,18 @@ class EvolutionMixin:
                     return events
 
                 # Evolve to next stage!
-                prev_name = self.api.get_species_name(mon.current_id)
+                prev_id = mon.current_id
+                prev_name = self.api.get_species_name(prev_id)
                 mon.used_at_stage -= target_xp
                 mon.stage_index += 1
                 new_id = mon.current_id
                 mon_name = self.api.get_species_name(new_id)
+
+                # Mark the previous stage that actually evolved as evolved
+                for d in self.state.get("dex", []):
+                    if d.get("species_id") == prev_id:
+                        d["status"] = "evolved"
+                        break
                 
                 # Update rarity based on the evolved form's capture rate
                 sp_data = self.api.get_pokemon_species(new_id)
@@ -360,6 +367,13 @@ class EvolutionMixin:
 
             if sp_id in existing_sp_ids:
                 entry = existing_sp_ids[sp_id]
+                # If this is a pre-evolution (not the current stage being registered)
+                # and the player already owns an active/inactive living companion in the roster,
+                # preserve it! Do NOT overwrite it to "evolved".
+                if sp_id != mon.current_id and entry.get("status") in ["active", "inactive"]:
+                    continue
+                if sp_id != mon.current_id and entry.get("status") == "graduated" and sp_status == "evolved":
+                    continue
                 entry["status"] = sp_status
                 entry["mon_state"] = sub_dict
                 entry["happiness"] = mon.happiness
@@ -581,6 +595,10 @@ class EvolutionMixin:
             active.rarity = Rarity.from_capture_rate(cap_rate, is_leg)
 
         active.used_at_stage = 0
+        for d in self.state.get("dex", []):
+            if d.get("species_id") == prev_id:
+                d["status"] = "evolved"
+                break
         self._register_to_dex(active, status="active")
         self.set_active_mon(active)
         self.save()
