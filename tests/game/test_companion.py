@@ -1589,13 +1589,31 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertEqual(get_shareholder_rank(20), (2, "Preferred"))
         self.assertEqual(get_shareholder_rank(21), (3, "Strategic"))
         self.assertEqual(get_shareholder_rank(30), (3, "Strategic"))
-        self.assertEqual(get_shareholder_rank(31), (4, "Majority"))
-        self.assertEqual(get_shareholder_rank(100), (4, "Majority"))
-        self.assertEqual(len(SHAREHOLDER_TIERS), 5)
+        self.assertEqual(get_shareholder_rank(31), (4, "Corporate"))
+        self.assertEqual(get_shareholder_rank(40), (4, "Corporate"))
+        self.assertEqual(get_shareholder_rank(41), (5, "Venture"))
+        self.assertEqual(get_shareholder_rank(50), (5, "Venture"))
+        self.assertEqual(get_shareholder_rank(51), (6, "Principal"))
+        self.assertEqual(get_shareholder_rank(60), (6, "Principal"))
+        self.assertEqual(get_shareholder_rank(61), (7, "Majority"))
+        self.assertEqual(get_shareholder_rank(70), (7, "Majority"))
+        self.assertEqual(get_shareholder_rank(71), (8, "Director"))
+        self.assertEqual(get_shareholder_rank(80), (8, "Director"))
+        self.assertEqual(get_shareholder_rank(81), (9, "Executive"))
+        self.assertEqual(get_shareholder_rank(90), (9, "Executive"))
+        self.assertEqual(get_shareholder_rank(91), (10, "Chairman"))
+        self.assertEqual(get_shareholder_rank(150), (10, "Chairman"))
+        self.assertEqual(len(SHAREHOLDER_TIERS), 11)
         self.assertEqual(SHAREHOLDER_TIERS[1].range_label, "1-10 sh")
         self.assertEqual(SHAREHOLDER_TIERS[2].range_label, "11-20 sh")
         self.assertEqual(SHAREHOLDER_TIERS[3].range_label, "21-30 sh")
-        self.assertEqual(SHAREHOLDER_TIERS[4].range_label, "31+ sh")
+        self.assertEqual(SHAREHOLDER_TIERS[4].range_label, "31-40 sh")
+        self.assertEqual(SHAREHOLDER_TIERS[5].range_label, "41-50 sh")
+        self.assertEqual(SHAREHOLDER_TIERS[6].range_label, "51-60 sh")
+        self.assertEqual(SHAREHOLDER_TIERS[7].range_label, "61-70 sh")
+        self.assertEqual(SHAREHOLDER_TIERS[8].range_label, "71-80 sh")
+        self.assertEqual(SHAREHOLDER_TIERS[9].range_label, "81-90 sh")
+        self.assertEqual(SHAREHOLDER_TIERS[10].range_label, "91+ sh")
 
     def test_shareholder_perk_multipliers(self):
         self.engine.state["investments"] = {
@@ -1645,7 +1663,7 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertEqual(self.engine.get_macro_multiplier(), 1.30)
         self.assertEqual(self.engine.get_viridian_dividend_bonus(), 0.015)
 
-        # Rank 4 (Majority: 31+ shares)
+        # Rank 4 (Corporate: 31-40 shares)
         self.engine.state["investments"] = {k: 35 for k in self.engine.state["investments"]}
         self.assertEqual(self.engine.get_silph_multipliers(), (1.25, 1.25))
         self.assertEqual(self.engine.get_devon_multiplier(), 0.80)
@@ -1654,6 +1672,26 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertEqual(self.engine.get_mauville_multiplier(), 1.20)
         self.assertEqual(self.engine.get_macro_multiplier(), 1.40)
         self.assertEqual(self.engine.get_viridian_dividend_bonus(), 0.020)
+
+        # Rank 5 (Venture: 41-50 shares)
+        self.engine.state["investments"] = {k: 45 for k in self.engine.state["investments"]}
+        self.assertEqual(self.engine.get_silph_multipliers(), (1.30, 1.30))
+        self.assertEqual(self.engine.get_devon_multiplier(), 0.76)
+        self.assertEqual(self.engine.get_devon_discount_pct(), 24)
+        self.assertEqual(self.engine.get_aether_perks(), (3.5, 16))
+        self.assertEqual(self.engine.get_mauville_multiplier(), 1.25)
+        self.assertEqual(self.engine.get_macro_multiplier(), 1.50)
+        self.assertEqual(self.engine.get_viridian_dividend_bonus(), 0.025)
+
+        # Rank 10 (Chairman: 91+ shares)
+        self.engine.state["investments"] = {k: 100 for k in self.engine.state["investments"]}
+        self.assertEqual(self.engine.get_silph_multipliers(), (1.60, 1.60))
+        self.assertEqual(self.engine.get_devon_multiplier(), 0.55)
+        self.assertEqual(self.engine.get_devon_discount_pct(), 45)
+        self.assertEqual(self.engine.get_aether_perks(), (6.0, 45))
+        self.assertEqual(self.engine.get_mauville_multiplier(), 1.50)
+        self.assertEqual(self.engine.get_macro_multiplier(), 2.00)
+        self.assertEqual(self.engine.get_viridian_dividend_bonus(), 0.050)
 
     def test_stock_trade_terminal_progression_and_72_col_compliance(self):
         import io
@@ -1665,9 +1703,9 @@ class TestCompanionEngine(unittest.TestCase):
         app = MagicMock()
         app.engine = self.engine
 
-        # Test each corporation across all 5 ranks (0, 5, 15, 25, 35 shares)
+        # Test each corporation across all 11 ranks (0, 5, 15, 25, 35, 45, 55, 65, 75, 85, 95 shares)
         for corp_key in ["silph", "devon", "aether", "mauville", "macro", "viridian"]:
-            for share_count in [0, 5, 15, 25, 35]:
+            for share_count in [0, 5, 15, 25, 35, 45, 55, 65, 75, 85, 95]:
                 self.engine.state["investments"][corp_key] = share_count
                 trap = io.StringIO()
                 with patch("sys.stdout", trap):

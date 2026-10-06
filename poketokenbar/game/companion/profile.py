@@ -114,7 +114,10 @@ class ProfileMixin:
                             active.happiness = min(100, active.happiness + bonus)
                             self.set_active_mon(active)
                     elif diff > 1:
-                        if active and active.held_item in ["leftovers", "soothe_bell"]:
+                        springs_lvl = self.get_villa_facility_level("springs")
+                        if springs_lvl >= 3:
+                            events.append(f"💧 Your companion relaxed in the Executive Penthouse Hot Springs during your {diff-1} missed day(s)! Happiness fully preserved!")
+                        elif active and active.held_item in ["leftovers", "soothe_bell"]:
                             protect_item = ItemKind(active.held_item).name_en
                             events.append(f"🍎 Your companion missed {diff-1} day(s), but was protected by {protect_item}! Happiness preserved!")
                         else:
@@ -122,6 +125,8 @@ class ProfileMixin:
                             decay_shield, _ = self.get_aether_perks()
                             if decay_shield > 1.0:
                                 decay = max(1, int(decay / decay_shield))
+                            if springs_lvl >= 2:
+                                decay = max(1, decay // 2)
                             if active:
                                 active.happiness = max(0, active.happiness - decay)
                                 self.set_active_mon(active)
@@ -129,6 +134,30 @@ class ProfileMixin:
                             else:
                                 hap_val = 0
                             events.append(f"💔 You missed {diff-1} day(s) of coding! Companion Happiness dropped to {hap_val}%. Feed Oran Berries 🫐 to cheer them up!")
+
+                    springs_lvl = self.get_villa_facility_level("springs")
+                    if springs_lvl >= 1 and active and active.happiness < 100:
+                        inv = self.state.setdefault("inventory", {})
+                        if inv.get("berry_oran", 0) > 0:
+                            inv["berry_oran"] -= 1
+                            active.happiness = min(100, active.happiness + 20)
+                            self.set_active_mon(active)
+                            events.append("💧 Hot Springs auto-feeder nourished your companion with an Oran Berry! (+20 Happiness)")
+                        else:
+                            active.happiness = min(100, active.happiness + 10)
+                            self.set_active_mon(active)
+                            events.append("💧 Hot Springs Berry Grove nourished your companion with fresh berries! (+10 Happiness)")
+
+                    # Penthouse Decor daily passive perks
+                    if hasattr(self, "has_penthouse_decor"):
+                        if self.has_penthouse_decor("piano") and active and active.happiness < 100:
+                            active.happiness = min(100, active.happiness + 5)
+                            self.set_active_mon(active)
+                            events.append("🎹 Grand Concert Piano: Morning harmonic melodies uplifted your companion (+5 Happiness)!")
+                        if self.has_penthouse_decor("fountain") and active and active.happiness < 60:
+                            active.happiness = 60
+                            self.set_active_mon(active)
+                            events.append("⛲ Prism Spring Fountain: Soothing mineral waters comforted your companion!")
                 except Exception:
                     pass
             self.state["last_active_date"] = today_str
@@ -518,11 +547,10 @@ class ProfileMixin:
         target_xp = PokemonBalance.phase_threshold(mon.rarity, mon.total_forms, mon.stage_index, diff)
         roster_sp_ids = self.get_roster_species_ids()
         next_evo_id = self.get_next_evolution_id(mon)
-        is_already_evolved = is_already_grad or (target_entry.get("status") in ["evolved", "graduated"]) or \
-                            (next_evo_id is not None and next_evo_id in roster_sp_ids)
-
-        if is_already_evolved:
+        if target_entry.get("status") in ["evolved", "graduated"] or is_already_grad:
             mon.used_at_stage = target_xp
+        elif next_evo_id is not None and next_evo_id in roster_sp_ids:
+            mon.used_at_stage = min(mon.used_at_stage, target_xp)
 
         # Set new active mon
         self.set_active_mon(mon)

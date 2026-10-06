@@ -30,14 +30,20 @@ class MarketsMixin:
     def get_silph_multipliers(self) -> Tuple[float, float]:
         """Returns (speed_multiplier, token_multiplier) for Silph Co. shareholders."""
         rank, _ = self.get_corp_rank("silph")
-        mult_map = {0: 1.0, 1: 1.10, 2: 1.15, 3: 1.20, 4: 1.25}
+        mult_map = {
+            0: 1.0, 1: 1.10, 2: 1.15, 3: 1.20, 4: 1.25,
+            5: 1.30, 6: 1.35, 7: 1.40, 8: 1.45, 9: 1.50, 10: 1.60
+        }
         m = mult_map.get(rank, 1.0)
         return m, m
 
     def get_devon_multiplier(self) -> float:
         """Returns price multiplier for Devon Corporation shareholders (shop items, eggs, black market)."""
         rank, _ = self.get_corp_rank("devon")
-        disc_map = {0: 1.0, 1: 0.95, 2: 0.90, 3: 0.85, 4: 0.80}
+        disc_map = {
+            0: 1.0, 1: 0.95, 2: 0.90, 3: 0.85, 4: 0.80,
+            5: 0.76, 6: 0.72, 7: 0.68, 8: 0.64, 9: 0.60, 10: 0.55
+        }
         return disc_map.get(rank, 1.0)
 
     def get_devon_discount_pct(self) -> int:
@@ -53,25 +59,46 @@ class MarketsMixin:
             2: (2.0, 5),
             3: (2.5, 8),
             4: (3.0, 12),
+            5: (3.5, 16),
+            6: (4.0, 20),
+            7: (4.5, 25),
+            8: (5.0, 30),
+            9: (5.5, 36),
+            10: (6.0, 45),
         }
         return perk_map.get(rank, (1.0, 0))
 
     def get_mauville_multiplier(self) -> float:
         """Returns payout bonus multiplier for Greater Mauville Holdings shareholders across all minigames."""
         rank, _ = self.get_corp_rank("mauville")
-        mult_map = {0: 1.0, 1: 1.05, 2: 1.10, 3: 1.15, 4: 1.20}
-        return mult_map.get(rank, 1.0)
+        mult_map = {
+            0: 1.0, 1: 1.05, 2: 1.10, 3: 1.15, 4: 1.20,
+            5: 1.25, 6: 1.30, 7: 1.35, 8: 1.40, 9: 1.45, 10: 1.50
+        }
+        mult = mult_map.get(rank, 1.0)
+        if hasattr(self, "has_penthouse_decor") and self.has_penthouse_decor("hologram"):
+            mult += 0.05
+        return mult
 
     def get_macro_multiplier(self) -> float:
         """Returns token reward multiplier for Macro Cosmos shareholders across Gym boss raids and auto-battles."""
         rank, _ = self.get_corp_rank("macro")
-        mult_map = {0: 1.0, 1: 1.10, 2: 1.20, 3: 1.30, 4: 1.40}
-        return mult_map.get(rank, 1.0)
+        mult_map = {
+            0: 1.0, 1: 1.10, 2: 1.20, 3: 1.30, 4: 1.40,
+            5: 1.50, 6: 1.60, 7: 1.70, 8: 1.80, 9: 1.90, 10: 2.00
+        }
+        mult = mult_map.get(rank, 1.0)
+        if hasattr(self, "has_penthouse_decor") and self.has_penthouse_decor("statue"):
+            mult += 0.10
+        return mult
 
     def get_viridian_dividend_bonus(self) -> float:
         """Returns extra dividend yield bonus for Viridian Global Logistics shareholders."""
         rank, _ = self.get_corp_rank("viridian")
-        bonus_map = {0: 0.0, 1: 0.005, 2: 0.010, 3: 0.015, 4: 0.020}
+        bonus_map = {
+            0: 0.0, 1: 0.005, 2: 0.010, 3: 0.015, 4: 0.020,
+            5: 0.025, 6: 0.030, 7: 0.035, 8: 0.040, 9: 0.045, 10: 0.050
+        }
         return bonus_map.get(rank, 0.0)
 
     @staticmethod
@@ -227,8 +254,40 @@ class MarketsMixin:
                 total_dividends += div_per_day * days_to_apply
 
         if total_dividends > 0:
-            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - total_dividends
-            events.append(f"📈 Corporate Dividends: Earned {format_tokens(total_dividends)} tokens from your stock portfolio! (🔥 {current_streak}d streak bonus applied)")
+            if hasattr(self, "has_penthouse_decor") and self.has_penthouse_decor("throne"):
+                total_dividends = int(total_dividends * 1.10)
+            trading_desk_lvl = self.get_villa_facility_level("trading_desk")
+            if trading_desk_lvl >= 2:
+                # Find highest yielding stock
+                best_corp = None
+                best_rate = -1.0
+                for c_key in CORPORATIONS:
+                    corp = CORPORATIONS[c_key]
+                    dyn_p = sm["prices"].get(c_key, corp.share_price)
+                    rate = corp.base_dividend + streak_bonus
+                    if c_key == "viridian":
+                        rate += self.get_viridian_dividend_bonus()
+                    if rate > best_rate and dyn_p > 0:
+                        best_rate = rate
+                        best_corp = c_key
+                
+                if best_corp:
+                    b_price = sm["prices"].get(best_corp, CORPORATIONS[best_corp].share_price)
+                    shares_to_buy = total_dividends // b_price
+                    rem_tokens = total_dividends % b_price
+                    if shares_to_buy > 0:
+                        investments[best_corp] = investments.get(best_corp, 0) + shares_to_buy
+                        sm["cost_basis"][best_corp] = sm["cost_basis"].get(best_corp, 0) + (shares_to_buy * b_price)
+                        if rem_tokens > 0:
+                            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - rem_tokens
+                        c_name = CORPORATIONS[best_corp].name
+                        events.append(f"🤖 Quantum Auto-Compounder: Reinvested {format_tokens(shares_to_buy * b_price)} dividend tokens into {shares_to_buy} shares of {c_name}!")
+                    else:
+                        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - total_dividends
+                        events.append(f"📈 Corporate Dividends: Earned {format_tokens(total_dividends)} tokens from your stock portfolio! (🔥 {current_streak}d streak bonus applied)")
+            else:
+                self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - total_dividends
+                events.append(f"📈 Corporate Dividends: Earned {format_tokens(total_dividends)} tokens from your stock portfolio! (🔥 {current_streak}d streak bonus applied)")
 
         events.append(f"📰 Market Tick: Pokémon Stock Exchange updated! {sm['market_headline']}")
 

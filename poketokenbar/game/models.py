@@ -348,7 +348,13 @@ SHAREHOLDER_TIERS: List[ShareholderTier] = [
     ShareholderTier(1, "Retail", 1, 10, "1-10 sh"),
     ShareholderTier(2, "Preferred", 11, 20, "11-20 sh"),
     ShareholderTier(3, "Strategic", 21, 30, "21-30 sh"),
-    ShareholderTier(4, "Majority", 31, None, "31+ sh"),
+    ShareholderTier(4, "Corporate", 31, 40, "31-40 sh"),
+    ShareholderTier(5, "Venture", 41, 50, "41-50 sh"),
+    ShareholderTier(6, "Principal", 51, 60, "51-60 sh"),
+    ShareholderTier(7, "Majority", 61, 70, "61-70 sh"),
+    ShareholderTier(8, "Director", 71, 80, "71-80 sh"),
+    ShareholderTier(9, "Executive", 81, 90, "81-90 sh"),
+    ShareholderTier(10, "Chairman", 91, None, "91+ sh"),
 ]
 
 def get_shareholder_rank(shares: int) -> Tuple[int, str]:
@@ -357,10 +363,28 @@ def get_shareholder_rank(shares: int) -> Tuple[int, str]:
     Rank 1: Retail (1-10 sh)
     Rank 2: Preferred (11-20 sh)
     Rank 3: Strategic (21-30 sh)
-    Rank 4: Majority (31+ sh)
+    Rank 4: Corporate (31-40 sh)
+    Rank 5: Venture (41-50 sh)
+    Rank 6: Principal (51-60 sh)
+    Rank 7: Majority (61-70 sh)
+    Rank 8: Director (71-80 sh)
+    Rank 9: Executive (81-90 sh)
+    Rank 10: Chairman (91+ sh)
     """
-    if shares >= 31:
-        return 4, "Majority"
+    if shares >= 91:
+        return 10, "Chairman"
+    elif shares >= 81:
+        return 9, "Executive"
+    elif shares >= 71:
+        return 8, "Director"
+    elif shares >= 61:
+        return 7, "Majority"
+    elif shares >= 51:
+        return 6, "Principal"
+    elif shares >= 41:
+        return 5, "Venture"
+    elif shares >= 31:
+        return 4, "Corporate"
     elif shares >= 21:
         return 3, "Strategic"
     elif shares >= 11:
@@ -376,6 +400,12 @@ CORPORATE_TIER_PERKS: Dict[str, Dict[int, str]] = {
         2: "+15% Expedition tokens & speed",
         3: "+20% Expedition tokens & speed",
         4: "+25% Expedition tokens & speed",
+        5: "+30% Expedition tokens & speed",
+        6: "+35% Expedition tokens & speed",
+        7: "+40% Expedition tokens & speed",
+        8: "+45% Expedition tokens & speed",
+        9: "+50% Expedition tokens & speed",
+        10: "+60% Expedition tokens & speed",
     },
     "devon": {
         0: "No shop or egg discounts active",
@@ -383,6 +413,12 @@ CORPORATE_TIER_PERKS: Dict[str, Dict[int, str]] = {
         2: "-10% Discount on Shop & eggs",
         3: "-15% Discount on Shop & eggs",
         4: "-20% Discount on Shop & eggs",
+        5: "-24% Discount on Shop & eggs",
+        6: "-28% Discount on Shop & eggs",
+        7: "-32% Discount on Shop & eggs",
+        8: "-36% Discount on Shop & eggs",
+        9: "-40% Discount on Shop & eggs",
+        10: "-45% Discount on Shop & eggs",
     },
     "aether": {
         0: "No happiness protection or daily bonus",
@@ -390,6 +426,12 @@ CORPORATE_TIER_PERKS: Dict[str, Dict[int, str]] = {
         2: "2.0x decay shield; +5 daily hap.",
         3: "2.5x decay shield; +8 daily hap.",
         4: "3.0x decay shield; +12 daily hap.",
+        5: "3.5x decay shield; +16 daily hap.",
+        6: "4.0x decay shield; +20 daily hap.",
+        7: "4.5x decay shield; +25 daily hap.",
+        8: "5.0x decay shield; +30 daily hap.",
+        9: "5.5x decay shield; +36 daily hap.",
+        10: "6.0x decay shield; +45 daily hap.",
     },
     "mauville": {
         0: "No casino payout bonus active",
@@ -397,6 +439,12 @@ CORPORATE_TIER_PERKS: Dict[str, Dict[int, str]] = {
         2: "+10% Casino minigame payout bonus",
         3: "+15% Casino minigame payout bonus",
         4: "+20% Casino minigame payout bonus",
+        5: "+25% Casino minigame payout bonus",
+        6: "+30% Casino minigame payout bonus",
+        7: "+35% Casino minigame payout bonus",
+        8: "+40% Casino minigame payout bonus",
+        9: "+45% Casino minigame payout bonus",
+        10: "+50% Casino minigame payout bonus",
     },
     "macro": {
         0: "No raid or auto-battle bonus active",
@@ -404,13 +452,25 @@ CORPORATE_TIER_PERKS: Dict[str, Dict[int, str]] = {
         2: "+20% Boss raid & battle tokens",
         3: "+30% Boss raid & battle tokens",
         4: "+40% Boss raid & battle tokens",
+        5: "+50% Boss raid & battle tokens",
+        6: "+60% Boss raid & battle tokens",
+        7: "+70% Boss raid & battle tokens",
+        8: "+80% Boss raid & battle tokens",
+        9: "+90% Boss raid & battle tokens",
+        10: "+100% Boss raid & battle tokens",
     },
     "viridian": {
         0: "No dividend bonus or clearance active",
         1: "+0.5% Div yield bonus",
         2: "+1.0% Div yield & covert ties",
-        3: "+1.5% Div yield & Syndicate ties",
+        3: "+1.5% Div yield & covert ties",
         4: "+2.0% Div yield & Syndicate ties",
+        5: "+2.5% Div yield & Syndicate ties",
+        6: "+3.0% Div yield & Syndicate ties",
+        7: "+3.5% Div yield & Syndicate ties",
+        8: "+4.0% Div yield & Syndicate ties",
+        9: "+4.5% Div yield & Syndicate ties",
+        10: "+5.0% Div yield & Syndicate ties",
     },
 }
 
@@ -422,7 +482,7 @@ CORPORATIONS: Dict[str, CorporateInfo] = {
         share_price=10_000_000,
         base_dividend=0.025,
         perk_name="Silph Tech",
-        perk_desc="+10% to +25% Expedition tokens & spd",
+        perk_desc="+10% to +60% Expedition tokens & spd",
         catalyst_desc="Expedition completions boost research & tech"
     ),
     "devon": CorporateInfo(
@@ -432,7 +492,7 @@ CORPORATIONS: Dict[str, CorporateInfo] = {
         share_price=10_000_000,
         base_dividend=0.025,
         perk_name="Devon Commerce",
-        perk_desc="-5% to -20% Shop & egg discount",
+        perk_desc="-5% to -45% Shop & egg discount",
         catalyst_desc="Shopping & egg purchases boost retail volume"
     ),
     "aether": CorporateInfo(
@@ -442,7 +502,7 @@ CORPORATIONS: Dict[str, CorporateInfo] = {
         share_price=5_000_000,
         base_dividend=0.020,
         perk_name="Aether Sanctuary",
-        perk_desc="1.5x-3.0x decay shield; +3-12 hap.",
+        perk_desc="1.5x-6.0x decay shield; +3-45 hap.",
         catalyst_desc="High happiness & shinies earn conservation grants"
     ),
     "mauville": CorporateInfo(
@@ -452,7 +512,7 @@ CORPORATIONS: Dict[str, CorporateInfo] = {
         share_price=5_000_000,
         base_dividend=0.020,
         perk_name="Casino Royalty",
-        perk_desc="+5% to +20% Casino minigame bonus",
+        perk_desc="+5% to +50% Casino minigame bonus",
         catalyst_desc="Casino house profits & player losses boost revenues"
     ),
     "macro": CorporateInfo(
@@ -462,7 +522,7 @@ CORPORATIONS: Dict[str, CorporateInfo] = {
         share_price=20_000_000,
         base_dividend=0.030,
         perk_name="Dynamax Energy",
-        perk_desc="+10% to +40% Tokens from Boss raids",
+        perk_desc="+10% to +100% Tokens from Boss raids",
         catalyst_desc="Defeating Gym Bosses validates energy tech"
     ),
     "viridian": CorporateInfo(
@@ -472,9 +532,20 @@ CORPORATIONS: Dict[str, CorporateInfo] = {
         share_price=25_000_000,
         base_dividend=0.025,
         perk_name="Covert Logistics",
-        perk_desc="+0.5% to +2.0% Div yield & covert ties",
+        perk_desc="+0.5% to +5.0% Div yield & covert ties",
         catalyst_desc="Nocturnal shipments & high market volume fuel growth"
     )
+}
+
+PATTERN_BULL_RALLY = "bull_rally"
+
+BASE_PRICES: Dict[str, int] = {
+    "silph": 10_000_000,
+    "devon": 10_000_000,
+    "aether": 5_000_000,
+    "mauville": 5_000_000,
+    "macro": 20_000_000,
+    "viridian": 25_000_000,
 }
 
 CORPORATE_LORE_EVENTS: Dict[str, List[Tuple[str, float]]] = {

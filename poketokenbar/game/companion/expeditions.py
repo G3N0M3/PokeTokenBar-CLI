@@ -132,6 +132,8 @@ class ExpeditionsMixin:
                 if active and active.held_item == "amulet_coin":
                     tokens_gain = int(tokens_gain * 1.5)
                 tokens_gain = int(tokens_gain * silph_token_mult)
+                if hasattr(self, "has_penthouse_decor") and self.has_penthouse_decor("chandelier"):
+                    tokens_gain = int(tokens_gain * 1.05)
                 if self.state.get("rocket_radar_charges", 0) > 0:
                     tokens_gain = int(tokens_gain * 1.5)
                     self.state["rocket_radar_charges"] -= 1
