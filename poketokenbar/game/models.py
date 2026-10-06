@@ -746,3 +746,98 @@ MEGA_STONES = {
     "531": "Audinite",
     "719": "Diancite"
 }
+
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Executive Resort Area Penthouse
+# ---------------------------------------------------------------------------
+PENTHOUSE_WEALTH_THRESHOLD = 100_000_000_000  # 100.0 Billion tokens (bank + holding)
+PENTHOUSE_VIP_FEE = 500_000_000  # 500.0 Million tokens VIP broker fee
+PENTHOUSE_DEED_COST = 1_000_000_000_000  # 1.0 Trillion tokens
+VILLA_DEED_COST = PENTHOUSE_DEED_COST
+
+PENTHOUSE_FACILITIES = {
+    "nursery": {
+        "name": "Automated Cryo-Nursery",
+        "icon": "🥚",
+        "levels": {
+            1: {"name": "Auto-Incubator", "cost": 500_000_000_000, "desc": "Auto-incubates 1 queued nursery egg in background"},
+            2: {"name": "Tri-Incubator", "cost": 1_500_000_000_000, "desc": "Incubates 3 queued eggs in parallel"},
+            3: {"name": "Quantum Matrix", "cost": 4_000_000_000_000, "desc": "Incubates ALL queued eggs in parallel (2x spd)"},
+        }
+    },
+    "springs": {
+        "name": "Hot Springs & Berry Grove",
+        "icon": "💧",
+        "levels": {
+            1: {"name": "Automated Feeding", "cost": 300_000_000_000, "desc": "Auto-feeds companion daily from berry bag"},
+            2: {"name": "Eternal Warmth", "cost": 1_000_000_000_000, "desc": "Companion happiness decay rate halved"},
+            3: {"name": "Sacred Springs", "cost": 3_000_000_000_000, "desc": "Immune to decay; +50% coding EXP boost"},
+        }
+    },
+    "trading_desk": {
+        "name": "Quantum Trading Terminal",
+        "icon": "📊",
+        "levels": {
+            1: {"name": "Satellite Telemetry", "cost": 500_000_000_000, "desc": "Displays live stock directional bias & duration"},
+            2: {"name": "Auto-Compounder", "cost": 2_000_000_000_000, "desc": "Auto-sweeps daily stock dividends into checking"},
+            3: {"name": "Whale Catalyst", "cost": 5_000_000_000_000, "desc": "Unlock 'catalyst <corp>' to trigger Bull Rally"},
+        }
+    },
+    "chromatic_lab": {
+        "name": "Chromatic Resonator",
+        "icon": "✨",
+        "levels": {
+            1: {"name": "Shiny Transmuter", "cost": 10_000_000_000_000, "desc": "Use 'transmute <idx>' to convert companion to Shiny"},
+        }
+    }
+}
+VILLA_FACILITIES = PENTHOUSE_FACILITIES
+PENTHOUSE_WINGS = PENTHOUSE_FACILITIES
+VILLA_WINGS = PENTHOUSE_WINGS
+
+PENTHOUSE_DECOR = {
+    "piano": {
+        "name": "Grand Concert Piano",
+        "cost": 300_000_000_000,
+        "icon": "🎹",
+        "perk": "Harmonic Melodies (+10 Hap)",
+        "desc": "Polished ebony grand piano. Play melodies to cheer companion."
+    },
+    "chandelier": {
+        "name": "Diamond Chandelier",
+        "cost": 500_000_000_000,
+        "icon": "💎",
+        "perk": "Prismatic Aura (+5% Exped)",
+        "desc": "Kalosian crystal chandelier boosting expedition token yields."
+    },
+    "statue": {
+        "name": "Golden Arceus Statue",
+        "cost": 1_000_000_000_000,
+        "icon": "🗽",
+        "perk": "Divine Aura (+10% Raids)",
+        "desc": "Solid gold effigy honoring the Alpha Pokémon's creation myth."
+    },
+    "hologram": {
+        "name": "Master Core Hologram",
+        "cost": 1_500_000_000_000,
+        "icon": "🔮",
+        "perk": "Quantum Matrix (+5% Casino)",
+        "desc": "3D wireframe hologram of Mon-Omega boosting casino payouts."
+    },
+    "fountain": {
+        "name": "Prism Spring Fountain",
+        "cost": 2_000_000_000_000,
+        "icon": "⛲",
+        "perk": "Mineral Waters (100% Hap)",
+        "desc": "Rainbow marble fountain. Pure spring restores happiness to max."
+    },
+    "throne": {
+        "name": "Sovereign Tycoon Throne",
+        "cost": 3_000_000_000_000,
+        "icon": "👑",
+        "perk": "Corporate Rule (+10% Divs)",
+        "desc": "Velvet & platinum throne conferring supreme corporate authority."
+    },
+}
+VILLA_DECOR = PENTHOUSE_DECOR

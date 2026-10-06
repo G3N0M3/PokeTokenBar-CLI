@@ -73,6 +73,12 @@ class PokeTokenBarTUI:
                 self.current_tab = 12
                 continue
 
+            self.engine.check_penthouse_invitation()
+            if self.engine.is_penthouse_invitation_pending():
+                from poketokenbar.tui_tabs.penthouse import render_penthouse_invitation
+                render_penthouse_invitation(self)
+                continue
+
             # Auto-display operation briefing transmission if not yet viewed
             if self.current_tab == 12 and getattr(self, "rocket_subview", "ops") == "ops" and self.engine.state.get("rocket_alliance_accepted", False):
                 operations = self.engine.get_rocket_operations()

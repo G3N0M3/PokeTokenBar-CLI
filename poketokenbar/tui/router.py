@@ -25,6 +25,15 @@ class CommandRouter:
             app.stock_terminal = None
             app.message = "Returned to Exchange Board."
             return
+        if app.current_tab == 10 and getattr(app, "bank_subtab", "") in ["penthouse", "villa"] and cmd == "back":
+            if getattr(app, "penthouse_subview", "main") == "help":
+                app.penthouse_subview = "main"
+                app.penthouse_help_wing = None
+                app.message = "Returned to Penthouse overview."
+                return
+            app.bank_subtab = "checking"
+            app.message = "Returned to Checking & Loans."
+            return
         if app.current_tab == 9 and getattr(app, "minigame_state", "menu") == "grunt_bribe" and cmd == "back":
             app.minigame_state = "slot"
             app.message = "You stepped away from the suspicious poster."
@@ -55,6 +64,7 @@ class CommandRouter:
                 app.shop_view = "normal"
             if getattr(app, "roster_subview", "roster") == "eggs":
                 app.roster_subview = "roster"
+            app.penthouse_subview = "main"
             app.current_tab = int(cmd)
             app.message = ""
             return
@@ -219,6 +229,13 @@ class CommandRouter:
         if cmd == "use chrono" or cmd.startswith("use chrono"):
             ok, msg = app.engine.use_rocket_armory_item("chrono")
             app.message = msg
+            return
+        if cmd == "fetch":
+            if app.engine.state.get("rocket_alliance_accepted", False):
+                ok, msg = app.engine.buy_rocket_armory_item("authority")
+                app.message = msg
+            else:
+                app.message = "Team Rocket Covert HQ is not yet unlocked!"
             return
 
         # 16. Tab 4 Shop & Bag commands
@@ -392,6 +409,9 @@ class CommandRouter:
             return True
 
         if cmd in ["p", "prev"]:
+            # In Bank Tab 10, 'p' is reserved for the [P] Penthouse subtab.
+            if app.current_tab == 10 and cmd == "p":
+                return False
             if app.current_tab == 2: app.pokedex_page = max(1, app.pokedex_page - 1)
             elif app.current_tab == 4:
                 if not hasattr(app, "shop_page"): app.shop_page = 1
@@ -813,22 +833,35 @@ class CommandRouter:
 
     @staticmethod
     def _handle_bank_commands(app, cmd: str) -> bool:
-        if app.current_tab == 10 and cmd == "b":
+        if app.current_tab == 10 and cmd in ["b", "checking"]:
             app.bank_subtab = "checking"
             app.stock_terminal = None
+            app.penthouse_subview = "main"
             app.message = ""
             return True
 
-        if app.current_tab == 10 and cmd == "c":
+        if app.current_tab == 10 and cmd in ["c", "cd", "deposits"]:
             app.bank_subtab = "cd"
             app.stock_terminal = None
+            app.penthouse_subview = "main"
             app.message = ""
             return True
 
-        if app.current_tab == 10 and cmd == "s" and not getattr(app, "stock_terminal", None):
+        if app.current_tab == 10 and cmd in ["s", "stocks"] and not getattr(app, "stock_terminal", None):
             app.bank_subtab = "stocks"
             app.stock_terminal = None
+            app.penthouse_subview = "main"
             app.message = ""
+            return True
+
+        if app.current_tab == 10 and cmd in ["p", "v", "penthouse", "villa"]:
+            if app.engine.is_penthouse_available():
+                app.bank_subtab = "penthouse"
+                app.stock_terminal = None
+                app.penthouse_subview = "main"
+                app.message = ""
+            else:
+                app.message = "The Executive Penthouse is restricted to tycoons with 100.0B+ total wealth."
             return True
 
         if app.current_tab == 10 and getattr(app, "bank_subtab", "") == "stocks" and getattr(app, "stock_terminal", None):
@@ -930,6 +963,102 @@ class CommandRouter:
                 ok, msg = app.engine.divest_corporate(parts[1], shares)
             else:
                 ok, msg = False, "Usage: divest <code> <shares|all> (e.g. 'divest SILPH 1')"
+            app.message = msg
+            return True
+
+        # Penthouse Subtab & Commands
+        if app.current_tab == 10 and getattr(app, "bank_subtab", "") in ["penthouse", "villa"]:
+            if cmd == "help" or cmd.startswith("help "):
+                parts = cmd.split()
+                if len(parts) == 1:
+                    app.penthouse_subview = "help"
+                    app.penthouse_help_wing = None
+                    app.message = "Opened Executive Wings Guide. Type 'back' to return."
+                    return True
+
+                if len(parts) == 2 and parts[1].isdigit():
+                    w_num = int(parts[1])
+                    if 1 <= w_num <= 4:
+                        app.penthouse_subview = "help"
+                        app.penthouse_help_wing = w_num
+                        app.message = f"Inspecting Wing [{w_num}] specifications. Type 'back' to return."
+                    else:
+                        app.message = f"Invalid wing #{w_num}! (Valid: 1 to 4)"
+                    return True
+
+                sub_kw = parts[1].lower()
+                if sub_kw in ["wing", "wings", "room", "rooms", "facility", "facilities"]:
+                    if len(parts) >= 3 and parts[2].isdigit():
+                        w_num = int(parts[2])
+                        if 1 <= w_num <= 4:
+                            app.penthouse_subview = "help"
+                            app.penthouse_help_wing = w_num
+                            app.message = f"Inspecting Wing [{w_num}] specifications. Type 'back' to return."
+                        else:
+                            app.message = f"Invalid wing #{w_num}! (Valid: 1 to 4)"
+                    else:
+                        app.penthouse_subview = "help"
+                        app.penthouse_help_wing = None
+                        app.message = "Executive Wings Guide. Use 'help wing <1-4>' to inspect a specific wing."
+                    return True
+
+                app.message = "Usage: help wing <1-4> (1: Nursery, 2: Springs, 3: Trading, 4: Chromatic)"
+                return True
+            if cmd == "pay":
+                ok, msg = app.engine.pay_penthouse_vip_fee()
+                app.message = msg
+                return True
+            if cmd == "invite":
+                from poketokenbar.tui_tabs.penthouse import render_penthouse_invitation
+                render_penthouse_invitation(app)
+                return True
+            if cmd == "acquire":
+                ok, msg = app.engine.purchase_penthouse_deed()
+                app.message = msg
+                return True
+            if cmd == "upgrade" or cmd.startswith("upgrade "):
+                parts = cmd.split()
+                if len(parts) >= 2:
+                    target = parts[2] if len(parts) >= 3 and parts[1].lower() in ["wing", "wings", "room", "rooms", "facility", "facilities"] else parts[1]
+                    ok, msg = app.engine.upgrade_penthouse_facility(target)
+                else:
+                    ok, msg = False, "Usage: upgrade <1-4> or upgrade wing <1-4> (1: Nursery, 2: Springs, 3: Trading, 4: Chromatic)"
+                app.message = msg
+                return True
+            if cmd == "furnish" or cmd.startswith("furnish "):
+                parts = cmd.split()
+                if len(parts) >= 2:
+                    ok, msg = app.engine.purchase_penthouse_decor(parts[1])
+                else:
+                    ok, msg = False, "Usage: furnish <1-6> (1: Piano, 2: Chandelier, 3: Statue, 4: Hologram, 5: Fountain, 6: Throne)"
+                app.message = msg
+                return True
+            if cmd == "interact" or cmd.startswith("interact "):
+                parts = cmd.split()
+                if len(parts) >= 2:
+                    ok, msg = app.engine.interact_penthouse_decor(parts[1])
+                else:
+                    ok, msg = False, "Usage: interact <1-6> (1: Piano, 2: Chandelier, 3: Statue, 4: Hologram, 5: Fountain, 6: Throne)"
+                app.message = msg
+                return True
+
+        if cmd == "transmute" or cmd.startswith("transmute "):
+            parts = cmd.split()
+            if len(parts) >= 2 and parts[1].isdigit():
+                ok, msg = app.engine.transmute_penthouse_shiny(int(parts[1]))
+            else:
+                ok, msg = False, "Usage: transmute <roster_idx> (Target companion index from Tab 3 Roster)"
+            app.message = msg
+            return True
+
+        if cmd.startswith("catalyst ") or cmd == "catalyst":
+            parts = cmd.split()
+            if len(parts) >= 2:
+                ok, msg = app.engine.trigger_penthouse_catalyst(parts[1])
+            elif getattr(app, "stock_terminal", None):
+                ok, msg = app.engine.trigger_penthouse_catalyst(app.stock_terminal)
+            else:
+                ok, msg = False, "Usage: catalyst <corp_ticker> (e.g. 'catalyst SILPH')"
             app.message = msg
             return True
 

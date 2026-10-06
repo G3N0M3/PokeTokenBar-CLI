@@ -3,6 +3,7 @@ from poketokenbar.utils.formatting import format_tokens
 from poketokenbar.game.models import (
     CORPORATIONS, get_shareholder_rank, SHAREHOLDER_TIERS, CORPORATE_TIER_PERKS
 )
+from poketokenbar.tui_tabs.penthouse import render_penthouse_view
 
 HEADER = "\033[95m\033[1m"
 BLUE = "\033[94m"
@@ -15,19 +16,29 @@ RESET = "\033[0m"
 BOLD = "\033[1m"
 
 def render_bank_tab(app):
+    has_penthouse = app.engine.is_penthouse_available()
+    valid_subtabs = ["checking", "cd", "stocks"]
+    if has_penthouse:
+        valid_subtabs.extend(["penthouse", "villa"])
+
     subtab = getattr(app, "bank_subtab", "checking")
-    if subtab not in ["checking", "cd", "stocks"]:
+    if subtab not in valid_subtabs:
         subtab = "checking"
         app.bank_subtab = subtab
 
     avail = app.engine.available_tokens
 
-    # Subtab Navigation Bar (70 columns)
-    b_tab = f"{BOLD}{CYAN}[B] Checking & Loans{RESET}" if subtab == "checking" else "[B] Checking & Loans"
-    c_tab = f"{BOLD}{CYAN}[C] Term Deposits (CD){RESET}" if subtab == "cd" else "[C] Term Deposits (CD)"
-    s_tab = f"{BOLD}{CYAN}[S] Corporate Stocks{RESET}" if subtab == "stocks" else "[S] Corporate Stocks"
+    # Subtab Navigation Bar (<= 72 columns)
+    b_tab = f"{BOLD}{CYAN}[B] Checking{RESET}" if subtab == "checking" else "[B] Checking"
+    c_tab = f"{BOLD}{CYAN}[C] Deposits{RESET}" if subtab == "cd" else "[C] Deposits"
+    s_tab = f"{BOLD}{CYAN}[S] Stocks{RESET}" if subtab == "stocks" else "[S] Stocks"
 
-    sys.stdout.write(f"\n  {b_tab} | {c_tab} | {s_tab}\n")
+    if has_penthouse:
+        is_p_active = subtab in ["penthouse", "villa"]
+        p_tab = f"{BOLD}{CYAN}[P] Penthouse{RESET}" if is_p_active else "[P] Penthouse"
+        sys.stdout.write(f"\n  {b_tab} | {c_tab} | {s_tab} | {p_tab}\n")
+    else:
+        sys.stdout.write(f"\n  {b_tab} | {c_tab} | {s_tab}\n")
     sys.stdout.write("  " + "-" * 68 + "\n\n")
 
     if subtab == "checking":
@@ -36,6 +47,8 @@ def render_bank_tab(app):
         _render_cd_view(app, avail)
     elif subtab == "stocks":
         _render_stocks_view(app, avail)
+    elif subtab in ["penthouse", "villa"]:
+        render_penthouse_view(app, avail)
 
 def _render_checking_view(app, avail: int):
     bank = app.engine.state.get("bank_balance", 0)
@@ -214,7 +227,10 @@ def _render_stocks_view(app, avail: int):
 
         rank, rank_name = get_shareholder_rank(owned)
         if rank > 0:
-            rank_col = {1: CYAN, 2: GREEN, 3: YELLOW, 4: MAGENTA}.get(rank, GREEN)
+            rank_col = {
+                1: BLUE, 2: CYAN, 3: CYAN, 4: GREEN, 5: GREEN,
+                6: YELLOW, 7: YELLOW, 8: MAGENTA, 9: MAGENTA, 10: HEADER
+            }.get(rank, GREEN)
             status_badge = f"{BOLD}{rank_col}[{rank_name.upper()}]{RESET}"
         else:
             status_badge = f"{RED}[INACTIVE]{RESET}"
@@ -290,7 +306,10 @@ def _render_stock_terminal(app, avail: int, corp_key: str):
     active_perk_desc = tier_perks.get(rank, "None (Buy shares to unlock perks)")
 
     if rank > 0:
-        rank_col = {1: CYAN, 2: GREEN, 3: YELLOW, 4: MAGENTA}.get(rank, GREEN)
+        rank_col = {
+            1: BLUE, 2: CYAN, 3: CYAN, 4: GREEN, 5: GREEN,
+            6: YELLOW, 7: YELLOW, 8: MAGENTA, 9: MAGENTA, 10: HEADER
+        }.get(rank, GREEN)
         rank_badge = f"{BOLD}{rank_col}[{rank_name.upper()}]{RESET}"
     else:
         rank_badge = f"{RED}[INACTIVE]{RESET}"
@@ -316,6 +335,18 @@ def _render_stock_terminal(app, avail: int, corp_key: str):
         news = news[:51] + "..."
     sys.stdout.write(f"  • Catalyst:  {cat_desc}\n")
     sys.stdout.write(f"  • News:      \"{CYAN}{news}{RESET}\"\n")
+
+    trading_desk_lvl = app.engine.get_villa_facility_level("trading_desk")
+    if trading_desk_lvl >= 1:
+        sm = app.engine.get_or_init_stock_market()
+        st = sm.get("market_state", {}).get(corp_key, {})
+        pattern = st.get("pattern", "neutral")
+        phase = st.get("phase", 0)
+        duration = st.get("duration", 5)
+        bias = st.get("next_bias", 0.0)
+        sys.stdout.write(f"  • Telemetry: {MAGENTA}{pattern.title()}{RESET} (Phase {phase+1}/{duration}) | Forecast: {CYAN}{bias:+.1%}{RESET}\n")
+        if trading_desk_lvl >= 3:
+            sys.stdout.write(f"  • Whale Desk: '{BOLD}catalyst {corp.ticker.lower()}{RESET}' (Deploy 1.0T to trigger Bull Rally)\n")
 
     sys.stdout.write(f"  {BOLD}Shareholder Rank & Perk Progression:{RESET}\n")
     if rank > 0:

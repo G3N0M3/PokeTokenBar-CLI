@@ -26,6 +26,7 @@ from poketokenbar.game.companion.profile import ProfileMixin
 from poketokenbar.game.companion.markets import MarketsMixin
 from poketokenbar.game.companion.casino import CasinoMixin
 from poketokenbar.game.companion.rocket import RocketMixin
+from poketokenbar.game.companion.penthouse import PenthouseMixin, VillaMixin
 from poketokenbar.game.economy.banking import BankingMixin
 
 
@@ -40,12 +41,17 @@ class CompanionEngine(
     CasinoMixin,
     ProfileMixin,
     RocketMixin,
+    PenthouseMixin,
 ):
     """Manages active Pokémon companion, hatching, evolution, Pokédex, and inventory."""
 
     def __init__(self):
         self.api = PokeAPIClient()
         self.state = StorageManager.load_state()
+
+        # Migrate legacy villa state to penthouse if present
+        if "villa" in self.state and "penthouse" not in self.state:
+            self.state["penthouse"] = self.state.pop("villa")
 
         # Migrate Earth Badge from crown to globe
         if "gym_badges" in self.state:
@@ -109,6 +115,18 @@ class CompanionEngine(
                 cleaned_pending.append({"tier": t, "progress": prog})
             self.state["pending_eggs"] = cleaned_pending
         self.save()
+
+        # Repair pre-evolutions erroneously marked as evolved (e.g. hatched Electrike #309 when Mega Manectric #310 evolved)
+        for d in self.state.get("dex", []):
+            if d.get("species_id") == 309 and d.get("status") == "evolved":
+                mon_data = d.get("mon_state", {})
+                if mon_data.get("stage_index", 0) == 0:
+                    d["status"] = "inactive"
+                    d["happiness"] = 100
+                    mon_data["used_at_stage"] = 0
+                    mon_data["is_graduated"] = False
+                    mon_data["happiness"] = 100
+                    self.save()
 
         # Migrate Rocket expansion state
         ops_state = self.state.setdefault("rocket_ops", {})
@@ -418,6 +436,14 @@ class CompanionEngine(
                 decay_rate = int(base_decay * decay_shield)
             decay_amount = (used_total - last_decay) // decay_rate
 
+            # Hot Springs & Berry Grove perk: Lv 2 = 50% decay reduction, Lv 3 = complete immunity
+            springs_lvl = self.get_villa_facility_level("springs")
+            if springs_lvl >= 3:
+                self.state["last_happiness_decay_token"] = used_total
+                decay_amount = 0
+            elif springs_lvl >= 2:
+                decay_amount //= 2
+
             if decay_amount > 0:
                 old_hap = active.happiness
                 active.happiness = max(0, active.happiness - decay_amount)
@@ -443,6 +469,8 @@ class CompanionEngine(
                 xp_multiplier += 0.20  # Lucky Egg grants +20% XP boost!
             if active and active.held_item == "life_orb":
                 xp_multiplier += 0.10  # Life Orb grants +10% XP boost!
+            if self.get_villa_facility_level("springs") >= 3:
+                xp_multiplier += 0.50  # Villa Hot Springs & Berry Grove Lv 3 grants +50% coding EXP!
             effective_xp = int(delta * xp_multiplier)
 
         if happiness > 0:
@@ -498,6 +526,11 @@ class CompanionEngine(
                 events.extend(evo_events)
         self.save()
 
+        # Villa Cryo-Nursery background egg incubation
+        nursery_lvl = self.get_villa_facility_level("nursery")
+        if nursery_lvl > 0 and delta > 0:
+            self._process_villa_cryo_nursery(delta, nursery_lvl, events)
+
         # Check Corrupted EXP Splitter armory item
         if self.state.get("has_exp_splitter", False) and effective_xp > 0:
             splitter_xp = int(effective_xp * 0.25)
@@ -522,6 +555,11 @@ class CompanionEngine(
         unlocked, alert_msg = self.check_rocket_story_unlock()
         if unlocked and alert_msg:
             events.append(alert_msg)
+
+        # Check for Penthouse VIP invitation unlock (100B wealth threshold)
+        p_unlocked, p_alert = self.check_penthouse_invitation()
+        if p_unlocked and p_alert:
+            events.append(p_alert)
 
         # Check achievements
         ach_events = self._check_achievements()

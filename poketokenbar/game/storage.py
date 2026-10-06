@@ -192,6 +192,20 @@ class StorageManager:
                 "spray": {"charges": 0, "progress": 0, "target": 15_000_000},
                 "chrono": {"charges": 0, "progress": 0, "target": 25_000_000},
                 "catalyst": {"charges": 0, "progress": 0, "target": 25_000_000}
+            },
+            "penthouse": {
+                "invitation_sent": False,
+                "invitation_pending": False,
+                "vip_fee_paid": False,
+                "unlocked": False,
+                "facilities": {
+                    "nursery": 0,
+                    "springs": 0,
+                    "trading_desk": 0,
+                    "chromatic_lab": 0
+                },
+                "decor": [],
+                "last_shiny_transmute": None
             }
         }
 

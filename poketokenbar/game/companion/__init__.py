@@ -31,6 +31,7 @@ from poketokenbar.game.companion.rocket import (
     ROCKET_OPERATION_DIALOGUES,
     RocketMixin,
 )
+from poketokenbar.game.companion.penthouse import PenthouseMixin, VillaMixin
 
 __all__ = [
     "CompanionEngine",
@@ -48,4 +49,6 @@ __all__ = [
     "MarketsMixin",
     "CasinoMixin",
     "RocketMixin",
+    "PenthouseMixin",
+    "VillaMixin",
 ]
