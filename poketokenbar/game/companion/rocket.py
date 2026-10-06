@@ -170,7 +170,7 @@ ROCKET_OPERATION_DIALOGUES: Dict[str, Dict[str, Any]] = {
         ]
     },
     "10": {
-        "title": "[FINAL BOSS] The Oak Citadel: Arch-Director Samuel Oak",
+        "title": "[FINAL BOSS] The Oak Citadel: Arch-Director Oak",
         "location": "Himalayan Mountain Citadel // Fortress Inner Sanctum",
         "speaker": "Commander Petrel",
         "dialogue": [
@@ -178,13 +178,34 @@ ROCKET_OPERATION_DIALOGUES: Dict[str, Dict[str, Any]] = {
             "",
             "Our full Rocket fleet has breached the Himalayan airspace. Ahead of us looms The Citadel—Oak's central command fortress, concealed above the snowline for thirty years.",
             "",
-            "Inside, Arch-Director Samuel Oak awaits you. He has shed his grandfatherly persona. Flanking him is the Augmented Legion: Venusaur, Charizard, Blastoise, Tauros, Dragonite, Alakazam—all fitted with neural cybernetic collars and synthetic stimulants.",
+            "Inside, Arch-Director Samuel Oak awaits you. He has shed his grandfatherly persona. Flanking him is the Augmented Legion: Augmented Charizard, Augmented Dragonite, and the genetically perfected Armored Mewtwo—all fitted with neural cybernetic collars and synthetic stimulants.",
             "",
             "He believes artificial subjugation is the only path to peace. Show him that the authentic bond between trainer and Pokémon is unbreakable. Conquer the Augmented Legion, shatter his throne, and take supreme Commander Authority over Team Rocket! For the truth!\""
         ],
         "tactical_orders": [
             "• Storm the inner sanctum of the Himalayan Citadel.",
-            "• Defeat Arch-Director Samuel Oak & Master Core (350,000 HP)."
+            "• Defeat Arch-Director Oak & The Augmented Legion (350,000 HP)."
+        ]
+    },
+    "epilogue": {
+        "title": "Campaign Epilogue: The Dawn of Truth",
+        "location": "Himalayan Citadel // Overlooking Kanto",
+        "speaker": "Commander Petrel & Former Director Oak",
+        "dialogue": [
+            "The smoke clears across the shattered battlements of the Himalayan Citadel. The cybernetic restraints on Oak's Augmented Legion have disintegrated, their eyes clearing from cold synthetic subservience to genuine warmth.",
+            "",
+            "Arch-Director Samuel Oak sits amid the deactivated master servers, his hands trembling as he looks at the bond between you and your strike squad.",
+            "",
+            "\"I was wrong...\" Oak whispers. \"Thirty years ago, when the first artificial genes were synthesized, I feared that humankind and Pokémon would inevitably destroy each other. I thought cybernetic control and synthetic algorithms were the only salvation. But you... you proved that trust and genuine battle bonds surpass any machine.\"",
+            "",
+            "Commander Petrel steps forward, snapping a crisp salute. \"The Syndicate has fallen. The global courier lines, the research laboratories, and Team Rocket's covert network are now yours to command. You are no longer just an agent, Commander. You are the architect of Kanto's new dawn.\"",
+            "",
+            "The three legendary champions—Charizard, Dragonite, and Mewtwo—bow in mutual respect and step into your ranks. Together, you look out over the sunrise stretching across Kanto."
+        ],
+        "tactical_orders": [
+            "• Oak's Syndicate dismantled; Kanto covert network unified.",
+            "• Permanent Black Market and Commander Authority unlocked.",
+            "• The Augmented Legion now fights for authentic truth by your side."
         ]
     }
 }
@@ -423,15 +444,15 @@ class RocketMixin:
             {
                 "id": "op_10",
                 "code": "10",
-                "name": "[FINAL BOSS] The Oak Citadel: Arch-Director Samuel Oak",
-                "briefing": "Full assault on Oak's Himalayan Citadel. Neutralize Oak to claim supreme Commander Authority and global courier control!",
+                "name": "[FINAL BOSS] The Oak Citadel: Arch-Director Oak",
+                "briefing": "Full assault on Oak's Himalayan Citadel. Neutralize Oak's Augmented Legion to claim supreme Commander Authority and global courier control!",
                 "target": 0,
                 "target_desc": "Conquer Arch-Director Oak & The Augmented Legion in final combat ('fight')",
                 "reward_tokens": 200_000_000,
                 "reward_rank": "Commander",
                 "intel_id": "intel_010",
                 "is_boss": True,
-                "boss_name": "Arch-Director Samuel Oak & Master Core",
+                "boss_name": "Arch-Director Oak",
                 "boss_hp": 350_000
             }
         ]
@@ -742,7 +763,7 @@ class RocketMixin:
             has_won = (b_st.get("status") == "win" and str(b_st.get("op_code")) == "10")
             if hp_rem <= 0 and has_won:
                 ok = True
-                msg = "Arch-Director Samuel Oak & The Augmented Legion conquered!"
+                msg = "Arch-Director Oak & The Augmented Legion conquered!"
             else:
                 ok = False
                 if not has_won and hp_rem <= 0:
@@ -944,20 +965,16 @@ class RocketMixin:
             if truth_badge not in badges:
                 badges.append(truth_badge)
 
-            # Recruit Armored Mewtwo & Porygon-Zero
-            self._recruit_rocket_companion(2001)  # Armored Mewtwo
-            self._recruit_rocket_companion(2002)  # Porygon-Zero
-
-            # Recruit Oak's Augmented Team
-            for aug_id in [2003, 2004, 2005, 2006, 2007, 2008]:
-                self._recruit_rocket_companion(aug_id)
+            # Recruit Oak's Augmented Legion from the final battle (Augmented Charizard, Augmented Dragonite, Armored Mewtwo)
+            for mon_id in [2004, 2007, 2001]:
+                self._recruit_rocket_companion(mon_id)
 
             # Permanent Black Market access
             self.state["permanent_black_market"] = True
-            climax_msg = "\n  👑 EARNED TITLE: 'Seeker of Truth'!\n  🎁 RECRUITED: Armored Mewtwo, Porygon-Zero, & Oak's Augmented Team into Roster!\n  🔓 UNLOCKED: Permanent 24/7 Black Market Access!"
+            climax_msg = "\n  👑 EARNED TITLE: 'Seeker of Truth'!\n  🎁 RECRUITED: Augmented Charizard, Augmented Dragonite, & Armored Mewtwo into Roster!\n  🔓 UNLOCKED: Permanent 24/7 Black Market Access!"
 
         self.save()
-        return True, f"🎉 Operation {selected['code']} Completed! Claimed {format_tokens(reward)} tokens! Rank: {new_rank} (Rep: {rep}/10)!{perk_msg}{climax_msg}"
+        return True, f"🎉 Operation {selected['code']} Completed! Claimed {format_tokens(reward)} tokens! Rank: {new_rank} (Reputation: {rep})!{perk_msg}{climax_msg}"
 
     def get_rocket_dossier(self) -> List[Dict[str, Any]]:
         """Returns the 10 classified dossier entries."""

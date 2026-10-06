@@ -100,16 +100,32 @@ ROCKET_BOSS_TEAMS: Dict[str, Dict[str, Any]] = {
         ]
     },
     "10": {
-        "title": "The Himalayan Citadel: Arch-Director Samuel Oak",
+        "title": "The Himalayan Citadel: Arch-Director Oak",
         "location": "Mountaintop Fortress // Himalayan Range",
         "team": [
             {
+                "id": 2004,
+                "name": "Augmented Charizard",
+                "title": "Syndicate Aerial Vanguard",
+                "type": "fire",
+                "max_hp": 100_000,
+                "moves": ["Inferno Jet", "Plasma Breath", "Steel Wing", "Rocket Overclock"]
+            },
+            {
+                "id": 2007,
+                "name": "Augmented Dragonite",
+                "title": "Citadel Heavy Juggernaut",
+                "type": "dragon",
+                "max_hp": 110_000,
+                "moves": ["Titanium Rush", "Draco Cannon", "Nanite Repair", "Hyper Beam"]
+            },
+            {
                 "id": 2001,
-                "name": "Arch-Director Samuel Oak & Master Core",
-                "title": "Supreme Syndicate Commander",
-                "type": "steel",
-                "max_hp": 350_000,
-                "moves": ["Syndicate Override", "Omega Judgment", "Bio-Convergence", "Hyper Beam"]
+                "name": "Armored Mewtwo",
+                "title": "Oak's Master Genetic Weapon",
+                "type": "psychic",
+                "max_hp": 140_000,
+                "moves": ["Psystrike", "Cyber Barrier", "Syndicate Override", "Omega Judgment"]
             }
         ]
     }
@@ -175,9 +191,9 @@ class RocketBattleHandler:
     def parse_squad_selection(self, args: List[str]) -> Tuple[bool, Any]:
         """Parses and validates a user's 3-member Strike Squad selection.
         
-        Accepts species IDs (e.g. '6 9 25' or '#6 #9 #25'), 1-based roster indices
-        (e.g. '1 2 3'), or species names (e.g. 'charizard blastoise pikachu').
-        Rejects companions on active expeditions, duplicates, and invalid entries.
+        Accepts 1-based roster indices (e.g. '1 2 3'), species IDs (e.g. '6 9 25'
+        or '#6 #9 #25'), or species names (e.g. 'charizard blastoise pikachu').
+        Rejects duplicates and invalid entries.
         """
         clean_tokens = [str(a).strip().strip(",") for a in args if str(a).strip().strip(",")]
         if len(clean_tokens) != 3:
@@ -185,8 +201,15 @@ class RocketBattleHandler:
 
         dex_list = self.engine.state.get("dex", [])
         roster = [d for d in dex_list if d.get("status") != "evolved"]
-        expeditions = self.engine.state.get("expeditions", [])
-        exp_ids = {e.get("sp_id") for e in expeditions if "sp_id" in e}
+
+        target_sp_ids = {d.get("species_id", d.get("base_id")) for d in roster}
+        if self.engine.active_mon:
+            target_sp_ids.add(self.engine.active_mon.current_id)
+
+        prefer_species_id = (
+            all(t.isdigit() and int(t) in target_sp_ids for t in clean_tokens)
+            and not all(t.isdigit() and 1 <= int(t) <= len(roster) for t in clean_tokens)
+        )
 
         squad: List[int] = []
         for token in clean_tokens:
@@ -198,6 +221,22 @@ class RocketBattleHandler:
                     if target_sp == sp_id:
                         target_entry = d
                         break
+            elif prefer_species_id:
+                # 1. Match by species_id across roster
+                for d in roster:
+                    sp_id = str(d.get("species_id", d.get("base_id")))
+                    if token == sp_id:
+                        target_entry = d
+                        break
+
+                # 2. Match by 1-based roster index
+                if target_entry is None:
+                    try:
+                        idx = int(token)
+                        if 1 <= idx <= len(roster):
+                            target_entry = roster[idx - 1]
+                    except ValueError:
+                        pass
             else:
                 # 1. Match by 1-based roster index
                 try:
@@ -240,9 +279,6 @@ class RocketBattleHandler:
             sp_id = target_entry.get("species_id", target_entry.get("base_id"))
             sp_name = self.engine.api.get_species_name(sp_id)
 
-            if sp_id in exp_ids:
-                return False, f"Cannot deploy {sp_name}! They are currently on an expedition."
-
             if sp_id in squad:
                 return False, f"Cannot select duplicate Pokémon ({sp_name}) in Strike Squad!"
 
@@ -263,12 +299,6 @@ class RocketBattleHandler:
                 return False, "You must select exactly 3 Pokémon for the Strike Squad."
             if len(set(custom_squad)) != len(custom_squad):
                 return False, "You cannot select duplicate Pokémon in your Strike Squad."
-            expeditions = self.engine.state.get("expeditions", [])
-            exp_ids = {e.get("sp_id") for e in expeditions if "sp_id" in e}
-            for pid in custom_squad:
-                if pid in exp_ids:
-                    sp_name = self.engine.api.get_species_name(pid)
-                    return False, f"Cannot deploy {sp_name}! They are currently on an expedition."
             team_ids = list(custom_squad)
         else:
             team_ids = self.auto_assemble_squad(size=3)
@@ -296,10 +326,20 @@ class RocketBattleHandler:
         op_id = f"op_{clean_code}"
         ops_st = self.engine.state.setdefault("rocket_ops", {}).setdefault(op_id, {})
         current_rem = ops_st.get("boss_hp_remaining")
-        if current_rem and 0 < current_rem < boss_hps[0]:
-            boss_hps[0] = current_rem
+        st_idx = 0
+        if current_rem and 0 < current_rem < sum(boss_hps):
+            rem = current_rem
+            for i, b in enumerate(boss_team):
+                m_hp = b["max_hp"]
+                if rem >= m_hp:
+                    boss_hps[i] = m_hp
+                    rem -= m_hp
+                else:
+                    boss_hps[i] = rem
+                    rem = 0
+            st_idx = next((i for i, h in enumerate(boss_hps) if h > 0), 0)
 
-        first_boss = boss_team[0]
+        first_boss = boss_team[st_idx]
         st = {
             "op_code": clean_code,
             "title": boss_def["title"],
@@ -311,7 +351,7 @@ class RocketBattleHandler:
             "boss_team": boss_team,
             "boss_hps": boss_hps,
             "boss_max_hps": boss_max_hps,
-            "boss_active_index": 0,
+            "boss_active_index": st_idx,
             "turn_count": 0,
             "turn_log": [
                 f"🚨 Breach initiated into {boss_def['location']}!",
@@ -322,7 +362,7 @@ class RocketBattleHandler:
             "status": "in_combat"
         }
         self._save_state(st)
-        ops_st["boss_hp_remaining"] = boss_hps[0]
+        ops_st["boss_hp_remaining"] = sum(boss_hps)
         ops_st["objective_done"] = False
         self.engine.save()
         return True, f"🚀 Deployed into {boss_def['title']}! Engage {first_boss['name']}!"
@@ -387,7 +427,7 @@ class RocketBattleHandler:
         # Update rocket_ops boss_hp_remaining for telemetry display
         op_id = f"op_{st['op_code']}"
         ops_st = self.engine.state.setdefault("rocket_ops", {}).setdefault(op_id, {})
-        ops_st["boss_hp_remaining"] = st["boss_hps"][r_idx]
+        ops_st["boss_hp_remaining"] = sum(st["boss_hps"])
 
         # --- 2. CHECK BOSS FAINT / PROGRESSION ---
         if st["boss_hps"][r_idx] <= 0:
@@ -395,10 +435,10 @@ class RocketBattleHandler:
             if r_idx + 1 < len(st["boss_team"]):
                 st["boss_active_index"] += 1
                 next_mon = st["boss_team"][st["boss_active_index"]]
-                logs.append(f"🚨 ALARM: Containment failure! {next_mon['name']} enters the arena!")
+                logs.append(f"🚨 ALARM: Arch-Director Oak commands {next_mon['name']} into the arena!")
                 if next_mon.get("name") == "Prototype Chimera-001":
                     logs.append("⚠️ PROTOTYPE CHIMERA-001 has awakened! Multi-elemental cores online!")
-                ops_st["boss_hp_remaining"] = next_mon["max_hp"]
+                ops_st["boss_hp_remaining"] = sum(st["boss_hps"])
                 existing_logs = st.get("turn_log", [])
                 existing_logs.extend(logs)
                 st["turn_log"] = existing_logs[-5:]
@@ -433,10 +473,10 @@ class RocketBattleHandler:
         elif r_move == "Buffer Overflow":
             logs.append("👾 MissingNo. injected BUFFER OVERFLOW! Glitched memory packets scrambled the arena!")
 
-        elif r_move in ["Shell Spore", "Leech Seed"]:
+        elif r_move in ["Shell Spore", "Leech Seed", "Nanite Repair"]:
             boss_heal = min(15_000, r_mon["max_hp"] - st["boss_hps"][r_idx])
             st["boss_hps"][r_idx] += boss_heal
-            logs.append(f"🌿 Venustoise absorbed organic nutrients with {r_move}! (+{boss_heal:,} HP)")
+            logs.append(f"🔧 {r_mon['name']} activated {r_move}! (+{boss_heal:,} HP)")
 
         # Determine Boss Damage
         b_eff = get_effectiveness(r_mon["type"], p_type)

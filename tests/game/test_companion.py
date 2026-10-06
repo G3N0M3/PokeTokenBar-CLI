@@ -2136,17 +2136,21 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertIn("👑 Seeker of Truth", self.engine.state.get("gym_badges", []))
         self.assertTrue(self.engine.state.get("permanent_black_market", False))
 
-        # Check recruited companions in dex roster
+        # Check recruited companions in dex roster (only the 3 Oak boss Pokémon)
         dex_sp_ids = [d.get("species_id") for d in self.engine.state.get("dex", [])]
         self.assertIn(2001, dex_sp_ids)  # Armored Mewtwo
-        self.assertIn(2002, dex_sp_ids)  # Porygon-Zero
-        for aug_id in [2003, 2004, 2005, 2006, 2007, 2008]:
-            self.assertIn(aug_id, dex_sp_ids)
+        self.assertIn(2004, dex_sp_ids)  # Augmented Charizard
+        self.assertIn(2007, dex_sp_ids)  # Augmented Dragonite
+        self.assertNotIn(2002, dex_sp_ids)
+        self.assertNotIn(2003, dex_sp_ids)
+        self.assertNotIn(2005, dex_sp_ids)
+        self.assertNotIn(2006, dex_sp_ids)
+        self.assertNotIn(2008, dex_sp_ids)
 
         # Verify species names
         self.assertEqual(self.engine.api.get_species_name(2001), "Armored Mewtwo")
-        self.assertEqual(self.engine.api.get_species_name(2002), "Porygon-Zero")
-        self.assertEqual(self.engine.api.get_species_name(2003), "Augmented Venusaur")
+        self.assertEqual(self.engine.api.get_species_name(2004), "Augmented Charizard")
+        self.assertEqual(self.engine.api.get_species_name(2007), "Augmented Dragonite")
 
     def test_rocket_armory_rank_clearance(self):
         self.engine.state["used_since_install"] = 500_000_000
@@ -2399,13 +2403,13 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertFalse(ok_c4)
         self.assertIn("0/3 charges", msg_c4)
 
-        # Simulate coding usage: 2.5M tokens -> +1 charge for catalyst
-        self.engine.process_usage(27_500_000)
+        # Simulate coding usage: 25M tokens -> +1 charge for catalyst
+        self.engine.process_usage(105_000_000)
         info_cat2 = self.engine.get_armory_charge_info("catalyst")
         self.assertEqual(info_cat2["charges"], 1)
 
-        # Another 5M tokens -> reaches 3/3 max
-        self.engine.process_usage(32_500_000)
+        # Another 50M tokens -> reaches 3/3 max
+        self.engine.process_usage(155_000_000)
         info_cat3 = self.engine.get_armory_charge_info("catalyst")
         self.assertEqual(info_cat3["charges"], 3)
 
@@ -2478,9 +2482,9 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertIn("use catalyst", out2)
         self.assertNotIn("requisition catalyst", out2)
         # 6th item is locked for Operative rank; hint should only appear when 6th item is opened
-        self.assertNotIn("claim authority", out2)
+        self.assertNotIn("fetch", out2)
 
-        # Promote to Commander (6th item opened) -> claim authority hint and unmasked item names appear
+        # Promote to Commander (6th item opened) -> fetch hint and unmasked item names appear
         self.engine.state["rocket_rank"] = "Commander"
         trap_cmd = io.StringIO()
         with patch("sys.stdout", trap_cmd):
@@ -2489,7 +2493,8 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertIn("Corrupted EXP Splitter", out_cmd)
         self.assertIn("Dark Gene Catalyst", out_cmd)
         self.assertIn("Team Rocket Authority", out_cmd)
-        self.assertIn("claim authority", out_cmd)
+        self.assertIn("fetch", out_cmd)
+        self.assertNotIn("claim authority", out_cmd)
 
         # Test 'use catalyst' in TUI with active Wartortle
         self.engine.state["rocket_rank"] = "Executive"
@@ -2507,9 +2512,13 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertEqual(self.engine.active_mon.current_id, 9)
         self.assertNotIn("dark_gene_catalyst", self.engine.state.get("inventory", {}))
 
-        # Test 'claim authority' in TUI
+        # Test that 'claim authority' is rejected under Single Canonical Command rule
         self.engine.state["rocket_rank"] = "Commander"
         handle_rocket_command(app, "claim authority")
+        self.assertIn("Please use 'fetch'", app.message)
+
+        # Test canonical 'fetch' in TUI
+        handle_rocket_command(app, "fetch")
         self.assertIn("Team Rocket Authority", app.message)
 
         self.engine.state["rocket_rank"] = "Operative"
@@ -2742,6 +2751,25 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertTrue(len(roster) > 0)
         self.assertEqual(roster[0]["status"], "inactive")
 
+        # Test CommandRouter global 'fetch' command
+        self.engine.state["last_authority_date"] = "2020-01-01"
+        self.engine.state["rocket_alliance_accepted"] = True
+        tui_auth = PokeTokenBarTUI()
+        tui_auth.engine = self.engine
+        tui_auth.current_tab = 1
+        with patch("poketokenbar.tui.UsageManager") as mock_mgr:
+            instance = MagicMock()
+            instance.get_summary.return_value = {
+                "total_tokens": 100_000_000, "today_tokens": 0, "week_tokens": 0,
+                "month_tokens": 0, "antigravity_today": 0, "gemini_today": 0,
+                "claude_today": 0, "burn_rate_tpm": 0, "active_days": []
+            }
+            mock_mgr.return_value = instance
+            from poketokenbar.tui.router import CommandRouter
+            CommandRouter.dispatch(tui_auth, "fetch")
+        self.assertIn("Team Rocket Authority", tui_auth.message)
+        self.assertIsNotNone(self.engine.state.get("pending_authority_delivery"))
+
     def test_72_column_layout_compliance_tab_12(self):
         import io
         import re
@@ -2875,7 +2903,7 @@ class TestCompanionEngine(unittest.TestCase):
         with patch("sys.stdout", trap4):
             render_rocket_tab(app)
         out4 = ansi_regex.sub("", trap4.getvalue())
-        self.assertIn("ALL 10 COVERT OPERATIONS COMPLETED!", out4)
+        self.assertIn("ALL COVERT OPERATIONS COMPLETED!", out4)
         self.assertNotIn("Switch view:", out4)
 
         # 5. Verify Intel and Armory also have no menu changing hints
@@ -4971,11 +4999,21 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertEqual(omega_def["max_hp"], 300_000)
         self.assertEqual(omega_def["id"], 2014)
 
-        self.assertEqual(len(ROCKET_BOSS_TEAMS["10"]["team"]), 1)
-        oak_def = ROCKET_BOSS_TEAMS["10"]["team"][0]
-        self.assertEqual(oak_def["name"], "Arch-Director Samuel Oak & Master Core")
-        self.assertEqual(oak_def["max_hp"], 350_000)
-        self.assertEqual(oak_def["id"], 2001)
+        self.assertEqual(len(ROCKET_BOSS_TEAMS["10"]["team"]), 3)
+        char_def = ROCKET_BOSS_TEAMS["10"]["team"][0]
+        self.assertEqual(char_def["name"], "Augmented Charizard")
+        self.assertEqual(char_def["max_hp"], 100_000)
+        self.assertEqual(char_def["id"], 2004)
+
+        drag_def = ROCKET_BOSS_TEAMS["10"]["team"][1]
+        self.assertEqual(drag_def["name"], "Augmented Dragonite")
+        self.assertEqual(drag_def["max_hp"], 110_000)
+        self.assertEqual(drag_def["id"], 2007)
+
+        mew_def = ROCKET_BOSS_TEAMS["10"]["team"][2]
+        self.assertEqual(mew_def["name"], "Armored Mewtwo")
+        self.assertEqual(mew_def["max_hp"], 140_000)
+        self.assertEqual(mew_def["id"], 2001)
 
         # 2. Operations Menu: HP% left calculation verification
         app = MagicMock()
