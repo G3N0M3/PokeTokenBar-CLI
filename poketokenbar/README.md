@@ -1,6 +1,6 @@
 # PokeTokenBar: Technical Architecture Guide
 
-This document is intended for developers maintaining or extending the PokeTokenBar application. It outlines the core architecture, module responsibilities, state management, safety guarantees, and the TUI rendering pipeline as of **v1.12.0**.
+This document is intended for developers maintaining or extending the PokeTokenBar application. It outlines the core architecture, module responsibilities, state management, safety guarantees, and the TUI rendering pipeline as of **v2.2.0**.
 
 ---
 
@@ -46,7 +46,7 @@ PokeTokenBar follows a clean separation of concerns between the **View/Controlle
 
 ```text
 poketokenbar/
-├── __init__.py           # Package version definition (v2.0.0)
+├── __init__.py           # Package version definition (v2.2.0)
 ├── cli.py                # CLI entry point (ptb launches interactive TUI)
 ├── sprite_renderer.py    # SpriteRenderer: 24-bit TrueColor ANSI half-block renderer (with flip_h support)
 ├── tui/                  # TUI framework: app lifecycle, input router, modals
