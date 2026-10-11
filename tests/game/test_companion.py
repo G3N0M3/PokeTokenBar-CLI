@@ -1581,39 +1581,39 @@ class TestCompanionEngine(unittest.TestCase):
 
     def test_shareholder_tier_rank_thresholds(self):
         from poketokenbar.game.models import get_shareholder_rank, SHAREHOLDER_TIERS
-        # Boundary tests
+        # Boundary tests for arithmetic +10 increasing tier spans (10, 20, 30, 40, 50, 60, 70, 80, 90)
         self.assertEqual(get_shareholder_rank(0), (0, "None"))
         self.assertEqual(get_shareholder_rank(1), (1, "Retail"))
         self.assertEqual(get_shareholder_rank(10), (1, "Retail"))
         self.assertEqual(get_shareholder_rank(11), (2, "Preferred"))
-        self.assertEqual(get_shareholder_rank(20), (2, "Preferred"))
-        self.assertEqual(get_shareholder_rank(21), (3, "Strategic"))
-        self.assertEqual(get_shareholder_rank(30), (3, "Strategic"))
-        self.assertEqual(get_shareholder_rank(31), (4, "Corporate"))
-        self.assertEqual(get_shareholder_rank(40), (4, "Corporate"))
-        self.assertEqual(get_shareholder_rank(41), (5, "Venture"))
-        self.assertEqual(get_shareholder_rank(50), (5, "Venture"))
-        self.assertEqual(get_shareholder_rank(51), (6, "Principal"))
-        self.assertEqual(get_shareholder_rank(60), (6, "Principal"))
-        self.assertEqual(get_shareholder_rank(61), (7, "Majority"))
-        self.assertEqual(get_shareholder_rank(70), (7, "Majority"))
-        self.assertEqual(get_shareholder_rank(71), (8, "Director"))
-        self.assertEqual(get_shareholder_rank(80), (8, "Director"))
-        self.assertEqual(get_shareholder_rank(81), (9, "Executive"))
-        self.assertEqual(get_shareholder_rank(90), (9, "Executive"))
-        self.assertEqual(get_shareholder_rank(91), (10, "Chairman"))
-        self.assertEqual(get_shareholder_rank(150), (10, "Chairman"))
+        self.assertEqual(get_shareholder_rank(30), (2, "Preferred"))
+        self.assertEqual(get_shareholder_rank(31), (3, "Strategic"))
+        self.assertEqual(get_shareholder_rank(60), (3, "Strategic"))
+        self.assertEqual(get_shareholder_rank(61), (4, "Corporate"))
+        self.assertEqual(get_shareholder_rank(100), (4, "Corporate"))
+        self.assertEqual(get_shareholder_rank(101), (5, "Venture"))
+        self.assertEqual(get_shareholder_rank(150), (5, "Venture"))
+        self.assertEqual(get_shareholder_rank(151), (6, "Principal"))
+        self.assertEqual(get_shareholder_rank(210), (6, "Principal"))
+        self.assertEqual(get_shareholder_rank(211), (7, "Majority"))
+        self.assertEqual(get_shareholder_rank(280), (7, "Majority"))
+        self.assertEqual(get_shareholder_rank(281), (8, "Director"))
+        self.assertEqual(get_shareholder_rank(360), (8, "Director"))
+        self.assertEqual(get_shareholder_rank(361), (9, "Executive"))
+        self.assertEqual(get_shareholder_rank(450), (9, "Executive"))
+        self.assertEqual(get_shareholder_rank(451), (10, "Chairman"))
+        self.assertEqual(get_shareholder_rank(600), (10, "Chairman"))
         self.assertEqual(len(SHAREHOLDER_TIERS), 11)
         self.assertEqual(SHAREHOLDER_TIERS[1].range_label, "1-10 sh")
-        self.assertEqual(SHAREHOLDER_TIERS[2].range_label, "11-20 sh")
-        self.assertEqual(SHAREHOLDER_TIERS[3].range_label, "21-30 sh")
-        self.assertEqual(SHAREHOLDER_TIERS[4].range_label, "31-40 sh")
-        self.assertEqual(SHAREHOLDER_TIERS[5].range_label, "41-50 sh")
-        self.assertEqual(SHAREHOLDER_TIERS[6].range_label, "51-60 sh")
-        self.assertEqual(SHAREHOLDER_TIERS[7].range_label, "61-70 sh")
-        self.assertEqual(SHAREHOLDER_TIERS[8].range_label, "71-80 sh")
-        self.assertEqual(SHAREHOLDER_TIERS[9].range_label, "81-90 sh")
-        self.assertEqual(SHAREHOLDER_TIERS[10].range_label, "91+ sh")
+        self.assertEqual(SHAREHOLDER_TIERS[2].range_label, "11-30 sh")
+        self.assertEqual(SHAREHOLDER_TIERS[3].range_label, "31-60 sh")
+        self.assertEqual(SHAREHOLDER_TIERS[4].range_label, "61-100 sh")
+        self.assertEqual(SHAREHOLDER_TIERS[5].range_label, "101-150 sh")
+        self.assertEqual(SHAREHOLDER_TIERS[6].range_label, "151-210 sh")
+        self.assertEqual(SHAREHOLDER_TIERS[7].range_label, "211-280 sh")
+        self.assertEqual(SHAREHOLDER_TIERS[8].range_label, "281-360 sh")
+        self.assertEqual(SHAREHOLDER_TIERS[9].range_label, "361-450 sh")
+        self.assertEqual(SHAREHOLDER_TIERS[10].range_label, "451+ sh")
 
     def test_shareholder_perk_multipliers(self):
         self.engine.state["investments"] = {
@@ -4470,7 +4470,7 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertIn("[1] Token Tracking Baseline:", out1)
         self.assertIn("[6] Settings Tab Page Size:", out1)
         self.assertNotIn("[7] Pokédex Page Size:", out1)
-        self.assertNotIn("[14] Reset Game Progress:", out1)
+        self.assertNotIn("[15] Reset Game Progress:", out1)
 
         # Page 2: Items 7-12
         app.settings_page = 2
@@ -4484,9 +4484,10 @@ class TestCompanionEngine(unittest.TestCase):
         self.assertIn("[7] Pokédex Page Size:", out2)
         self.assertIn("[12] Term Deposits Page Size:", out2)
         self.assertNotIn("[13] Team Rocket Process:", out2)
-        self.assertNotIn("[14] Reset Game Progress:", out2)
+        self.assertNotIn("[14] High-Roller Velvet Sting:", out2)
+        self.assertNotIn("[15] Reset Game Progress:", out2)
 
-        # Page 3: Items 13-14
+        # Page 3: Items 13-15
         app.settings_page = 3
         trap_p3 = io.StringIO()
         with patch("sys.stdout", trap_p3):
@@ -4494,7 +4495,8 @@ class TestCompanionEngine(unittest.TestCase):
         out_p3 = trap_p3.getvalue()
         self.assertIn("Page 3/3", out_p3)
         self.assertIn("[13] Team Rocket Process:", out_p3)
-        self.assertIn("[14] Reset Game Progress:", out_p3)
+        self.assertIn("[14] High-Roller Velvet Sting:", out_p3)
+        self.assertIn("[15] Reset Game Progress:", out_p3)
 
         # Out-of-bounds upper clamping (page 99 -> 3)
         app.settings_page = 99
@@ -4518,7 +4520,7 @@ class TestCompanionEngine(unittest.TestCase):
         app = MagicMock()
         app.engine = self.engine
 
-        # 5 items per page = 3 pages total (ceil(14/5) = 3)
+        # 5 items per page = 3 pages total (ceil(15/5) = 3)
         self.engine.state["page_size_settings"] = 5
         app.settings_page = 3
         trap = io.StringIO()
@@ -4527,11 +4529,11 @@ class TestCompanionEngine(unittest.TestCase):
         out = trap.getvalue()
         self.assertIn("Page 3/3", out)
         self.assertIn("[11] Mega Evo Page Size:", out)
-        self.assertIn("[14] Reset Game Progress:", out)
+        self.assertIn("[15] Reset Game Progress:", out)
         self.assertNotIn("[1] Token Tracking Baseline:", out)
 
-        # 14 items per page = 1 page total (no page tag)
-        self.engine.state["page_size_settings"] = 14
+        # 15 items per page = 1 page total (no page tag)
+        self.engine.state["page_size_settings"] = 15
         app.settings_page = 1
         trap_all = io.StringIO()
         with patch("sys.stdout", trap_all):
@@ -4539,7 +4541,7 @@ class TestCompanionEngine(unittest.TestCase):
         out_all = trap_all.getvalue()
         self.assertNotIn("Page 1/1", out_all)
         self.assertIn("[1] Token Tracking Baseline:", out_all)
-        self.assertIn("[14] Reset Game Progress:", out_all)
+        self.assertIn("[15] Reset Game Progress:", out_all)
 
     def test_tui_settings_page_and_pagesize_commands(self):
         """Verify TUI event loop handling for n/p/page and pagesize settings commands on tab 11."""

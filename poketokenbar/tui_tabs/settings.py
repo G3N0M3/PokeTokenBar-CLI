@@ -161,10 +161,24 @@ def get_settings_items(app):
         ]
     ))
 
+    sting_unlocked = app.engine.state.get("poker_vip_unlocked", False)
+    if sting_unlocked:
+        sting_tag = f"{BOLD}{RED}ACTIVE{RESET}"
+    else:
+        sting_tag = f"{BOLD}{YELLOW}UNINITIALIZED{RESET}"
+
     items.append((
         14,
         [
-            f"  [14] Reset Game Progress:      {BOLD}{RED}[DANGER]{RESET}",
+            f"  [14] High-Roller Velvet Sting: {sting_tag}",
+            f"      ➔ Type '{BOLD}sting init{RESET}' to reset Salon & Storyline"
+        ]
+    ))
+
+    items.append((
+        15,
+        [
+            f"  [15] Reset Game Progress:      {BOLD}{RED}[DANGER]{RESET}",
             f"      ➔ Type '{BOLD}reset{RESET}' to clear all progress & restart"
         ]
     ))

@@ -346,51 +346,38 @@ class ShareholderTier:
 SHAREHOLDER_TIERS: List[ShareholderTier] = [
     ShareholderTier(0, "None", 0, 0, "0 sh"),
     ShareholderTier(1, "Retail", 1, 10, "1-10 sh"),
-    ShareholderTier(2, "Preferred", 11, 20, "11-20 sh"),
-    ShareholderTier(3, "Strategic", 21, 30, "21-30 sh"),
-    ShareholderTier(4, "Corporate", 31, 40, "31-40 sh"),
-    ShareholderTier(5, "Venture", 41, 50, "41-50 sh"),
-    ShareholderTier(6, "Principal", 51, 60, "51-60 sh"),
-    ShareholderTier(7, "Majority", 61, 70, "61-70 sh"),
-    ShareholderTier(8, "Director", 71, 80, "71-80 sh"),
-    ShareholderTier(9, "Executive", 81, 90, "81-90 sh"),
-    ShareholderTier(10, "Chairman", 91, None, "91+ sh"),
+    ShareholderTier(2, "Preferred", 11, 30, "11-30 sh"),
+    ShareholderTier(3, "Strategic", 31, 60, "31-60 sh"),
+    ShareholderTier(4, "Corporate", 61, 100, "61-100 sh"),
+    ShareholderTier(5, "Venture", 101, 150, "101-150 sh"),
+    ShareholderTier(6, "Principal", 151, 210, "151-210 sh"),
+    ShareholderTier(7, "Majority", 211, 280, "211-280 sh"),
+    ShareholderTier(8, "Director", 281, 360, "281-360 sh"),
+    ShareholderTier(9, "Executive", 361, 450, "361-450 sh"),
+    ShareholderTier(10, "Chairman", 451, None, "451+ sh"),
 ]
 
 def get_shareholder_rank(shares: int) -> Tuple[int, str]:
     """Returns (rank_id, rank_name) for a given number of shares.
     Rank 0: None (0 sh)
     Rank 1: Retail (1-10 sh)
-    Rank 2: Preferred (11-20 sh)
-    Rank 3: Strategic (21-30 sh)
-    Rank 4: Corporate (31-40 sh)
-    Rank 5: Venture (41-50 sh)
-    Rank 6: Principal (51-60 sh)
-    Rank 7: Majority (61-70 sh)
-    Rank 8: Director (71-80 sh)
-    Rank 9: Executive (81-90 sh)
-    Rank 10: Chairman (91+ sh)
+    Rank 2: Preferred (11-30 sh)
+    Rank 3: Strategic (31-60 sh)
+    Rank 4: Corporate (61-100 sh)
+    Rank 5: Venture (101-150 sh)
+    Rank 6: Principal (151-210 sh)
+    Rank 7: Majority (211-280 sh)
+    Rank 8: Director (281-360 sh)
+    Rank 9: Executive (361-450 sh)
+    Rank 10: Chairman (451+ sh)
     """
-    if shares >= 91:
-        return 10, "Chairman"
-    elif shares >= 81:
-        return 9, "Executive"
-    elif shares >= 71:
-        return 8, "Director"
-    elif shares >= 61:
-        return 7, "Majority"
-    elif shares >= 51:
-        return 6, "Principal"
-    elif shares >= 41:
-        return 5, "Venture"
-    elif shares >= 31:
-        return 4, "Corporate"
-    elif shares >= 21:
-        return 3, "Strategic"
-    elif shares >= 11:
-        return 2, "Preferred"
-    elif shares >= 1:
-        return 1, "Retail"
+    if shares <= 0:
+        return 0, "None"
+    for tier in reversed(SHAREHOLDER_TIERS):
+        if tier.rank == 0:
+            continue
+        if shares >= tier.min_shares:
+            return tier.rank, tier.name
     return 0, "None"
 
 CORPORATE_TIER_PERKS: Dict[str, Dict[int, str]] = {
@@ -749,14 +736,19 @@ MEGA_STONES = {
 
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
-# Executive Resort Area Penthouse
+# Executive Resort Area Luxury Suite
 # ---------------------------------------------------------------------------
-PENTHOUSE_WEALTH_THRESHOLD = 100_000_000_000  # 100.0 Billion tokens (bank + holding)
-PENTHOUSE_VIP_FEE = 500_000_000  # 500.0 Million tokens VIP broker fee
-PENTHOUSE_DEED_COST = 1_000_000_000_000  # 1.0 Trillion tokens
-VILLA_DEED_COST = PENTHOUSE_DEED_COST
+LUXURY_WEALTH_THRESHOLD = 100_000_000_000  # 100.0 Billion tokens (bank + holding)
+LUXURY_VIP_FEE = 500_000_000  # 500.0 Million tokens VIP broker fee
+LUXURY_DEED_COST = 1_000_000_000_000  # 1.0 Trillion tokens
 
-PENTHOUSE_FACILITIES = {
+# Backward-compatible aliases
+PENTHOUSE_WEALTH_THRESHOLD = LUXURY_WEALTH_THRESHOLD
+PENTHOUSE_VIP_FEE = LUXURY_VIP_FEE
+PENTHOUSE_DEED_COST = LUXURY_DEED_COST
+VILLA_DEED_COST = LUXURY_DEED_COST
+
+LUXURY_FACILITIES = {
     "nursery": {
         "name": "Automated Cryo-Nursery",
         "icon": "🥚",
@@ -792,11 +784,13 @@ PENTHOUSE_FACILITIES = {
         }
     }
 }
-VILLA_FACILITIES = PENTHOUSE_FACILITIES
-PENTHOUSE_WINGS = PENTHOUSE_FACILITIES
-VILLA_WINGS = PENTHOUSE_WINGS
+PENTHOUSE_FACILITIES = LUXURY_FACILITIES
+VILLA_FACILITIES = LUXURY_FACILITIES
+LUXURY_WINGS = LUXURY_FACILITIES
+PENTHOUSE_WINGS = LUXURY_FACILITIES
+VILLA_WINGS = LUXURY_FACILITIES
 
-PENTHOUSE_DECOR = {
+LUXURY_DECOR = {
     "piano": {
         "name": "Grand Concert Piano",
         "cost": 300_000_000_000,
@@ -839,5 +833,275 @@ PENTHOUSE_DECOR = {
         "perk": "Corporate Rule (+10% Divs)",
         "desc": "Velvet & platinum throne conferring supreme corporate authority."
     },
+    "watch": {
+        "name": "Baron's 24K Sovereign Watch",
+        "cost": 0,
+        "icon": "⌚",
+        "perk": "The Velvet Sting Trophy (+15% VIP)",
+        "desc": "Solid gold pocket watch seized from the bankrupted Baron Salvatore Croix."
+    },
 }
-VILLA_DECOR = PENTHOUSE_DECOR
+PENTHOUSE_DECOR = LUXURY_DECOR
+VILLA_DECOR = LUXURY_DECOR
+
+POKER_VIP_TRIGGER_BET = 100_000_000_000_000  # 100.0T tokens
+POKER_VIP_MIN_BET = 10_000_000_000_000       # 10.0T tokens
+POKER_VIP_MULTIPLIERS = {
+    "Royal Flush": 100,
+    "Straight Flush": 25,
+    "Four of a Kind": 12,
+    "Full House": 6,
+    "Flush": 5,
+    "Straight": 4,
+    "Three of a Kind": 3,
+    "Two Pair": 2,
+    "One Pair": 2,
+    "High Card": 2,
+}
+
+VELVET_PATRONS: List[str] = [
+    "Duchess Eleanor",
+    "Gentleman Walter",
+    "Madame Vivienne",
+]
+
+VELVET_MARKS: List[str] = [
+    "Financier Vance",
+    "Viktor Rostov",
+    "Countess Beverly",
+    "Lord Sterling",
+    "Oligarch Thorne",
+    "Corinne Vane",
+]
+
+VELVET_STING_CHAPTERS: Dict[str, Dict[str, Any]] = {
+    "1": {
+        "title": "Operation Clean Slate: The Syndicate Recruitment",
+        "location": "The Velvet Salon // Private Ante-Chamber",
+        "speaker": "Madame Vivienne",
+        "opponent": "VIP Patrons [Trial]",
+        "dialogue": [
+            "\"Welcome to The Velvet Salon, Trainer. That hundred-trillion wager on the main floor certainly turned heads.",
+            "",
+            "Allow me to introduce our circle: Duchess Eleanor, Gentleman Walter, and myself. To the outside world, we are mere high-society dilettantes enjoying private card games.",
+            "",
+            "In truth, we are an undercover syndicate. Our target is Baron Salvatore Croix—a ruthless oligarch who has spent decades strip-mining sacred Pokémon habitats, foreclosing on non-profit daycares, and laundering his ill-gotten quadrillions through private poker tables.",
+            "",
+            "We intend to ruin him legally at the green felt. You've proven your incredible talent by winning 10 hands and securing 500.0T tokens at our felt. You are now officially inducted into our inner circle! Type 'sting' to proceed with our master plan!\""
+        ],
+        "tactical_orders": [
+            "• Win a total of 10 hands at The Velvet Salon table ('table vip').",
+            "• Accumulate at least 500.0T tokens in total VIP table winnings."
+        ],
+        "req_wins": 10,
+        "req_winnings": 500_000_000_000_000,
+    },
+    "2": {
+        "title": "Operation Paper Trail: Tracing the Shadow Ledgers",
+        "location": "Silph-Devon Clearing Suite // Clandestine Wire",
+        "speaker": "Duchess Eleanor",
+        "opponent": "Financier Vance [Money Runner]",
+        "dialogue": [
+            "\"Splendid performance at the tables, darling. Your nerves are as steady as diamond.",
+            "",
+            "Our wiretaps have confirmed that Croix routes his laundering through high-roller pots, disguising illegal payouts as casino earnings.",
+            "",
+            "Croix's offshore wire runner, Financier Vance, has just taken a seat at the table. To crack his encrypted transaction telemetry, we need a massive token surge on the felt. Take down a single pot worth at least 25.0T tokens from him.",
+            "",
+            "Once that transaction clears our private terminal, Vivienne's analysts can pinpoint Croix's primary liquidity reserve. Do not disappoint us!\""
+        ],
+        "tactical_orders": [
+            "• Win a single poker pot of at least 25.0T tokens against Financier Vance at the VIP table.",
+            "• Intercept Croix's offshore transaction telemetry."
+        ],
+        "req_pot": 25_000_000_000_000,
+    },
+    "3": {
+        "title": "[MINI-BOSS 1] Breaking the Bouncer: Viktor Rostov",
+        "location": "VIP High-Limit Antechamber // The Heavy Velvet Curtain",
+        "speaker": "Gentleman Walter",
+        "opponent": "Viktor Rostov [Enforcer]",
+        "is_boss": True,
+        "boss_max_stack": 50_000_000_000_000,
+        "dialogue": [
+            "\"Keep your voice down, kid. We have trouble.",
+            "",
+            "Croix's chief of private security—Viktor 'The Bull' Rostov—noticed our telemetry spike. The brute just barged into the salon.",
+            "",
+            "He claims he's here to 'inspect the action', but he brought a 50.0T war chest to bully everyone off the felt and shut our sting down before it starts.",
+            "",
+            "We can't brawl here without blowing our cover. Sit across from him at the table ('table vip') and strip him of every single token in his stack!\""
+        ],
+        "tactical_orders": [
+            "• Face Viktor Rostov at The Velvet Salon felt ('table vip').",
+            "• Deplete Viktor's 50.0T security war chest to 0 tokens."
+        ],
+    },
+    "4": {
+        "title": "Operation Liquid Freeze: The Offshore Intercept",
+        "location": "Vermilion Deep Anchorage // Luxury Cruiser M.S. Croesus",
+        "speaker": "Madame Vivienne",
+        "opponent": "Countess Beverly [Bondholder]",
+        "dialogue": [
+            "\"Viktor slunk out with his tail between his legs. Exquisite card play, Trainer!",
+            "",
+            "While you had him occupied, our hackers traced his communications directly to the M.S. Croesus docked in Vermilion Harbor. That is where Croix parks his bearer bonds.",
+            "",
+            "We are filing an emergency judicial freeze with the International Police, but the court demands 50.0T tokens in escrow collateral to seal the injunction.",
+            "",
+            "Countess Beverly, one of Croix's key luxury syndicate bondholders, is holding court at the felt. Accumulate at least 50.0T tokens in total VIP winnings from her to fund our legal strike. Move quickly before Croix catches wind!\""
+        ],
+        "tactical_orders": [
+            "• Accumulate 50.0T tokens in total VIP table winnings against Countess Beverly.",
+            "• Collateralize the legal freeze on Croix's luxury yacht accounts."
+        ],
+        "req_winnings": 50_000_000_000_000,
+    },
+    "5": {
+        "title": "Operation Counter-Bluff: Poisoning the Well",
+        "location": "The Grand Velvet Salon Felt // Private Alcove",
+        "speaker": "Gentleman Walter",
+        "opponent": "Lord Sterling [Syndicator]",
+        "dialogue": [
+            "\"Croix's financial analysts are panicking, kid. They realize their yacht accounts are locked.",
+            "",
+            "Their only option now is to liquidate secondary assets and pour liquidity directly into Celadon's high-roller tables to recover their capital. Croix's principal syndicator, Lord Sterling, has taken the seat across from you.",
+            "",
+            "We need to establish total psychological dominance at this felt. Walter wants to see true mastery of the cards: win 3 hands with Two Pair or better against Lord Sterling.",
+            "",
+            "Show them that our salon table is an iron fortress where loose gamblers come to die!\""
+        ],
+        "tactical_orders": [
+            "• Win 3 hands at the VIP table showing Two Pair or higher against Lord Sterling.",
+            "• Solidify syndicate dominance before the main event."
+        ],
+        "req_ranked_wins": 3,
+    },
+    "6": {
+        "title": "Operation Golden Lure: The Whale's Invitation",
+        "location": "Celadon Penthouse Skylounge // Neon Horizon",
+        "speaker": "Duchess Eleanor",
+        "opponent": "Oligarch Thorne [Consortium Partner]",
+        "dialogue": [
+            "\"The trap is set, darling. Croix's pride is his greatest fatal flaw.",
+            "",
+            "He considers himself the undisputed emperor of high-stakes gambling. If he sees an upstart holding astronomical wealth at this table, he won't be able to resist sitting down to take it.",
+            "",
+            "Croix's most notorious consortium partner, Oligarch Thorne, is at the table. Flash the ultimate whale lure: take down a massive pot of at least 100.0T tokens against him, or hold at least 250.0T in your liquid vault.",
+            "",
+            "Once Croix sees that magnitude of capital on our felt, he will demand a private heads-up match in person!\""
+        ],
+        "tactical_orders": [
+            "• Win a single pot >= 100.0T tokens against Oligarch Thorne OR hold >= 250.0T spendable tokens.",
+            "• Bait Baron Salvatore Croix into entering the Velvet Salon."
+        ],
+        "req_whale_pot": 100_000_000_000_000,
+        "req_whale_balance": 250_000_000_000_000,
+    },
+    "7": {
+        "title": "[MINI-BOSS 2] The Auditor's Gambit: Corinne Vane",
+        "location": "Executive Salon Suite // Private Baccarat Vault",
+        "speaker": "Madame Vivienne",
+        "opponent": "Corinne Vane [Chief Auditor]",
+        "is_boss": True,
+        "boss_max_stack": 100_000_000_000_000,
+        "dialogue": [
+            "\"Croix took the bait! But the cautious old vulture isn't stepping in blind.",
+            "",
+            "He has dispatched his chief financial officer and actuarial savant: Corinne 'The Ledger' Vane. She has calculated the odds on every card dealt in this casino since 1998.",
+            "",
+            "She sits down with a 100.0T corporate treasury stack, determined to dismantle your bankroll with cold mathematical precision.",
+            "",
+            "Take the table ('table vip'). Break her math and strip her 100.0T stack to zero!\""
+        ],
+        "tactical_orders": [
+            "• Challenge Corinne Vane at The Velvet Salon felt ('table vip').",
+            "• Drain Corinne's 100.0T corporate treasury stack to 0 tokens."
+        ],
+    },
+    "8": {
+        "title": "[BOSS] First Blood: The Baron Takes the Felt",
+        "location": "The Inner Velvet Sanctum // Gilded Chandeliers",
+        "speaker": "Gentleman Walter",
+        "opponent": "Baron Salvatore Croix [Tycoon]",
+        "is_boss": True,
+        "boss_max_stack": 150_000_000_000_000,
+        "dialogue": [
+            "\"Look who finally decided to show his face. Smelling of cigars and arrogance.",
+            "",
+            "Baron Salvatore Croix has stepped through the velvet curtain. He sweeps his mink coat aside, slips on his gold signet ring, and glares across the felt at you.",
+            "",
+            "'So you're the little upstart whose lucky streak has embarrassed my staff? Let us see how your amateur nerve holds against true capital.'",
+            "",
+            "He tosses 150.0T in platinum plaques onto the table. This is it, kid. Deal in ('table vip') and take first blood!\""
+        ],
+        "tactical_orders": [
+            "• Face Baron Salvatore Croix at The Velvet Salon felt ('table vip').",
+            "• Deplete his 150.0T personal buy-in to 0 tokens."
+        ],
+    },
+    "9": {
+        "title": "[BOSS] Cornered Vulture: The Desperate Liquidation",
+        "location": "The Velvet Salon // Midnight Shadows",
+        "speaker": "Duchess Eleanor",
+        "opponent": "Baron Salvatore Croix [Tycoon]",
+        "is_boss": True,
+        "boss_max_stack": 250_000_000_000_000,
+        "dialogue": [
+            "\"The Baron's composure has completely shattered! He is sweating through his tailored silk vest.",
+            "",
+            "Rather than admitting defeat, his wounded pride has driven him to utter madness. He just authorized an emergency wire from his private Swiss bank accounts.",
+            "",
+            "He reloads the felt with an astronomical 250.0T tokens, snarling that he will double down on every street until he crushes you.",
+            "",
+            "Stay composed, darling. Let his fury work against him. Step back to the felt ('table vip') and strip his emergency reserves!\""
+        ],
+        "tactical_orders": [
+            "• Re-engage Baron Croix at The Velvet Salon felt ('table vip').",
+            "• Strip his 250.0T emergency liquidity reserves down to 0 tokens."
+        ],
+    },
+    "10": {
+        "title": "[CAMPAIGN CLIMAX] Velvet Guillotine: Total Insolvency",
+        "location": "Sealed High-Roller Vault // The Final Felt",
+        "speaker": "Madame Vivienne & The Syndicate",
+        "opponent": "Baron Salvatore Croix [Tycoon]",
+        "is_boss": True,
+        "boss_max_stack": 350_000_000_000_000,
+        "dialogue": [
+            "\"The moment of ultimate reckoning has arrived. All exits to the casino are locked.",
+            "",
+            "Baron Salvatore Croix is trembling, his hands clutching a gold-embossed leather folio. Inside are the master property deeds and corporate charter to Croix Consolidated Resources—worth 350.0T tokens.",
+            "",
+            "'All of it,' he wheezes, his eyes bloodshot. 'I wager my entire empire against yours. One final heads-up battle to the death.'",
+            "",
+            "The dealer shuffles the high-roller deck. The syndicate stands behind your chair. Deliver the final blow, Trainer! Bankrupt him completely!\""
+        ],
+        "tactical_orders": [
+            "• Enter the Climax Showdown at The Velvet Salon felt ('table vip').",
+            "• Drain Baron Croix's final 350.0T master empire stack to exactly 0 tokens!"
+        ],
+    },
+    "epilogue": {
+        "title": "Campaign Epilogue: The Dawn of the Card Shark",
+        "location": "The Velvet Salon // Sunrise Over Celadon",
+        "speaker": "Madame Vivienne, Walter, Eleanor & Agent Looker",
+        "dialogue": [
+            "The final card hits the felt. Baron Salvatore Croix stares blankly at the board as his empire dissolves into nothingness.",
+            "",
+            "The heavy mahogany doors swing open. Detective Looker of the International Police steps forward with a team of officers, flashing a federal warrant.",
+            "",
+            "\"Salvatore Croix,\" Looker announces. \"Without your offshore liquidity and bribery fund, your shell network has collapsed. You are under arrest for systemic financial fraud, illegal land seizures, and racketeering.\"",
+            "",
+            "As Croix is escorted away in cuffs, Madame Vivienne uncorks a vintage Roseli champagne. Glasses clink across the table. Walter grins warmly, and Duchess Eleanor presents you with the Baron's solid gold pocket watch.",
+            "",
+            "\"You didn't just win a poker game, Trainer,\" Vivienne says with a radiant smile. \"You liberated an entire region from a tyrant's grip. The Velvet Salon will forever honor you as our Sovereign Card Shark.\""
+        ],
+        "tactical_orders": [
+            "• Baron Salvatore Croix completely bankrupted and incarcerated.",
+            "• Seized treasury bounty (+100.0T tokens) credited to your vault.",
+            "• Title '♠️ Master of the Velvet Sting' & 'Baron's 24K Sovereign Watch' awarded."
+        ],
+    },
+}
+

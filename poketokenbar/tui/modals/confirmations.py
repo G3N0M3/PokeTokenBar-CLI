@@ -6,9 +6,11 @@ def handle_pending_confirmation(app, cmd: str) -> bool:
     
     Returns True if a staged confirmation was handled, False otherwise.
     """
+    clean_cmd = str(cmd or "").strip().lower()
+
     if getattr(app, "pending_reset", False) is True:
         app.pending_reset = False
-        if cmd == "reset all":
+        if clean_cmd == "reset all":
             ok, msg = app.engine.reset_game_state()
             app.message = f"🧹 {msg}"
         else:
@@ -17,11 +19,20 @@ def handle_pending_confirmation(app, cmd: str) -> bool:
 
     if getattr(app, "pending_rocket_init", False) is True:
         app.pending_rocket_init = False
-        if cmd in ["confirm", "confirm rocket", "rocket init", "yes", "y"]:
+        if clean_cmd in ["confirm", "confirm rocket", "rocket init", "yes", "y"]:
             ok, msg = app.engine.initialize_rocket_process()
             app.message = f"🚀 {msg}"
         else:
             app.message = "❌ Team Rocket initialization cancelled."
+        return True
+
+    if getattr(app, "pending_sting_init", False) is True:
+        app.pending_sting_init = False
+        if clean_cmd in ["confirm", "confirm sting", "sting init", "yes", "y"]:
+            ok, msg = app.engine.reset_velvet_sting()
+            app.message = f"♠️ {msg}"
+        else:
+            app.message = "❌ Velvet Sting reset cancelled."
         return True
 
     if isinstance(getattr(app, "pending_feed", None), dict):

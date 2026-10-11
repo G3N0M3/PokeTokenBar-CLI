@@ -1,6 +1,8 @@
 import random
 import sys
+import textwrap
 from poketokenbar.utils.formatting import format_tokens
+from poketokenbar.game.models import VELVET_PATRONS, VELVET_MARKS
 
 HEADER = "\033[95m\033[1m"
 BLUE = "\033[94m"
@@ -8,10 +10,171 @@ CYAN = "\033[96m"
 GREEN = "\033[92m"
 YELLOW = "\033[93m"
 RED = "\033[91m"
+MAGENTA = "\033[95m"
 RESET = "\033[0m"
 BOLD = "\033[1m"
 DARK_GRAY = "\033[90m"
 WHITE = "\033[37m"
+
+
+def _read_input_safe() -> str:
+    try:
+        if hasattr(sys.stdin, "readline"):
+            return sys.stdin.readline().strip()
+    except (EOFError, KeyboardInterrupt):
+        return ""
+    return ""
+
+
+def render_poker_vip_dialogue(app):
+    """Interactive modal displayed when placing a >= 100T bet for the first time."""
+    sys.stdout.write("\033[H\033[2J")
+    sys.stdout.write(f"\n{BOLD}{YELLOW}{'='*72}{RESET}\n")
+    sys.stdout.write(f"  {BOLD}{YELLOW}🎰 CELADON GAME CORNER — HIGH-ROLLER INTERLUDE 🎰{RESET}\n")
+    sys.stdout.write(f"{BOLD}{YELLOW}{'='*72}{RESET}\n\n")
+
+    dialogue_blocks = [
+        ("dealer", "Dealer: \"H-Hold on a moment, Trainer...! Did you just wager ONE HUNDRED TRILLION tokens on this felt?!\""),
+        ("narration", "(The Dealer's hands tremble slightly as she adjusts her vest. Pit bosses and surrounding patrons freeze in stunned silence.)"),
+        ("dealer", "Dealer: \"Gulp... An astronomical wager like this far exceeds our standard table limits! As our most distinguished patron, I can introduce you to our private high-roller room: The Velvet Salon."),
+        ("quote_body", "It features private service, enhanced payout multipliers, and high-society opponents."),
+        ("quote_body", "Would you like to move your wager to The Velvet Salon now, or would you prefer to finish playing this hand right here?\""),
+    ]
+
+    for block_type, text in dialogue_blocks:
+        if block_type == "dealer":
+            lines = textwrap.wrap(text, width=68, initial_indent="  ", subsequent_indent="           ")
+        elif block_type == "narration":
+            lines = textwrap.wrap(text, width=68, initial_indent="  ", subsequent_indent="   ")
+        else:
+            lines = textwrap.wrap(text, width=68, initial_indent="           ", subsequent_indent="           ")
+
+        for wline in lines:
+            sys.stdout.write(f"{CYAN}{wline}{RESET}\n")
+        sys.stdout.write("\n")
+
+    sys.stdout.write(f"\n{BOLD}{YELLOW}{'-'*72}{RESET}\n")
+    sys.stdout.write(f"  {BOLD}{WHITE}[1] Accept & Move to The Velvet Salon{RESET}\n")
+    sys.stdout.write(f"  {BOLD}{WHITE}[2] Decline & Finish Playing Here{RESET}\n")
+    sys.stdout.write(f"{BOLD}{YELLOW}{'-'*72}{RESET}\n")
+    sys.stdout.write(f"  {BOLD}{YELLOW}Select option (1 or 2): {RESET}")
+    sys.stdout.flush()
+
+    choice = _read_input_safe()
+    if choice == "1":
+        app.engine.state["poker_vip_unlocked"] = True
+        app.engine.poker.table_mode = "vip"
+        app.engine.poker.active_opponent = random.choice(VELVET_PATRONS)
+        app.engine.save()
+        app.message = "Dealer: 'Right this way, Tycoon! Welcome to The Velvet Salon.'"
+    else:
+        app.engine.state["poker_vip_unlocked"] = True
+        app.engine.poker.table_mode = "standard"
+        app.engine.poker.active_opponent = "The House"
+        app.engine.save()
+        app.message = "Dealer: 'Action stays on the main floor! Use 'table vip' anytime to visit the Salon.'"
+
+
+def render_velvet_recruitment_dialogue(app):
+    """Interactive modal displayed when player wins 10 hands and 500T tokens at The Velvet Salon."""
+    sys.stdout.write("\033[H\033[2J")
+    sys.stdout.write(f"\n{BOLD}{YELLOW}{'='*72}{RESET}\n")
+    sys.stdout.write(f"  {BOLD}{YELLOW}👑 THE VELVET SALON — RECRUITMENT INVITATION 👑{RESET}\n")
+    sys.stdout.write(f"{BOLD}{YELLOW}{'='*72}{RESET}\n\n")
+
+    dialogue_blocks = [
+        ("vivienne", "Madame Vivienne: \"Remarkable card play, Trainer... Truly remarkable! Gentleman Walter and Duchess Eleanor have been thoroughly outmatched by your nerve at this felt.\""),
+        ("narration", "(Madame Vivienne raises a crystal flute. The salon doors click shut, and Gentleman Walter slides a gold-embossed dossier across the table.)"),
+        ("vivienne", "Madame Vivienne: \"To the casino pit bosses, we appear as merely wealthy dilettantes enjoying private high-stakes games. But in truth, we are an undercover syndicate."),
+        ("quote_body", "Our target is Baron Salvatore Croix—a ruthless oligarch laundering stolen quadrillions through these very tables while strip-mining nature reserves across the continent."),
+        ("quote_body", "We need a card shark of your exceptional caliber to lead our undercover operation: 'The Velvet Sting'."),
+        ("quote_body", "We will coordinate wiretaps and legal strikes from the shadows, seating you directly across from Croix's financiers, investors, and enforcers to strip their capital."),
+        ("quote_body", "Use the 'sting' command from now on to access your tactical dossiers and advance our campaign against Croix!\""),
+    ]
+
+    for block_type, text in dialogue_blocks:
+        if block_type == "vivienne":
+            lines = textwrap.wrap(text, width=68, initial_indent="  ", subsequent_indent="                    ")
+        elif block_type == "narration":
+            lines = textwrap.wrap(text, width=68, initial_indent="  ", subsequent_indent="   ")
+        else:
+            lines = textwrap.wrap(text, width=68, initial_indent="                    ", subsequent_indent="                    ")
+
+        for wline in lines:
+            sys.stdout.write(f"{CYAN}{wline}{RESET}\n")
+        sys.stdout.write("\n")
+
+    sys.stdout.write(f"\n{BOLD}{YELLOW}{'-'*72}{RESET}\n")
+    sys.stdout.write(f"  {BOLD}{WHITE}[Press ENTER to accept the syndicate mission & unlock 'sting']{RESET}\n")
+    sys.stdout.write(f"{BOLD}{YELLOW}{'-'*72}{RESET}\n")
+    sys.stdout.write(f"  {BOLD}{YELLOW}Press ENTER to continue: {RESET}")
+    sys.stdout.flush()
+
+    _read_input_safe()
+    app.message = "🚨 RECRUITED! You've joined The Velvet Sting syndicate! Type 'sting' to proceed!"
+
+
+def render_velvet_sting_briefing(app):
+    """Renders the full-screen mission briefing modal for The Velvet Sting."""
+    briefing = app.engine.get_velvet_sting_briefing()
+    if not briefing:
+        return
+
+    sting = app.engine.state.get("velvet_sting", {})
+    curr_ch = sting.get("chapter", "1")
+
+    sys.stdout.write("\033[H\033[2J")
+    sys.stdout.write(f"\n{BOLD}{MAGENTA}{'='*72}{RESET}\n")
+    if curr_ch == "epilogue":
+        title_line = "⚜️ THE VELVET STING // CAMPAIGN FINALE & DEBRIEFING"
+        banner_title = "[THE VELVET STING EPILOGUE]"
+    else:
+        title_line = f"⚜️ THE VELVET STING // OPERATION #{curr_ch} DOSSIER"
+        banner_title = "[HIGH-ROLLER HEIST BRIEFING]"
+
+    sys.stdout.write(f"  {BOLD}{YELLOW}{title_line:<68}{RESET}\n")
+    sys.stdout.write(f"{BOLD}{MAGENTA}{'='*72}{RESET}\n\n")
+
+    sys.stdout.write(f"  {BOLD}{YELLOW}👑 THE VELVET SYNDICATE{RESET}   {BOLD}{CYAN}{banner_title}{RESET}\n")
+    sys.stdout.write(f"  Phase:  {briefing['title'][:58]}\n")
+    sys.stdout.write(f"  Sector: {briefing['location'][:58]}\n")
+    sys.stdout.write(f"  Sender: {briefing['speaker'][:58]}\n")
+    if "opponent" in briefing:
+        sys.stdout.write(f"  Target: {BOLD}{RED}{briefing['opponent'][:58]}{RESET}\n")
+    sys.stdout.write("\n")
+
+    for line in briefing["dialogue"]:
+        if not line:
+            sys.stdout.write("\n")
+        else:
+            for wline in textwrap.wrap(line, width=68):
+                sys.stdout.write(f"  {WHITE}{wline}{RESET}\n")
+
+    sys.stdout.write(f"\n  {BOLD}{YELLOW}📋 TACTICAL DIRECTIVES:{RESET}\n")
+    for order in briefing["tactical_orders"]:
+        for wline in textwrap.wrap(order, width=68):
+            sys.stdout.write(f"  {CYAN}{wline}{RESET}\n")
+
+    ready, status_msg = app.engine.check_velvet_sting_objective()
+    sys.stdout.write(f"\n  {BOLD}Status:{RESET} ")
+    if curr_ch == "epilogue" or sting.get("cleared", False):
+        sys.stdout.write(f"{BOLD}{GREEN}🎉 CAMPAIGN COMPLETED! ({status_msg}){RESET}\n")
+        prompt_txt = "➔ Press [Enter] to return to the tables: "
+    elif ready:
+        sys.stdout.write(f"{BOLD}{GREEN}✓ READY TO ADVANCE! ({status_msg}){RESET}\n")
+        prompt_txt = "➔ Type 'advance' to proceed to next Chapter, or [Enter] to return: "
+    else:
+        sys.stdout.write(f"{BOLD}{YELLOW}IN PROGRESS ({status_msg}){RESET}\n")
+        prompt_txt = "➔ Press [Enter] to return to the tables: "
+
+    sys.stdout.write(f"\n{BOLD}{MAGENTA}{'-'*72}{RESET}\n")
+    sys.stdout.write(f"  {BOLD}{YELLOW}{prompt_txt}{RESET}")
+    sys.stdout.flush()
+
+    choice = _read_input_safe().lower().strip()
+    if ready and choice in ["advance", "next", "claim", "1"]:
+        ok, adv_msg = app.engine.advance_velvet_sting()
+        app.message = adv_msg
 
 def render_game_corner_tab(app):
     state = getattr(app, 'minigame_state', 'menu')
@@ -149,17 +312,50 @@ def render_blackjack_tab(app):
 
 def render_poker_tab(app):
     avail = app.engine.available_tokens
-    sys.stdout.write(f"\n  {BOLD}{HEADER}♠️ Casino Texas Hold'em (You vs. The House!){RESET}\n\n")
-    sys.stdout.write(f"  Available Tokens to Bet: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n\n")
+    mode = getattr(app.engine.poker, "table_mode", "standard")
+    vip_unlocked = app.engine.state.get("poker_vip_unlocked", False)
+    opp = getattr(app.engine.poker, "active_opponent", "The House")
 
-    sys.stdout.write(f"  {BOLD}🃏 Rules & Payout Multipliers:{RESET}\n")
-    sys.stdout.write(f"   • Receive 2 cards in hand. Beat the Dealer's best 5-card hand!\n")
-    sys.stdout.write(f"   • Royal Flush [50x] | Str. Flush [15x] | 4-of-a-Kind [8x]\n")
-    sys.stdout.write(f"   • Full House [5x] | Flush [4x] | Straight [3x] | Pair/High [2x]\n\n")
+    if mode in ["vip", "boss"]:
+        if getattr(app.engine.poker, "boss_name", ""):
+            sys.stdout.write(f"\n  {BOLD}{RED}⚔️ THE VELVET SALON — HEADS-UP BOSS SHOWDOWN ⚔️{RESET}\n")
+            sys.stdout.write(f"  Target: {BOLD}{YELLOW}{opp}{RESET}\n")
+            b_stack = getattr(app.engine.poker, "boss_stack", 0)
+            b_max = getattr(app.engine.poker, "boss_max_stack", 1) or 1
+            pct = max(0.0, min(1.0, b_stack / b_max))
+            filled = int(pct * 20)
+            bar = "█" * filled + "░" * (20 - filled)
+            sys.stdout.write(f"  🏦 Target Treasury: [{bar}] {format_tokens(b_stack)} / {format_tokens(b_max)}\n")
+        else:
+            sys.stdout.write(f"\n  {BOLD}{YELLOW}👑 THE VELVET SALON — HIGH-ROLLER SUITE 👑{RESET}\n")
+            sys.stdout.write(f"  Active Patron: {BOLD}{CYAN}{opp}{RESET}\n")
+        sys.stdout.write(f"  Available Tokens to Bet: {BOLD}{CYAN}{format_tokens(avail)}{RESET} (Min: 10.0T)\n\n")
+        sys.stdout.write(f"  {BOLD}🃏 Rules & Multipliers (VIP Payouts):{RESET}\n")
+        sys.stdout.write(f"   • Royal Flush [100x] | Str. Flush [25x] | 4-of-a-Kind [12x]\n")
+        sys.stdout.write(f"   • Full House [6x] | Flush [5x] | Straight [4x] | Pair/High [2x]\n\n")
+    else:
+        sys.stdout.write(f"\n  {BOLD}{HEADER}♠️ Casino Texas Hold'em (You vs. The House!){RESET}\n\n")
+        sys.stdout.write(f"  Available Tokens to Bet: {BOLD}{CYAN}{format_tokens(avail)}{RESET}\n\n")
+        sys.stdout.write(f"  {BOLD}🃏 Rules & Payout Multipliers:{RESET}\n")
+        sys.stdout.write(f"   • Receive 2 cards in hand. Beat the Dealer's best 5-card hand!\n")
+        sys.stdout.write(f"   • Royal Flush [50x] | Str. Flush [15x] | 4-of-a-Kind [8x]\n")
+        sys.stdout.write(f"   • Full House [5x] | Flush [4x] | Straight [3x] | Pair/High [2x]\n\n")
 
+    pending = getattr(app.engine.poker, "opponent_pending_call", 0)
     sys.stdout.write(f"  ➔ Step 1: Type '{BOLD}bet <amount>{RESET}' to deal your hand (e.g. 'bet 1m').\n")
-    sys.stdout.write(f"  ➔ Step 2: Type '{BOLD}check{RESET}' to advance street, or '{BOLD}fold{RESET}' to surrender.\n")
-    sys.stdout.write(f"  ➔ Step 3: Type '{BOLD}raise{RESET}' to double bet, or '{BOLD}allin{RESET}' to bet all.\n")
+    if pending > 0:
+        sys.stdout.write(f"  ➔ Bet Faced: '{BOLD}call{RESET}' ({format_tokens(pending)}) | '{BOLD}raise{RESET}' | '{BOLD}allin{RESET}' | '{BOLD}fold{RESET}'.\n")
+    else:
+        sys.stdout.write(f"  ➔ Step 2: Type '{BOLD}check{RESET}' to advance street, or '{BOLD}fold{RESET}' to surrender.\n")
+        sys.stdout.write(f"  ➔ Step 3: Type '{BOLD}raise{RESET}' to double bet, or '{BOLD}allin{RESET}' to bet all.\n")
+    if mode in ["vip", "boss"]:
+        sting = app.engine.state.get("velvet_sting", {})
+        if sting.get("recruited", False):
+            sys.stdout.write(f"  ➔ Tables: '{BOLD}table std{RESET}' (floor) | '{BOLD}sting{RESET}' (heist dossier).\n")
+        else:
+            sys.stdout.write(f"  ➔ Tables: '{BOLD}table std{RESET}' (floor).\n")
+    elif vip_unlocked:
+        sys.stdout.write(f"  ➔ Navigation: Type '{BOLD}table vip{RESET}' to visit The Velvet Salon.\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return to the Game Corner Menu.\n\n")
 
     if app.engine.poker.player_hole:
@@ -167,44 +363,62 @@ def render_poker_tab(app):
         p_type = app.engine.poker.get_hand_type(app.engine.poker.player_hole)
         p_badge = f"  ({CYAN}{p_type}{RESET})" if p_type else ""
 
+        action_suffix = f" (call {format_tokens(pending)}/raise/allin/fold)" if pending > 0 else " (check/raise/allin/fold)"
+
+        opp_label = opp.split("[")[0].strip() if mode in ["vip", "boss"] else "House"
+
         if app.engine.poker.game_state == "preflop":
             board = "[?] [?] [?] [?] [?]"
             d_hand_str = "[?] [?]"
             d_badge = ""
-            state_str = "Pre-Flop (check / raise / allin / fold)"
+            state_str = f"Pre-Flop{action_suffix}"
         elif app.engine.poker.game_state == "flop":
-            board = " ".join([str(c) for c in app.engine.poker.community_cards[:3]]) + " [?] [?]"
+            rev = [str(c) for c in app.engine.poker.community_cards[:3]]
+            board = " ".join(rev) + " [?] [?]"
             d_hand_str = "[?] [?]"
             d_badge = ""
-            state_str = "The Flop (check / raise / allin / fold)"
+            state_str = f"The Flop{action_suffix}"
         elif app.engine.poker.game_state == "turn":
-            board = " ".join([str(c) for c in app.engine.poker.community_cards[:4]]) + " [?]"
+            rev = [str(c) for c in app.engine.poker.community_cards[:4]]
+            board = " ".join(rev) + " [?]"
             d_hand_str = "[?] [?]"
             d_badge = ""
-            state_str = "The Turn (check for Showdown / raise / allin / fold)"
+            state_str = f"The Turn{action_suffix}"
         else:
             board = " ".join([str(c) for c in app.engine.poker.community_cards])
             d_hand_str = " ".join([str(c) for c in app.engine.poker.dealer_hole])
             d_type = app.engine.poker.get_hand_type(app.engine.poker.dealer_hole)
             d_badge = f"  ({YELLOW}{d_type}{RESET})" if d_type else ""
-            state_str = "Hand Folded" if getattr(app.engine.poker, "last_outcome", "") == "FOLD" else "Showdown Completed"
+            if getattr(app.engine.poker, "opponent_folded", False):
+                state_str = f"{opp_label} Folded"
+            elif getattr(app.engine.poker, "last_outcome", "") == "FOLD":
+                state_str = "Hand Folded"
+            else:
+                state_str = "Showdown Completed"
 
         sys.stdout.write(f"  {BOLD}Active Table [{state_str}]:{RESET}\n")
+        if getattr(app.engine.poker, "opponent_banner_quote", "") and mode in ["vip", "boss"]:
+            quote = app.engine.poker.opponent_banner_quote
+            sys.stdout.write(f"   💬 {BOLD}{YELLOW}{opp_label}:{RESET}\n")
+            for qline in textwrap.wrap(quote, width=64):
+                sys.stdout.write(f"      {CYAN}{qline}{RESET}\n")
         sys.stdout.write(f"   🎴 Your Hand:  {p_hand_str}{p_badge}\n")
         sys.stdout.write(f"   ♦️ Board:      {board}\n")
-        sys.stdout.write(f"   🏠 House Hand: {d_hand_str}{d_badge}\n")
+        sys.stdout.write(f"   🏠 {opp_label} Hand: {d_hand_str}{d_badge}\n")
         sys.stdout.write(f"   Current Bet: {BOLD}{YELLOW}{format_tokens(app.engine.poker.current_bet)}{RESET} tokens\n")
 
         if app.engine.poker.game_state == "idle" and getattr(app.engine.poker, "last_outcome", ""):
             outcome = app.engine.poker.last_outcome
-            if outcome == "WIN":
-                sys.stdout.write(f"   {BOLD}{GREEN}🏆 Result: YOU BEAT THE HOUSE! ({app.engine.poker.last_p_rank} vs {app.engine.poker.last_d_rank}){RESET}\n")
+            if getattr(app.engine.poker, "opponent_folded", False):
+                sys.stdout.write(f"   {BOLD}{GREEN}🏆 Result: {opp_label.upper()} FOLDED! You win the pot!{RESET}\n")
+            elif outcome == "WIN":
+                sys.stdout.write(f"   {BOLD}{GREEN}🏆 Result: YOU BEAT {opp_label.upper()}! ({app.engine.poker.last_p_rank} vs {app.engine.poker.last_d_rank}){RESET}\n")
             elif outcome == "PUSH":
                 sys.stdout.write(f"   {BOLD}{YELLOW}🤝 Result: TIE / PUSH! ({app.engine.poker.last_p_rank}){RESET}\n")
             elif outcome == "FOLD":
                 sys.stdout.write(f"   {BOLD}{RED}🏳️ Result: FOLDED! Surrendered bet.{RESET}\n")
             else:
-                sys.stdout.write(f"   {BOLD}{RED}💀 Result: HOUSE WINS! ({app.engine.poker.last_d_rank} beats {app.engine.poker.last_p_rank}){RESET}\n")
+                sys.stdout.write(f"   {BOLD}{RED}💀 Result: {opp_label.upper()} WINS! ({app.engine.poker.last_d_rank} beats {app.engine.poker.last_p_rank}){RESET}\n")
         sys.stdout.write("\n")
 
 def render_gacha_tab(app):
