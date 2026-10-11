@@ -223,7 +223,14 @@ class StorageManager:
             },
             "matrix": {
                 "unlocked": False,
+                "story_viewed": False,
                 "ram_blocks": [],
+                "hacked_nodes": [],
+                "active_tweaks": {},
+                "trace_level": 0,
+                "deck_hardware": {"integrity": 100, "firewall": 500, "max_firewall": 500, "threads": 1},
+                "active_breach": None,
+                "active_threat": None,
                 "patches": [],
                 "sectors": [],
                 "defeated_daemons": [],
@@ -231,7 +238,6 @@ class StorageManager:
                 "total_tokens_consumed": 0,
                 "collider_state": None,
                 "combat_state": None,
-                "story_viewed": False,
             }
         }
 

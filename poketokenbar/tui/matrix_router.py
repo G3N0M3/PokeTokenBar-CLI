@@ -1,10 +1,10 @@
-"""Command router for the independent Quantum Singularity Matrix (QSM) TUI."""
+"""Command router for the Quantum Singularity Matrix (QSM) Cyberdeck."""
 
 from typing import Optional
 
 
 class MatrixRouter:
-    """Dispatches user inputs when the player is inside the Quantum Singularity Matrix."""
+    """Dispatches user inputs when the player is inside the Sub-Level 0 Cyberdeck."""
 
     @staticmethod
     def dispatch(app, cmd: str) -> None:
@@ -23,84 +23,101 @@ class MatrixRouter:
             return
 
         # 2. Subview Switches
-        if cmd in ["1", "dash", "dashboard"]:
-            app.matrix_subview = "dashboard"
-            app.message = "Matrix Dashboard active."
+        if cmd in ["1", "deck", "dashboard", "dash"]:
+            app.matrix_subview = "deck"
+            app.message = "Cyberdeck Dashboard online."
             return
-        if cmd in ["2", "ram"]:
-            app.matrix_subview = "ram"
-            app.message = "Q-RAM Memory Matrix active."
+        if cmd in ["2", "scan", "nodes", "network"]:
+            app.matrix_subview = "nodes"
+            app.message = "Memory Node Network mapped."
             return
-        if cmd in ["3", "combat"]:
+        if cmd in ["3", "tweaks", "tweak"]:
+            app.matrix_subview = "tweaks"
+            app.message = "Upper System Tweaker active."
+            return
+        if cmd in ["4", "combat", "fight", "arena"]:
             app.matrix_subview = "combat"
-            app.message = "Kernel Protocol Combat active."
+            app.message = "Tactical Combat Matrix online."
             return
-        if cmd in ["4", "collider"]:
-            app.matrix_subview = "collider"
-            app.message = "Singularity Particle Collider active."
-            return
-        if cmd in ["5", "probe"]:
-            app.matrix_subview = "probe"
-            app.message = "Substrate Sector Diagnostics active."
+        if cmd in ["5", "help", "?", "manual"]:
+            app.matrix_subview = "help"
+            app.message = "Cyberdeck Command Manual displayed."
             return
 
-        # 3. RAM Allocation: 'buy ram <1-5>' or 'buy <1-5>'
-        if cmd.startswith("buy ram ") or cmd.startswith("ram buy "):
-            val = cmd.replace("buy ram", "").replace("ram buy", "").strip()
-            if val.isdigit():
-                ok, msg = engine.allocate_ram(int(val))
-                app.message = msg
-                return
-            app.message = "Invalid block index! Example: 'buy ram 1'"
-            return
-
-        if getattr(app, "matrix_subview", "dashboard") == "ram" and cmd.startswith("buy "):
-            val = cmd.replace("buy", "").strip()
-            if val.isdigit():
-                ok, msg = engine.allocate_ram(int(val))
-                app.message = msg
-                return
-
-        # 4. Particle Collider Commands
-        if cmd.startswith("synthesize ") or cmd.startswith("synth "):
+        # 3. Breach Protocol Minigame: 'hack <node>' & 'pick <row> <col>'
+        if cmd.startswith("hack ") or cmd.startswith("breach "):
             target = cmd.split(maxsplit=1)[1].strip()
-            ok, msg = engine.start_collider(target)
+            ok, msg = engine.start_breach(target)
             if ok:
-                app.matrix_subview = "collider"
+                app.matrix_subview = "breach"
             app.message = msg
             return
 
-        if cmd.startswith("pulse"):
+        if cmd.startswith("pick "):
             parts = cmd.split()
-            freq = parts[1] if len(parts) > 1 else "alpha"
-            ok, msg = engine.collider_pulse(freq)
-            app.message = msg
+            if len(parts) >= 3 and parts[1].isdigit() and parts[2].isdigit():
+                r, c = int(parts[1]), int(parts[2])
+                ok, msg = engine.breach_pick(r, c)
+                app.message = msg
+                if "ROOT ACCESS GRANTED" in msg:
+                    app.matrix_subview = "tweaks"
+                elif "BREACH FAILED" in msg:
+                    app.matrix_subview = "nodes"
+                return
+            app.message = "Invalid pick syntax! Example: 'pick 1 2' (row 0-3, col 0-3)"
             return
 
-        if cmd == "contain":
-            ok, msg = engine.collider_contain()
-            app.message = msg
-            return
-
-        if cmd == "vent":
-            ok, msg = engine.collider_vent()
-            app.message = msg
-            return
-
-        if cmd == "abort" and getattr(app, "matrix_subview", "") == "collider":
-            st = engine.state.get("collider_state")
-            if st and st.get("active"):
-                st["active"] = False
-                app.engine.save()
-                app.message = "Particle Collider chamber aborted. Target energy dissipated."
+        if cmd in ["abort", "cancel"]:
+            if engine.active_breach:
+                ok, msg = engine.abort_breach()
+                app.matrix_subview = "nodes"
+                app.message = msg
+                return
+            elif engine.active_threat:
+                ok, msg = engine.combat_flee()
+                app.matrix_subview = "deck"
+                app.message = msg
                 return
 
-        # 5. Kernel Combat Commands
-        if cmd in ["fight", "breach"] or (cmd.startswith("combat ") and not cmd == "combat"):
-            daemon_id = None
-            if cmd.startswith("combat "):
-                daemon_id = cmd.replace("combat", "").strip()
-            ok, msg = engine.start_combat(daemon_id)
+        # 4. Reality Tweaker: 'tweak <node> <param> <val>' & 'untweak <node> <param>'
+        if cmd.startswith("tweak "):
+            parts = cmd.split()
+            if len(parts) == 4:
+                node_id, param, val = parts[1], parts[2], parts[3]
+                ok, msg = engine.apply_tweak(node_id, param, val)
+                app.message = msg
+                return
+            elif len(parts) == 2:
+                app.matrix_subview = "tweaks"
+                app.message = f"Showing tweak parameters for node '{parts[1]}'."
+                return
+            app.message = "Usage: 'tweak <node> <param> <val>' (e.g. 'tweak nursery egg_speed 5x')"
+            return
+
+        if cmd.startswith("untweak "):
+            parts = cmd.split()
+            if len(parts) >= 3:
+                node_id, param = parts[1], parts[2]
+                ok, msg = engine.remove_tweak(node_id, param)
+                app.message = msg
+                return
+            app.message = "Usage: 'untweak <node> <param>' (e.g. 'untweak nursery egg_speed')"
+            return
+
+        # 5. Trace Cooling & Telemetry Scrubbing
+        if cmd in ["tracekill", "cool", "scrub", "trace cool"]:
+            ok, msg = engine.cool_trace()
+            app.message = msg
+            return
+
+        if cmd == "trace":
+            app.message = f"Trace Heat: {engine.trace_level}% [{engine._trace_status_label(engine.trace_level)}]"
+            return
+
+        # 6. Tactical Cyber-Combat Commands
+        if cmd.startswith("combat ") and not cmd in ["combat"]:
+            target_id = cmd.replace("combat", "").strip()
+            ok, msg = engine.start_combat(target_id)
             if ok:
                 app.matrix_subview = "combat"
             app.message = msg
@@ -111,8 +128,8 @@ class MatrixRouter:
             app.message = msg
             return
 
-        if cmd == "shield":
-            ok, msg = engine.combat_shield()
+        if cmd in ["firewall", "shield"]:
+            ok, msg = engine.combat_firewall()
             app.message = msg
             return
 
@@ -126,36 +143,38 @@ class MatrixRouter:
             app.message = msg
             return
 
-        if cmd == "retreat" and getattr(app, "matrix_subview", "") == "combat":
-            st = engine.state.get("combat_state")
-            if st and st.get("active"):
-                st["active"] = False
-                app.engine.save()
-                app.message = "Withdrew execution threads from combat arena."
-                return
-
-        # 6. Sector Probing
-        if cmd.startswith("probe "):
-            val = cmd.replace("probe", "").strip()
-            if val.isdigit():
-                ok, msg = engine.probe_sector(int(val))
-                app.message = msg
-                app.matrix_subview = "probe"
-                return
-            app.message = "Invalid sector index! Example: 'probe 0'"
+        if cmd == "repair":
+            ok, msg = engine.combat_repair()
+            app.message = msg
             return
 
-        # 7. Climax: Root Transcendence
+        if cmd in ["flee", "retreat", "run"]:
+            ok, msg = engine.combat_flee()
+            app.matrix_subview = "deck"
+            app.message = msg
+            return
+
+        # 7. Hardware Q-RAM Upgrades: 'buy ram <1-5>' or 'upgrade <1-5>'
+        if cmd.startswith("buy ram ") or cmd.startswith("ram buy ") or cmd.startswith("upgrade "):
+            val = cmd.replace("buy ram", "").replace("ram buy", "").replace("upgrade", "").strip()
+            if val.isdigit():
+                ok, msg = engine.allocate_ram(int(val))
+                app.message = msg
+                return
+            app.message = "Invalid block index! Example: 'buy ram 1'"
+            return
+
+        # 8. Climax: Root Transcendence
         if cmd in ["execute root", "transcend", "root"]:
             ok, msg = engine.execute_root_transcendence()
             app.message = msg
             return
 
-        # 8. Story Narration Replay
-        if cmd in ["story", "lore", "intro", "narrative"]:
+        # 9. Story Narration Replay
+        if cmd in ["story", "lore", "intro", "prologue"]:
             from poketokenbar.tui.matrix_tui import render_matrix_story_intro
             render_matrix_story_intro(app)
-            app.message = "Substrate initialization narration completed."
+            app.message = "Substrate initialization prologue replayed."
             return
 
-        app.message = f"Unknown command '{cmd}'. Available: dash, ram, combat, collider, probe, story, ascend"
+        app.message = f"Unknown command '{cmd}'. Available: scan, hack, tweak, combat, tracekill, help, ascend"

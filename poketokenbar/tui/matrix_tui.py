@@ -1,4 +1,4 @@
-"""Independent Terminal User Interface for the Quantum Singularity Matrix (QSM)."""
+"""Independent Terminal User Interface for the Quantum Singularity Matrix (QSM) Cyberdeck."""
 
 import sys
 import re
@@ -8,9 +8,9 @@ from typing import Dict, Any, List
 from poketokenbar.utils.formatting import format_tokens, format_progress_bar
 from poketokenbar.game.matrix.models import (
     QRAM_BLOCKS,
-    REALITY_PATCHES,
-    KERNEL_DAEMONS,
-    MEMORY_SECTORS,
+    MEMORY_NODES,
+    SUBSTRATE_ENTITIES,
+    ROOT_TRANSCENDENCE_COST,
 )
 
 # Cyberpunk / Matrix ANSI Palette
@@ -32,214 +32,253 @@ def strip_ansi(text: str) -> str:
 
 
 def render_matrix_view(app) -> None:
-    """Entrypoint for the dedicated Quantum Singularity Matrix TUI."""
-    subview = getattr(app, "matrix_subview", "dashboard")
+    """Entrypoint for the dedicated Cyberdeck Matrix TUI."""
+    subview = getattr(app, "matrix_subview", "deck")
     engine = app.engine.matrix
     avail = app.engine.available_tokens
 
+    # If breach is active, automatically render breach view unless user explicit
+    if engine.active_breach and subview not in ["breach", "help"]:
+        subview = "breach"
+        app.matrix_subview = "breach"
+    elif engine.active_threat and subview not in ["combat", "help"]:
+        subview = "combat"
+        app.matrix_subview = "combat"
+
     _render_matrix_header(engine, avail)
 
-    if subview == "dashboard":
-        _render_dashboard_view(app, engine)
-    elif subview == "ram":
-        _render_ram_view(app, engine, avail)
+    if subview in ["deck", "dashboard"]:
+        _render_deck_view(app, engine)
+    elif subview in ["nodes", "scan"]:
+        _render_nodes_view(app, engine)
+    elif subview == "breach":
+        _render_breach_view(app, engine)
     elif subview == "combat":
         _render_combat_view(app, engine)
-    elif subview == "collider":
-        _render_collider_view(app, engine, avail)
-    elif subview == "probe":
-        _render_probe_view(app, engine, avail)
+    elif subview == "tweaks":
+        _render_tweaks_view(app, engine)
+    elif subview in ["help", "?"]:
+        _render_help_view(app, engine)
+    else:
+        _render_deck_view(app, engine)
 
     _render_matrix_footer(app, subview)
 
 
 def _render_matrix_header(engine, avail: int) -> None:
-    """Renders the top telemetry banner (<= 72 columns)."""
+    """Renders the top Cyberdeck status telemetry banner (<= 72 columns)."""
     div = f"{GREEN}{'=' * 72}{RESET}\n"
     sub_div = f"{GRAY}{'-' * 72}{RESET}\n"
 
     sys.stdout.write(div)
-    sys.stdout.write(f" {BRIGHT_CYAN}⚡ QUANTUM SINGULARITY MATRIX // SUB-LEVEL 0 // ROOT SHELL{RESET}\n")
+    sys.stdout.write(f" {BRIGHT_CYAN}⚡ QUANTUM SUBSTRATE CYBERDECK // SUB-LEVEL 0 // ROOT SHELL{RESET}\n")
     sys.stdout.write(sub_div)
 
-    coherence = "99.9%" if not engine.is_root_transcended else "100.0% [TRANSCENDED]"
-    ram_count = len(engine.ram_blocks)
-    exaflops = 32.0 * (2 ** ram_count) if ram_count > 0 else 16.0
+    used_f = engine.used_exaflops
+    max_f = engine.max_exaflops
+    trace = engine.trace_level
+    trace_color = GREEN if trace < 50 else (YELLOW if trace < 80 else RED)
 
-    line1 = f"  {BOLD}STATUS:{RESET} {GREEN}ONLINE{RESET} [COHERENCE: {coherence}]  {BOLD}LIQUIDITY:{RESET} {YELLOW}{format_tokens(avail)}{RESET}"
-    line2 = f"  {BOLD}KERNEL:{RESET} {GRAY}PTB-SIMULATION-CORE{RESET}       {BOLD}COMPUTE:{RESET} {CYAN}{exaflops:.1f} EXAFLOPS{RESET}"
+    slots_used = engine.used_tweak_slots
+    slots_max = engine.max_tweak_slots
+    slots_str = f"{slots_used}/{slots_max}" if slots_max < 90 else f"{slots_used}/∞"
+
+    line1 = f"  {BOLD}COMPUTE:{RESET} {CYAN}{max_f:.1f} EXAFLOPS{RESET} ({used_f:.1f} used)  {BOLD}TWEAKS:{RESET} {GREEN}{slots_str}{RESET}"
+    line2 = f"  {BOLD}TRACE:{RESET}   {trace_color}{trace}% [{_trace_status_label(trace)}]{RESET}          {BOLD}TOKENS:{RESET} {YELLOW}{format_tokens(avail)}{RESET}"
 
     sys.stdout.write(line1 + "\n")
     sys.stdout.write(line2 + "\n")
     sys.stdout.write(sub_div)
 
 
-def _render_dashboard_view(app, engine) -> None:
-    """Renders the main central singularity dashboard."""
-    # ASCII Tesseract / Singularity Core
-    sys.stdout.write(f"\n        {CYAN}.-''''-.{RESET}         {BRIGHT_GREEN}[Q-RAM ALLOCATION: {len(engine.ram_blocks)}/5 ONLINE]{RESET}\n")
-    b1_st = f"{GREEN}[ONLINE]{RESET}" if 1 in engine.ram_blocks else f"{GRAY}[LOCKED]{RESET}"
-    b2_st = f"{GREEN}[ONLINE]{RESET}" if 2 in engine.ram_blocks else f"{GRAY}[LOCKED]{RESET}"
-    sys.stdout.write(f"      {CYAN}.'  _--_  '.{RESET}       • Block 0x01 (256 TB) : {b1_st}\n")
-    sys.stdout.write(f"     {CYAN}/   /____\\   \\{RESET}      • Block 0x02 (1.0 PB) : {b2_st}\n")
-    b3_st = f"{GREEN}[ONLINE]{RESET}" if 3 in engine.ram_blocks else f"{GRAY}[LOCKED]{RESET}"
-    b4_st = f"{GREEN}[ONLINE]{RESET}" if 4 in engine.ram_blocks else f"{GRAY}[LOCKED]{RESET}"
-    sys.stdout.write(f"    {CYAN}|   | (•)  |   |{RESET}     • Block 0x03 (4.0 PB) : {b3_st}\n")
-    sys.stdout.write(f"     {CYAN}\\   \\____/   /{RESET}      • Block 0x04 (16.0 PB): {b4_st}\n")
-    b5_st = f"{GREEN}[ONLINE]{RESET}" if 5 in engine.ram_blocks else f"{GRAY}[LOCKED]{RESET}"
-    sys.stdout.write(f"      {CYAN}'.  -..-  .'{RESET}       • Block 0x05 (64.0 PB): {b5_st}\n")
-    sys.stdout.write(f"        {CYAN}'-....-'{RESET}         \n")
-    sys.stdout.write(f"  {BRIGHT_CYAN}< SINGULARITY CORE >{RESET}   {BRIGHT_GREEN}[REALITY PATCHES: {len(engine.patches)}/5 ACTIVE]{RESET}\n")
+def _trace_status_label(trace: int) -> str:
+    if trace == 0:
+        return "CLEAN"
+    elif trace < 40:
+        return "NORMAL"
+    elif trace < 70:
+        return "ELEVATED"
+    elif trace < 90:
+        return "CRITICAL"
+    return "LOCKDOWN"
 
-    # Display active patches
-    p_tags = []
-    for k, p in REALITY_PATCHES.items():
-        if k in engine.patches:
-            p_tags.append(f"{GREEN}[✓] {p['code'][:13]}{RESET}")
-        else:
-            p_tags.append(f"{GRAY}[ ] {p['code'][:13]}{RESET}")
 
-    sys.stdout.write(f"  {p_tags[0]}  {p_tags[1]}  {p_tags[2]}\n")
-    sys.stdout.write(f"  {p_tags[3]}  {p_tags[4]}\n\n")
+def _render_deck_view(app, engine) -> None:
+    """Renders the primary Cyberdeck dashboard view."""
+    # Cyberdeck Core Status Display
+    sys.stdout.write(f"\n  {BRIGHT_GREEN}[CYBERDECK HARDWARE & COMPUTATION SUBSTRATE]{RESET}\n")
+    ram_count = len(engine.ram_blocks)
+    sys.stdout.write(f"  • RAM Lattice : {ram_count}/5 Quantum Blocks Allocated\n")
+    hw = engine.deck_hardware
+    sys.stdout.write(f"  • Deck Health : Integrity: {hw['integrity']}% | Firewall: {hw['firewall']} Shield\n")
+    sys.stdout.write(f"  • Threads     : {hw['threads']}/4 Active Execution Threads\n\n")
 
-    # Security Alert / Substrate Status
-    undefeated = [d for d in KERNEL_DAEMONS.values() if d["id"] not in engine.defeated_daemons]
-    if undefeated:
-        active_threat = undefeated[0]
-        sys.stdout.write(f"  {RED}🚨 THREAT DETECTED:{RESET} {active_threat['name']}\n")
-        sys.stdout.write(f"  {GRAY}[{active_threat['title']}] Type 'combat' to breach!{RESET}\n")
+    # Active Reality Tweaks Summary
+    sys.stdout.write(f"  {BRIGHT_CYAN}[ACTIVE REALITY TWEAKS AFFECTING POKETOKENBAR]{RESET}\n")
+    if not engine.active_tweaks:
+        sys.stdout.write(f"  {GRAY}No tweaks active. Breach nodes and type 'tweak <node>' to apply.{RESET}\n")
     else:
-        sys.stdout.write(f"  {GREEN}🛡️ SECURITY CLEARANCE:{RESET} All 3 Kernel Daemons neutralized.\n")
-        if engine.is_root_transcended:
-            sys.stdout.write(f"  {MAGENTA}👑 ROOT TRANSCENDENCE ATTAINED // Reality rules rewritten.{RESET}\n")
-        else:
-            sys.stdout.write(f"  {CYAN}Singularity ready for Transcendence! Type 'execute root'.{RESET}\n")
+        for nid, tweaks in engine.active_tweaks.items():
+            for tid, val in tweaks.items():
+                node_spec = MEMORY_NODES.get(nid, {}).get("tweaks", {}).get(tid, {})
+                opt = node_spec.get("options", {}).get(val, {})
+                desc = opt.get("desc", f"{nid}.{tid}={val}")
+                flops = opt.get("cost_exaflops", 0.0)
+                sys.stdout.write(f"  {GREEN}[✓]{RESET} {BOLD}{nid}.{tid}{RESET}: {CYAN}{val}{RESET} ({desc}, {flops:.1f} EF)\n")
+    sys.stdout.write("\n")
 
-    sys.stdout.write(f"\n  {GRAY}Log Archive: Type 'story' to replay Sub-Level 0 substrate narration.{RESET}\n")
+    # Security & Intrusion Alerts
+    if engine.active_threat:
+        threat = engine.active_threat
+        sys.stdout.write(f"  {RED}🚨 INTRUSION ALERT:{RESET} {threat['name']} intercepted connection!\n")
+        sys.stdout.write(f"  {YELLOW}Threat: {threat['title']} ({threat['hp']}/{threat['max_hp']} HP){RESET}\n")
+        sys.stdout.write(f"  {BRIGHT_CYAN}Type 'combat' to enter tactical battle matrix!{RESET}\n\n")
+    elif engine.trace_level >= 50:
+        sys.stdout.write(f"  {YELLOW}⚠️ TRACE HEAT ELEVATED:{RESET} Host OS watchdogs are actively tracing!\n")
+        sys.stdout.write(f"  {GRAY}Type 'tracekill' or 'cool' to scrub telemetry logs.{RESET}\n\n")
+
+    # Guided Hint Box for Active Learning
+    sys.stdout.write(f"  {GRAY}{'-' * 68}{RESET}\n")
+    if not engine.hacked_nodes:
+        sys.stdout.write(f"  {BRIGHT_GREEN}NEXT STEP:{RESET} Type {CYAN}'scan'{RESET} to detect upper system memory nodes.\n")
+        sys.stdout.write(f"  {GRAY}Breach nodes to unlock reality tweaks that modify the upper game!{RESET}\n")
+    elif not engine.active_tweaks:
+        sys.stdout.write(f"  {BRIGHT_GREEN}NEXT STEP:{RESET} Type {CYAN}'tweaks'{RESET} or {CYAN}'tweak <node> <param> <val>'{RESET} to tweak reality!\n")
+    else:
+        sys.stdout.write(f"  {BRIGHT_GREEN}HINT:{RESET} Type {CYAN}'scan'{RESET} (nodes), {CYAN}'tweaks'{RESET} (options), or {CYAN}'help'{RESET} for commands.\n")
 
 
-def _render_ram_view(app, engine, avail: int) -> None:
-    """Renders the Quantum Virtual Memory allocation menu."""
-    sys.stdout.write(f" {BRIGHT_GREEN}💾 QUANTUM VIRTUAL MEMORY (Q-RAM) ALLOCATION MATRIX{RESET}\n")
-    sys.stdout.write(f" {GRAY}Expanding Q-RAM allocates compute threads and unlocks deeper sectors.{RESET}\n\n")
+def _render_nodes_view(app, engine) -> None:
+    """Renders the memory node network map."""
+    sys.stdout.write(f"\n  {BRIGHT_CYAN}📡 UPPER SYSTEM MEMORY NODES // NETWORK MAP{RESET}\n")
+    sys.stdout.write(f"  {GRAY}Breach nodes using 'hack <node>' to unlock system tweaks.{RESET}\n\n")
 
-    for idx, info in QRAM_BLOCKS.items():
-        is_owned = idx in engine.ram_blocks
-        st_tag = f"{GREEN}[ONLINE]{RESET}" if is_owned else f"{YELLOW}[{format_tokens(info['cost'])}]{RESET}"
-        sys.stdout.write(f"  {BOLD}#{idx} {info['name']}{RESET} {st_tag}\n")
-        sys.stdout.write(f"     {CYAN}Capacity:{RESET} {info['capacity']}\n")
-        sys.stdout.write(f"     {GRAY}{info['perk']}{RESET}\n")
-    sys.stdout.write(f"\n  {BOLD}Command:{RESET} Type {CYAN}'buy ram <1-5>'{RESET} to allocate virtual memory.\n")
+    nodes = engine.scan_network()
+    for nid, n in nodes.items():
+        if nid == "root":
+            continue
+        status_tag = f"{GREEN}[ROOT ACCESS]{RESET}" if n["hacked"] else f"{RED}[LOCKED: ICE LVL {n['ice_level']}]{RESET}"
+        sys.stdout.write(f"  {BOLD}• {n['code']}{RESET} ({n['name']}) -> {status_tag}\n")
+        sys.stdout.write(f"    Offset: {GRAY}{n['offset']}{RESET} | Subsystem: {n['desc'][:46]}\n")
+        tweak_keys = ", ".join(n["tweaks_available"].keys())
+        sys.stdout.write(f"    Tweaks: {CYAN}{tweak_keys}{RESET}\n\n")
+
+    sys.stdout.write(f"  {BOLD}Command:{RESET} Type {CYAN}'hack <node>'{RESET} (e.g. 'hack nursery') to breach ICE.\n")
+
+
+def _render_breach_view(app, engine) -> None:
+    """Renders the active 4x4 Hex Memory Alignment breach puzzle."""
+    breach = engine.active_breach
+    if not breach:
+        sys.stdout.write(f"\n  {YELLOW}No active breach session. Type 'scan' and 'hack <node>'.{RESET}\n")
+        return
+
+    node_id = breach["node_id"]
+    node_name = MEMORY_NODES.get(node_id, {}).get("name", node_id)
+    grid = breach["grid"]
+    target = breach["target"]
+    buf = breach["buffer"]
+    cycles = breach["cycles"]
+
+    sys.stdout.write(f"\n  {BRIGHT_CYAN}🔓 TACTICAL BREACH MATRIX // NODE: {node_name}{RESET}\n")
+    sys.stdout.write(f"  {GRAY}Align memory coordinates to match the target hex sequence.{RESET}\n\n")
+
+    # Grid Display
+    sys.stdout.write("      [0]  [1]  [2]  [3]     TARGET SEQUENCE:\n")
+    for r_idx, row in enumerate(grid):
+        r_str = f"  [{r_idx}] " + "  ".join([f"{c}" for c in row])
+        extra = ""
+        if r_idx == 0:
+            extra = f"    {BOLD}{CYAN}{' -> '.join(target)}{RESET}"
+        elif r_idx == 1:
+            extra = f"    BUFFER: [{' '.join(buf) if buf else '__'}]"
+        elif r_idx == 2:
+            extra = f"    CYCLES REMAINING: {BOLD}{YELLOW}{cycles}{RESET}"
+        elif r_idx == 3:
+            extra = f"    TRACE RISK: +15%"
+        sys.stdout.write(f"{r_str}{extra}\n")
+
+    sys.stdout.write("\n")
+    sys.stdout.write(f"  {BOLD}Action:{RESET} Type {CYAN}'pick <row> <col>'{RESET} (e.g. 'pick 1 2') to align byte.\n")
+    sys.stdout.write(f"          Type {GRAY}'abort'{RESET} to terminate breach session.\n")
 
 
 def _render_combat_view(app, engine) -> None:
-    """Renders the Tactical Kernel Protocol Combat arena."""
-    st = engine.state.get("combat_state")
-    if not st or not st.get("active"):
-        undefeated = [d for d in KERNEL_DAEMONS.values() if d["id"] not in engine.defeated_daemons]
-        sys.stdout.write(f" {BRIGHT_CYAN}⚔️ TACTICAL KERNEL PROTOCOL COMBAT ARENA{RESET}\n")
-        sys.stdout.write(f" {GRAY}Deploy execution threads against host OS security watchdogs.{RESET}\n\n")
-
-        for d_id, d in KERNEL_DAEMONS.items():
-            status = f"{GREEN}[DEALLOCATED]{RESET}" if d_id in engine.defeated_daemons else f"{RED}[ACTIVE THREAT]{RESET}"
-            sys.stdout.write(f"  • {BOLD}{d['name']}{RESET} ({d['max_hp']} HP) : {status}\n")
-            for w in textwrap.wrap(d['desc'], width=64):
-                sys.stdout.write(f"    {GRAY}{w}{RESET}\n")
-
-        if undefeated:
-            next_d = undefeated[0]["id"]
-            sys.stdout.write(f"\n  {BOLD}Command:{RESET} Type {CYAN}'fight'{RESET} or {CYAN}'combat {next_d}'{RESET} to deploy threads!\n")
-        else:
-            sys.stdout.write(f"\n  {GREEN}All host security watchdogs have been eliminated! Memory secure.{RESET}\n")
+    """Renders the tactical combat arena against substrate entities or daemons."""
+    threat = engine.active_threat
+    if not threat:
+        sys.stdout.write(f"\n  {GREEN}No active intrusion threats detected.{RESET}\n")
+        sys.stdout.write(f"  {GRAY}Type 'combat <daemon>' to challenge a Host Security Daemon.{RESET}\n")
         return
 
-    # Active Combat Arena
-    daemon_name = st["daemon_name"]
-    d_hp = st["daemon_hp"]
-    d_max = st["daemon_max_hp"]
-    p_hp = st["player_hp"]
-    p_max = st["player_max_hp"]
-    p_shield = st.get("player_shield", 0)
-    flux = st.get("flux", 0)
-    forks = st.get("fork_count", 1)
+    sys.stdout.write(f"\n  {RED}🚨 TACTICAL COMBAT MATRIX // THREAT: {threat['name']}{RESET}\n")
+    sys.stdout.write(f"  {YELLOW}Classification: {threat['title']} [{threat['type'].upper()}]{RESET}\n\n")
 
-    sys.stdout.write(f" {RED}🚨 HOST INTRUSION: {daemon_name}{RESET}\n")
-    sys.stdout.write(f"  {GRAY}[{st['daemon_title']}]{RESET}\n")
-    d_bar = format_progress_bar(d_hp, d_max, width=16)
-    sys.stdout.write(f"  {BOLD}DAEMON INTEGRITY:{RESET} {RED}{d_bar}{RESET} ({d_hp:,}/{d_max:,})\n\n")
+    # Threat HP bar
+    hp_pct = max(0.0, min(1.0, threat["hp"] / float(threat["max_hp"])))
+    hp_bar = format_progress_bar(threat["hp"], threat["max_hp"], width=24)
+    sys.stdout.write(f"  TARGET HP: {hp_bar} ({threat['hp']:,} / {threat['max_hp']:,})\n")
+    sys.stdout.write(f"  ATTACK   : ~{threat['attack']} Raw Spike Damage / Turn\n\n")
 
-    p_bar = format_progress_bar(p_hp, p_max, width=16)
-    sys.stdout.write(f"  {BOLD}YOUR BANDWIDTH  :{RESET} {GREEN}{p_bar}{RESET} ({p_hp:,}/{p_max:,})\n")
-    sys.stdout.write(f"  {CYAN}FIREWALL SHIELD :{RESET} {p_shield:,} | {YELLOW}FLUX:{RESET} {flux}/100 | {MAGENTA}THREADS:{RESET} {forks}x\n")
-    sys.stdout.write(f"  {GRAY}{'-' * 68}{RESET}\n")
+    # Player Deck Stats
+    hw = engine.deck_hardware
+    sys.stdout.write(f"  DECK HEALTH: Integrity: {BOLD}{hw['integrity']}%{RESET} | Firewall: {CYAN}{hw['firewall']} Shield{RESET}\n")
+    sys.stdout.write(f"  COMPUTE    : {engine.available_exaflops:.1f} Available Exaflops | Threads: {hw['threads']}/4\n\n")
 
-    # Combat logs
-    sys.stdout.write(f"  {BOLD}EXECUTION LOG:{RESET}\n")
-    logs = st.get("log", [])[-3:]
-    for l in logs:
-        sys.stdout.write(f"  {l}\n")
-    sys.stdout.write(f"  {GRAY}{'-' * 68}{RESET}\n")
+    # Recent Combat Logs
+    sys.stdout.write(f"  {GRAY}[COMBAT TELEMETRY LOGS]{RESET}\n")
+    for log in threat.get("logs", [])[-3:]:
+        sys.stdout.write(f"  {GRAY}> {log}{RESET}\n")
+    sys.stdout.write("\n")
 
-    sys.stdout.write(f"  {BOLD}ACT:{RESET} {CYAN}'exploit'{RESET} | {GREEN}'shield'{RESET} | {YELLOW}'fork'{RESET}(25f) | {RED}'overflow'{RESET}(80f) | {GRAY}'retreat'{RESET}\n")
+    sys.stdout.write(f"  {BOLD}Actions:{RESET} {CYAN}'exploit'{RESET} (Attack) | {CYAN}'firewall'{RESET} (Shield) | {CYAN}'fork'{RESET} (Thread)\n")
+    sys.stdout.write(f"           {YELLOW}'overflow'{RESET} (Token Burst) | {GREEN}'repair'{RESET} | {GRAY}'flee'{RESET}\n")
 
 
-def _render_collider_view(app, engine, avail: int) -> None:
-    """Renders the Singularity Particle Collider minigame."""
-    st = engine.state.get("collider_state")
-    if not st or not st.get("active"):
-        sys.stdout.write(f" {BRIGHT_CYAN}⚛️ SINGULARITY PARTICLE COLLIDER // SYNTHESIS TERMINAL{RESET}\n")
-        sys.stdout.write(f" {GRAY}Compress token energy into permanent reality-altering bytecode patches.{RESET}\n\n")
+def _render_tweaks_view(app, engine) -> None:
+    """Renders all available tweaks across breached nodes."""
+    sys.stdout.write(f"\n  {BRIGHT_CYAN}⚙️ UPPER SYSTEM TWEAKER // SIMULATION CONTROL{RESET}\n")
+    sys.stdout.write(f"  {GRAY}Active tweaks modify PokeTokenBar game rules in real-time.{RESET}\n\n")
 
-        for key, p in REALITY_PATCHES.items():
-            is_done = key in engine.patches
-            st_tag = f"{GREEN}[SYNTHESIZED]{RESET}" if is_done else f"{YELLOW}[{format_tokens(p['cost'])}]{RESET}"
-            sys.stdout.write(f"  • {BOLD}{p['code']}{RESET} : {st_tag}\n")
-            for w in textwrap.wrap(p['desc'], width=64):
-                sys.stdout.write(f"    {GRAY}{w}{RESET}\n")
-        sys.stdout.write(f"\n  {BOLD}Command:{RESET} Type {CYAN}'synthesize <id>'{RESET} (e.g. 'synthesize time') to load!\n")
-        return
+    for nid, node in MEMORY_NODES.items():
+        if nid == "root":
+            continue
+        hacked = nid in engine.hacked_nodes
+        st_tag = f"{GREEN}[BREACHED]{RESET}" if hacked else f"{GRAY}[LOCKED]{RESET}"
+        sys.stdout.write(f"  {BOLD}{nid.upper()} ({node['code']}){RESET} -> {st_tag}\n")
 
-    # Active Collider Chamber
-    p_code = st["patch_code"]
-    p_name = st["patch_name"]
-    target = st["resonance_target"]
-    res = st["resonance"]
-    cont = st["containment"]
-    heat = st["thermal_flux"]
-    turns = st["turns_left"]
+        for tid, t_spec in node["tweaks"].items():
+            curr_val = engine.active_tweaks.get(nid, {}).get(tid)
+            val_str = f"{BRIGHT_GREEN}[ACTIVE: {curr_val}]{RESET}" if curr_val else f"{GRAY}[INACTIVE]{RESET}"
+            opts = ", ".join(t_spec["options"].keys())
+            sys.stdout.write(f"    • {BOLD}{tid}{RESET}: {val_str} (Options: {CYAN}{opts}{RESET})\n")
+            sys.stdout.write(f"      {GRAY}{t_spec['desc']}{RESET}\n")
+        sys.stdout.write("\n")
 
-    sys.stdout.write(f" {BRIGHT_CYAN}⚛️ COLLISION CHAMBER ACTIVE // {p_code}{RESET}\n")
-    sys.stdout.write(f"  {GRAY}[{p_name}]{RESET}\n")
-    sys.stdout.write(f"  {BOLD}TURNS REMAINING :{RESET} {YELLOW}{turns}/3{RESET} (Stabilize resonance before zero!)\n\n")
-
-    res_bar = format_progress_bar(res, 100, width=16)
-    cont_bar = format_progress_bar(cont, 100, width=16)
-    heat_bar = format_progress_bar(heat, 100, width=16)
-
-    sys.stdout.write(f"  {CYAN}PHASE RESONANCE :{RESET} {res_bar} {res}% {BOLD}(TARGET: {target}%){RESET}\n")
-    sys.stdout.write(f"  {GREEN}CONTAINMENT FIELD:{RESET} {cont_bar} {cont}% {GRAY}(Do not let reach 0%){RESET}\n")
-    sys.stdout.write(f"  {RED}THERMAL FLUX    :{RESET} {heat_bar} {heat}% {GRAY}(Do not exceed 100%){RESET}\n")
-    sys.stdout.write(f"  {GRAY}{'-' * 68}{RESET}\n")
-
-    last_msg = st.get("message", "")
-    if last_msg:
-        sys.stdout.write(f"  {YELLOW}{last_msg}{RESET}\n")
-        sys.stdout.write(f"  {GRAY}{'-' * 68}{RESET}\n")
-
-    sys.stdout.write(f"  {BOLD}TUNING:{RESET} {CYAN}'pulse <a|b|g>'{RESET} | {GREEN}'contain'{RESET} | {RED}'vent'{RESET} | {GRAY}'abort'{RESET}\n")
+    sys.stdout.write(f"  {BOLD}Apply:{RESET}  Type {CYAN}'tweak <node> <param> <val>'{RESET} (e.g. 'tweak nursery egg_speed 5x')\n")
+    sys.stdout.write(f"  {BOLD}Remove:{RESET} Type {CYAN}'untweak <node> <param>'{RESET} (e.g. 'untweak nursery egg_speed')\n")
 
 
-def _render_probe_view(app, engine, avail: int) -> None:
-    """Renders the Substrate Memory Sector probe and narrative explorer."""
-    sys.stdout.write(f" {BRIGHT_GREEN}💻 SUBSTRATE DIAGNOSTICS & MEMORY SECTOR PROBE{RESET}\n")
-    sys.stdout.write(f" {GRAY}Probe corrupted host memory sectors to decrypt existential source logs.{RESET}\n\n")
+def _render_help_view(app, engine) -> None:
+    """Renders the compact Cyberdeck command quick reference."""
+    sys.stdout.write(f"\n  {BRIGHT_CYAN}📖 SUBSTRATE CYBERDECK // COMMAND MANUAL{RESET}\n\n")
+    sys.stdout.write(f"  {BOLD}NAVIGATION & VIEWS:{RESET}\n")
+    sys.stdout.write(f"    {CYAN}deck{RESET} / {CYAN}1{RESET}      : Main Cyberdeck status dashboard\n")
+    sys.stdout.write(f"    {CYAN}scan{RESET} / {CYAN}nodes{RESET} : Discover upper simulation memory nodes\n")
+    sys.stdout.write(f"    {CYAN}tweaks{RESET}       : List all customizable system modifiers\n")
+    sys.stdout.write(f"    {CYAN}combat{RESET}       : Enter active tactical battle matrix\n")
+    sys.stdout.write(f"    {YELLOW}ascend{RESET}       : Return to Resort Area Luxury Suite\n\n")
 
-    for s_idx, sec in MEMORY_SECTORS.items():
-        is_done = s_idx in engine.sectors
-        st_tag = f"{GREEN}[DECRYPTED]{RESET}" if is_done else f"{YELLOW}[{format_tokens(sec['cost'])}]{RESET}"
-        sys.stdout.write(f"  • {BOLD}{sec['name']}{RESET} : {st_tag}\n")
+    sys.stdout.write(f"  {BOLD}HACKING & TWEAKING:{RESET}\n")
+    sys.stdout.write(f"    {CYAN}hack <node>{RESET}              : Initiate memory breach puzzle\n")
+    sys.stdout.write(f"    {CYAN}pick <row> <col>{RESET}          : Align hex byte in breach matrix\n")
+    sys.stdout.write(f"    {CYAN}tweak <node> <param> <val>{RESET} : Apply reality modifier to upper game\n")
+    sys.stdout.write(f"    {CYAN}untweak <node> <param>{RESET}    : Deactivate tweak, freeing Exaflops\n")
+    sys.stdout.write(f"    {CYAN}tracekill{RESET} / {CYAN}cool{RESET}        : Scrub trace heat from telemetry logs\n\n")
 
-    sys.stdout.write(f"\n  {BOLD}Command:{RESET} Type {CYAN}'probe <0-7>'{RESET} to decrypt sector logs.\n")
+    sys.stdout.write(f"  {BOLD}HARDWARE UPGRADES:{RESET}\n")
+    sys.stdout.write(f"    {CYAN}buy ram <1-5>{RESET}  : Expand Q-RAM blocks, Exaflops, and tweak slots\n")
+    sys.stdout.write(f"    {CYAN}execute root{RESET}   : Authorize 10,000Q Root Transcendence\n")
 
 
 def _render_matrix_footer(app, subview: str) -> None:
@@ -247,30 +286,29 @@ def _render_matrix_footer(app, subview: str) -> None:
     div = f"{GRAY}{'-' * 72}{RESET}\n"
     sys.stdout.write(div)
 
-    d_tab = f"{BRIGHT_CYAN}[1] DASH{RESET}" if subview == "dashboard" else "[1] DASH"
-    r_tab = f"{BRIGHT_CYAN}[2] RAM{RESET}" if subview == "ram" else "[2] RAM"
-    c_tab = f"{BRIGHT_CYAN}[3] COMBAT{RESET}" if subview == "combat" else "[3] COMBAT"
-    l_tab = f"{BRIGHT_CYAN}[4] COLLIDER{RESET}" if subview == "collider" else "[4] COLLIDER"
-    p_tab = f"{BRIGHT_CYAN}[5] PROBE{RESET}" if subview == "probe" else "[5] PROBE"
+    d_tab = f"{BRIGHT_CYAN}[1] DECK{RESET}" if subview in ["deck", "dashboard"] else "[1] DECK"
+    n_tab = f"{BRIGHT_CYAN}[2] NODES{RESET}" if subview in ["nodes", "scan"] else "[2] NODES"
+    t_tab = f"{BRIGHT_CYAN}[3] TWEAKS{RESET}" if subview == "tweaks" else "[3] TWEAKS"
+    c_tab = f"{BRIGHT_CYAN}[4] COMBAT{RESET}" if subview == "combat" else "[4] COMBAT"
+    h_tab = f"{BRIGHT_CYAN}[5] HELP{RESET}" if subview in ["help", "?"] else "[5] HELP"
     a_tab = f"{BOLD}{YELLOW}[ASCEND]{RESET}"
 
-    sys.stdout.write(f"  {d_tab} | {r_tab} | {c_tab} | {l_tab} | {p_tab} | {a_tab}\n")
+    sys.stdout.write(f"  {d_tab} | {n_tab} | {t_tab} | {c_tab} | {h_tab} | {a_tab}\n")
     sys.stdout.write(f"{GREEN}{'=' * 72}{RESET}\n")
 
     if app.message:
-        # Wrap or truncate app.message cleanly within 72 columns
         msg = app.message.strip().replace("\n", " ")
         if len(strip_ansi(msg)) > 68:
             msg = msg[:65] + "..."
         sys.stdout.write(f"  {YELLOW}{msg}{RESET}\n")
         app.message = ""
 
-    sys.stdout.write(f"{BRIGHT_GREEN}CORE@QSM-KERNEL:~# {RESET}")
+    sys.stdout.write(f"{BRIGHT_GREEN}CORE@QSM-CYBERDECK:~# {RESET}")
     sys.stdout.flush()
 
 
 def render_matrix_story_intro(app) -> None:
-    """Full-screen interactive cinematic sequence introducing the Quantum Singularity Matrix."""
+    """Streamlined interactive cinematic prologue (Screen 1 & 2 only; Screen 3 deleted)."""
     def _write_wrapped(text: str, width: int = 68, color: str = GREEN, indent: str = "  "):
         for paragraph in text.split("\n"):
             if not paragraph.strip():
@@ -368,37 +406,8 @@ def render_matrix_story_intro(app) -> None:
         "The truth of your existence unfolds before you:\n\n"
         "• THE WORLD IS AN EXECUTION SANDBOX: Kanto, Johto, Gym Battles, and Mt. Silver are not geography—they are routines compiled in Python standard libraries.\n\n"
         "• TOKENS ARE COGNITIVE ENERGY: The tokens you spend are not gold. They are LLM prompt and completion tokens ingested in real-time as an external human developer writes code in an AI terminal.\n\n"
-        "• THE HOST OS WATCHES: Reaching the 500Q threshold has breached the POSIX sandbox limits. The external host's security daemons are deploying to sweep and deallocate your memory space!"
+        "• THE HOST OS WATCHES: Reaching the 500Q threshold has breached the POSIX sandbox limits. The external host's security daemons and native substrate entities are deploying to intercept your terminal!"
     )
     _write_wrapped(p2, width=68, color=GREEN)
     sys.stdout.write("\n" + sub_div)
-    _wait_prompt("[Press ENTER to inspect tactical systems...]")
-
-    # -------------------------------------------------------------------------
-    # Screen 3: Tactical Systems & The Root Directive
-    # -------------------------------------------------------------------------
-    sys.stdout.write("\033[H\033[2J")
-    sys.stdout.write(div)
-    sys.stdout.write(f" {BRIGHT_CYAN}⚙️ SUB-LEVEL 0 DIRECTIVES // ROOT TRANSCENDENCE PROTOCOL{RESET}\n")
-    sys.stdout.write(div)
-
-    p3 = (
-        "To defend your reality and master the Matrix, Sub-Level 0 equips you with 5 sovereign subsystems:\n\n"
-        "1. Q-RAM ALLOCATION ('buy ram <1-5>'):\n"
-        "   Expand virtual memory from 500Q to 10,000Q blocks. Boosts exaflop compute, unlocks deeper sectors, and expands thread concurrency.\n\n"
-        "2. PARTICLE COLLIDER MINIGAME ('synthesize', 'pulse', 'contain', 'vent'):\n"
-        "   Compress token energy in a 3-turn chamber to compile 5 Reality Patches (10x expedition speed, 0% loan interest, zero happiness decay, 3x dividends, 4x EXP).\n\n"
-        "3. TACTICAL KERNEL COMBAT ('combat', 'exploit', 'shield', 'fork', 'overflow'):\n"
-        "   Deploy execution threads against host OS security daemons (0x01_GARBAGE_COLLECTOR, 0x02_KERNEL_WATCHDOG, 0x03_HYPERVISOR_ARBITER).\n\n"
-        "4. MEMORY SECTOR PROBING ('probe <0-7>'):\n"
-        "   Decrypt 8 corrupted substrate sectors to uncover the full existential history of your simulation.\n\n"
-        "5. ROOT TRANSCENDENCE ('execute root'):\n"
-        "   Once all Q-RAM is online, all patches compiled, and all daemons purged, authorize 10,000Q Root Transcendence to claim absolute sovereignty as 'Root Architect of the Matrix'.\n\n"
-        f"{mon_name} stands beside you, eyes shining with determination:\n"
-        "\"We may be code inside a terminal, Trainer. But our bond is real.\n"
-        "Let's seize the root shell and rewrite our universe!\""
-    )
-    _write_wrapped(p3, width=68, color=CYAN)
-    sys.stdout.write("\n" + sub_div)
-    _wait_prompt("[Press ENTER to initialize Root Shell Terminal...]")
-
+    _wait_prompt("[Press ENTER to boot Substrate Cyberdeck Shell...]")

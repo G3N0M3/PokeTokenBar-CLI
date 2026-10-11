@@ -537,7 +537,12 @@ class CompanionEngine(
         elif self.state.get("egg_tier") is not None and effective_xp > 0:
             # 2. Incubating Egg Progress (Active companion is an Egg)
             egg_tier = self.state["egg_tier"]
-            egg_usage = self.state.get("egg_usage", 0) + effective_xp
+            egg_mult = 1.0
+            if hasattr(self, "matrix") and self.matrix:
+                sp_val = self.matrix.get_tweak_val("nursery", "egg_speed")
+                if sp_val:
+                    egg_mult = float(sp_val)
+            egg_usage = self.state.get("egg_usage", 0) + int(effective_xp * egg_mult)
             self.state["egg_usage"] = egg_usage
 
             threshold = self.get_egg_hatch_threshold(egg_tier)

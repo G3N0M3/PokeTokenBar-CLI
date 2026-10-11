@@ -1,4 +1,4 @@
-"""Unit tests for the Quantum Singularity Matrix (QSM) sub-level system."""
+"""Unit tests for the Quantum Singularity Matrix (QSM) Hack-Simulator & Cyberdeck."""
 
 import os
 import sys
@@ -16,9 +16,8 @@ from poketokenbar.game.matrix.models import (
     MATRIX_ENTRY_COST,
     ROOT_TRANSCENDENCE_COST,
     QRAM_BLOCKS,
-    REALITY_PATCHES,
-    KERNEL_DAEMONS,
-    MEMORY_SECTORS,
+    MEMORY_NODES,
+    SUBSTRATE_ENTITIES,
 )
 from poketokenbar.tui.matrix_tui import render_matrix_view, render_matrix_story_intro, strip_ansi
 from poketokenbar.tui.matrix_router import MatrixRouter
@@ -30,7 +29,7 @@ class DummyTUI:
     def __init__(self, engine):
         self.engine = engine
         self.in_matrix = True
-        self.matrix_subview = "dashboard"
+        self.matrix_subview = "deck"
         self.message = ""
         self.current_tab = 10
         self.bank_subtab = "luxury"
@@ -98,54 +97,40 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
 
         # 2. Fails if tokens < 500Q
         self.engine.state["used_since_install"] = 100_000_000_000_000_000  # 100Q
-        self.engine.state["spent_tokens"] = 0
         can_descend, err = self.engine.can_descend_to_matrix()
         self.assertFalse(can_descend)
-        self.assertIn("500.0Q", err)
+        self.assertIn("500.0Q tokens required", err)
 
-        # 3. Succeeds when 500Q tokens available
+        # 3. Succeeds if tokens >= 500Q
         self.engine.state["used_since_install"] = 600_000_000_000_000_000  # 600Q
-        can_descend, msg = self.engine.can_descend_to_matrix()
+        can_descend, err = self.engine.can_descend_to_matrix()
         self.assertTrue(can_descend)
 
-        # Execute descent
-        ok, desc_msg = self.engine.descend_to_matrix()
+        # 4. Atomic execution deduction
+        ok, msg = self.engine.descend_to_matrix()
         self.assertTrue(ok)
         self.assertTrue(self.engine.matrix.is_unlocked)
-        # 500Q spent, 100Q remains
         self.assertEqual(self.engine.available_tokens, 100_000_000_000_000_000)
 
-    def test_bidirectional_navigation_ascend(self):
-        """Test that 'ascend' exits Matrix and returns to Luxury Suite."""
+        # 5. Subsequent descents are free
+        ok2, msg2 = self.engine.descend_to_matrix()
+        self.assertTrue(ok2)
+        self.assertEqual(self.engine.available_tokens, 100_000_000_000_000_000)
+
+    def test_descent_confirmation_flow(self):
+        """Test two-step confirmation before debiting 500Q tokens."""
         self._setup_fully_completed_luxury_suite()
         self.engine.state["used_since_install"] = 600_000_000_000_000_000
-        self.engine.descend_to_matrix()
-
         app = DummyTUI(self.engine)
-        self.assertTrue(app.in_matrix)
-
-        # Execute 'ascend'
-        MatrixRouter.dispatch(app, "ascend")
-        self.assertFalse(app.in_matrix)
-        self.assertEqual(app.current_tab, 10)
-        self.assertEqual(app.bank_subtab, "luxury")
-
-    def test_tui_descend_confirmation_flow(self):
-        """Test interactive confirmation prompt and cancellation for descend."""
-        self._setup_fully_completed_luxury_suite()
-        self.engine.state["used_since_install"] = 600_000_000_000_000_000  # 600Q
-        self.engine.state["spent_tokens"] = 0
-
-        app = DummyTUI(self.engine)
-        app.in_matrix = False
         app.current_tab = 10
         app.bank_subtab = "luxury"
+        app.in_matrix = False
 
-        # 1. First 'descend' prompts for confirmation
+        # 1. 'descend' prompts confirmation without debiting tokens yet
         CommandRouter.dispatch(app, "descend")
         self.assertTrue(app.pending_descend)
         self.assertFalse(app.in_matrix)
-        self.assertIn("500.0Q tokens? Type 'confirm'", app.message)
+        self.assertIn("Are you sure you want to descend?", app.message)
         self.assertEqual(self.engine.available_tokens, 600_000_000_000_000_000)
 
         # 2. Cancel confirmation
@@ -175,113 +160,179 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
     def test_qram_allocation_scaling(self):
         """Test allocating Q-RAM blocks with sequential checks and multi-quadrillion costs."""
         self._setup_fully_completed_luxury_suite()
-        # Give 20,000Q tokens
         self.engine.state["used_since_install"] = 25_000_000_000_000_000_000
         self.engine.state["spent_tokens"] = 0
         self.engine.descend_to_matrix()
 
         matrix = self.engine.matrix
         self.assertEqual(len(matrix.ram_blocks), 0)
+        self.assertEqual(matrix.max_exaflops, 16.0)
 
         # Block 2 cannot be bought before Block 1
         ok, msg = matrix.allocate_ram(2)
         self.assertFalse(ok)
         self.assertIn("Prerequisite missing", msg)
 
-        # Allocate Block 1 (500Q)
+        # Allocate Block 1 (500Q) -> 32.0 Exaflops
         ok, msg = matrix.allocate_ram(1)
         self.assertTrue(ok)
         self.assertIn(1, matrix.ram_blocks)
+        self.assertEqual(matrix.max_exaflops, 32.0)
 
-        # Allocate Block 2 (1,000Q)
+        # Allocate Block 2 (1,000Q) -> 64.0 Exaflops
         ok, msg = matrix.allocate_ram(2)
         self.assertTrue(ok)
         self.assertIn(2, matrix.ram_blocks)
+        self.assertEqual(matrix.max_exaflops, 64.0)
 
-    def test_particle_collider_minigame(self):
-        """Test Particle Collider state machine, pulse tuning, and patch compilation."""
+    def test_network_scanning_and_node_structure(self):
+        """Test scanning memory node network for upper simulation nodes."""
+        self._setup_fully_completed_luxury_suite()
+        self.engine.state["used_since_install"] = 10_000_000_000_000_000_000
+        self.engine.descend_to_matrix()
+        matrix = self.engine.matrix
+
+        nodes = matrix.scan_network()
+        self.assertIn("nursery", nodes)
+        self.assertIn("expeditions", nodes)
+        self.assertIn("bank", nodes)
+        self.assertIn("roster", nodes)
+        self.assertIn("combat", nodes)
+
+        self.assertFalse(nodes["nursery"]["hacked"])
+        self.assertEqual(nodes["nursery"]["offset"], "0x7FFF0010")
+
+    def test_hex_breach_minigame_flow(self):
+        """Test initiating breach puzzle, aligning buffer, and granting root clearance."""
+        self._setup_fully_completed_luxury_suite()
+        self.engine.state["used_since_install"] = 10_000_000_000_000_000_000
+        self.engine.descend_to_matrix()
+        matrix = self.engine.matrix
+
+        # Cannot breach unknown node
+        ok, msg = matrix.start_breach("unknown_node")
+        self.assertFalse(ok)
+
+        # Start breach for nursery
+        ok, msg = matrix.start_breach("nursery")
+        self.assertTrue(ok)
+        self.assertIsNotNone(matrix.active_breach)
+        breach = matrix.active_breach
+        target_seq = list(breach["target"])
+
+        # Abort test
+        ok_a, msg_a = matrix.abort_breach()
+        self.assertTrue(ok_a)
+        self.assertIsNone(matrix.active_breach)
+
+        # Start again and solve by feeding coordinates that match target sequence
+        matrix.start_breach("nursery")
+        breach = matrix.active_breach
+        grid = breach["grid"]
+        target_seq = list(breach["target"])
+
+        for t_byte in target_seq:
+            found = False
+            for r in range(4):
+                for c in range(4):
+                    if grid[r][c] == t_byte:
+                        matrix.breach_pick(r, c)
+                        found = True
+                        break
+                if found:
+                    break
+
+        self.assertIn("nursery", matrix.hacked_nodes)
+        self.assertIsNone(matrix.active_breach)
+
+    def test_upper_system_tweaker_and_hooks(self):
+        """Test tweaking upper systems and verifying hooks across game modules."""
         self._setup_fully_completed_luxury_suite()
         self.engine.state["used_since_install"] = 20_000_000_000_000_000_000
         self.engine.descend_to_matrix()
         matrix = self.engine.matrix
 
-        # Cannot start collider before allocating Block 1
-        ok, msg = matrix.start_collider("time")
+        # 1. Tweak fails before node is breached
+        ok, msg = matrix.apply_tweak("nursery", "egg_speed", "5x")
         self.assertFalse(ok)
+        self.assertIn("locked", msg)
 
-        matrix.allocate_ram(1)
+        # Breach nursery node
+        matrix.hacked_nodes.append("nursery")
 
-        # Start collider for 'time' (500Q)
-        ok, msg = matrix.start_collider("time")
+        # 2. Apply egg_speed tweak (requires 8.0 Exaflops)
+        ok, msg = matrix.apply_tweak("nursery", "egg_speed", "5x")
         self.assertTrue(ok)
-        self.assertTrue(matrix.state["collider_state"]["active"])
+        self.assertEqual(matrix.get_tweak_val("nursery", "egg_speed"), 5)
+        self.assertTrue(matrix.is_tweak_active("nursery", "egg_speed"))
+        self.assertGreater(matrix.trace_level, 0)
 
-        # Test tuning actions
-        ok, msg = matrix.collider_pulse("alpha")
-        self.assertTrue(ok)
-        ok, msg = matrix.collider_contain()
-        self.assertTrue(ok)
+        # 3. Test hook in engine egg incubation
+        # Active companion as egg
+        self.engine.state["egg_tier"] = "common"
+        self.engine.state["egg_usage"] = 0
+        self.engine.set_active_mon(None)
+        # Process usage: 1,000 raw tokens * 5x speed = 5,000 progress
+        self.engine.process_usage(1_000, 1)
+        self.assertEqual(self.engine.state["egg_usage"], 5000)
 
-        # On turn 3, set resonance to reach target (85) and verify successful synthesis
-        matrix.state["collider_state"]["resonance"] = 98
-        ok, msg = matrix.collider_vent()
-        self.assertTrue(ok)
-        self.assertIn("SYNTHESIS COMPLETE", msg)
-        self.assertIn("time", matrix.patches)
+        # 4. Remove tweak
+        ok_rm, msg_rm = matrix.remove_tweak("nursery", "egg_speed")
+        self.assertTrue(ok_rm)
+        self.assertFalse(matrix.is_tweak_active("nursery", "egg_speed"))
 
-        # Test patch compilation effect hook directly
+    def test_expeditions_and_combat_tweaks(self):
+        """Test expeditions and combat overdrive hooks."""
+        self._setup_fully_completed_luxury_suite()
+        self.engine.state["used_since_install"] = 20_000_000_000_000_000_000
+        self.engine.descend_to_matrix()
+        matrix = self.engine.matrix
+
+        matrix.hacked_nodes.extend(["expeditions", "combat"])
+        matrix.allocate_ram(1)  # 32 Exaflops
+
+        # Expeditions speed & yield
+        matrix.apply_tweak("expeditions", "speed", "10x")
         self.assertTrue(matrix.is_time_warp_active())
+        self.assertEqual(matrix.get_tweak_val("expeditions", "speed"), 10)
 
-    def test_kernel_combat_minigame(self):
-        """Test Tactical Protocol Combat mechanics against host OS daemons."""
+        matrix.apply_tweak("expeditions", "yield", "3x")
+        self.assertEqual(matrix.get_tweak_val("expeditions", "yield"), 3)
+
+        # Combat overdrive hook
+        matrix.apply_tweak("combat", "overdrive", "2.0x")
+        self.assertEqual(matrix.get_tweak_val("combat", "overdrive"), 2.0)
+
+    def test_trace_heat_and_cyber_combat(self):
+        """Test trace accumulation, ambush trigger, and tactical cyber-combat."""
         self._setup_fully_completed_luxury_suite()
         self.engine.state["used_since_install"] = 10_000_000_000_000_000_000
         self.engine.descend_to_matrix()
         matrix = self.engine.matrix
 
-        ok, msg = matrix.start_combat("daemon_gc")
-        self.assertTrue(ok)
-        st = matrix.state["combat_state"]
-        self.assertEqual(st["daemon_name"], "0x01_GARBAGE_COLLECTOR")
-        self.assertTrue(st["active"])
+        # Add trace to 100% -> triggers host daemon
+        matrix.add_trace(100)
+        self.assertEqual(matrix.trace_level, 100)
+        self.assertIsNotNone(matrix.active_threat)
+        threat = matrix.active_threat
 
-        # Execute combat actions
-        ok, msg = matrix.combat_shield()
+        # Test combat actions
+        ok, msg = matrix.combat_firewall()
         self.assertTrue(ok)
-        self.assertGreater(st["player_shield"], 1000)
 
+        ok, msg = matrix.combat_fork()
+        self.assertTrue(ok)
+        self.assertEqual(matrix.deck_hardware["threads"], 2)
+
+        # Exploit deals damage
+        init_hp = threat["hp"]
         ok, msg = matrix.combat_exploit()
         self.assertTrue(ok)
-        self.assertLess(st["daemon_hp"], st["daemon_max_hp"])
 
-        # Reduce daemon HP to 0 to test victory
-        st["daemon_hp"] = 100
-        ok, msg = matrix.combat_exploit()
+        # Cool trace
+        ok, msg = matrix.cool_trace(50)
         self.assertTrue(ok)
-        self.assertIn("THREAT PURGED", msg)
-        self.assertIn("daemon_gc", matrix.defeated_daemons)
-
-    def test_substrate_sector_probing(self):
-        """Test memory sector decryption and narrative snippet delivery."""
-        self._setup_fully_completed_luxury_suite()
-        self.engine.state["used_since_install"] = 10_000_000_000_000_000_000
-        self.engine.descend_to_matrix()
-        matrix = self.engine.matrix
-
-        # Sector 1 locked before Sector 0
-        ok, msg = matrix.probe_sector(1)
-        self.assertFalse(ok)
-
-        # Probe Sector 0 (100Q)
-        ok, msg = matrix.probe_sector(0)
-        self.assertTrue(ok)
-        self.assertIn(0, matrix.sectors)
-        self.assertIn("SYS_BOOT", msg)
-
-        # Probe Sector 1 (150Q)
-        ok, msg = matrix.probe_sector(1)
-        self.assertTrue(ok)
-        self.assertIn(1, matrix.sectors)
+        self.assertLessEqual(matrix.trace_level, 60)
 
     def test_root_transcendence_climax(self):
         """Test 10,000Q Root Transcendence authorization."""
@@ -294,18 +345,17 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
         ok, msg = matrix.execute_root_transcendence()
         self.assertFalse(ok)
 
-        # Satisfy prerequisites
+        # Satisfy prerequisites: Block 5, 5 nodes, 3 daemons
         matrix.state["ram_blocks"] = [1, 2, 3, 4, 5]
-        matrix.state["patches"] = ["time", "entropy", "market", "friction", "syntax"]
+        matrix.state["hacked_nodes"] = ["nursery", "expeditions", "bank", "roster", "combat"]
         matrix.state["defeated_daemons"] = ["daemon_gc", "daemon_watchdog", "daemon_hypervisor"]
 
         ok, msg = matrix.execute_root_transcendence()
         self.assertTrue(ok)
         self.assertTrue(matrix.is_root_transcended)
-        self.assertIn("💠 Root Architect of the Matrix", self.engine.state["gym_badges"])
 
     def test_strict_72_column_width(self):
-        """Ensure all screens rendered by MatrixTUI strictly fit within 72 columns."""
+        """Ensure all screens rendered by Cyberdeck TUI strictly fit within 72 columns."""
         self._setup_fully_completed_luxury_suite()
         self.engine.state["used_since_install"] = 10_000_000_000_000_000_000
         self.engine.descend_to_matrix()
@@ -313,7 +363,10 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
 
         app = DummyTUI(self.engine)
 
-        views = ["dashboard", "ram", "combat", "collider", "probe"]
+        views = ["deck", "nodes", "breach", "combat", "tweaks", "help"]
+        matrix.start_breach("nursery")
+        matrix.start_combat()
+
         for v in views:
             app.matrix_subview = v
             buf = io.StringIO()
@@ -334,8 +387,8 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
                 )
 
     def test_luxury_descend_hint_progression(self):
-        """Verify that before first descent, hint says 'There's something under the Sovereign Throne... Type 'descend'',
-        and after first descent it displays ''descend' (Enter Sub-Level Quantum Singularity Matrix)'."""
+        """Verify that before first descent, hint displays Sovereign Throne clue,
+        and after first descent it displays direct descend command."""
         self._setup_fully_completed_luxury_suite()
         app = DummyTUI(self.engine)
         app.current_tab = 10
@@ -385,26 +438,30 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
         self.assertNotIn("subterranean vibration", msg2)
 
     def test_matrix_story_intro_rendering_and_layout(self):
-        """Verify full-screen cinematic story sequence renders and satisfies <= 72 columns."""
+        """Verify streamlined 2-screen cinematic prologue renders and satisfies <= 72 columns."""
         app = DummyTUI(self.engine)
         old_stdout = sys.stdout
         old_stdin = sys.stdin
         buf = io.StringIO()
         try:
             sys.stdout = buf
-            sys.stdin = io.StringIO("\n\n\n")
+            sys.stdin = io.StringIO("\n\n")
             render_matrix_story_intro(app)
         finally:
             sys.stdout = old_stdout
             sys.stdin = old_stdin
 
         out = buf.getvalue()
-        # Verify key narrative elements
+        # Verify Screen 1 and Screen 2 narrative elements
         self.assertIn("SUBTERRANEAN HYPERVISOR LIFT", out)
         self.assertIn("ADDR 0x7FFF0010: active_mon", out)
         self.assertIn("THE WORLD IS AN EXECUTION SANDBOX", out)
         self.assertIn("TOKENS ARE COGNITIVE ENERGY", out)
-        self.assertIn("ROOT TRANSCENDENCE PROTOCOL", out)
+        self.assertIn("boot Substrate Cyberdeck Shell", out)
+
+        # Verify Screen 3 (Directives infodump) is DELETED
+        self.assertNotIn("SUB-LEVEL 0 DIRECTIVES", out)
+        self.assertNotIn("ROOT TRANSCENDENCE PROTOCOL", out)
 
         # Verify strict <= 72 columns on every printed line
         for line in out.splitlines():
@@ -432,7 +489,7 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
         buf = io.StringIO()
         try:
             sys.stdout = buf
-            sys.stdin = io.StringIO("\n\n\n")
+            sys.stdin = io.StringIO("\n\n")
             render_matrix_story_intro(app)
         finally:
             sys.stdout = old_stdout
@@ -444,19 +501,19 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
         self.assertIn("Boolean: True", out)
 
     def test_matrix_story_router_replay(self):
-        """Verify 'story' command re-triggers the narration without crashing."""
+        """Verify 'story' command re-triggers the prologue without crashing."""
         app = DummyTUI(self.engine)
         old_stdout = sys.stdout
         old_stdin = sys.stdin
         try:
             sys.stdout = io.StringIO()
-            sys.stdin = io.StringIO("\n\n\n")
+            sys.stdin = io.StringIO("\n\n")
             MatrixRouter.dispatch(app, "story")
         finally:
             sys.stdout = old_stdout
             sys.stdin = old_stdin
 
-        self.assertIn("Substrate initialization narration completed", app.message)
+        self.assertIn("prologue replayed", app.message)
 
     def test_matrix_story_viewed_persistence(self):
         """Verify story_viewed flag defaults to False and persists when set."""

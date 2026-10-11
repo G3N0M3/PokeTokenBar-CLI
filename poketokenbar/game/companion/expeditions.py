@@ -81,26 +81,36 @@ class ExpeditionsMixin:
                 mult *= 1.25
             silph_speed_mult, silph_token_mult = self.get_silph_multipliers()
             mult *= silph_speed_mult
-            if hasattr(self, "matrix") and self.matrix.is_time_warp_active():
-                mult *= 10.0
+            if hasattr(self, "matrix") and self.matrix:
+                sp_val = self.matrix.get_tweak_val("expeditions", "speed")
+                if sp_val:
+                    mult *= float(sp_val)
+                elif self.matrix.is_time_warp_active():
+                    mult *= 10.0
 
             exp["progress"] += int(effective_xp * mult)
             
             if exp["progress"] >= exp["target"]:
                 # Grant reward
                 inv = self.state.get("inventory", {})
+                yield_mult = 1
+                if hasattr(self, "matrix") and self.matrix:
+                    ym = self.matrix.get_tweak_val("expeditions", "yield")
+                    if ym:
+                        yield_mult = int(ym)
+
                 if reward == "rare_candy":
-                    inv["rare_candy"] = inv.get("rare_candy", 0) + 1
-                    reward_str = "+1 Rare Candy 🍬"
+                    inv["rare_candy"] = inv.get("rare_candy", 0) + yield_mult
+                    reward_str = f"+{yield_mult} Rare Candy 🍬"
                 elif reward == "berry_oran":
-                    inv["berry_oran"] = inv.get("berry_oran", 0) + 1
-                    reward_str = "+1 Oran Berry 🫐"
+                    inv["berry_oran"] = inv.get("berry_oran", 0) + yield_mult
+                    reward_str = f"+{yield_mult} Oran Berry 🫐"
                     if random.random() < 0.10:
                         inv["map_fragment"] = inv.get("map_fragment", 0) + 1
                         reward_str += " & +1 Map 📜!"
                 elif reward == "mint":
-                    inv["rare_candy"] = inv.get("rare_candy", 0) + 1
-                    reward_str = "+1 Rare Candy 🍬"
+                    inv["rare_candy"] = inv.get("rare_candy", 0) + yield_mult
+                    reward_str = f"+{yield_mult} Rare Candy 🍬"
                 elif reward == "legendary_egg":
                     ok, msg, cash = self.obtain_egg("legendary")
                     if cash:

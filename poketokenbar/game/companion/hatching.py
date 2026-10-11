@@ -511,6 +511,10 @@ class HatchingMixin:
             denom = min(denom, 24)
         if self.active_mon and self.active_mon.held_item == "scope_lens":
             denom = max(2, denom // 2)
+        if hasattr(self, "matrix") and self.matrix:
+            s_mult = self.matrix.get_tweak_val("nursery", "shiny_rate")
+            if s_mult:
+                denom = max(1, int(denom / float(s_mult)))
             
         is_shiny = force_shiny or (random.randint(1, denom) == 1)
         self.state["golden_razz_active"] = False

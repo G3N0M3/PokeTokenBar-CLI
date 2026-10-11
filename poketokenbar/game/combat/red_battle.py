@@ -258,6 +258,10 @@ class RedBattleHandler:
                 dmg = int(dmg * 1.5)
             elif active and active.held_item == "metal_coat":
                 dmg = int(dmg * 1.15)
+            if hasattr(self.engine, "matrix") and self.engine.matrix:
+                od = self.engine.matrix.get_tweak_val("combat", "overdrive")
+                if od:
+                    dmg = int(dmg * float(od))
             st["red_hps"][r_idx] = max(0, st["red_hps"][r_idx] - dmg)
             
             eff_str = " It's super effective!" if eff > 1.5 else (" It's not very effective..." if eff < 0.9 else "")

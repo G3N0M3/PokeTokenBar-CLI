@@ -419,6 +419,11 @@ class RocketBattleHandler:
                 elif active.held_item == "life_orb":
                     dmg = int(dmg * 1.2)
 
+            if hasattr(self.engine, "matrix") and self.engine.matrix:
+                od = self.engine.matrix.get_tweak_val("combat", "overdrive")
+                if od:
+                    dmg = int(dmg * float(od))
+
             dmg = max(1000, dmg + random.randint(-500, 500))
             st["boss_hps"][r_idx] = max(0, st["boss_hps"][r_idx] - dmg)
             eff_str = " (Super Effective! 💥)" if eff > 1.5 else (" (Not very effective...)" if eff < 0.9 else "")
