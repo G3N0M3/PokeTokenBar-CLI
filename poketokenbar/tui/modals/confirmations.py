@@ -35,6 +35,18 @@ def handle_pending_confirmation(app, cmd: str) -> bool:
             app.message = "❌ Velvet Sting reset cancelled."
         return True
 
+    if getattr(app, "pending_descend", False) is True:
+        app.pending_descend = False
+        if clean_cmd in ["confirm", "yes", "y", "ok", "descend"]:
+            ok, msg = app.engine.descend_to_matrix()
+            app.message = msg
+            if ok:
+                app.in_matrix = True
+                app.matrix_subview = "dashboard"
+        else:
+            app.message = "❌ Descent cancelled. Subterranean reactor remains sealed."
+        return True
+
     if isinstance(getattr(app, "pending_feed", None), dict):
         plan = app.pending_feed
         app.pending_feed = None

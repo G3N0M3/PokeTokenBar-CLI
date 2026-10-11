@@ -35,6 +35,7 @@ class PokeTokenBarTUI:
         self.message = ""
         self.pending_reset = False
         self.pending_rocket_init = False
+        self.pending_descend = False
         self.pokedex_page = 1
         self.roster_page = 1
         self.nursery_page = 1

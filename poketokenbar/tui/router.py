@@ -1083,12 +1083,33 @@ class CommandRouter:
                 ok, msg = app.engine.purchase_luxury_deed()
                 app.message = msg
                 return True
-            if cmd == "descend":
-                ok, msg = app.engine.descend_to_matrix()
-                app.message = msg
-                if ok:
-                    app.in_matrix = True
-                    app.matrix_subview = "dashboard"
+            if cmd == "descend" or cmd.startswith("descend "):
+                from poketokenbar.game.matrix.models import MATRIX_ENTRY_COST
+                matrix_st = app.engine.state.get("matrix", {})
+                if matrix_st.get("unlocked", False):
+                    ok, msg = app.engine.descend_to_matrix()
+                    app.message = msg
+                    if ok:
+                        app.in_matrix = True
+                        app.matrix_subview = "dashboard"
+                    return True
+
+                parts = cmd.split()
+                bypass_confirm = any(p in ["-y", "--yes", "confirm", "yes"] for p in parts)
+                can_descend, err_msg = app.engine.can_descend_to_matrix()
+                if not can_descend:
+                    app.message = err_msg
+                    return True
+
+                if bypass_confirm:
+                    ok, msg = app.engine.descend_to_matrix()
+                    app.message = msg
+                    if ok:
+                        app.in_matrix = True
+                        app.matrix_subview = "dashboard"
+                else:
+                    app.pending_descend = True
+                    app.message = f"⚡ Unseal Sub-Level 0 for {format_tokens(MATRIX_ENTRY_COST)} tokens? Type 'confirm'."
                 return True
             if cmd == "upgrade" or cmd.startswith("upgrade "):
                 parts = cmd.split()

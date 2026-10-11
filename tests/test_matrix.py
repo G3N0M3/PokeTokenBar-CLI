@@ -22,6 +22,7 @@ from poketokenbar.game.matrix.models import (
 )
 from poketokenbar.tui.matrix_tui import render_matrix_view, strip_ansi
 from poketokenbar.tui.matrix_router import MatrixRouter
+from poketokenbar.tui.router import CommandRouter
 
 
 class DummyTUI:
@@ -33,6 +34,7 @@ class DummyTUI:
         self.message = ""
         self.current_tab = 10
         self.bank_subtab = "luxury"
+        self.pending_descend = False
 
 
 class TestQuantumSingularityMatrix(unittest.TestCase):
@@ -127,6 +129,48 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
         self.assertFalse(app.in_matrix)
         self.assertEqual(app.current_tab, 10)
         self.assertEqual(app.bank_subtab, "luxury")
+
+    def test_tui_descend_confirmation_flow(self):
+        """Test interactive confirmation prompt and cancellation for descend."""
+        self._setup_fully_completed_luxury_suite()
+        self.engine.state["used_since_install"] = 600_000_000_000_000_000  # 600Q
+        self.engine.state["spent_tokens"] = 0
+
+        app = DummyTUI(self.engine)
+        app.in_matrix = False
+        app.current_tab = 10
+        app.bank_subtab = "luxury"
+
+        # 1. First 'descend' prompts for confirmation
+        CommandRouter.dispatch(app, "descend")
+        self.assertTrue(app.pending_descend)
+        self.assertFalse(app.in_matrix)
+        self.assertIn("500.0Q tokens? Type 'confirm'", app.message)
+        self.assertEqual(self.engine.available_tokens, 600_000_000_000_000_000)
+
+        # 2. Cancel confirmation
+        CommandRouter.dispatch(app, "cancel")
+        self.assertFalse(app.pending_descend)
+        self.assertFalse(app.in_matrix)
+        self.assertIn("cancelled", app.message.lower())
+        self.assertEqual(self.engine.available_tokens, 600_000_000_000_000_000)
+
+        # 3. 'descend' again, then confirm
+        CommandRouter.dispatch(app, "descend")
+        self.assertTrue(app.pending_descend)
+        CommandRouter.dispatch(app, "confirm")
+        self.assertFalse(app.pending_descend)
+        self.assertTrue(app.in_matrix)
+        self.assertTrue(self.engine.matrix.is_unlocked)
+        self.assertEqual(self.engine.available_tokens, 100_000_000_000_000_000)
+
+        # 4. Once unlocked, ascend and then descend again bypasses confirmation
+        MatrixRouter.dispatch(app, "ascend")
+        self.assertFalse(app.in_matrix)
+        CommandRouter.dispatch(app, "descend")
+        self.assertFalse(app.pending_descend)
+        self.assertTrue(app.in_matrix)
+        self.assertEqual(self.engine.available_tokens, 100_000_000_000_000_000)
 
     def test_qram_allocation_scaling(self):
         """Test allocating Q-RAM blocks with sequential checks and multi-quadrillion costs."""
