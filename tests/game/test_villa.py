@@ -35,8 +35,8 @@ class TestResortVilla(unittest.TestCase):
             os.remove(bak)
 
     def test_villa_initial_locked_state(self):
-        self.engine.state["penthouse"]["unlocked"] = False
-        self.engine.state["penthouse"]["vip_fee_paid"] = False
+        self.engine.get_villa_state()["unlocked"] = False
+        self.engine.get_villa_state()["vip_fee_paid"] = False
         self.assertFalse(self.engine.is_villa_unlocked())
         self.assertEqual(self.engine.get_villa_facility_level("nursery"), 0)
 
@@ -50,7 +50,7 @@ class TestResortVilla(unittest.TestCase):
         self.assertIn("acquire", msg.lower())
 
     def test_purchase_villa_deed(self):
-        self.engine.state["penthouse"]["vip_fee_paid"] = True
+        self.engine.get_villa_state()["vip_fee_paid"] = True
         # Insufficient tokens check
         self.engine.state["spent_tokens"] = self.engine.state["used_since_install"] - (VILLA_DEED_COST - 1)
         ok, msg = self.engine.purchase_villa_deed()

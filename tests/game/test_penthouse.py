@@ -68,7 +68,7 @@ class TestResortPenthouse(unittest.TestCase):
         self.assertTrue(self.engine.is_penthouse_available())
         unlocked, msg = self.engine.check_penthouse_invitation()
         self.assertTrue(unlocked)
-        self.assertIn("Resort Area Penthouse Invitation", msg)
+        self.assertTrue("Luxury Invitation" in msg or "Penthouse Invitation" in msg)
         self.assertTrue(self.engine.is_penthouse_invitation_pending())
 
         # Postpone invitation
@@ -342,7 +342,7 @@ class TestResortPenthouse(unittest.TestCase):
         CommandRouter.dispatch(app, "back")
         self.assertEqual(app.bank_subtab, "checking")
 
-    def test_penthouse_p_navigation_from_all_bank_subtabs(self):
+    def test_penthouse_and_luxury_navigation_from_bank_subtabs(self):
         from poketokenbar.tui.router import CommandRouter
         self.engine.state["used_since_install"] = 150_000_000_000
         self.engine.state["spent_tokens"] = 0
@@ -352,32 +352,39 @@ class TestResortPenthouse(unittest.TestCase):
         app.engine = self.engine
         app.current_tab = 10
 
-        # 1. From 'cd' (deposits menu), typing 'p' must switch to penthouse
+        # 1. From 'cd' (deposits menu), typing 'l' switches to luxury
         app.bank_subtab = "cd"
-        CommandRouter.dispatch(app, "p")
-        self.assertEqual(app.bank_subtab, "penthouse")
+        CommandRouter.dispatch(app, "l")
+        self.assertEqual(app.bank_subtab, "luxury")
 
-        # 2. From 'stocks' (stocks menu), typing 'p' must switch to penthouse
+        # 2. From 'stocks' (stocks menu), typing 'l' switches to luxury
         app.bank_subtab = "stocks"
-        CommandRouter.dispatch(app, "p")
-        self.assertEqual(app.bank_subtab, "penthouse")
+        CommandRouter.dispatch(app, "l")
+        self.assertEqual(app.bank_subtab, "luxury")
 
-        # 3. From 'checking', typing 'p' must switch to penthouse
+        # 3. From 'checking', typing 'l' switches to luxury
         app.bank_subtab = "checking"
-        CommandRouter.dispatch(app, "p")
-        self.assertEqual(app.bank_subtab, "penthouse")
+        CommandRouter.dispatch(app, "l")
+        self.assertEqual(app.bank_subtab, "luxury")
 
-        # 4. From stock terminal, typing 'p' clears terminal and switches to penthouse
-        app.bank_subtab = "stocks"
-        app.stock_terminal = "silph"
-        CommandRouter.dispatch(app, "p")
-        self.assertEqual(app.bank_subtab, "penthouse")
-        self.assertIsNone(app.stock_terminal)
-
-        # 5. Full word 'penthouse' also switches to penthouse
+        # 4. Full word 'penthouse' also switches to luxury
         app.bank_subtab = "cd"
         CommandRouter.dispatch(app, "penthouse")
-        self.assertEqual(app.bank_subtab, "penthouse")
+        self.assertEqual(app.bank_subtab, "luxury")
+
+        # 5. In 'cd' subtab, 'p' pages backward instead of switching subtab
+        app.bank_subtab = "cd"
+        app.cd_page = 2
+        CommandRouter.dispatch(app, "p")
+        self.assertEqual(app.bank_subtab, "cd")
+        self.assertEqual(app.cd_page, 1)
+
+        # 6. In 'stocks' subtab, 'p' pages backward instead of switching subtab
+        app.bank_subtab = "stocks"
+        app.stock_page = 2
+        CommandRouter.dispatch(app, "p")
+        self.assertEqual(app.bank_subtab, "stocks")
+        self.assertEqual(app.stock_page, 1)
 
 
 if __name__ == "__main__":

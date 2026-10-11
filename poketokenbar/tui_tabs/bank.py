@@ -3,7 +3,7 @@ from poketokenbar.utils.formatting import format_tokens
 from poketokenbar.game.models import (
     CORPORATIONS, get_shareholder_rank, SHAREHOLDER_TIERS, CORPORATE_TIER_PERKS
 )
-from poketokenbar.tui_tabs.penthouse import render_penthouse_view
+from poketokenbar.tui_tabs.luxury import render_luxury_view
 
 HEADER = "\033[95m\033[1m"
 BLUE = "\033[94m"
@@ -16,10 +16,10 @@ RESET = "\033[0m"
 BOLD = "\033[1m"
 
 def render_bank_tab(app):
-    has_penthouse = app.engine.is_penthouse_available()
+    has_luxury = app.engine.is_luxury_available()
     valid_subtabs = ["checking", "cd", "stocks"]
-    if has_penthouse:
-        valid_subtabs.extend(["penthouse", "villa"])
+    if has_luxury:
+        valid_subtabs.extend(["luxury", "penthouse", "villa"])
 
     subtab = getattr(app, "bank_subtab", "checking")
     if subtab not in valid_subtabs:
@@ -33,10 +33,10 @@ def render_bank_tab(app):
     c_tab = f"{BOLD}{CYAN}[C] Deposits{RESET}" if subtab == "cd" else "[C] Deposits"
     s_tab = f"{BOLD}{CYAN}[S] Stocks{RESET}" if subtab == "stocks" else "[S] Stocks"
 
-    if has_penthouse:
-        is_p_active = subtab in ["penthouse", "villa"]
-        p_tab = f"{BOLD}{CYAN}[P] Penthouse{RESET}" if is_p_active else "[P] Penthouse"
-        sys.stdout.write(f"\n  {b_tab} | {c_tab} | {s_tab} | {p_tab}\n")
+    if has_luxury:
+        is_l_active = subtab in ["luxury", "penthouse", "villa"]
+        l_tab = f"{BOLD}{CYAN}[L] Luxury{RESET}" if is_l_active else "[L] Luxury"
+        sys.stdout.write(f"\n  {b_tab} | {c_tab} | {s_tab} | {l_tab}\n")
     else:
         sys.stdout.write(f"\n  {b_tab} | {c_tab} | {s_tab}\n")
     sys.stdout.write("  " + "-" * 68 + "\n\n")
@@ -47,8 +47,8 @@ def render_bank_tab(app):
         _render_cd_view(app, avail)
     elif subtab == "stocks":
         _render_stocks_view(app, avail)
-    elif subtab in ["penthouse", "villa"]:
-        render_penthouse_view(app, avail)
+    elif subtab in ["luxury", "penthouse", "villa"]:
+        render_luxury_view(app, avail)
 
 def _render_checking_view(app, avail: int):
     bank = app.engine.state.get("bank_balance", 0)
@@ -336,7 +336,7 @@ def _render_stock_terminal(app, avail: int, corp_key: str):
     sys.stdout.write(f"  • Catalyst:  {cat_desc}\n")
     sys.stdout.write(f"  • News:      \"{CYAN}{news}{RESET}\"\n")
 
-    trading_desk_lvl = app.engine.get_villa_facility_level("trading_desk")
+    trading_desk_lvl = app.engine.get_luxury_facility_level("trading_desk")
     if trading_desk_lvl >= 1:
         sm = app.engine.get_or_init_stock_market()
         st = sm.get("market_state", {}).get(corp_key, {})
@@ -362,7 +362,7 @@ def _render_stock_terminal(app, avail: int, corp_key: str):
         is_active = (t.rank == rank)
         active_tag = f" {BOLD}{GREEN}◄ ACTIVE{RESET}" if is_active else ""
         tier_col = BOLD if is_active else ""
-        sys.stdout.write(f"    - {tier_col}{t.name:<10} ({t.range_label:<8}): {p_desc}{active_tag}{RESET}\n")
+        sys.stdout.write(f"    - {tier_col}{t.name:<10} ({t.range_label:<10}): {p_desc}{active_tag}{RESET}\n")
 
     sys.stdout.write("  " + "-" * 68 + "\n")
     sys.stdout.write(f"  ➔ '{BOLD}buy <qty|all>{RESET}' / '{BOLD}sell <qty|all>{RESET}' | '{BOLD}back{RESET}' (Spendable: {CYAN}{format_tokens(avail)}{RESET})\n\n")
