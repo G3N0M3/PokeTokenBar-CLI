@@ -1,6 +1,6 @@
 # 🐾 PokeTokenBar (Linux CLI Edition)
 
-[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/G3N0M3/PokeTokenBar-CLI)
+[![Version](https://img.shields.io/badge/version-2.3.0-blue.svg)](https://github.com/G3N0M3/PokeTokenBar-CLI)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python: 3.8+](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 
@@ -24,9 +24,10 @@ Designed specifically for **Linux CLI** environments, with automated, real-time 
 - ⚔️ **Gym Raids & Mt. Silver Summit (Tab [6])**: Defeat all 8 Kanto Gym Leaders, earn badges, and assemble a 6-Pokémon team for the turn-based RPG battle against Trainer Red to recruit Mew.
 - 📜 **Daily Quests & Happiness Streaks (Tab [7])**: Maintain daily coding streaks for up to +20% bonus XP, restore exhausted companions with berry feeding (`feed <#[id]|<=[pct]|[pct]|0> [qty]`), and complete daily milestones.
 - ✨ **Mega Evolution Chamber (Tab [8])**: Equip Mega Stones on eligible final forms for glowing terminal titles, accelerated expeditions, and a permanent +50% XP boost.
-- 🎲 **Game Corner & Black Market (Tabs [9] & [4])**: Play Texas Hold'em Poker, Gacha capsules, Slots, Blackjack, Voltorb Flip, Underground Digging, Silhouette Trivia, and Stadium Derby—or bribe your way into the clandestine Rocket Syndicate Black Market.
+- 🎲 **Game Corner, The Velvet Salon & Black Market (Tabs [9] & [4])**: Play Texas Hold'em Poker, Gacha capsules, Slots, Blackjack, Voltorb Flip, Underground Digging, Silhouette Trivia, and Stadium Derby—or gain entrance to **The Velvet Salon** VIP high-stakes table (`table vip`, 10.0T min bet) to embark on the **Velvet Sting** narrative campaign (`sting`) dismantling Baron Salvatore Croix's laundering empire through AI poker boss showdowns. Or bribe your way into the clandestine Rocket Syndicate Black Market.
 - 🏦 **Token Bank & Stock Exchange (Tab [10])**: Compound daily checking interest (+5%), track loan deadlines with `D-<days>` countdowns, lock high-yield CDs, and trade 6 corporate stocks with lore-driven cycle trends.
-- 🏰 **Resort Area Executive Penthouse (Tab [10])**: Exclusive multi-trillion token endgame sink unlocked upon reaching 100B total wealth. Receive a gold-foil diplomatic invitation from Madame Vivienne, pay the 500M VIP concierge clearance fee, and acquire the 1.0T Penthouse deed. Construct and inspect 4 executive wings via `help wing <1-4>`: Cryo-Nurseries (parallel egg incubation), Hot Springs & Berry Grove (+50% coding EXP, decay immunity), Quantum Trading Terminals (live telemetry, dividend auto-compounding, Whale Catalyst), and Chromatic Resonators (transmute companions to Shiny). Install and interact with 6 luxury decor items (`interact <1-6>`) for passive bonuses and claim the title `👑 Sovereign Tycoon`.
+- 🏰 **Resort Area Executive Luxury Suite (Tab [10])**: Exclusive multi-trillion token endgame sink unlocked upon reaching 100B total wealth. Receive a gold-foil diplomatic invitation from Madame Vivienne, pay the 500M VIP concierge clearance fee, and acquire the 1.0T Luxury Suite deed. Construct and inspect 4 executive wings via `help wing <1-4>`: Cryo-Nurseries (parallel egg incubation), Hot Springs & Berry Grove (+50% coding EXP, decay immunity), Quantum Trading Terminals (live telemetry, dividend auto-compounding, Whale Catalyst), and Chromatic Resonators (transmute companions to Shiny). Install and interact with 6 luxury decor items (`interact <1-6>`) for passive bonuses and claim the title `👑 Sovereign Tycoon`.
+- ⚛️ **Quantum Singularity Matrix (Sub-Level 0)**: Ultra endgame multi-quintillion token sink (100Q+) situated beneath the 100% completed Executive Luxury Suite. Power up the subterranean lift for 500.0Q tokens (`descend`) to enter a standalone phosphor cyberpunk terminal. Engage in 5 playable systems: Quantum Virtual Memory (Q-RAM) allocation (500Q to 10,000Q), Singularity Particle Collider minigame (`synthesize`, `pulse`, `contain`, `vent`) to compile permanent reality-bending bytecode patches (10x expedition speed, 0% loan interest, zero happiness decay, 3x dividends, 4x companion EXP), Tactical Kernel Protocol Combat (`exploit`, `shield`, `fork`, `overflow`) against host OS security daemons, Substrate Terminal sector probing (`probe <0-7>`) to uncover existential meta-narrative lore, and the 10,000.0Q Root Transcendence climax (`execute root`) awarding the prestigious `💠 Root Architect of the Matrix` title. Return to the upper world seamlessly via canonical `ascend`.
 - 🚀 **Team Rocket Covert HQ (Tab [12])**: Intercept encrypted comms, deploy on 10 syndicate operations, and confront experimental prototype bosses in tactical combat.
 - ⚙️ **Grouped Settings & Customization (Tab [11])**: Configure table pagination, customize sprite resolution, calibrate monthly billing days, initialize token baselines, and display shareable ASCII Trainer Profile Cards (`card`).
 
@@ -90,16 +91,25 @@ ptb
 | `sort <days\|amount\|term>` | Change CD sorting criteria (**Days Left**, **Amount**, or **Term**) |
 | `claim <id>` / `break <id>` | Claim matured CD payout or break CD early with penalty (dynamic display index) |
 | `claim all` | Claim all matured CDs at once |
-| `b` / `c` / `s` / `p` | Switch Bank subtabs (Checking, CDs, Stocks, Penthouse) |
-| `pay` | Pay 500.0M VIP Concierge fee to gain Penthouse viewing clearance |
+| `b` / `c` / `s` / `l` | Switch Bank subtabs (Checking, CDs, Stocks, Luxury) |
+| `pay` | Pay 500.0M VIP Concierge fee to gain Luxury Suite viewing clearance |
 | `invite` | Re-read the formal luxury invitation from the Ribbon Syndicate |
-| `acquire` | Purchase the Resort Area Executive Penthouse Deed (1.0T tokens) |
-| `help wing <1-4>` | Inspect technical specifications and upgrade tiers for a Penthouse wing |
-| `upgrade <1-4>` / `upgrade wing <1-4>` | Upgrade Penthouse wings (Nursery, Springs, Trading Desk, Chromatic Lab) |
+| `acquire` | Purchase the Resort Area Executive Luxury Suite Deed (1.0T tokens) |
+| `help wing <1-4>` | Inspect technical specifications and upgrade tiers for a Luxury wing |
+| `upgrade <1-4>` / `upgrade wing <1-4>` | Upgrade Luxury wings (Nursery, Springs, Trading Desk, Chromatic Lab) |
 | `furnish <1-6>` | Install luxury decor items to earn the `👑 Sovereign Tycoon` title |
 | `interact <1-6>` | Interact with luxury decor items (Piano happiness, Fountain healing, etc.) |
 | `transmute <idx>` | Transmute companion from Roster into a brilliant Shiny |
 | `catalyst <corp>` | Deploy 1.0T tokens from Trading Desk Lv 3 to trigger a guaranteed Bull Rally |
+| `descend` | Power up subterranean lift to enter Quantum Singularity Matrix (100% Suite + 500.0Q tokens) |
+| `ascend` | Single canonical command to exit Matrix and return to Resort Area Luxury Suite |
+| `buy ram <1-5>` | Allocate Quantum Virtual Memory blocks (500Q to 10,000Q) |
+| `synthesize <id>` | Load 500Q–7,500Q into Particle Collider chamber to synthesize Reality Patches |
+| `pulse <a\|b\|g>` / `contain` / `vent` | Tune collider harmonics across 3 turns to reach target resonance without breach |
+| `fight` / `combat [id]` | Deploy concurrent execution threads against host OS security daemons |
+| `exploit` / `shield` / `fork` / `overflow` | Tactical Kernel Protocol combat actions against security daemons |
+| `probe <0-7>` | Decrypt corrupted substrate memory sectors to unlock existential story logs |
+| `execute root` / `transcend` | Authorize 10,000.0Q Root Transcendence to claim `💠 Root Architect of the Matrix` |
 | `stock <idx\|sym>` | Open Trade Terminal (`SILPH`, `DEVN`, `AETHR`, `MAUV`, `MACRO`, `VRDN`) |
 | `buy <qty>` / `sell <qty>` | Buy or sell shares in active stock terminal (confirms if > 5 shares) |
 | `black` | Access Rocket Syndicate Black Market (when open or etched 'R' found) |
@@ -111,6 +121,9 @@ ptb
 | `guess <name>` / `hint` / `giveup` | "Who's That Pokémon?" silhouette trivia challenge |
 | `race` | Launch Pokémon Stadium 4-lane hurdle derby race |
 | `check` / `raise` / `allin` / `fold` | Casino Texas Hold'em poker actions |
+| `table standard` / `table vip` | Switch between standard Game Corner poker and The Velvet Salon VIP table |
+| `call` / `bet <amt>` | Respond to opponent street bets or raises in The Velvet Salon |
+| `sting` / `briefing` | View Velvet Sting undercover syndicate campaign status and mission briefing |
 | `pull <qty>` | Pull Gacha capsules (e.g. `pull 1`, `pull 10`) |
 | `spin <amount>` | Spin the Slot Machine (e.g. `spin 250k`) |
 | `poster` | Inspect secret switch behind the Slot Machine poster (Tab 9) |

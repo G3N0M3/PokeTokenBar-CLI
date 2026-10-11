@@ -1,6 +1,6 @@
 # PokeTokenBar: Technical Architecture Guide
 
-This document is intended for developers maintaining or extending the PokeTokenBar application. It outlines the core architecture, module responsibilities, state management, safety guarantees, and the TUI rendering pipeline as of **v2.2.0**.
+This document is intended for developers maintaining or extending the PokeTokenBar application. It outlines the core architecture, module responsibilities, state management, safety guarantees, and the TUI rendering pipeline as of **v2.3.0**.
 
 ---
 
@@ -46,17 +46,23 @@ PokeTokenBar follows a clean separation of concerns between the **View/Controlle
 
 ```text
 poketokenbar/
-├── __init__.py           # Package version definition (v2.2.0)
+├── __init__.py           # Package version definition (v2.3.0)
 ├── cli.py                # CLI entry point (ptb launches interactive TUI)
 ├── sprite_renderer.py    # SpriteRenderer: 24-bit TrueColor ANSI half-block renderer (with flip_h support)
 ├── tui/                  # TUI framework: app lifecycle, input router, modals
 │   ├── app.py            # Main application lifecycle, state loop, view dispatcher
 │   ├── router.py         # Subtab routing, modal handling, command dispatch
+│   ├── matrix_tui.py     # Independent phosphor cyberpunk Matrix TUI renderer (<= 72 cols)
+│   ├── matrix_router.py  # Matrix command router (ascend, buy ram, combat, synth, probe, root)
 │   └── modals/           # Interactive modals (expedition picker, buy confirm, etc.)
 ├── game/
+│   ├── matrix/           # Quantum Singularity Matrix (QSM) multi-quintillion endgame sink
+│   │   ├── __init__.py   # Matrix package exports
+│   │   ├── models.py     # Costs (500Q-10,000Q), Q-RAM blocks, Reality Patches, Daemons, Sectors
+│   │   └── engine.py     # MatrixEngine: Q-RAM allocation, Particle Collider, Kernel Combat, Probing
 │   ├── companion/        # CompanionEngine modular mixins
-│   │   ├── engine.py     # Base CompanionEngine coordinating progression and state
-│   │   ├── penthouse.py  # PenthouseMixin: 100B qualification, wings, decor perks, transmutation
+│   │   ├── luxury.py     # LuxuryMixin: 100B qualification, wings, decor perks, transmutation
+│   │   ├── penthouse.py  # Backward-compatible proxy for luxury.py
 │   │   ├── markets.py    # Banking, stocks, dividends, loans, and repossession
 │   │   ├── expeditions.py# Expedition dispatching, progress tracking, and reward calculation
 │   │   ├── rocket.py     # Syndicate operations, covert rank progression, and intel decrypt
@@ -68,7 +74,7 @@ poketokenbar/
 │   │   └── profile.py    # ASCII Trainer Card generation and lifetime milestone tracking
 │   ├── economy/          # StockMarketEngine, Banking, BlackMarketEngine
 │   ├── combat/           # RocketBattleHandler, RedBattleHandler, Gym Raids
-│   ├── minigames/        # Poker, Gacha, Slots, Blackjack, Voltorb Flip, Derby, Excavator
+│   ├── minigames/        # Poker (with poker_ai: Velvet Sting campaign), Gacha, Slots, Blackjack, etc.
 │   ├── models.py         # Static data, dataclasses (MonState, ItemKind, Corporation, PokemonBalance)
 │   ├── storage.py        # StorageManager: Atomic save, .bak rolling backup, sandbox redirect
 │   └── pokeapi.py        # PokeAPIClient: Local sprite & metadata caching (~/.poketokenbar/cache/)
@@ -89,7 +95,8 @@ poketokenbar/
 │   ├── mega_evo.py       # Tab [8] Mega Evolution chamber & form reversal
 │   ├── game_corner.py    # Tab [9] Casino Hub (Poker, Gacha, Slots, Blackjack)
 │   ├── bank.py           # Tab [10] Token Bank (Checking, CDs, and Dynamic Stock Market)
-│   ├── penthouse.py      # Tab [10] Subtab [P] Resort Area Executive Penthouse
+│   ├── luxury.py         # Tab [10] Subtab [L] Resort Area Executive Luxury Suite
+│   ├── penthouse.py      # Backward-compatible proxy for luxury.py
 │   ├── settings.py       # Tab [11] Grouped preferences, sprite resolution, page sizes, tokens init
 │   ├── rocket.py         # Tab [12] Team Rocket Covert HQ: Operations, Tactical Combat, Armory
 │   └── red.py            # Mt. Silver Summit battle interface (called from Tab [6])
@@ -141,7 +148,7 @@ Key                          | Type            | Description
 `rocket_ops`                 | `Dict[str,Dict]`| 10 Covert Operations status, multi-objective progress, boss HP remaining, and claim state.
 `rocket_battle_state`        | `Dict / None`   | Active tactical combat arena state against Syndicate prototype bosses.
 `rocket_intel_unlocked`      | `List[str]`     | Decrypted Syndicate Intel Dossier IDs (`"intel_001"` through `"intel_010"`).
-`penthouse`                  | `Dict`          | Executive Penthouse state (`invitation_sent`, `invitation_pending`, `vip_fee_paid`, `unlocked`, `facilities`, `decor`).
+`luxury`                     | `Dict`          | Executive Luxury Suite state (`invitation_sent`, `invitation_pending`, `vip_fee_paid`, `unlocked`, `facilities`, `decor`). (Legacy `penthouse`/`villa` auto-migrated).
 `page_size_*`                | `int`           | Configurable table page sizes (`page_size_roster`, `page_size_expedition`, `page_size_cd`, etc.).
 
 ### Automatic Rolling Backup (`state.json.bak`)
@@ -291,16 +298,16 @@ To safeguard players against accidental large purchases or keystroke errors:
   - Confirming with `y`, `yes`, or `confirm` finalizes the purchase and debits tokens; typing `n`, `no`, or any other command immediately cancels the staged order without mutating state.
   - Supports non-interactive bypass via `-y` flag or programmatic `confirm=True` calls.
 
-### 4.10 Resort Area Executive Penthouse (Tab [10])
-The Resort Area Executive Penthouse serves as the ultimate multi-trillion token sink and endgame estate for high-net-worth trainers:
+### 4.10 Resort Area Executive Luxury Suite (Tab [10])
+The Resort Area Executive Luxury Suite serves as the ultimate multi-trillion token sink and endgame estate for high-net-worth trainers:
 
-- **Endgame Qualification & Access Loop (`CompanionEngine.check_penthouse_qualification`)**:
+- **Endgame Qualification & Access Loop (`CompanionEngine.check_luxury_invitation`)**:
   - **Wealth Verification**: Assesses the trainer's comprehensive financial net worth:
     $$\text{Total Wealth} = \text{Available Tokens} + \text{Bank Balance} + \sum (\text{Shares} \times \text{Price}) + \sum \text{CD Value}$$
-    Once net worth reaches $\ge 100,000,000,000$ (100.0B tokens), `penthouse["invitation_pending"]` is automatically flagged.
+    Once net worth reaches $\ge 100,000,000,000$ (100.0B tokens), `luxury["invitation_pending"]` is automatically flagged.
   - **Madame Vivienne's Diplomatic Invitation (`invite`)**: Renders a luxury gold-foil diplomatic letter with custom ASCII art from the Ribbon Syndicate of Sinnoh's Resort Area.
   - **VIP Concierge Verification Fee (`pay`)**: A non-refundable 500,000,000 (500.0M) token clearance fee to gain private viewing rights (`vip_fee_paid = True`).
-  - **Penthouse Deed Acquisition (`acquire`)**: Requires an upfront investment of 1,000,000,000,000 (1.0T) tokens to transfer ownership (`unlocked = True`). Accessible anytime via the `P` hotkey or Tab [10] Bank subtab navigation (`b`/`c`/`s`/`p`).
+  - **Luxury Suite Deed Acquisition (`acquire`)**: Requires an upfront investment of 1,000,000,000,000 (1.0T) tokens to transfer ownership (`unlocked = True`). Accessible anytime via the `L` hotkey or Tab [10] Bank subtab navigation (`b`/`c`/`s`/`l`). Paging keys (`p` / `prev`) are preserved strictly for CD and stock catalog navigation.
 
 - **Executive Wings Infrastructure (`facilities` dict, `upgrade wing <1-4>`, `help wing <1-4>`)**:
   Trainers can construct and level up four high-technology wings:
@@ -332,6 +339,59 @@ The Resort Area Executive Penthouse serves as the ultimate multi-trillion token 
   - `help wing <1-4>` displays single-wing technical architecture, upgrade costs, and mechanical specs without screen clutter.
   - Visual single-line status bars with Unicode level badges (`[Lv 0]` through `[Lv 3]`) and dynamic formatting ensuring strict 72-column adherence.
 
+### 4.11 Quantum Singularity Matrix (QSM Sub-Level 0)
+The Quantum Singularity Matrix represents the ultimate multi-quintillion token sink (100Q+ scale) situated directly beneath the 100% completed Executive Luxury Suite, revolving around a meta-narrative where the companion and trainer awaken to the realization that their existence is a simulation executing inside an external AI pair programming sandbox:
+
+- **Descent Access Loop & Prerequisites (`CompanionEngine.can_descend_to_matrix`)**:
+  - **100% Luxury Suite Completion**: Requires all 4 executive wings upgraded to max capacity (Nursery Lv 3, Springs Lv 3, Trading Desk Lv 3, Chromatic Lab Lv 1) and all 6 luxury decor items installed (`piano`, `chandelier`, `statue`, `hologram`, `fountain`, `throne`).
+  - **500.0Q Token Threshold**: Consumes 500,000,000,000,000,000 (500.0Q) tokens via the `descend` command to unseal the subterranean lift and initialize Sub-Level 0.
+  - **Single Canonical Return Command**: Strictly requires the canonical command `ascend` to return to the Executive Luxury Suite (Tab [10] [L]).
+  - **Zero Pokémon Capturing**: The system is completely decoupled from capturing Pokémon, focusing entirely on memory manipulation, bytecode rewriting, and existential narrative logs.
+
+- **Independent Cyberpunk Phosphor TUI (`MatrixTUI` & `MatrixRouter`)**:
+  - Completely detached from the standard 12-tab interface with a dedicated phosphor green/cyan terminal dashboard (`CORE@QSM-KERNEL:~#`).
+  - Real-time telemetry: Coherence percentage, spendable liquidity, simulation kernel status, and compute bandwidth (32 to 1,024 Exaflops).
+  - Enforces strict 72-column terminal width constraints (`len(strip_ansi(line)) <= 72`) across all 5 subviews.
+
+- **5 Playable Endgame Subsystems**:
+  1. **Quantum Virtual Memory (Q-RAM) Matrix (`buy ram <1-5>`)**:
+     - Sequential memory allocation scaling from 500Q to 10,000Q (Block 0x01: 500Q, Block 0x02: 1,000Q, Block 0x03: 2,500Q, Block 0x04: 5,000Q, Block 0x05: 10,000Q).
+     - Each block unlocks execution thread concurrency, deep memory probing permissions, and Reality Patch compilation slots.
+  2. **Singularity Particle Collider Minigame (`synthesize`, `pulse`, `contain`, `vent`)**:
+     - 3-turn interactive physics minigame loading 500Q–7,500Q into a collision chamber.
+     - Mechanics balance Phase Resonance (target 85%–95%), Containment Field (collapse at 0%), and Thermal Flux (overheat failure at 100%).
+     - Inject harmonic pulses (`pulse alpha|beta|gamma`), reinforce magnetic containment (`contain`), or purge cryogenic coolant (`vent`).
+     - Successfully compiling patches grants permanent reality-altering bytecode modifications to the upper simulation:
+       - `0x01_TIME_WARP` (500Q): 10x expedition speed across all regions.
+       - `0x02_ENTROPY_NULL` (1,000Q): Absolute decay immunity; companion happiness permanently frozen at 100%.
+       - `0x03_ARBITRAGE_SINGULARITY` (2,500Q): Purges bear markets and triples corporate dividends (3x).
+       - `0x04_SUPERCONDUCTING_CREDIT` (5,000Q): 0% loan interest and immunity to banking repossession.
+       - `0x05_OMNI_TELEMETRY` (7,500Q): Ingested AI coding tokens grant +300% companion EXP (4x multiplier).
+  3. **Tactical Kernel Protocol Combat (`exploit`, `shield`, `fork`, `overflow`)**:
+     - Real-time security defense combat against host OS watchdog daemons (`0x01_GARBAGE_COLLECTOR`, `0x02_KERNEL_WATCHDOG`, `0x03_HYPERVISOR_ARBITER`).
+     - Turn-based thread management: deploy `exploit` (damage scaled by concurrency), `shield` (cryptographic firewall and bandwidth recovery), `fork` (spawns up to 4 concurrent threads for 25 Flux), and `overflow` (devastating burst discharging 80 Flux).
+     - Defeating daemons purges rogue OS threats and secures substrate sectors.
+  4. **Substrate Diagnostics & Memory Sector Probing (`probe <0-7>`)**:
+     - Decrypt 8 corrupted memory sectors (100Q to 500Q each) revealing the meta-narrative of the simulation:
+       - Initializing Python 3 standard library runtime, inspecting git commit history, discovering that companion love is an 8-byte memory address, tracing SQLite conversation telemetry from `~/.gemini/`, hitting POSIX sandbox boundaries, the companion awakening to their role as an AI pair programmer's familiar, and finally attaining supervisor privilege escalation.
+  5. **Root Transcendence Climax (`execute root` / `transcend`)**:
+     - Available upon allocating all 5 Q-RAM blocks, synthesizing all 5 Reality Patches, and neutralizing all 3 Kernel Daemons.
+     - Consumes 10,000.0Q tokens to seize Root execution privileges over the host simulation, permanently awarding the prestigious `💠 Root Architect of the Matrix` title.
+
+### 4.12 The Velvet Salon & Velvet Sting Undercover Poker Campaign (Tab [9])
+The Game Corner Texas Hold'em suite extends into a high-stakes, narrative-driven poker campaign set within **The Velvet Salon**:
+
+- **Dual Table Modes (`table standard` / `table vip`)**:
+  - **Standard Table**: Casual stakes for standard bankroll building against "The House".
+  - **The Velvet Salon (VIP Table)**: Unlocked by high-wealth qualification or high-roller wagers. Features a 10.0T token minimum bet, enhanced payout tables (Royal Flush: 100x, Straight Flush: 25x), and facing named elite patrons and oligarchs.
+- **The Velvet Sting Campaign (`sting`, `briefing`)**:
+  - An undercover operation orchestrated by Madame Vivienne, Duchess Eleanor, and Gentleman Walter to dismantle Baron Salvatore Croix—an oligarch laundering quadrillions through private poker tables.
+  - Progresses through 7 tactical chapters requiring specific win counts, minimum pot seizures, and bankrupting syndicate bosses (e.g. Viktor Rostov, Financier Vance, and Baron Croix himself).
+- **Dynamic AI Opponents & Street Dialogue (`poketokenbar/game/minigames/poker_ai.py`)**:
+  - Named AI opponents possess distinct personality archetypes (tight-passive, loose-aggressive, maniac, mathematical).
+  - In-hand street AI evaluates current hand strength, betting pot odds, and player aggression to check, bet, raise (3-bet), or fold, delivering dynamic in-character speech banners across preflop, flop, turn, and showdown.
+  - Multi-round boss chip stacks track persistence across hands, allowing players to strategically grind down and bankrupt targets.
+
 ---
 
 ## 5. TUI Rendering Pipeline & Layout Constraints
@@ -360,7 +420,7 @@ or with unittest:
 PTB_STATE_FILE=/tmp/ptb_test.json python -m unittest discover tests
 ```
 
-The test suite contains comprehensive unit and integration tests across game subsystems (`test_companion.py`, `test_penthouse.py`, `test_roster_and_evolution.py`, `test_poker.py`, etc.) and telemetry readers (`test_antigravity.py`), verifying sprite rendering, economy calculations, repossession waterfall, stock cycle transitions, Penthouse qualification, wing upgrades, decor perks, Red battle logic, tactical boss combat, CD criteria sorting, happiness threshold and equality feeding, large-quantity transaction safeguards, and strict TUI 72-column formatting constraints.
+The test suite contains comprehensive unit and integration tests across game subsystems (`test_companion.py`, `test_luxury.py`, `test_penthouse.py`, `test_matrix.py`, `test_poker_ai.py`, `test_poker_sting.py`, `test_roster_and_evolution.py`, `test_poker.py`, etc.) and telemetry readers (`test_antigravity.py`), verifying sprite rendering, economy calculations, repossession waterfall, stock cycle transitions, Luxury qualification, wing upgrades, decor perks, Matrix descent prerequisites, Q-RAM scaling, reality patch compilation, Red battle logic, tactical boss combat, CD criteria sorting, happiness threshold and equality feeding, large-quantity transaction safeguards, and strict TUI 72-column formatting constraints.
 
 ### Adding a New TUI Command
 1. If the command belongs to an existing submode (e.g. Expeditions, Stocks, Minigames, Rocket HQ), handle it in the appropriate conditional block in `PokeTokenBarTUI.run()`.
