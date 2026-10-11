@@ -231,6 +231,7 @@ class StorageManager:
                 "total_tokens_consumed": 0,
                 "collider_state": None,
                 "combat_state": None,
+                "story_viewed": False,
             }
         }
 

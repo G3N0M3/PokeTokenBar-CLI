@@ -151,4 +151,11 @@ class MatrixRouter:
             app.message = msg
             return
 
-        app.message = f"Unknown command '{cmd}'. Available: dash, ram, combat, collider, probe, ascend"
+        # 8. Story Narration Replay
+        if cmd in ["story", "lore", "intro", "narrative"]:
+            from poketokenbar.tui.matrix_tui import render_matrix_story_intro
+            render_matrix_story_intro(app)
+            app.message = "Substrate initialization narration completed."
+            return
+
+        app.message = f"Unknown command '{cmd}'. Available: dash, ram, combat, collider, probe, story, ascend"

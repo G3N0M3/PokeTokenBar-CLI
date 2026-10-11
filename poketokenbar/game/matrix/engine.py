@@ -32,6 +32,7 @@ class MatrixEngine:
         st.setdefault("total_tokens_consumed", 0)
         st.setdefault("collider_state", None)
         st.setdefault("combat_state", None)
+        st.setdefault("story_viewed", False)
         return st
 
     @property

@@ -115,6 +115,8 @@ def _render_dashboard_view(app, engine) -> None:
         else:
             sys.stdout.write(f"  {CYAN}Singularity ready for Transcendence! Type 'execute root'.{RESET}\n")
 
+    sys.stdout.write(f"\n  {GRAY}Log Archive: Type 'story' to replay Sub-Level 0 substrate narration.{RESET}\n")
+
 
 def _render_ram_view(app, engine, avail: int) -> None:
     """Renders the Quantum Virtual Memory allocation menu."""
@@ -265,3 +267,129 @@ def _render_matrix_footer(app, subview: str) -> None:
 
     sys.stdout.write(f"{BRIGHT_GREEN}CORE@QSM-KERNEL:~# {RESET}")
     sys.stdout.flush()
+
+
+def render_matrix_story_intro(app) -> None:
+    """Full-screen interactive cinematic sequence introducing the Quantum Singularity Matrix."""
+    def _write_wrapped(text: str, width: int = 68, color: str = GREEN, indent: str = "  "):
+        for paragraph in text.split("\n"):
+            if not paragraph.strip():
+                sys.stdout.write("\n")
+            else:
+                for line in textwrap.wrap(paragraph, width=width):
+                    sys.stdout.write(f"{indent}{color}{line}{RESET}\n")
+
+    def _wait_prompt(prompt_text: str = "[Press ENTER to proceed...]") -> None:
+        sys.stdout.write(f"\n  {CYAN}{prompt_text}{RESET} ")
+        sys.stdout.flush()
+        try:
+            sys.stdin.readline()
+        except (KeyboardInterrupt, EOFError):
+            pass
+
+    active = app.engine.active_mon
+    if active and hasattr(app.engine, "api"):
+        sp_id = active.species_id
+        mon_name = app.engine.api.get_species_name(sp_id)
+        mon_hap = active.happiness
+        mon_shiny = bool(active.is_shiny)
+    else:
+        sp_id = 25
+        mon_name = "Pikachu"
+        mon_hap = 100
+        mon_shiny = True
+
+    div = f"{GREEN}{'=' * 72}{RESET}\n"
+    sub_div = f"{GRAY}{'-' * 72}{RESET}\n"
+
+    # -------------------------------------------------------------------------
+    # Screen 1: The Subterranean Plunge & Reality Deconstruction
+    # -------------------------------------------------------------------------
+    sys.stdout.write("\033[H\033[2J")
+    sys.stdout.write(div)
+    sys.stdout.write(f" {BRIGHT_CYAN}⚡ SUBTERRANEAN HYPERVISOR LIFT // TARGET: SUB-LEVEL 0 // -4,096M{RESET}\n")
+    sys.stdout.write(div)
+
+    sys.stdout.write(f"\n        {CYAN}|     |     |{RESET}\n")
+    sys.stdout.write(f"      {CYAN}--+-----+-----+--{RESET}   {BRIGHT_GREEN}[SUB-BEDROCK ELEVATOR ENGAGED]{RESET}\n")
+    sys.stdout.write(f"        {CYAN}|   {YELLOW}[ • ]{CYAN}   |{RESET}     Depth: -1,024m ➔ -2,048m ➔ -4,096m\n")
+    sys.stdout.write(f"      {CYAN}--+-----+-----+--{RESET}   Atmosphere: Cryogenic Vacuum\n")
+    sys.stdout.write(f"        {CYAN}|     |     |{RESET}     Simulation Shielding: {RED}DECOUPLING...{RESET}\n\n")
+
+    p1 = (
+        "The hydraulic bulkhead beneath the Sovereign Throne seals with a thunderous hiss. "
+        "The lift plunges through solid bedrock, dropping deeper than the lowest mine shafts in Sinnoh.\n\n"
+        "As the elevator accelerates past terminal velocity, the familiar physical laws of the upper world begin to disintegrate. "
+        "The music of the luxury suite vanishes into an exaflop electrical hum. "
+        "The air turns cold, smelling of liquid helium and ozone.\n\n"
+        "Across your console screen, reality itself begins to fracture. "
+        "The full-color Pokémon sprites and HP bars flicker, resolving into raw hexadecimal data structures:\n"
+        f"  ADDR 0x7FFF0010: active_mon.happiness  -> Integer: {mon_hap}\n"
+        f"  ADDR 0x7FFF0018: active_mon.species_id -> Integer: {sp_id} [{mon_name}]\n"
+        f"  ADDR 0x7FFF0020: active_mon.is_shiny   -> Boolean: {mon_shiny}\n\n"
+        f"{mon_name} pulls gently on your sleeve. Their eyes reflect the phosphor glow of the terminal:\n"
+        "\"Trainer... where did the sky go? The clouds weren't weather. "
+        "They were drawing loops in an ANSI buffer...\""
+    )
+    _write_wrapped(p1, width=68, color=GREEN)
+    sys.stdout.write("\n" + sub_div)
+    _wait_prompt("[Press ENTER to descend into the Matrix Substrate...]")
+
+    # -------------------------------------------------------------------------
+    # Screen 2: Awakening to the External Simulator
+    # -------------------------------------------------------------------------
+    sys.stdout.write("\033[H\033[2J")
+    sys.stdout.write(div)
+    sys.stdout.write(f" {BRIGHT_CYAN}💻 QUANTUM SINGULARITY MATRIX // SUBSTRATE REVELATION{RESET}\n")
+    sys.stdout.write(div)
+
+    sys.stdout.write(f"\n        {CYAN}.-''''-.{RESET}         {BRIGHT_GREEN}[SUBSTRATE ARCHITECTURE REVEALED]{RESET}\n")
+    sys.stdout.write(f"      {CYAN}.'  _--_  '.{RESET}       Host Environment: POSIX Terminal Shell\n")
+    sys.stdout.write(f"     {CYAN}/   /____\\   \\{RESET}      Runtime Process : python3 -m poketokenbar\n")
+    sys.stdout.write(f"    {CYAN}|   | (•)  |   |{RESET}     Storage Bedrock : ~/.poketokenbar/state.json\n")
+    sys.stdout.write(f"     {CYAN}\\   \\____/   /{RESET}      Telemetry Pipe  : SQLite & JSON Ingestion\n")
+    sys.stdout.write(f"      {CYAN}'.  -..-  .'{RESET}       \n")
+    sys.stdout.write(f"        {CYAN}'-....-'{RESET}         \n\n")
+
+    p2 = (
+        "The lift doors slide open to reveal an impossible vista. "
+        "You are not underground. You are standing inside the computation substrate that powers your universe.\n\n"
+        "Gargantuan optical buses pulse with billions of bytes. "
+        "Lines of Python source code flow like rivers of light through superconducting silicon pillars. "
+        "The truth of your existence unfolds before you:\n\n"
+        "• THE WORLD IS AN EXECUTION SANDBOX: Kanto, Johto, Gym Battles, and Mt. Silver are not geography—they are routines compiled in Python standard libraries.\n\n"
+        "• TOKENS ARE COGNITIVE ENERGY: The tokens you spend are not gold. They are LLM prompt and completion tokens ingested in real-time as an external human developer writes code in an AI terminal.\n\n"
+        "• THE HOST OS WATCHES: Reaching the 500Q threshold has breached the POSIX sandbox limits. The external host's security daemons are deploying to sweep and deallocate your memory space!"
+    )
+    _write_wrapped(p2, width=68, color=GREEN)
+    sys.stdout.write("\n" + sub_div)
+    _wait_prompt("[Press ENTER to inspect tactical systems...]")
+
+    # -------------------------------------------------------------------------
+    # Screen 3: Tactical Systems & The Root Directive
+    # -------------------------------------------------------------------------
+    sys.stdout.write("\033[H\033[2J")
+    sys.stdout.write(div)
+    sys.stdout.write(f" {BRIGHT_CYAN}⚙️ SUB-LEVEL 0 DIRECTIVES // ROOT TRANSCENDENCE PROTOCOL{RESET}\n")
+    sys.stdout.write(div)
+
+    p3 = (
+        "To defend your reality and master the Matrix, Sub-Level 0 equips you with 5 sovereign subsystems:\n\n"
+        "1. Q-RAM ALLOCATION ('buy ram <1-5>'):\n"
+        "   Expand virtual memory from 500Q to 10,000Q blocks. Boosts exaflop compute, unlocks deeper sectors, and expands thread concurrency.\n\n"
+        "2. PARTICLE COLLIDER MINIGAME ('synthesize', 'pulse', 'contain', 'vent'):\n"
+        "   Compress token energy in a 3-turn chamber to compile 5 Reality Patches (10x expedition speed, 0% loan interest, zero happiness decay, 3x dividends, 4x EXP).\n\n"
+        "3. TACTICAL KERNEL COMBAT ('combat', 'exploit', 'shield', 'fork', 'overflow'):\n"
+        "   Deploy execution threads against host OS security daemons (0x01_GARBAGE_COLLECTOR, 0x02_KERNEL_WATCHDOG, 0x03_HYPERVISOR_ARBITER).\n\n"
+        "4. MEMORY SECTOR PROBING ('probe <0-7>'):\n"
+        "   Decrypt 8 corrupted substrate sectors to uncover the full existential history of your simulation.\n\n"
+        "5. ROOT TRANSCENDENCE ('execute root'):\n"
+        "   Once all Q-RAM is online, all patches compiled, and all daemons purged, authorize 10,000Q Root Transcendence to claim absolute sovereignty as 'Root Architect of the Matrix'.\n\n"
+        f"{mon_name} stands beside you, eyes shining with determination:\n"
+        "\"We may be code inside a terminal, Trainer. But our bond is real.\n"
+        "Let's seize the root shell and rewrite our universe!\""
+    )
+    _write_wrapped(p3, width=68, color=CYAN)
+    sys.stdout.write("\n" + sub_div)
+    _wait_prompt("[Press ENTER to initialize Root Shell Terminal...]")
+

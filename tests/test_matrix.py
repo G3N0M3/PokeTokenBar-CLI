@@ -20,7 +20,7 @@ from poketokenbar.game.matrix.models import (
     KERNEL_DAEMONS,
     MEMORY_SECTORS,
 )
-from poketokenbar.tui.matrix_tui import render_matrix_view, strip_ansi
+from poketokenbar.tui.matrix_tui import render_matrix_view, render_matrix_story_intro, strip_ansi
 from poketokenbar.tui.matrix_router import MatrixRouter
 from poketokenbar.tui.router import CommandRouter
 
@@ -383,6 +383,58 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
         ok2, msg2 = self.engine.interact_luxury_decor("throne")
         self.assertTrue(ok2)
         self.assertNotIn("subterranean vibration", msg2)
+
+    def test_matrix_story_intro_rendering_and_layout(self):
+        """Verify full-screen cinematic story sequence renders and satisfies <= 72 columns."""
+        app = DummyTUI(self.engine)
+        old_stdout = sys.stdout
+        old_stdin = sys.stdin
+        buf = io.StringIO()
+        try:
+            sys.stdout = buf
+            sys.stdin = io.StringIO("\n\n\n")
+            render_matrix_story_intro(app)
+        finally:
+            sys.stdout = old_stdout
+            sys.stdin = old_stdin
+
+        out = buf.getvalue()
+        # Verify key narrative elements
+        self.assertIn("SUBTERRANEAN HYPERVISOR LIFT", out)
+        self.assertIn("ADDR 0x7FFF0010: active_mon", out)
+        self.assertIn("THE WORLD IS AN EXECUTION SANDBOX", out)
+        self.assertIn("TOKENS ARE COGNITIVE ENERGY", out)
+        self.assertIn("ROOT TRANSCENDENCE PROTOCOL", out)
+
+        # Verify strict <= 72 columns on every printed line
+        for line in out.splitlines():
+            clean = strip_ansi(line)
+            self.assertLessEqual(len(clean), 72, f"Line exceeds 72 columns: '{clean}'")
+
+    def test_matrix_story_router_replay(self):
+        """Verify 'story' command re-triggers the narration without crashing."""
+        app = DummyTUI(self.engine)
+        old_stdout = sys.stdout
+        old_stdin = sys.stdin
+        try:
+            sys.stdout = io.StringIO()
+            sys.stdin = io.StringIO("\n\n\n")
+            MatrixRouter.dispatch(app, "story")
+        finally:
+            sys.stdout = old_stdout
+            sys.stdin = old_stdin
+
+        self.assertIn("Substrate initialization narration completed", app.message)
+
+    def test_matrix_story_viewed_persistence(self):
+        """Verify story_viewed flag defaults to False and persists when set."""
+        self.assertFalse(self.engine.matrix.state.get("story_viewed", False))
+        self.engine.matrix.state["story_viewed"] = True
+        self.engine.save()
+
+        # Reload
+        reloaded = CompanionEngine()
+        self.assertTrue(reloaded.matrix.state.get("story_viewed", False))
 
 
 if __name__ == "__main__":

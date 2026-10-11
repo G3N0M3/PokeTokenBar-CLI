@@ -70,6 +70,12 @@ class PokeTokenBarTUI:
             self.engine.process_usage(summary.get("raw_total_tokens", summary["total_tokens"]), summary.get("active_days"))
 
             if self.in_matrix:
+                if not self.engine.matrix.state.get("story_viewed", False):
+                    from poketokenbar.tui.matrix_tui import render_matrix_story_intro
+                    render_matrix_story_intro(self)
+                    self.engine.matrix.state["story_viewed"] = True
+                    self.engine.save()
+
                 self.clear_screen()
                 from poketokenbar.tui.matrix_tui import render_matrix_view
                 from poketokenbar.tui.matrix_router import MatrixRouter
