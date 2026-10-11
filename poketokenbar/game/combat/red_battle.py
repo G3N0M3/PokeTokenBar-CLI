@@ -78,6 +78,8 @@ class RedBattleHandler:
     def assemble_team(self, team_ids: List[int]) -> Tuple[bool, str]:
         if len(team_ids) != 6:
             return False, "You must provide exactly 6 Pokédex IDs."
+        if len(set(team_ids)) != len(team_ids):
+            return False, "You cannot select duplicate Pokémon in your battle team."
         dex_list = self.engine.state.get("dex", [])
         dex_map = {d.get("species_id", d.get("final_id", d.get("base_id"))): d for d in dex_list}
         

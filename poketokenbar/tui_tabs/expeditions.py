@@ -112,9 +112,10 @@ def render_expedition_picker(app):
         name = app.engine.api.get_species_name(sp_id)
         if len(name) > 13:
             name = name[:12] + "…"
-        shiny = "✨" if entry.get("is_shiny") else " "
-        rarity = entry.get("rarity", "common").upper()[:6]
         mon_data = entry.get("mon_state", {})
+        is_mon_shiny = bool(mon_data.get("is_shiny", False)) if (isinstance(mon_data, dict) and "is_shiny" in mon_data) else bool(entry.get("is_shiny", False))
+        shiny = "✨" if is_mon_shiny else " "
+        rarity = entry.get("rarity", "common").upper()[:6]
         hap = mon_data.get("happiness", 100) if isinstance(mon_data, dict) else 100
 
         is_deployed = sp_id in deployed_ids

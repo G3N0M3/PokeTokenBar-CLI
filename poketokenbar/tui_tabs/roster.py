@@ -129,10 +129,11 @@ def render(app):
         for idx, entry in enumerate(page_roster, start_idx + 1):
             sp_id = entry.get("species_id", entry.get("final_id", entry.get("base_id")))
             name = app.engine.api.get_species_name(sp_id)
-            shiny_str = f"{YELLOW}✨{RESET}" if entry.get("is_shiny") else ""
+            mon_data = entry.get("mon_state", {})
+            is_mon_shiny = bool(mon_data.get("is_shiny", False)) if (isinstance(mon_data, dict) and "is_shiny" in mon_data) else bool(entry.get("is_shiny", False))
+            shiny_str = f"{YELLOW}✨{RESET}" if is_mon_shiny else ""
             rarity = entry.get("rarity", "common").upper()
             status = entry.get("status", "graduated")
-            mon_data = entry.get("mon_state", {})
             hap_val = mon_data.get("happiness", 100) if isinstance(mon_data, dict) else 100
             is_mega = bool(isinstance(mon_data, dict) and mon_data.get("is_mega"))
             if is_mega:

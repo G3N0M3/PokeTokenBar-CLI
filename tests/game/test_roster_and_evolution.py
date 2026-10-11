@@ -395,6 +395,12 @@ class TestRosterAndEvolution(unittest.TestCase):
         ok2, log2 = red.execute_turn(0)
         self.assertIn("Mew already registered in Pokédex", log2)
 
+        # 3. assemble_team duplicate rejection
+        self.engine.state["dex"] = [{"species_id": sid, "status": "inactive"} for sid in [1, 4, 7, 25, 133, 150]]
+        ok_dup, msg_dup = red.assemble_team([1, 1, 7, 25, 133, 150])
+        self.assertFalse(ok_dup)
+        self.assertIn("duplicate", msg_dup.lower())
+
     def test_switch_egg_integration(self):
         """Switch egg must load from nursery reserves without modal prompts."""
         mon = MonState(base_id=25, path_ids=[25], planned_path_ids=[25], stage_index=0, used_at_stage=0, rarity=Rarity.UNCOMMON, total_forms=1)
@@ -919,6 +925,69 @@ class TestRosterAndEvolution(unittest.TestCase):
         self.assertEqual(entry_309["mon_state"]["used_at_stage"], 0)
         self.assertFalse(entry_309["mon_state"]["is_graduated"])
         self.assertIn(309, new_engine.get_roster_species_ids())
+
+    def test_living_roster_non_shiny_with_shiny_evolved_form(self):
+        """Verifies that a living non-shiny Grovyle displays as non-shiny even if Sceptile was evolved shiny."""
+        # 1. Setup shiny Sceptile (254) and non-shiny Grovyle (253) in state
+        st = StorageManager.default_state()
+        st["dex"] = [
+            {
+                "id": "sp_253",
+                "species_id": 253,
+                "base_id": 252,
+                "chain_order": [252, 253, 254],
+                "rarity": "rare",
+                "is_shiny": True,  # Legacy desynced outer flag from previous shiny evolution
+                "status": "inactive",
+                "mon_state": {
+                    "base_id": 252,
+                    "path_ids": [252, 253, 254],
+                    "stage_index": 1,
+                    "is_shiny": False,  # Actual living companion is NOT shiny
+                }
+            },
+            {
+                "id": "sp_254",
+                "species_id": 254,
+                "base_id": 252,
+                "chain_order": [252, 253, 254],
+                "rarity": "rare",
+                "is_shiny": True,
+                "status": "graduated",
+                "mon_state": {
+                    "base_id": 252,
+                    "path_ids": [252, 253, 254],
+                    "stage_index": 2,
+                    "is_shiny": True,
+                }
+            }
+        ]
+        StorageManager.save_state(st)
+
+        # 2. On engine startup, the desynced outer is_shiny is repaired to match mon_state
+        engine = CompanionEngine()
+        grovyle_entry = next(d for d in engine.state["dex"] if d["species_id"] == 253)
+        sceptile_entry = next(d for d in engine.state["dex"] if d["species_id"] == 254)
+        self.assertFalse(grovyle_entry["is_shiny"])
+        self.assertTrue(sceptile_entry["is_shiny"])
+
+        # 3. Test roster rendering: Grovyle should NOT have ✨, Sceptile should have ✨
+        from poketokenbar.tui_tabs.roster import render as render_roster
+        app = AppState()
+        app.engine = engine
+        app.current_tab = 3
+        app.roster_page = 1
+
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            render_roster(app)
+
+        output = buf.getvalue()
+        lines = output.split("\n")
+        grovyle_line = next((l for l in lines if "Grovyle" in l), "")
+        sceptile_line = next((l for l in lines if "Sceptile" in l), "")
+        self.assertNotIn("✨", ANSI_REGEX.sub('', grovyle_line))
+        self.assertIn("✨", ANSI_REGEX.sub('', sceptile_line))
 
 
 if __name__ == "__main__":

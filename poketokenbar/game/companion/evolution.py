@@ -377,7 +377,9 @@ class EvolutionMixin:
                 entry["status"] = sp_status
                 entry["mon_state"] = sub_dict
                 entry["happiness"] = mon.happiness
-                if mon.is_shiny:
+                if sp_id == mon.current_id:
+                    entry["is_shiny"] = mon.is_shiny
+                elif mon.is_shiny:
                     entry["is_shiny"] = True
             else:
                 entry = {
