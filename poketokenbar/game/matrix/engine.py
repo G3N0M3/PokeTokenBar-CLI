@@ -173,6 +173,20 @@ class MatrixEngine:
     # Memory Node Scanning & Hex Breach Minigame
     # -------------------------------------------------------------------------
 
+    @staticmethod
+    def resolve_node_id(node_str: str) -> Optional[str]:
+        """Resolves a user-provided string or code to a canonical node ID."""
+        clean = str(node_str).lower().strip()
+        if clean in MEMORY_NODES:
+            return clean
+        for nid, node in MEMORY_NODES.items():
+            code_lower = node["code"].lower()
+            if clean in code_lower or clean == code_lower.split("_")[0]:
+                return nid
+            if clean == node["name"].lower():
+                return nid
+        return None
+
     def scan_network(self) -> Dict[str, Any]:
         """Returns network discovery state across all memory nodes."""
         results = {}
@@ -198,9 +212,11 @@ class MatrixEngine:
             return False, "Quantum Cyberdeck is offline! Descend to Sub-Level 0."
 
         node_id = str(node_id).lower().strip()
-        if node_id not in MEMORY_NODES:
+        resolved = self.resolve_node_id(node_id)
+        if not resolved:
             valid_nodes = ", ".join(MEMORY_NODES.keys())
             return False, f"Unknown memory node '{node_id}'! Available: {valid_nodes}"
+        node_id = resolved
 
         if node_id in self.hacked_nodes:
             return False, f"Node '{MEMORY_NODES[node_id]['name']}' is already breached! Root access granted."
@@ -304,6 +320,9 @@ class MatrixEngine:
             return False, "Quantum Cyberdeck is offline! Descend to Sub-Level 0."
 
         node_id = str(node_id).lower().strip()
+        resolved = self.resolve_node_id(node_id)
+        if resolved:
+            node_id = resolved
         tweak_id = str(tweak_id).lower().strip()
         option_key = str(option_key).lower().strip()
 
@@ -363,6 +382,9 @@ class MatrixEngine:
     def remove_tweak(self, node_id: str, tweak_id: str) -> Tuple[bool, str]:
         """Deactivates an active tweak, freeing up Exaflops and tweak slots."""
         node_id = str(node_id).lower().strip()
+        resolved = self.resolve_node_id(node_id)
+        if resolved:
+            node_id = resolved
         tweak_id = str(tweak_id).lower().strip()
 
         if node_id not in self.active_tweaks or tweak_id not in self.active_tweaks[node_id]:

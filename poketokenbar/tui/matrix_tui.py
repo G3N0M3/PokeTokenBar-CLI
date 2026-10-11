@@ -149,28 +149,26 @@ def _render_deck_view(app, engine) -> None:
 
 
 def _render_nodes_view(app, engine) -> None:
-    """Renders the memory node network map."""
-    sys.stdout.write(f"\n  {BRIGHT_CYAN}📡 UPPER SYSTEM MEMORY NODES // NETWORK MAP{RESET}\n")
-    sys.stdout.write(f"  {GRAY}Breach nodes using 'hack <node>' to unlock system tweaks.{RESET}\n\n")
+    """Renders the clean memory node network map."""
+    sys.stdout.write(f"\n  {BRIGHT_CYAN}📡 UPPER SYSTEM MEMORY NODES // NETWORK MAP{RESET}\n\n")
 
     nodes = engine.scan_network()
     for nid, n in nodes.items():
         if nid == "root":
             continue
         status_tag = f"{GREEN}[ROOT ACCESS]{RESET}" if n["hacked"] else f"{RED}[LOCKED: ICE LVL {n['ice_level']}]{RESET}"
-        sys.stdout.write(f"  {BOLD}• {n['code']}{RESET} ({n['name']}) -> {status_tag}\n")
-        sys.stdout.write(f"    Offset: {GRAY}{n['offset']}{RESET} | Subsystem: {n['desc'][:46]}\n")
-        tweak_keys = ", ".join(n["tweaks_available"].keys())
-        sys.stdout.write(f"    Tweaks: {CYAN}{tweak_keys}{RESET}\n\n")
+        sys.stdout.write(f"  {BOLD}• {n['code']}{RESET} (ID: {CYAN}{nid}{RESET}) -> {status_tag}\n")
 
-    sys.stdout.write(f"  {BOLD}Command:{RESET} Type {CYAN}'hack <node>'{RESET} (e.g. 'hack nursery') to breach ICE.\n")
+    sys.stdout.write(f"\n  {BOLD}Commands:{RESET}\n")
+    sys.stdout.write(f"    {CYAN}hack <id>{RESET} : Initiate breach sequence (e.g. 'hack nursery')\n")
+    sys.stdout.write(f"    {CYAN}help <id>{RESET} : View node description & tweak manual (e.g. 'help nursery')\n")
 
 
 def _render_breach_view(app, engine) -> None:
     """Renders the active 4x4 Hex Memory Alignment breach puzzle."""
     breach = engine.active_breach
     if not breach:
-        sys.stdout.write(f"\n  {YELLOW}No active breach session. Type 'scan' and 'hack <node>'.{RESET}\n")
+        sys.stdout.write(f"\n  {YELLOW}No active breach session. Type 'scan' and 'hack <id>'.{RESET}\n")
         return
 
     node_id = breach["node_id"]
@@ -180,7 +178,7 @@ def _render_breach_view(app, engine) -> None:
     buf = breach["buffer"]
     cycles = breach["cycles"]
 
-    sys.stdout.write(f"\n  {BRIGHT_CYAN}🔓 TACTICAL BREACH MATRIX // NODE: {node_name}{RESET}\n")
+    sys.stdout.write(f"\n  {BRIGHT_CYAN}🔓 TACTICAL BREACH MATRIX // NODE: {node_name}{RESET} (ID: {CYAN}{node_id}{RESET})\n")
     sys.stdout.write(f"  {GRAY}Align memory coordinates to match the target hex sequence.{RESET}\n\n")
 
     # Grid Display
@@ -245,21 +243,63 @@ def _render_tweaks_view(app, engine) -> None:
             continue
         hacked = nid in engine.hacked_nodes
         st_tag = f"{GREEN}[BREACHED]{RESET}" if hacked else f"{GRAY}[LOCKED]{RESET}"
-        sys.stdout.write(f"  {BOLD}{nid.upper()} ({node['code']}){RESET} -> {st_tag}\n")
+        sys.stdout.write(f"  {BOLD}{nid.upper()} ({node['code']}){RESET} (ID: {CYAN}{nid}{RESET}) -> {st_tag}\n")
 
         for tid, t_spec in node["tweaks"].items():
             curr_val = engine.active_tweaks.get(nid, {}).get(tid)
             val_str = f"{BRIGHT_GREEN}[ACTIVE: {curr_val}]{RESET}" if curr_val else f"{GRAY}[INACTIVE]{RESET}"
             opts = ", ".join(t_spec["options"].keys())
             sys.stdout.write(f"    • {BOLD}{tid}{RESET}: {val_str} (Options: {CYAN}{opts}{RESET})\n")
-            sys.stdout.write(f"      {GRAY}{t_spec['desc']}{RESET}\n")
         sys.stdout.write("\n")
 
-    sys.stdout.write(f"  {BOLD}Apply:{RESET}  Type {CYAN}'tweak <node> <param> <val>'{RESET} (e.g. 'tweak nursery egg_speed 5x')\n")
-    sys.stdout.write(f"  {BOLD}Remove:{RESET} Type {CYAN}'untweak <node> <param>'{RESET} (e.g. 'untweak nursery egg_speed')\n")
+    sys.stdout.write(f"  {BOLD}Apply:{RESET}  Type {CYAN}'tweak <id> <param> <val>'{RESET} (e.g. 'tweak nursery egg_speed 5x')\n")
+    sys.stdout.write(f"  {BOLD}Remove:{RESET} Type {CYAN}'untweak <id> <param>'{RESET} (e.g. 'untweak nursery egg_speed')\n")
 
 
 def _render_help_view(app, engine) -> None:
+    """Renders either the general Cyberdeck manual or node-specific manual."""
+    node_id = getattr(app, "help_node_id", None)
+    if node_id and node_id in MEMORY_NODES:
+        _render_node_help_view(app, engine, node_id)
+    else:
+        _render_general_help_view(app, engine)
+
+
+def _render_node_help_view(app, engine, node_id: str) -> None:
+    """Renders detailed manual and explanations for a specific memory node."""
+    node = MEMORY_NODES[node_id]
+    hacked = node_id in engine.hacked_nodes
+    status_tag = f"{GREEN}[ROOT ACCESS GRANTED]{RESET}" if hacked else f"{RED}[LOCKED: ICE LVL {node['ice_level']}]{RESET}"
+
+    sys.stdout.write(f"\n  {BRIGHT_CYAN}📖 NODE MANUAL: {node['code']}{RESET} (ID: {CYAN}{node_id}{RESET})\n")
+    sys.stdout.write(f"  Offset: {GRAY}{node['offset']}{RESET} | ICE: Level {node['ice_level']} | Status: {status_tag}\n\n")
+
+    sys.stdout.write(f"  {BOLD}[SUBSYSTEM OVERVIEW]{RESET}\n")
+    for line in textwrap.wrap(node["desc"], width=68):
+        sys.stdout.write(f"  {line}\n")
+    sys.stdout.write("\n")
+
+    sys.stdout.write(f"  {BOLD}[AVAILABLE TWEAKS FOR UPPER GAME]{RESET}\n")
+    for tid, t_spec in node["tweaks"].items():
+        curr_val = engine.active_tweaks.get(node_id, {}).get(tid)
+        val_str = f"{BRIGHT_GREEN}[ACTIVE: {curr_val}]{RESET}" if curr_val else f"{GRAY}[INACTIVE]{RESET}"
+        sys.stdout.write(f"  • {BOLD}{tid}{RESET} ({t_spec['name']}) -> {val_str}\n")
+        for line in textwrap.wrap(t_spec["desc"], width=66):
+            sys.stdout.write(f"    {GRAY}{line}{RESET}\n")
+
+        opt_parts = []
+        for ok, ov in t_spec["options"].items():
+            opt_parts.append(f"'{ok}' ({ov['cost_exaflops']:.1f} EF: {ov['desc']})")
+        for o_line in textwrap.wrap("Options: " + "; ".join(opt_parts), width=66):
+            sys.stdout.write(f"    {CYAN}{o_line}{RESET}\n")
+        sys.stdout.write(f"    Syntax : {YELLOW}tweak {node_id} {tid} <option>{RESET}\n\n")
+
+    if not hacked and node_id != "root":
+        sys.stdout.write(f"  {BOLD}Breach Action:{RESET} Type {CYAN}'hack {node_id}'{RESET} to initiate breach sequence.\n")
+    sys.stdout.write(f"  {BOLD}Navigation:{RESET}    Type {CYAN}'scan'{RESET} to view all nodes, or {CYAN}'help'{RESET} for commands.\n")
+
+
+def _render_general_help_view(app, engine) -> None:
     """Renders the compact Cyberdeck command quick reference."""
     sys.stdout.write(f"\n  {BRIGHT_CYAN}📖 SUBSTRATE CYBERDECK // COMMAND MANUAL{RESET}\n\n")
     sys.stdout.write(f"  {BOLD}NAVIGATION & VIEWS:{RESET}\n")
@@ -270,10 +310,11 @@ def _render_help_view(app, engine) -> None:
     sys.stdout.write(f"    {YELLOW}ascend{RESET}       : Return to Resort Area Luxury Suite\n\n")
 
     sys.stdout.write(f"  {BOLD}HACKING & TWEAKING:{RESET}\n")
-    sys.stdout.write(f"    {CYAN}hack <node>{RESET}              : Initiate memory breach puzzle\n")
+    sys.stdout.write(f"    {CYAN}hack <id>{RESET}                 : Initiate memory breach puzzle\n")
+    sys.stdout.write(f"    {CYAN}help <id>{RESET}                 : View node details (e.g. 'help nursery')\n")
     sys.stdout.write(f"    {CYAN}pick <row> <col>{RESET}          : Align hex byte in breach matrix\n")
-    sys.stdout.write(f"    {CYAN}tweak <node> <param> <val>{RESET} : Apply reality modifier to upper game\n")
-    sys.stdout.write(f"    {CYAN}untweak <node> <param>{RESET}    : Deactivate tweak, freeing Exaflops\n")
+    sys.stdout.write(f"    {CYAN}tweak <id> <param> <val>{RESET}  : Apply reality modifier to upper game\n")
+    sys.stdout.write(f"    {CYAN}untweak <id> <param>{RESET}      : Deactivate tweak, freeing Exaflops\n")
     sys.stdout.write(f"    {CYAN}tracekill{RESET} / {CYAN}cool{RESET}        : Scrub trace heat from telemetry logs\n\n")
 
     sys.stdout.write(f"  {BOLD}HARDWARE UPGRADES:{RESET}\n")

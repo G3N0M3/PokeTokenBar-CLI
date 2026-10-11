@@ -25,23 +25,41 @@ class MatrixRouter:
         # 2. Subview Switches
         if cmd in ["1", "deck", "dashboard", "dash"]:
             app.matrix_subview = "deck"
+            app.help_node_id = None
             app.message = "Cyberdeck Dashboard online."
             return
         if cmd in ["2", "scan", "nodes", "network"]:
             app.matrix_subview = "nodes"
+            app.help_node_id = None
             app.message = "Memory Node Network mapped."
             return
         if cmd in ["3", "tweaks", "tweak"]:
             app.matrix_subview = "tweaks"
+            app.help_node_id = None
             app.message = "Upper System Tweaker active."
             return
         if cmd in ["4", "combat", "fight", "arena"]:
             app.matrix_subview = "combat"
+            app.help_node_id = None
             app.message = "Tactical Combat Matrix online."
             return
         if cmd in ["5", "help", "?", "manual"]:
             app.matrix_subview = "help"
+            app.help_node_id = None
             app.message = "Cyberdeck Command Manual displayed."
+            return
+
+        if cmd.startswith("help ") or cmd.startswith("? "):
+            target = cmd.split(maxsplit=1)[1].strip()
+            from poketokenbar.game.matrix.models import MEMORY_NODES
+            resolved = engine.resolve_node_id(target)
+            if resolved:
+                app.matrix_subview = "help"
+                app.help_node_id = resolved
+                app.message = f"Showing manual for node '{resolved}'."
+                return
+            valid_nodes = ", ".join([k for k in MEMORY_NODES.keys() if k != "root"])
+            app.message = f"Unknown node '{target}'! Available: {valid_nodes}"
             return
 
         # 3. Breach Protocol Minigame: 'hack <node>' & 'pick <row> <col>'

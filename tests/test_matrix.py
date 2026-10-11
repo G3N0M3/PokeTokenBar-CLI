@@ -202,6 +202,74 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
         self.assertFalse(nodes["nursery"]["hacked"])
         self.assertEqual(nodes["nursery"]["offset"], "0x7FFF0010")
 
+    def test_node_view_clean_rendering_and_id_prompt(self):
+        """Verify node view displays command target IDs in parentheses and omits long descriptions."""
+        self._setup_fully_completed_luxury_suite()
+        self.engine.state["used_since_install"] = 10_000_000_000_000_000_000
+        self.engine.descend_to_matrix()
+        app = DummyTUI(self.engine)
+        app.matrix_subview = "nodes"
+
+        buf = io.StringIO()
+        old_stdout = sys.stdout
+        try:
+            sys.stdout = buf
+            render_matrix_view(app)
+        finally:
+            sys.stdout = old_stdout
+
+        out = buf.getvalue()
+        # Verify target IDs are explicitly inside parentheses
+        self.assertIn("(ID: nursery)", out)
+        self.assertIn("(ID: expeditions)", out)
+        self.assertIn("(ID: bank)", out)
+        self.assertIn("(ID: roster)", out)
+        self.assertIn("(ID: combat)", out)
+
+        # Verify inline descriptions are removed from main node view
+        self.assertNotIn("Bio-synthetic incubation pipelines", out)
+
+        # Verify command instructions
+        self.assertIn("hack <id>", out)
+        self.assertIn("help <id>", out)
+
+    def test_node_specific_help_command(self):
+        """Verify 'help <id>' provides detailed subsystem overview and tweak explanations."""
+        self._setup_fully_completed_luxury_suite()
+        self.engine.state["used_since_install"] = 10_000_000_000_000_000_000
+        self.engine.descend_to_matrix()
+        app = DummyTUI(self.engine)
+
+        # 1. Test routing with canonical ID
+        MatrixRouter.dispatch(app, "help nursery")
+        self.assertEqual(app.matrix_subview, "help")
+        self.assertEqual(app.help_node_id, "nursery")
+
+        buf = io.StringIO()
+        old_stdout = sys.stdout
+        try:
+            sys.stdout = buf
+            render_matrix_view(app)
+        finally:
+            sys.stdout = old_stdout
+
+        out = buf.getvalue()
+        self.assertIn("NODE MANUAL: 0x10_NURSERY_BUS", out)
+        self.assertIn("Bio-synthetic incubation", out)
+        self.assertIn("AVAILABLE TWEAKS FOR UPPER GAME", out)
+        self.assertIn("egg_speed", out)
+        self.assertIn("shiny_rate", out)
+        self.assertIn("tweak nursery egg_speed", out)
+
+        # Verify strict <= 72 columns on every line in node help
+        for line in out.splitlines():
+            clean = strip_ansi(line)
+            self.assertLessEqual(len(clean), 72, f"Line exceeds 72 columns: '{clean}'")
+
+        # 2. Test routing with code hex alias '0x10'
+        MatrixRouter.dispatch(app, "help 0x10")
+        self.assertEqual(app.help_node_id, "nursery")
+
     def test_hex_breach_minigame_flow(self):
         """Test initiating breach puzzle, aligning buffer, and granting root clearance."""
         self._setup_fully_completed_luxury_suite()
