@@ -411,6 +411,38 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
             clean = strip_ansi(line)
             self.assertLessEqual(len(clean), 72, f"Line exceeds 72 columns: '{clean}'")
 
+    def test_matrix_story_intro_with_active_mon(self):
+        """Verify story intro handles a real active MonState without attribute errors."""
+        from poketokenbar.game.models import MonState, Rarity
+        mon = MonState(
+            base_id=1,
+            path_ids=[1, 2, 3],
+            planned_path_ids=[1, 2, 3],
+            stage_index=0,
+            used_at_stage=0,
+            rarity=Rarity.COMMON,
+            total_forms=3,
+            is_shiny=True,
+            happiness=120,
+        )
+        self.engine.set_active_mon(mon)
+        app = DummyTUI(self.engine)
+        old_stdout = sys.stdout
+        old_stdin = sys.stdin
+        buf = io.StringIO()
+        try:
+            sys.stdout = buf
+            sys.stdin = io.StringIO("\n\n\n")
+            render_matrix_story_intro(app)
+        finally:
+            sys.stdout = old_stdout
+            sys.stdin = old_stdin
+
+        out = buf.getvalue()
+        self.assertIn("active_mon.current_id -> Integer: 1", out)
+        self.assertIn("active_mon.happiness  -> Integer: 120", out)
+        self.assertIn("Boolean: True", out)
+
     def test_matrix_story_router_replay(self):
         """Verify 'story' command re-triggers the narration without crashing."""
         app = DummyTUI(self.engine)

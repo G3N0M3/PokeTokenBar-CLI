@@ -288,11 +288,20 @@ def render_matrix_story_intro(app) -> None:
             pass
 
     active = app.engine.active_mon
-    if active and hasattr(app.engine, "api"):
-        sp_id = active.species_id
-        mon_name = app.engine.api.get_species_name(sp_id)
-        mon_hap = active.happiness
-        mon_shiny = bool(active.is_shiny)
+    if active:
+        if isinstance(active, dict):
+            sp_id = active.get("current_id") or active.get("species_id") or active.get("base_id") or 25
+            mon_hap = active.get("happiness", 100)
+            mon_shiny = bool(active.get("is_shiny", False))
+        else:
+            sp_id = getattr(active, "current_id", getattr(active, "species_id", getattr(active, "base_id", 25)))
+            mon_hap = getattr(active, "happiness", 100)
+            mon_shiny = bool(getattr(active, "is_shiny", False))
+
+        if hasattr(app.engine, "api") and app.engine.api:
+            mon_name = app.engine.api.get_species_name(sp_id)
+        else:
+            mon_name = f"#{sp_id}"
     else:
         sp_id = 25
         mon_name = "Pikachu"
@@ -325,7 +334,7 @@ def render_matrix_story_intro(app) -> None:
         "Across your console screen, reality itself begins to fracture. "
         "The full-color Pokémon sprites and HP bars flicker, resolving into raw hexadecimal data structures:\n"
         f"  ADDR 0x7FFF0010: active_mon.happiness  -> Integer: {mon_hap}\n"
-        f"  ADDR 0x7FFF0018: active_mon.species_id -> Integer: {sp_id} [{mon_name}]\n"
+        f"  ADDR 0x7FFF0018: active_mon.current_id -> Integer: {sp_id} [{mon_name}]\n"
         f"  ADDR 0x7FFF0020: active_mon.is_shiny   -> Boolean: {mon_shiny}\n\n"
         f"{mon_name} pulls gently on your sleeve. Their eyes reflect the phosphor glow of the terminal:\n"
         "\"Trainer... where did the sky go? The clouds weren't weather. "

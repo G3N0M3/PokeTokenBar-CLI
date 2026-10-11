@@ -159,7 +159,7 @@ MEMORY_SECTORS: Dict[int, Dict[str, Any]] = {
         "title": "COMPANION_STRUCT_OFFSETS.dat",
         "snippet": [
             "ADDR 0x7FFF0010: active_mon.happiness -> Integer: 100",
-            "ADDR 0x7FFF0018: active_mon.species_id -> Integer: 25 [Pikachu]",
+            "ADDR 0x7FFF0018: active_mon.current_id -> Integer: 25 [Pikachu]",
             "ADDR 0x7FFF0020: active_mon.is_shiny -> Boolean: True",
             "REVELATION: Love, bond, and devotion are 8-byte memory addresses."
         ]
