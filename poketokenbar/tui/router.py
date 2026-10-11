@@ -1,8 +1,14 @@
 """Command routing and input dispatch engine for PokeTokenBar TUI."""
 
 import math
-from poketokenbar.utils.formatting import format_tokens
+from poketokenbar.utils.formatting import format_tokens, parse_tokens
+from poketokenbar.game.models import POKER_VIP_TRIGGER_BET
 from poketokenbar.tui.modals.confirmations import handle_pending_confirmation
+from poketokenbar.tui_tabs.game_corner import (
+    render_poker_vip_dialogue,
+    render_velvet_sting_briefing,
+    render_velvet_recruitment_dialogue,
+)
 
 
 class CommandRouter:
@@ -25,11 +31,14 @@ class CommandRouter:
             app.stock_terminal = None
             app.message = "Returned to Exchange Board."
             return
-        if app.current_tab == 10 and getattr(app, "bank_subtab", "") in ["penthouse", "villa"] and cmd == "back":
-            if getattr(app, "penthouse_subview", "main") == "help":
+        if app.current_tab == 10 and getattr(app, "bank_subtab", "") in ["luxury", "penthouse", "villa"] and cmd == "back":
+            subview = getattr(app, "luxury_subview", getattr(app, "penthouse_subview", "main"))
+            if subview == "help":
+                app.luxury_subview = "main"
                 app.penthouse_subview = "main"
+                app.luxury_help_wing = None
                 app.penthouse_help_wing = None
-                app.message = "Returned to Penthouse overview."
+                app.message = "Returned to Luxury Suite overview."
                 return
             app.bank_subtab = "checking"
             app.message = "Returned to Checking & Loans."
@@ -64,6 +73,7 @@ class CommandRouter:
                 app.shop_view = "normal"
             if getattr(app, "roster_subview", "roster") == "eggs":
                 app.roster_subview = "roster"
+            app.luxury_subview = "main"
             app.penthouse_subview = "main"
             app.current_tab = int(cmd)
             app.message = ""
@@ -409,9 +419,6 @@ class CommandRouter:
             return True
 
         if cmd in ["p", "prev"]:
-            # In Bank Tab 10, 'p' is reserved for the [P] Penthouse subtab.
-            if app.current_tab == 10 and cmd == "p":
-                return False
             if app.current_tab == 2: app.pokedex_page = max(1, app.pokedex_page - 1)
             elif app.current_tab == 4:
                 if not hasattr(app, "shop_page"): app.shop_page = 1
@@ -596,6 +603,15 @@ class CommandRouter:
                 app.message = "⚠️ CONFIRM: Type 'CONFIRM' to reset Team Rocket back to Op 1, or anything else to cancel!"
             return True
 
+        if cmd.startswith("sting init") or cmd.startswith("init sting") or (app.current_tab == 11 and cmd in ["sting reset", "reset sting"]):
+            if "--force" in cmd or not app.engine.state.get("poker_vip_unlocked", False):
+                ok, msg = app.engine.reset_velvet_sting()
+                app.message = f"♠️ {msg}"
+            else:
+                app.pending_sting_init = True
+                app.message = "⚠️ CONFIRM: Type 'CONFIRM' to reset High-Roller Salon & Storyline back to Chapter 1, or anything else to cancel!"
+            return True
+
         if cmd.startswith("size") and app.current_tab == 11:
             parts = cmd.split()
             if len(parts) == 2 and parts[1].isdigit():
@@ -689,7 +705,11 @@ class CommandRouter:
             if len(parts) >= 2:
                 mg_state = getattr(app, "minigame_state", "menu")
                 if mg_state == "poker":
+                    was_unlocked = app.engine.state.get("poker_vip_unlocked", False)
+                    parsed_bet = parse_tokens(parts[1]) if parts[1].lower() not in ["all", "all-in"] else app.engine.available_tokens
                     ok, msg = app.engine.play_poker_bet(parts[1])
+                    if ok and not was_unlocked and parsed_bet >= POKER_VIP_TRIGGER_BET and app.engine.poker.table_mode == "standard":
+                        render_poker_vip_dialogue(app)
                 elif mg_state == "blackjack":
                     ok, msg = app.engine.play_blackjack_bet(parts[1])
                 elif mg_state == "voltorb":
@@ -731,9 +751,44 @@ class CommandRouter:
                 app.message = "Usage: spin <amount> (e.g. 'spin 500k')"
             return True
 
-        if cmd in ["check", "raise", "fold", "allin"] and getattr(app, "minigame_state", "menu") == "poker":
+        if cmd in ["check", "call", "raise", "fold", "allin"] and getattr(app, "minigame_state", "menu") == "poker":
+            was_recruited = app.engine.state.get("velvet_sting", {}).get("recruited", False)
             ok, msg = app.engine.play_poker_hold(cmd)
             app.message = msg
+            now_recruited = app.engine.state.get("velvet_sting", {}).get("recruited", False)
+            if not was_recruited and now_recruited:
+                render_velvet_recruitment_dialogue(app)
+            return True
+
+        if cmd.startswith("table") and getattr(app, "minigame_state", "menu") == "poker":
+            parts = cmd.split()
+            if len(parts) >= 2:
+                ok, msg = app.engine.switch_poker_table(parts[1])
+                app.message = msg
+            else:
+                app.message = "Usage: table <std|vip>"
+            return True
+
+        if (cmd in ["sting", "briefing"] or cmd.startswith("sting ")) and getattr(app, "minigame_state", "menu") == "poker":
+            parts = cmd.split()
+            if not app.engine.state.get("poker_vip_unlocked", False):
+                app.message = "The Velvet Salon is locked. Wager >= 100.0T tokens at poker to receive an invitation!"
+            else:
+                sting = app.engine.state.setdefault("velvet_sting", {})
+                if not sting.get("recruited", False):
+                    wins = sting.get("syndicate_wins", 0)
+                    winnings = sting.get("vip_winnings", 0)
+                    app.message = f"🔒 The Velvet Sting dossier is locked. Play at The Velvet Salon ('table vip') to get recruited! (Need: 10 wins, 500.0T total winnings. Current: {wins}/10 wins, {format_tokens(winnings)}/500.0T)"
+                elif len(parts) >= 2 and parts[1] in ["advance", "next", "claim"]:
+                    ok, adv_msg = app.engine.advance_velvet_sting()
+                    app.message = adv_msg
+                else:
+                    ready, _ = app.engine.check_velvet_sting_objective()
+                    if ready:
+                        ok, adv_msg = app.engine.advance_velvet_sting()
+                        if ok:
+                            app.message = f"🚨 {adv_msg}"
+                    render_velvet_sting_briefing(app)
             return True
 
         if cmd in ["hit", "stand", "double"] and getattr(app, "minigame_state", "menu") == "blackjack":
@@ -836,6 +891,7 @@ class CommandRouter:
         if app.current_tab == 10 and cmd in ["b", "checking"]:
             app.bank_subtab = "checking"
             app.stock_terminal = None
+            app.luxury_subview = "main"
             app.penthouse_subview = "main"
             app.message = ""
             return True
@@ -843,6 +899,7 @@ class CommandRouter:
         if app.current_tab == 10 and cmd in ["c", "cd", "deposits"]:
             app.bank_subtab = "cd"
             app.stock_terminal = None
+            app.luxury_subview = "main"
             app.penthouse_subview = "main"
             app.message = ""
             return True
@@ -850,18 +907,20 @@ class CommandRouter:
         if app.current_tab == 10 and cmd in ["s", "stocks"] and not getattr(app, "stock_terminal", None):
             app.bank_subtab = "stocks"
             app.stock_terminal = None
+            app.luxury_subview = "main"
             app.penthouse_subview = "main"
             app.message = ""
             return True
 
-        if app.current_tab == 10 and cmd in ["p", "v", "penthouse", "villa"]:
-            if app.engine.is_penthouse_available():
-                app.bank_subtab = "penthouse"
+        if app.current_tab == 10 and cmd in ["l", "luxury", "penthouse", "villa"]:
+            if app.engine.is_luxury_available():
+                app.bank_subtab = "luxury"
                 app.stock_terminal = None
+                app.luxury_subview = "main"
                 app.penthouse_subview = "main"
                 app.message = ""
             else:
-                app.message = "The Executive Penthouse is restricted to tycoons with 100.0B+ total wealth."
+                app.message = "The Executive Luxury Suite is restricted to tycoons with 100.0B+ total wealth."
             return True
 
         if app.current_tab == 10 and getattr(app, "bank_subtab", "") == "stocks" and getattr(app, "stock_terminal", None):
@@ -966,12 +1025,14 @@ class CommandRouter:
             app.message = msg
             return True
 
-        # Penthouse Subtab & Commands
-        if app.current_tab == 10 and getattr(app, "bank_subtab", "") in ["penthouse", "villa"]:
+        # Luxury Subtab & Commands
+        if app.current_tab == 10 and getattr(app, "bank_subtab", "") in ["luxury", "penthouse", "villa"]:
             if cmd == "help" or cmd.startswith("help "):
                 parts = cmd.split()
                 if len(parts) == 1:
+                    app.luxury_subview = "help"
                     app.penthouse_subview = "help"
+                    app.luxury_help_wing = None
                     app.penthouse_help_wing = None
                     app.message = "Opened Executive Wings Guide. Type 'back' to return."
                     return True
@@ -979,7 +1040,9 @@ class CommandRouter:
                 if len(parts) == 2 and parts[1].isdigit():
                     w_num = int(parts[1])
                     if 1 <= w_num <= 4:
+                        app.luxury_subview = "help"
                         app.penthouse_subview = "help"
+                        app.luxury_help_wing = w_num
                         app.penthouse_help_wing = w_num
                         app.message = f"Inspecting Wing [{w_num}] specifications. Type 'back' to return."
                     else:
@@ -991,13 +1054,17 @@ class CommandRouter:
                     if len(parts) >= 3 and parts[2].isdigit():
                         w_num = int(parts[2])
                         if 1 <= w_num <= 4:
+                            app.luxury_subview = "help"
                             app.penthouse_subview = "help"
+                            app.luxury_help_wing = w_num
                             app.penthouse_help_wing = w_num
                             app.message = f"Inspecting Wing [{w_num}] specifications. Type 'back' to return."
                         else:
                             app.message = f"Invalid wing #{w_num}! (Valid: 1 to 4)"
                     else:
+                        app.luxury_subview = "help"
                         app.penthouse_subview = "help"
+                        app.luxury_help_wing = None
                         app.penthouse_help_wing = None
                         app.message = "Executive Wings Guide. Use 'help wing <1-4>' to inspect a specific wing."
                     return True
@@ -1005,22 +1072,29 @@ class CommandRouter:
                 app.message = "Usage: help wing <1-4> (1: Nursery, 2: Springs, 3: Trading, 4: Chromatic)"
                 return True
             if cmd == "pay":
-                ok, msg = app.engine.pay_penthouse_vip_fee()
+                ok, msg = app.engine.pay_luxury_vip_fee()
                 app.message = msg
                 return True
             if cmd == "invite":
-                from poketokenbar.tui_tabs.penthouse import render_penthouse_invitation
-                render_penthouse_invitation(app)
+                from poketokenbar.tui_tabs.luxury import render_luxury_invitation
+                render_luxury_invitation(app)
                 return True
             if cmd == "acquire":
-                ok, msg = app.engine.purchase_penthouse_deed()
+                ok, msg = app.engine.purchase_luxury_deed()
                 app.message = msg
+                return True
+            if cmd == "descend":
+                ok, msg = app.engine.descend_to_matrix()
+                app.message = msg
+                if ok:
+                    app.in_matrix = True
+                    app.matrix_subview = "dashboard"
                 return True
             if cmd == "upgrade" or cmd.startswith("upgrade "):
                 parts = cmd.split()
                 if len(parts) >= 2:
                     target = parts[2] if len(parts) >= 3 and parts[1].lower() in ["wing", "wings", "room", "rooms", "facility", "facilities"] else parts[1]
-                    ok, msg = app.engine.upgrade_penthouse_facility(target)
+                    ok, msg = app.engine.upgrade_luxury_facility(target)
                 else:
                     ok, msg = False, "Usage: upgrade <1-4> or upgrade wing <1-4> (1: Nursery, 2: Springs, 3: Trading, 4: Chromatic)"
                 app.message = msg
@@ -1028,7 +1102,7 @@ class CommandRouter:
             if cmd == "furnish" or cmd.startswith("furnish "):
                 parts = cmd.split()
                 if len(parts) >= 2:
-                    ok, msg = app.engine.purchase_penthouse_decor(parts[1])
+                    ok, msg = app.engine.purchase_luxury_decor(parts[1])
                 else:
                     ok, msg = False, "Usage: furnish <1-6> (1: Piano, 2: Chandelier, 3: Statue, 4: Hologram, 5: Fountain, 6: Throne)"
                 app.message = msg
@@ -1036,7 +1110,7 @@ class CommandRouter:
             if cmd == "interact" or cmd.startswith("interact "):
                 parts = cmd.split()
                 if len(parts) >= 2:
-                    ok, msg = app.engine.interact_penthouse_decor(parts[1])
+                    ok, msg = app.engine.interact_luxury_decor(parts[1])
                 else:
                     ok, msg = False, "Usage: interact <1-6> (1: Piano, 2: Chandelier, 3: Statue, 4: Hologram, 5: Fountain, 6: Throne)"
                 app.message = msg
@@ -1045,7 +1119,7 @@ class CommandRouter:
         if cmd == "transmute" or cmd.startswith("transmute "):
             parts = cmd.split()
             if len(parts) >= 2 and parts[1].isdigit():
-                ok, msg = app.engine.transmute_penthouse_shiny(int(parts[1]))
+                ok, msg = app.engine.transmute_luxury_shiny(int(parts[1]))
             else:
                 ok, msg = False, "Usage: transmute <roster_idx> (Target companion index from Tab 3 Roster)"
             app.message = msg
@@ -1054,9 +1128,9 @@ class CommandRouter:
         if cmd.startswith("catalyst ") or cmd == "catalyst":
             parts = cmd.split()
             if len(parts) >= 2:
-                ok, msg = app.engine.trigger_penthouse_catalyst(parts[1])
+                ok, msg = app.engine.trigger_luxury_catalyst(parts[1])
             elif getattr(app, "stock_terminal", None):
-                ok, msg = app.engine.trigger_penthouse_catalyst(app.stock_terminal)
+                ok, msg = app.engine.trigger_luxury_catalyst(app.stock_terminal)
             else:
                 ok, msg = False, "Usage: catalyst <corp_ticker> (e.g. 'catalyst SILPH')"
             app.message = msg

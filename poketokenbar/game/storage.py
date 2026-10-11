@@ -193,7 +193,7 @@ class StorageManager:
                 "chrono": {"charges": 0, "progress": 0, "target": 25_000_000},
                 "catalyst": {"charges": 0, "progress": 0, "target": 25_000_000}
             },
-            "penthouse": {
+            "luxury": {
                 "invitation_sent": False,
                 "invitation_pending": False,
                 "vip_fee_paid": False,
@@ -206,6 +206,31 @@ class StorageManager:
                 },
                 "decor": [],
                 "last_shiny_transmute": None
+            },
+            "poker_vip_unlocked": False,
+            "velvet_sting": {
+                "chapter": "1",
+                "recruited": False,
+                "cleared": False,
+                "boss_stack": 0,
+                "boss_max_stack": 0,
+                "syndicate_wins": 0,
+                "vip_winnings": 0,
+                "chapter_winnings": 0,
+                "chapter_pot": 0,
+                "max_pot_won": 0,
+                "ranked_wins": 0,
+            },
+            "matrix": {
+                "unlocked": False,
+                "ram_blocks": [],
+                "patches": [],
+                "sectors": [],
+                "defeated_daemons": [],
+                "root_transcended": False,
+                "total_tokens_consumed": 0,
+                "collider_state": None,
+                "combat_state": None,
             }
         }
 

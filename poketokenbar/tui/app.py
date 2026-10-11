@@ -47,6 +47,11 @@ class PokeTokenBarTUI:
         self.armory_page: int = 1
         self.pending_feed = None
         self.pending_buy = None
+        self.bank_subtab = "checking"
+        self.luxury_subview = "main"
+        self.luxury_help_wing = None
+        self.in_matrix: bool = False
+        self.matrix_subview: str = "dashboard"
 
     def clear_screen(self):
         sys.stdout.write("\033[H\033[2J")
@@ -63,6 +68,25 @@ class PokeTokenBarTUI:
             summary = self.tracker.get_summary()
             self.engine.process_usage(summary.get("raw_total_tokens", summary["total_tokens"]), summary.get("active_days"))
 
+            if self.in_matrix:
+                self.clear_screen()
+                from poketokenbar.tui.matrix_tui import render_matrix_view
+                from poketokenbar.tui.matrix_router import MatrixRouter
+                render_matrix_view(self)
+                try:
+                    line = sys.stdin.readline()
+                    if not line:
+                        break
+                    cmd = line.strip().lower()
+                    if cmd == "q":
+                        print("\nExiting PokeTokenBar. Keep coding! 🐾")
+                        break
+                    MatrixRouter.dispatch(self, cmd)
+                except KeyboardInterrupt:
+                    print("\nExiting PokeTokenBar. Keep coding! 🐾")
+                    break
+                continue
+
             # Check for celebration modals
             if check_and_render_celebration(self):
                 continue
@@ -73,10 +97,10 @@ class PokeTokenBarTUI:
                 self.current_tab = 12
                 continue
 
-            self.engine.check_penthouse_invitation()
-            if self.engine.is_penthouse_invitation_pending():
-                from poketokenbar.tui_tabs.penthouse import render_penthouse_invitation
-                render_penthouse_invitation(self)
+            self.engine.check_luxury_invitation()
+            if self.engine.is_luxury_invitation_pending():
+                from poketokenbar.tui_tabs.luxury import render_luxury_invitation
+                render_luxury_invitation(self)
                 continue
 
             # Auto-display operation briefing transmission if not yet viewed

@@ -76,7 +76,7 @@ class MarketsMixin:
             5: 1.25, 6: 1.30, 7: 1.35, 8: 1.40, 9: 1.45, 10: 1.50
         }
         mult = mult_map.get(rank, 1.0)
-        if hasattr(self, "has_penthouse_decor") and self.has_penthouse_decor("hologram"):
+        if hasattr(self, "has_luxury_decor") and self.has_luxury_decor("hologram"):
             mult += 0.05
         return mult
 
@@ -88,7 +88,7 @@ class MarketsMixin:
             5: 1.50, 6: 1.60, 7: 1.70, 8: 1.80, 9: 1.90, 10: 2.00
         }
         mult = mult_map.get(rank, 1.0)
-        if hasattr(self, "has_penthouse_decor") and self.has_penthouse_decor("statue"):
+        if hasattr(self, "has_luxury_decor") and self.has_luxury_decor("statue"):
             mult += 0.10
         return mult
 
@@ -254,9 +254,11 @@ class MarketsMixin:
                 total_dividends += div_per_day * days_to_apply
 
         if total_dividends > 0:
-            if hasattr(self, "has_penthouse_decor") and self.has_penthouse_decor("throne"):
+            if hasattr(self, "matrix") and self.matrix.is_market_arbitrage_active():
+                total_dividends *= 3
+            if hasattr(self, "has_luxury_decor") and self.has_luxury_decor("throne"):
                 total_dividends = int(total_dividends * 1.10)
-            trading_desk_lvl = self.get_villa_facility_level("trading_desk")
+            trading_desk_lvl = self.get_luxury_facility_level("trading_desk")
             if trading_desk_lvl >= 2:
                 # Find highest yielding stock
                 best_corp = None

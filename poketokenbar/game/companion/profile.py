@@ -114,12 +114,17 @@ class ProfileMixin:
                             active.happiness = min(100, active.happiness + bonus)
                             self.set_active_mon(active)
                     elif diff > 1:
-                        springs_lvl = self.get_villa_facility_level("springs")
+                        springs_lvl = self.get_luxury_facility_level("springs")
                         if springs_lvl >= 3:
-                            events.append(f"💧 Your companion relaxed in the Executive Penthouse Hot Springs during your {diff-1} missed day(s)! Happiness fully preserved!")
+                            events.append(f"💧 Your companion relaxed in the Executive Luxury Suite Hot Springs during your {diff-1} missed day(s)! Happiness fully preserved!")
                         elif active and active.held_item in ["leftovers", "soothe_bell"]:
                             protect_item = ItemKind(active.held_item).name_en
                             events.append(f"🍎 Your companion missed {diff-1} day(s), but was protected by {protect_item}! Happiness preserved!")
+                        elif hasattr(self, "matrix") and self.matrix.is_entropy_null_active():
+                            events.append("✨ Reality Patch 0x02_ENTROPY_NULL active! Thermodynamic decay halted: Happiness preserved at 100%!")
+                            if active:
+                                active.happiness = 100
+                                self.set_active_mon(active)
                         else:
                             decay = (diff - 1) * 25
                             decay_shield, _ = self.get_aether_perks()
@@ -135,7 +140,7 @@ class ProfileMixin:
                                 hap_val = 0
                             events.append(f"💔 You missed {diff-1} day(s) of coding! Companion Happiness dropped to {hap_val}%. Feed Oran Berries 🫐 to cheer them up!")
 
-                    springs_lvl = self.get_villa_facility_level("springs")
+                    springs_lvl = self.get_luxury_facility_level("springs")
                     if springs_lvl >= 1 and active and active.happiness < 100:
                         inv = self.state.setdefault("inventory", {})
                         if inv.get("berry_oran", 0) > 0:
@@ -148,13 +153,13 @@ class ProfileMixin:
                             self.set_active_mon(active)
                             events.append("💧 Hot Springs Berry Grove nourished your companion with fresh berries! (+10 Happiness)")
 
-                    # Penthouse Decor daily passive perks
-                    if hasattr(self, "has_penthouse_decor"):
-                        if self.has_penthouse_decor("piano") and active and active.happiness < 100:
+                    # Luxury Decor daily passive perks
+                    if hasattr(self, "has_luxury_decor"):
+                        if self.has_luxury_decor("piano") and active and active.happiness < 100:
                             active.happiness = min(100, active.happiness + 5)
                             self.set_active_mon(active)
                             events.append("🎹 Grand Concert Piano: Morning harmonic melodies uplifted your companion (+5 Happiness)!")
-                        if self.has_penthouse_decor("fountain") and active and active.happiness < 60:
+                        if self.has_luxury_decor("fountain") and active and active.happiness < 60:
                             active.happiness = 60
                             self.set_active_mon(active)
                             events.append("⛲ Prism Spring Fountain: Soothing mineral waters comforted your companion!")

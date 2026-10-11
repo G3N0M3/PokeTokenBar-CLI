@@ -304,17 +304,20 @@ class BankingMixin:
                     events.append(f"🏦 Certificate of Deposit [{cd['id']}] ({cd['term_days']}d) has MATURED! Total Value: {format_tokens(cd['current_value'])} tokens (Type 'cd claim {cd['id']}')")
 
         if bank_loan > 0:
-            new_loan = bank_loan
-            for _ in range(days_to_apply):
-                new_loan = int(new_loan * 1.10)
-            events.append(f"🏦 Your Token Bank loan accumulated {format_tokens(new_loan - bank_loan)} tokens in interest!")
-            self.state["bank_loan"] = new_loan
+            if hasattr(self, "matrix") and self.matrix.is_zero_credit_active():
+                self.state["loan_days_active"] = 0
+            else:
+                new_loan = bank_loan
+                for _ in range(days_to_apply):
+                    new_loan = int(new_loan * 1.10)
+                events.append(f"🏦 Your Token Bank loan accumulated {format_tokens(new_loan - bank_loan)} tokens in interest!")
+                self.state["bank_loan"] = new_loan
 
-            loan_days = self.state.get("loan_days_active", 0) + days_to_apply
-            self.state["loan_days_active"] = loan_days
+                loan_days = self.state.get("loan_days_active", 0) + days_to_apply
+                self.state["loan_days_active"] = loan_days
 
-            if loan_days >= 7:
-                self._execute_repossession(new_loan, events)
+                if loan_days >= 7:
+                    self._execute_repossession(new_loan, events)
 
     def _execute_repossession(self, remaining_loan: int, events: List[str]):
         """Liquidates assets across 6 tiers to cover defaulted loan debt."""
