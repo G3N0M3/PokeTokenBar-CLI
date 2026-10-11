@@ -289,6 +289,57 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
                     f"Line {i} in '{v}' view exceeded 72 columns ({len(clean)} chars): '{clean}'"
                 )
 
+    def test_luxury_descend_hint_progression(self):
+        """Verify that before first descent, hint says 'There's something under the Sovereign Throne... Type 'descend'',
+        and after first descent it displays ''descend' (Enter Sub-Level Quantum Singularity Matrix)'."""
+        self._setup_fully_completed_luxury_suite()
+        app = DummyTUI(self.engine)
+        app.current_tab = 10
+        app.bank_subtab = "luxury"
+
+        from poketokenbar.tui_tabs.luxury import _render_unlocked_luxury_view
+        
+        # 1. Before first descent
+        buf = io.StringIO()
+        old_stdout = sys.stdout
+        try:
+            sys.stdout = buf
+            _render_unlocked_luxury_view(app, self.engine.available_tokens)
+        finally:
+            sys.stdout = old_stdout
+        out_before = buf.getvalue()
+        self.assertIn("There's something under the Sovereign Throne... Type 'descend'", out_before)
+        self.assertNotIn("Enter Sub-Level Quantum Singularity Matrix", out_before)
+
+        # 2. After first descent (matrix unlocked)
+        self.engine.state["used_since_install"] = 600_000_000_000_000_000
+        self.engine.descend_to_matrix()
+        self.assertTrue(self.engine.matrix.is_unlocked)
+
+        buf2 = io.StringIO()
+        try:
+            sys.stdout = buf2
+            _render_unlocked_luxury_view(app, self.engine.available_tokens)
+        finally:
+            sys.stdout = old_stdout
+        out_after = buf2.getvalue()
+        self.assertIn("'descend' (Enter Sub-Level Quantum Singularity Matrix)", out_after)
+        self.assertNotIn("There's something under the Sovereign Throne", out_after)
+
+    def test_throne_interaction_subterranean_clue(self):
+        """Verify throne interaction yields subtle vibration clue before first descent."""
+        self._setup_fully_completed_luxury_suite()
+        ok, msg = self.engine.interact_luxury_decor("throne")
+        self.assertTrue(ok)
+        self.assertIn("subterranean vibration hums from beneath the dais", msg)
+
+        # After descent
+        self.engine.state["used_since_install"] = 600_000_000_000_000_000
+        self.engine.descend_to_matrix()
+        ok2, msg2 = self.engine.interact_luxury_decor("throne")
+        self.assertTrue(ok2)
+        self.assertNotIn("subterranean vibration", msg2)
+
 
 if __name__ == "__main__":
     unittest.main()

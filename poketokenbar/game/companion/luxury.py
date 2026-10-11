@@ -430,6 +430,8 @@ class LuxuryMixin:
             return True, "⛲ The Prism Spring Fountain murmurs gently with pure mineral waters."
 
         elif d_key == "throne":
+            if self.is_luxury_fully_completed() and not self.state.get("matrix", {}).get("unlocked", False):
+                return True, "👑 You recline on the Sovereign Throne (+10% dividends).\n  ⚡ A strange subterranean vibration hums from beneath the dais..."
             return True, "👑 You recline on the Sovereign Tycoon Throne (+10% stock dividends)!"
 
         return False, "Nothing happened."

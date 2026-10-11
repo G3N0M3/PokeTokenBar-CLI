@@ -331,7 +331,7 @@ def _render_unlocked_luxury_view(app: Any, avail: int):
         if matrix_st.get("unlocked", False):
             print_bounded(f"  ➔ '{BOLD}descend{RESET}' ({CYAN}Enter Sub-Level Quantum Singularity Matrix{RESET})")
         else:
-            print_bounded(f"  ➔ '{BOLD}descend{RESET}' ({YELLOW}Unseal Sub-Level 0 Reactor for 500.0Q tokens{RESET})")
+            print_bounded(f"  ➔ {CYAN}There's something under the Sovereign Throne...{RESET} Type '{BOLD}descend{RESET}'")
     sys.stdout.write("\n")
 
 
