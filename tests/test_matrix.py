@@ -11,13 +11,16 @@ TEST_STATE = "/tmp/ptb_test_matrix_state.json"
 os.environ["PTB_STATE_FILE"] = TEST_STATE
 
 from poketokenbar.game.companion import CompanionEngine
-from poketokenbar.game.storage import StorageManager
+from poketokenbar.game.storage import StorageManager, get_state_file
 from poketokenbar.game.matrix.models import (
     MATRIX_ENTRY_COST,
     ROOT_TRANSCENDENCE_COST,
     QRAM_BLOCKS,
     MEMORY_NODES,
     SUBSTRATE_ENTITIES,
+    EXPLOIT_TOOLS,
+    DECK_SUBSYSTEMS,
+    VIVIENNE_POST_TUTORIAL_QUOTES,
 )
 from poketokenbar.tui.matrix_tui import render_matrix_view, render_matrix_story_intro, strip_ansi
 from poketokenbar.tui.matrix_router import MatrixRouter
@@ -39,13 +42,21 @@ class DummyTUI:
 class TestQuantumSingularityMatrix(unittest.TestCase):
 
     def setUp(self):
-        if os.path.exists(TEST_STATE):
-            os.remove(TEST_STATE)
+        state_file = get_state_file()
+        if state_file.exists():
+            try:
+                state_file.unlink()
+            except Exception:
+                pass
         self.engine = CompanionEngine()
 
     def tearDown(self):
-        if os.path.exists(TEST_STATE):
-            os.remove(TEST_STATE)
+        state_file = get_state_file()
+        if state_file.exists():
+            try:
+                state_file.unlink()
+            except Exception:
+                pass
 
     def _setup_fully_completed_luxury_suite(self):
         """Helper to set up a 100% completed luxury suite."""
@@ -61,6 +72,12 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
         }
         st["decor"] = ["piano", "chandelier", "statue", "hologram", "fountain", "throne"]
         self.engine.save()
+
+    def _unlock_matrix(self):
+        """Helper to fully prime and descend to the Matrix."""
+        self._setup_fully_completed_luxury_suite()
+        self.engine.state["used_since_install"] = 10_000_000_000_000_000_000
+        self.engine.descend_to_matrix()
 
     def test_luxury_suite_completion_check(self):
         """Test strict validation that Luxury Suite is 100% upgraded and furnished."""
@@ -99,7 +116,7 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
         self.engine.state["used_since_install"] = 100_000_000_000_000_000  # 100Q
         can_descend, err = self.engine.can_descend_to_matrix()
         self.assertFalse(can_descend)
-        self.assertIn("500.0Q tokens required", err)
+        self.assertIn("500.0Q tokens", err)
 
         # 3. Succeeds if tokens >= 500Q
         self.engine.state["used_since_install"] = 600_000_000_000_000_000  # 600Q
@@ -130,7 +147,7 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
         CommandRouter.dispatch(app, "descend")
         self.assertTrue(app.pending_descend)
         self.assertFalse(app.in_matrix)
-        self.assertIn("Are you sure you want to descend?", app.message)
+        self.assertIn("Type 'confirm'", app.message)
         self.assertEqual(self.engine.available_tokens, 600_000_000_000_000_000)
 
         # 2. Cancel confirmation
@@ -218,7 +235,7 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
         finally:
             sys.stdout = old_stdout
 
-        out = buf.getvalue()
+        out = strip_ansi(buf.getvalue())
         # Verify target IDs are explicitly inside parentheses
         self.assertIn("(ID: nursery)", out)
         self.assertIn("(ID: expeditions)", out)
@@ -270,48 +287,124 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
         MatrixRouter.dispatch(app, "help 0x10")
         self.assertEqual(app.help_node_id, "nursery")
 
-    def test_hex_breach_minigame_flow(self):
-        """Test initiating breach puzzle, aligning buffer, and granting root clearance."""
+    def test_hacknet_pentest_flow(self):
+        """Test Hacknet pen-testing flow: port scan, exploit deployment, tick cycles, spoofing, and cracking."""
         self._setup_fully_completed_luxury_suite()
         self.engine.state["used_since_install"] = 10_000_000_000_000_000_000
         self.engine.descend_to_matrix()
         matrix = self.engine.matrix
 
-        # Cannot breach unknown node
-        ok, msg = matrix.start_breach("unknown_node")
+        # Cannot pen-test unknown node
+        ok, msg = matrix.start_pentest("unknown_node")
         self.assertFalse(ok)
 
-        # Start breach for nursery
-        ok, msg = matrix.start_breach("nursery")
+        # Start pen-test for nursery
+        ok, msg = matrix.start_pentest("nursery")
         self.assertTrue(ok)
         self.assertIsNotNone(matrix.active_breach)
         breach = matrix.active_breach
-        target_seq = list(breach["target"])
+        self.assertEqual(breach["node_id"], "nursery")
+        self.assertEqual(breach["required_ports"], 2)
+        self.assertIn("21", breach["ports"])
+        self.assertIn("22", breach["ports"])
+        self.assertIn("80", breach["ports"])
 
         # Abort test
-        ok_a, msg_a = matrix.abort_breach()
+        ok_a, msg_a = matrix.abort_pentest()
         self.assertTrue(ok_a)
         self.assertIsNone(matrix.active_breach)
 
-        # Start again and solve by feeding coordinates that match target sequence
-        matrix.start_breach("nursery")
+        # Restart pen-test
+        matrix.start_pentest("nursery")
         breach = matrix.active_breach
-        grid = breach["grid"]
-        target_seq = list(breach["target"])
 
-        for t_byte in target_seq:
-            found = False
-            for r in range(4):
-                for c in range(4):
-                    if grid[r][c] == t_byte:
-                        matrix.breach_pick(r, c)
-                        found = True
-                        break
-                if found:
-                    break
+        # 1. Test deploying incompatible tool
+        ok_bad, msg_bad = matrix.run_exploit(21, "bruteforce")
+        self.assertFalse(ok_bad)
+        self.assertIn("Incompatible exploit", msg_bad)
 
+        # 2. Deploy valid tool (auto-detect tool when None is passed)
+        ok_exp, msg_exp = matrix.run_exploit(21)
+        self.assertTrue(ok_exp)
+        self.assertEqual(len(breach["threads"]), 1)
+        self.assertEqual(breach["ports"]["21"]["status"], "cracking")
+
+        # 3. Test thread limit enforcement (base deck has 1 thread)
+        ok_sat, msg_sat = matrix.run_exploit(80, "inject")
+        self.assertFalse(ok_sat)
+        self.assertIn("saturated", msg_sat)
+
+        # 4. Advance execution cycle by 1 turn
+        ok_t1, msg_t1 = matrix.tick_pentest(1)
+        self.assertTrue(ok_t1)
+        self.assertEqual(breach["ports"]["21"]["progress"], 1)
+        self.assertEqual(breach["ports"]["21"]["status"], "cracking")
+
+        # 5. Advance execution cycle by 2nd turn -> Port 21 compromised!
+        ok_t2, msg_t2 = matrix.tick_pentest(1)
+        self.assertTrue(ok_t2)
+        self.assertEqual(breach["ports"]["21"]["status"], "compromised")
+        self.assertEqual(len(breach["threads"]), 0)  # thread freed
+        self.assertLess(breach["firewall"], 500)  # firewall damaged
+
+        # 6. Cannot crack node yet (only 1 of 2 required ports compromised)
+        ok_cr_early, msg_cr_early = matrix.crack_node()
+        self.assertFalse(ok_cr_early)
+        self.assertIn("Requires at least 2", msg_cr_early)
+
+        # 7. Deploy 2nd exploit on Port 80 (inject, 2 turns)
+        matrix.owned_tools.append("inject")
+        ok_exp2, msg_exp2 = matrix.run_exploit(80, "inject")
+        self.assertTrue(ok_exp2)
+
+        # Test spoofing connection logs
+        trace_before = matrix.trace_level
+        ok_sp, msg_sp = matrix.spoof_trace()
+        self.assertTrue(ok_sp)
+        self.assertLessEqual(matrix.trace_level, trace_before)
+
+        # Finish Port 80
+        matrix.tick_pentest(2)
+        self.assertEqual(breach["ports"]["80"]["status"], "compromised")
+
+        # 8. Crack node!
+        ok_cr, msg_cr = matrix.crack_node()
+        self.assertTrue(ok_cr)
         self.assertIn("nursery", matrix.hacked_nodes)
         self.assertIsNone(matrix.active_breach)
+
+    def test_pentest_router_dispatch(self):
+        """Test router commands: hack, run, step, spoof, crack."""
+        self._setup_fully_completed_luxury_suite()
+        self.engine.state["used_since_install"] = 10_000_000_000_000_000_000
+        self.engine.descend_to_matrix()
+        app = DummyTUI(self.engine)
+
+        MatrixRouter.dispatch(app, "hack nursery")
+        self.assertEqual(app.matrix_subview, "breach")
+        self.assertIsNotNone(self.engine.matrix.active_breach)
+
+        MatrixRouter.dispatch(app, "run 21 overflow")
+        self.assertIn("Deployed", app.message)
+
+        MatrixRouter.dispatch(app, "step")
+        self.assertIn("EXECUTION CYCLE ADVANCED", app.message)
+
+        MatrixRouter.dispatch(app, "spoof")
+        self.assertIn("CONNECTION MASKED", app.message)
+
+        MatrixRouter.dispatch(app, "step")  # Port 21 finishes
+
+        # Run port 80
+        MatrixRouter.dispatch(app, "run 80")
+        MatrixRouter.dispatch(app, "step")
+        MatrixRouter.dispatch(app, "step")  # Port 80 finishes
+
+        # Crack node
+        MatrixRouter.dispatch(app, "crack")
+        self.assertIn("ROOT PRIVILEGES GRANTED", app.message)
+        self.assertEqual(app.matrix_subview, "tweaks")
+        self.assertIn("nursery", self.engine.matrix.hacked_nodes)
 
     def test_upper_system_tweaker_and_hooks(self):
         """Test tweaking upper systems and verifying hooks across game modules."""
@@ -337,12 +430,14 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
 
         # 3. Test hook in engine egg incubation
         # Active companion as egg
+        self.engine.state["install_baseline_set"] = True
         self.engine.state["egg_tier"] = "common"
         self.engine.state["egg_usage"] = 0
         self.engine.set_active_mon(None)
-        # Process usage: 1,000 raw tokens * 5x speed = 5,000 progress
-        self.engine.process_usage(1_000, 1)
-        self.assertEqual(self.engine.state["egg_usage"], 5000)
+        # Process usage: 1,000 raw tokens * 1.7x XP multiplier (100% happiness + Lv 3 Springs) * 5x speed = 8,500 progress
+        curr = self.engine.state.get("used_since_install", 0)
+        self.engine.process_usage(curr + 1_000)
+        self.assertEqual(self.engine.state["egg_usage"], 8500)
 
         # 4. Remove tweak
         ok_rm, msg_rm = matrix.remove_tweak("nursery", "egg_speed")
@@ -357,7 +452,8 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
         matrix = self.engine.matrix
 
         matrix.hacked_nodes.extend(["expeditions", "combat"])
-        matrix.allocate_ram(1)  # 32 Exaflops
+        matrix.allocate_ram(1)  # 32 Exaflops, 2 slots
+        matrix.allocate_ram(2)  # 64 Exaflops, 3 slots
 
         # Expeditions speed & yield
         matrix.apply_tweak("expeditions", "speed", "10x")
@@ -390,7 +486,7 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
 
         ok, msg = matrix.combat_fork()
         self.assertTrue(ok)
-        self.assertEqual(matrix.deck_hardware["threads"], 2)
+        self.assertIn("deflected by thread", msg)
 
         # Exploit deals damage
         init_hp = threat["hp"]
@@ -472,7 +568,7 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
             _render_unlocked_luxury_view(app, self.engine.available_tokens)
         finally:
             sys.stdout = old_stdout
-        out_before = buf.getvalue()
+        out_before = strip_ansi(buf.getvalue())
         self.assertIn("There's something under the Sovereign Throne... Type 'descend'", out_before)
         self.assertNotIn("Enter Sub-Level Quantum Singularity Matrix", out_before)
 
@@ -487,7 +583,7 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
             _render_unlocked_luxury_view(app, self.engine.available_tokens)
         finally:
             sys.stdout = old_stdout
-        out_after = buf2.getvalue()
+        out_after = strip_ansi(buf2.getvalue())
         self.assertIn("'descend' (Enter Sub-Level Quantum Singularity Matrix)", out_after)
         self.assertNotIn("There's something under the Sovereign Throne", out_after)
 
@@ -520,14 +616,15 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
             sys.stdin = old_stdin
 
         out = buf.getvalue()
-        # Verify Screen 1 and Screen 2 narrative elements
+        # Verify Screen 1, Screen 2, and Screen 3 narrative elements
         self.assertIn("SUBTERRANEAN HYPERVISOR LIFT", out)
         self.assertIn("ADDR 0x7FFF0010: active_mon", out)
         self.assertIn("THE WORLD IS AN EXECUTION SANDBOX", out)
         self.assertIn("TOKENS ARE COGNITIVE ENERGY", out)
-        self.assertIn("boot Substrate Cyberdeck Shell", out)
+        self.assertIn("Madame Vivienne, Grand Concierge & Substrate Architect", out)
+        self.assertIn("boot Cyberdeck Shell & Orientation", out)
 
-        # Verify Screen 3 (Directives infodump) is DELETED
+        # Verify old text-heavy directives view is deleted
         self.assertNotIn("SUB-LEVEL 0 DIRECTIVES", out)
         self.assertNotIn("ROOT TRANSCENDENCE PROTOCOL", out)
 
@@ -593,6 +690,472 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
         reloaded = CompanionEngine()
         self.assertTrue(reloaded.matrix.state.get("story_viewed", False))
 
+    def test_tutorial_progression_step_by_step(self):
+        """Verify the full 7-step Madame Vivienne tutorial questline progresses correctly."""
+        self._unlock_matrix()
+        matrix = self.engine.matrix
+
+        # Step 1: Initial state is Step 1 (Network Reconnaissance)
+        self.assertEqual(matrix.tutorial_step, 1)
+        self.assertFalse(matrix.tutorial_completed)
+        q1 = matrix.get_current_tutorial_quest()
+        self.assertEqual(q1["title"], "Network Reconnaissance")
+        self.assertEqual(q1["speaker"], "Madame Vivienne")
+
+        # Action 1: scan -> advances to Step 2
+        matrix.scan_network()
+        self.assertEqual(matrix.tutorial_step, 2)
+        q2 = matrix.get_current_tutorial_quest()
+        self.assertEqual(q2["title"], "Vulnerability Analysis")
+
+        # Action 2: help nursery -> advances to Step 3
+        app = DummyTUI(self.engine)
+        MatrixRouter.dispatch(app, "help nursery")
+        self.assertEqual(matrix.tutorial_step, 3)
+        q3 = matrix.get_current_tutorial_quest()
+        self.assertEqual(q3["title"], "Establish Remote Link")
+
+        # Action 3: hack nursery -> advances to Step 4
+        ok, _ = matrix.start_pentest("nursery")
+        self.assertTrue(ok)
+        self.assertEqual(matrix.tutorial_step, 4)
+        q4 = matrix.get_current_tutorial_quest()
+        self.assertEqual(q4["title"], "Exploit Deployment")
+
+        # Action 4: run 21 overflow -> advances to Step 5
+        ok_exp, _ = matrix.run_exploit(21, "overflow")
+        self.assertTrue(ok_exp)
+        self.assertEqual(matrix.tutorial_step, 5)
+        q5 = matrix.get_current_tutorial_quest()
+        self.assertEqual(q5["title"], "Execution & Countermeasures")
+
+        # Action 5: step -> advances to Step 6
+        ok_step, _ = matrix.tick_pentest(1)
+        self.assertTrue(ok_step)
+        self.assertEqual(matrix.tutorial_step, 6)
+        q6 = matrix.get_current_tutorial_quest()
+        self.assertEqual(q6["title"], "Root ICE Override")
+
+        # Compromise remaining needed turns for Port 21 and crack Port 80
+        matrix.tick_pentest(1)  # Port 21 compromised!
+        matrix.owned_tools.append("inject")
+        matrix.run_exploit(80, "inject")
+        matrix.tick_pentest(2)  # Port 80 compromised!
+
+        # Action 6: crack -> advances to Step 7
+        ok_crack, _ = matrix.crack_node()
+        self.assertTrue(ok_crack)
+        self.assertIn("nursery", matrix.hacked_nodes)
+        self.assertEqual(matrix.tutorial_step, 7)
+        q7 = matrix.get_current_tutorial_quest()
+        self.assertEqual(q7["title"], "Reality Overclock")
+
+        # Action 7: tweak nursery egg_speed 2x -> completes tutorial!
+        ok_twk, _ = matrix.apply_tweak("nursery", "egg_speed", "2x")
+        self.assertTrue(ok_twk)
+        self.assertTrue(matrix.tutorial_completed)
+        self.assertEqual(matrix.tutorial_step, 8)
+        comp = matrix.get_current_tutorial_quest()
+        self.assertEqual(comp["title"], "Root Shell Master")
+
+    def test_tutorial_skip_and_reset(self):
+        """Verify tutorial can be cleanly skipped and reset via engine methods and router."""
+        self._unlock_matrix()
+        matrix = self.engine.matrix
+        app = DummyTUI(self.engine)
+
+        self.assertEqual(matrix.tutorial_step, 1)
+        self.assertFalse(matrix.tutorial_completed)
+
+        # Skip via router command 'quest skip'
+        MatrixRouter.dispatch(app, "quest skip")
+        self.assertTrue(matrix.tutorial_completed)
+        self.assertEqual(matrix.tutorial_step, 8)
+        self.assertIn("tutorial bypassed", app.message)
+
+        # Reset via router command 'quest reset'
+        MatrixRouter.dispatch(app, "quest reset")
+        self.assertFalse(matrix.tutorial_completed)
+        self.assertEqual(matrix.tutorial_step, 1)
+        self.assertIn("re-synchronized", app.message)
+
+    def test_tutorial_ui_rendering_and_column_width(self):
+        """Verify Madame Vivienne guidance boxes and quest briefing screens obey <= 72 cols."""
+        self._unlock_matrix()
+        app = DummyTUI(self.engine)
+
+        from poketokenbar.tui.matrix_tui import (
+            _render_deck_view,
+            _render_pentest_view,
+            _render_quest_view,
+        )
+
+        # 1. Deck View with Tutorial Guidance Box
+        buf_deck = io.StringIO()
+        old_stdout = sys.stdout
+        try:
+            sys.stdout = buf_deck
+            _render_deck_view(app, self.engine.matrix)
+        finally:
+            sys.stdout = old_stdout
+        out_deck = buf_deck.getvalue()
+        self.assertIn("COM-LINK // MADAME VIVIENNE", out_deck)
+        self.assertIn("QUEST 1/7: RECON", out_deck)
+        for line in out_deck.splitlines():
+            clean = strip_ansi(line)
+            self.assertLessEqual(len(clean), 72, f"Deck line exceeds 72 cols: '{clean}'")
+
+        # 2. Pentest View with Vivienne Objective Reminder & Active Thread
+        self.engine.matrix.tutorial_step = 4
+        self.engine.matrix.start_pentest("nursery")
+        ok_th, _ = self.engine.matrix.run_exploit(21, "overflow")
+        self.assertTrue(ok_th)
+        buf_pen = io.StringIO()
+        try:
+            sys.stdout = buf_pen
+            _render_pentest_view(app, self.engine.matrix)
+        finally:
+            sys.stdout = old_stdout
+        out_pen = buf_pen.getvalue()
+        self.assertIn("[VIVIENNE]:", out_pen)
+        self.assertIn("Thread 1: Port 21", out_pen)
+        for line in out_pen.splitlines():
+            clean = strip_ansi(line)
+            self.assertLessEqual(len(clean), 72, f"Pentest line exceeds 72 cols: '{clean}'")
+
+        # 3. Dedicated Quest Briefing View (_render_quest_view)
+        buf_q = io.StringIO()
+        try:
+            sys.stdout = buf_q
+            _render_quest_view(app, self.engine.matrix)
+        finally:
+            sys.stdout = old_stdout
+        out_q = buf_q.getvalue()
+        self.assertIn("COM-LINK BRIEFING // MADAME VIVIENNE", out_q)
+        self.assertIn("OPERATION: ROOT OVERRIDE", out_q)
+        for line in out_q.splitlines():
+            clean = strip_ansi(line)
+            self.assertLessEqual(len(clean), 72, f"Quest view line exceeds 72 cols: '{clean}'")
+
+    def test_tutorial_router_commands(self):
+        """Verify 'quest', 'tutorial', and 'comlink' commands switch subviews properly."""
+        self._unlock_matrix()
+        app = DummyTUI(self.engine)
+
+        MatrixRouter.dispatch(app, "quest")
+        self.assertEqual(app.matrix_subview, "quest")
+        self.assertIn("COM-LINK briefing", app.message)
+
+        MatrixRouter.dispatch(app, "deck")
+        self.assertEqual(app.matrix_subview, "deck")
+
+        MatrixRouter.dispatch(app, "tutorial")
+        self.assertEqual(app.matrix_subview, "quest")
+
+    def test_matrix_reinit_in_settings_and_router(self):
+        """Verify matrix re-init process in settings tab, confirmation flow, and router."""
+        from poketokenbar.tui_tabs.settings import render_settings_tab
+
+        # Setup: unlock matrix and progress in it
+        self._unlock_matrix()
+        self.engine.matrix.allocate_ram(1)
+        self.engine.matrix.state["tutorial_step"] = 5
+        self.assertTrue(self.engine.matrix.is_unlocked)
+        self.assertGreater(len(self.engine.matrix.ram_blocks), 0)
+
+        # 1. Verify Settings Tab rendering (Page 3 contains item 15)
+        app = DummyTUI(self.engine)
+        app.current_tab = 11
+        app.settings_page = 3
+        buf = io.StringIO()
+        old_stdout = sys.stdout
+        try:
+            sys.stdout = buf
+            render_settings_tab(app)
+        finally:
+            sys.stdout = old_stdout
+        out = buf.getvalue()
+        self.assertIn("[15] Singularity Matrix Sub-0:", out)
+        self.assertIn("ACTIVE", out)
+        self.assertIn("matrix init", out)
+
+        # 2. Verify CommandRouter triggers confirmation when unlocked
+        CommandRouter.dispatch(app, "matrix init")
+        self.assertTrue(getattr(app, "pending_matrix_init", False))
+        self.assertIn("CONFIRM", app.message)
+
+        # 3. Confirm the re-initialization
+        CommandRouter.dispatch(app, "confirm")
+        self.assertFalse(getattr(app, "pending_matrix_init", False))
+        self.assertFalse(self.engine.matrix.is_unlocked)
+        self.assertEqual(len(self.engine.matrix.ram_blocks), 0)
+        self.assertEqual(self.engine.matrix.state["tutorial_step"], 1)
+        self.assertIn("fully re-initialized", app.message)
+
+        # 4. Verify Option '15' triggers matrix init on Settings tab
+        self._unlock_matrix()
+        self.assertTrue(self.engine.matrix.is_unlocked)
+        CommandRouter.dispatch(app, "15")
+        self.assertTrue(getattr(app, "pending_matrix_init", False))
+        CommandRouter.dispatch(app, "cancel")
+        self.assertFalse(getattr(app, "pending_matrix_init", False))
+        self.assertTrue(self.engine.matrix.is_unlocked)
+
+        # 5. Verify matrix init directly inside MatrixRouter
+        app.in_matrix = True
+        MatrixRouter.dispatch(app, "matrix init")
+        self.assertFalse(app.in_matrix)
+        self.assertFalse(self.engine.matrix.is_unlocked)
+        self.assertIn("Returned to Luxury Suite", app.message)
+
+    def test_hardware_catalog_and_router_commands(self):
+        """Verify 'ram', 'hardware', 'help hardware', and 'buy ram <1-5>' commands."""
+        self._unlock_matrix()
+        app = DummyTUI(self.engine)
+        app.in_matrix = True
+
+        # 1. 'hardware' or 'ram' switches to help view with hardware node
+        MatrixRouter.dispatch(app, "hardware")
+        self.assertEqual(app.matrix_subview, "help")
+        self.assertEqual(app.help_node_id, "hardware")
+        self.assertIn("Next Q-RAM: Block 1", app.message)
+
+        # 2. 'help ram' switches to hardware specs
+        MatrixRouter.dispatch(app, "help ram")
+        self.assertEqual(app.matrix_subview, "help")
+        self.assertEqual(app.help_node_id, "hardware")
+
+        # 3. 'buy ram 1' allocates Q-RAM Block 1
+        MatrixRouter.dispatch(app, "buy ram 1")
+        self.assertIn(1, self.engine.matrix.ram_blocks)
+        self.assertEqual(self.engine.matrix.max_exaflops, 32.0)
+        self.assertEqual(self.engine.matrix.max_tweak_slots, 2)
+        self.assertIn("DECK UPGRADED", app.message)
+
+    def test_exploit_tool_purchasing_and_ownership(self):
+        """Verify exploit software tool purchases and ownership gating."""
+        self._unlock_matrix()
+        matrix = self.engine.matrix
+        app = DummyTUI(self.engine)
+
+        # 1. 'overflow' is owned by default; other tools are not
+        self.assertIn("overflow", matrix.owned_tools)
+        self.assertNotIn("inject", matrix.owned_tools)
+        self.assertNotIn("bruteforce", matrix.owned_tools)
+
+        # 2. Deploying an uncompiled tool fails with compilation hint
+        matrix.start_pentest("nursery")
+        ok_unowned, msg_unowned = matrix.run_exploit(80, "inject")
+        self.assertFalse(ok_unowned)
+        self.assertIn("not compiled", msg_unowned)
+        self.assertIn("buy tool inject", msg_unowned)
+
+        # 3. Purchasing with insufficient tokens fails
+        self.engine.state["used_since_install"] = 0
+        self.engine.state["spent_tokens"] = 0
+        ok_poor, msg_poor = matrix.buy_tool("inject")
+        self.assertFalse(ok_poor)
+        self.assertIn("Not enough spendable tokens", msg_poor)
+
+        # 4. Purchasing with sufficient tokens succeeds
+        self.engine.state["used_since_install"] = 10_000_000_000_000_000_000
+        ok_buy, msg_buy = matrix.buy_tool("inject")
+        self.assertTrue(ok_buy)
+        self.assertIn("SOFTWARE COMPILED", msg_buy)
+        self.assertIn("inject", matrix.owned_tools)
+
+        # 5. Deploying the newly compiled tool now succeeds
+        ok_exp, msg_exp = matrix.run_exploit(80, "inject")
+        self.assertTrue(ok_exp)
+        self.assertIn("Deployed Pickle_RCE.py", msg_exp)
+
+        # 6. Buying an already compiled tool fails
+        ok_again, msg_again = matrix.buy_tool("inject")
+        self.assertFalse(ok_again)
+        self.assertIn("already compiled", msg_again)
+
+        # 7. Buying unknown tool fails
+        ok_unk, msg_unk = matrix.buy_tool("magic_hack")
+        self.assertFalse(ok_unk)
+        self.assertIn("Unknown exploit software", msg_unk)
+
+    def test_exploit_tool_overclocking_v2(self):
+        """Verify upgrading software exploits to v2.0 Overclocked (-1 turn, -25% Exaflop cost)."""
+        self._unlock_matrix()
+        matrix = self.engine.matrix
+
+        # 1. Upgrading an unowned tool fails
+        ok_unowned, msg_unowned = matrix.upgrade_tool("rce")
+        self.assertFalse(ok_unowned)
+        self.assertIn("compile base", msg_unowned)
+
+        # 2. Upgrading with insufficient tokens fails
+        self.engine.state["used_since_install"] = 0
+        self.engine.state["spent_tokens"] = 0
+        ok_poor, msg_poor = matrix.upgrade_tool("overflow")
+        self.assertFalse(ok_poor)
+        self.assertIn("Not enough spendable tokens", msg_poor)
+
+        # 3. Upgrading 'overflow' with sufficient tokens succeeds
+        self.engine.state["used_since_install"] = 10_000_000_000_000_000_000
+        ok_up, msg_up = matrix.upgrade_tool("overflow")
+        self.assertTrue(ok_up)
+        self.assertIn("SOFTWARE OVERCLOCKED", msg_up)
+        self.assertIn("overflow", matrix.tool_upgrades)
+
+        # 4. Deploying v2.0 'overflow' reflects -1 turn and -25% Exaflop cost
+        matrix.start_pentest("nursery")
+        ok_run, msg_run = matrix.run_exploit(21, "overflow")
+        self.assertTrue(ok_run)
+        self.assertIn("v2.0 Overclocked", msg_run)
+        # Base overflow is 4.0 EF, 2 turns. v2.0 is 3.0 EF, 1 turn.
+        self.assertIn("3.0 EF", msg_run)
+        self.assertIn("1 turns total", msg_run)
+        thread = matrix.active_breach["threads"][0]
+        self.assertEqual(thread["max_progress"], 1)
+        self.assertEqual(thread["cost_exaflops"], 3.0)
+        self.assertTrue(thread["is_v2"])
+
+        # 5. Upgrading an already upgraded tool fails
+        ok_up2, msg_up2 = matrix.upgrade_tool("overflow")
+        self.assertFalse(ok_up2)
+        self.assertIn("already upgraded", msg_up2)
+
+    def test_cyberdeck_subsystems_upgrades(self):
+        """Verify upgrading Cyberdeck Subsystems (Shield, Stealth, Nanites, Clock)."""
+        self._unlock_matrix()
+        matrix = self.engine.matrix
+        self.engine.state["used_since_install"] = 10_000_000_000_000_000_000
+
+        # Initial subsystem levels
+        self.assertEqual(matrix.get_subsystem_level("shield"), 0)
+        self.assertEqual(matrix.get_subsystem_level("stealth"), 0)
+        self.assertEqual(matrix.get_subsystem_level("nanites"), 0)
+        self.assertEqual(matrix.get_subsystem_level("clock"), 0)
+        self.assertEqual(matrix.deck_hardware["max_firewall"], 500)
+
+        # 1. Upgrade Shield Subsystem Lv 1 (+500 Firewall -> 1,000 HP Total)
+        ok_sh, msg_sh = matrix.upgrade_subsystem("shield")
+        self.assertTrue(ok_sh)
+        self.assertEqual(matrix.get_subsystem_level("shield"), 1)
+        self.assertEqual(matrix.deck_hardware["max_firewall"], 1000)
+        self.assertEqual(matrix.deck_hardware["firewall"], 1000)
+
+        # 2. Upgrade Stealth Subsystem Lv 1 (-20% Spoof Trace & -10% Passive Trace)
+        ok_st, msg_st = matrix.upgrade_subsystem("stealth")
+        self.assertTrue(ok_st)
+        self.assertEqual(matrix.get_subsystem_level("stealth"), 1)
+
+        # 3. Upgrade Nanites Subsystem Lv 1 (+20% Integrity, +250 Shield on breach)
+        ok_nan, msg_nan = matrix.upgrade_subsystem("nanites")
+        self.assertTrue(ok_nan)
+        self.assertEqual(matrix.get_subsystem_level("nanites"), 1)
+
+        # 4. Upgrade Clock Subsystem Lv 1 (20% Double Tick Chance)
+        ok_clk, msg_clk = matrix.upgrade_subsystem("clock")
+        self.assertTrue(ok_clk)
+        self.assertEqual(matrix.get_subsystem_level("clock"), 1)
+
+        # 5. Upgrading to Max Level (Lv 5) and beyond
+        for _ in range(4):
+            matrix.upgrade_subsystem("clock")
+        self.assertEqual(matrix.get_subsystem_level("clock"), 5)
+        ok_max, msg_max = matrix.upgrade_subsystem("clock")
+        self.assertFalse(ok_max)
+        self.assertIn("already at Maximum Level", msg_max)
+
+        # 6. Unknown subsystem
+        ok_unk, msg_unk = matrix.upgrade_subsystem("quantum_laser")
+        self.assertFalse(ok_unk)
+        self.assertIn("Unknown subsystem", msg_unk)
+
+    def test_vivienne_100_sentence_quote_pool(self):
+        """Verify Madame Vivienne's post-tutorial broadcast pool contains exactly 100 unique sentences."""
+        # 1. Exactly 100 quotes
+        self.assertEqual(len(VIVIENNE_POST_TUTORIAL_QUOTES), 100)
+
+        # 2. All 100 quotes are strictly unique
+        self.assertEqual(len(set(VIVIENNE_POST_TUTORIAL_QUOTES)), 100)
+
+        # 3. When tutorial is completed, get_current_tutorial_quest() draws from this pool
+        self._unlock_matrix()
+        matrix = self.engine.matrix
+        matrix.tutorial_completed = True
+
+        observed_quotes = set()
+        for _ in range(50):
+            quest = matrix.get_current_tutorial_quest()
+            self.assertEqual(quest["title"], "Root Shell Master")
+            self.assertEqual(quest["speaker"], "Madame Vivienne")
+            self.assertIn(quest["summary"], VIVIENNE_POST_TUTORIAL_QUOTES)
+            self.assertIn(quest["dialogue"][0], VIVIENNE_POST_TUTORIAL_QUOTES)
+            observed_quotes.add(quest["summary"])
+
+        # Over 50 random samples, we should observe multiple distinct quotes
+        self.assertGreater(len(observed_quotes), 1)
+
+        # 4. Verify all 100 quotes wrap cleanly within 64 width
+        import textwrap
+        for quote in VIVIENNE_POST_TUTORIAL_QUOTES:
+            wrapped = textwrap.wrap(quote, width=64)
+            for line in wrapped:
+                self.assertLessEqual(len(line), 64)
+
+    def test_router_subsystem_and_software_commands(self):
+        """Verify command routing for software suite, purchases, and subsystem upgrades."""
+        self._unlock_matrix()
+        app = DummyTUI(self.engine)
+        app.in_matrix = True
+        self.engine.state["used_since_install"] = 10_000_000_000_000_000_000
+
+        # 1. 'software' and 'tools' command
+        MatrixRouter.dispatch(app, "software")
+        self.assertEqual(app.matrix_subview, "help")
+        self.assertEqual(app.help_node_id, "software")
+
+        MatrixRouter.dispatch(app, "tools")
+        self.assertEqual(app.matrix_subview, "help")
+        self.assertEqual(app.help_node_id, "software")
+
+        # 2. 'buy tool bruteforce'
+        MatrixRouter.dispatch(app, "buy tool bruteforce")
+        self.assertIn("bruteforce", self.engine.matrix.owned_tools)
+        self.assertIn("SOFTWARE COMPILED", app.message)
+
+        # 3. 'upgrade tool bruteforce'
+        MatrixRouter.dispatch(app, "upgrade tool bruteforce")
+        self.assertIn("bruteforce", self.engine.matrix.tool_upgrades)
+        self.assertIn("SOFTWARE OVERCLOCKED", app.message)
+
+        # 4. 'upgrade shield'
+        init_fw = self.engine.matrix.deck_hardware["max_firewall"]
+        MatrixRouter.dispatch(app, "upgrade shield")
+        self.assertGreater(self.engine.matrix.deck_hardware["max_firewall"], init_fw)
+        self.assertIn("SUBSYSTEM UPGRADED", app.message)
+
+        # 5. 'upgrade stealth'
+        MatrixRouter.dispatch(app, "upgrade stealth")
+        self.assertEqual(self.engine.matrix.get_subsystem_level("stealth"), 1)
+
+        # 6. Verify render_matrix_view produces output strictly <= 72 columns across all subviews
+        subviews_to_test = ["deck", "nodes", "tweaks", "combat", "help", "quest"]
+        for sv in subviews_to_test:
+            app.matrix_subview = sv
+            app.help_node_id = "software" if sv == "help" else None
+            buf = io.StringIO()
+            old_stdout = sys.stdout
+            try:
+                sys.stdout = buf
+                render_matrix_view(app)
+            finally:
+                sys.stdout = old_stdout
+            out = buf.getvalue()
+            for line in out.splitlines():
+                plain = strip_ansi(line)
+                self.assertLessEqual(len(plain), 72, f"Line exceeds 72 cols in subview {sv}: {plain}")
+
 
 if __name__ == "__main__":
     unittest.main()
+
+

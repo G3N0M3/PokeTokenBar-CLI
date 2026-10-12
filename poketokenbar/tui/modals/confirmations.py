@@ -35,6 +35,17 @@ def handle_pending_confirmation(app, cmd: str) -> bool:
             app.message = "❌ Velvet Sting reset cancelled."
         return True
 
+    if getattr(app, "pending_matrix_init", False) is True:
+        app.pending_matrix_init = False
+        if clean_cmd in ["confirm", "confirm matrix", "matrix init", "yes", "y"]:
+            ok, msg = app.engine.reset_matrix_process()
+            app.in_matrix = False
+            app.matrix_subview = "dashboard"
+            app.message = f"⚡ {msg}"
+        else:
+            app.message = "❌ Matrix re-initialization cancelled."
+        return True
+
     if getattr(app, "pending_descend", False) is True:
         app.pending_descend = False
         if clean_cmd in ["confirm", "yes", "y", "ok", "descend"]:

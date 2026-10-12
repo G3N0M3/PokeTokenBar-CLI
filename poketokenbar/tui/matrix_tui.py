@@ -10,6 +10,8 @@ from poketokenbar.game.matrix.models import (
     QRAM_BLOCKS,
     MEMORY_NODES,
     SUBSTRATE_ENTITIES,
+    EXPLOIT_TOOLS,
+    DECK_SUBSYSTEMS,
     ROOT_TRANSCENDENCE_COST,
 )
 
@@ -28,7 +30,7 @@ BOLD = "\033[1m"
 
 def strip_ansi(text: str) -> str:
     """Removes ANSI escape codes to measure true printable width."""
-    return re.sub(r"\033\[[0-9;]*m", "", text)
+    return re.sub(r"\033\[[0-9;?]*[a-zA-Z]", "", text)
 
 
 def render_matrix_view(app) -> None:
@@ -57,6 +59,8 @@ def render_matrix_view(app) -> None:
         _render_combat_view(app, engine)
     elif subview == "tweaks":
         _render_tweaks_view(app, engine)
+    elif subview in ["quest", "tutorial", "comlink"]:
+        _render_quest_view(app, engine)
     elif subview in ["help", "?"]:
         _render_help_view(app, engine)
     else:
@@ -108,10 +112,13 @@ def _render_deck_view(app, engine) -> None:
     # Cyberdeck Core Status Display
     sys.stdout.write(f"\n  {BRIGHT_GREEN}[CYBERDECK HARDWARE & COMPUTATION SUBSTRATE]{RESET}\n")
     ram_count = len(engine.ram_blocks)
-    sys.stdout.write(f"  • RAM Lattice : {ram_count}/5 Quantum Blocks Allocated\n")
+    tool_count = len(engine.owned_tools)
+    v2_count = len(engine.tool_upgrades)
     hw = engine.deck_hardware
-    sys.stdout.write(f"  • Deck Health : Integrity: {hw['integrity']}% | Firewall: {hw['firewall']} Shield\n")
-    sys.stdout.write(f"  • Threads     : {hw['threads']}/4 Active Execution Threads\n\n")
+    sys.stdout.write(f"  • RAM Lattice : {ram_count}/5 Blocks | Compute: {CYAN}{engine.max_exaflops:.1f} EF{RESET}\n")
+    sys.stdout.write(f"  • Deck Health : Integrity: {hw['integrity']}% | Firewall: {hw['firewall']}/{hw['max_firewall']} HP\n")
+    sys.stdout.write(f"  • Subsystems  : Shield:Lv{engine.get_subsystem_level('shield')} | Stealth:Lv{engine.get_subsystem_level('stealth')} | Nan:Lv{engine.get_subsystem_level('nanites')} | Clk:Lv{engine.get_subsystem_level('clock')}\n")
+    sys.stdout.write(f"  • Software    : {tool_count}/7 Tools ({v2_count} v2.0) | Threads: {engine.max_threads} Active\n\n")
 
     # Active Reality Tweaks Summary
     sys.stdout.write(f"  {BRIGHT_CYAN}[ACTIVE REALITY TWEAKS AFFECTING POKETOKENBAR]{RESET}\n")
@@ -137,15 +144,36 @@ def _render_deck_view(app, engine) -> None:
         sys.stdout.write(f"  {YELLOW}⚠️ TRACE HEAT ELEVATED:{RESET} Host OS watchdogs are actively tracing!\n")
         sys.stdout.write(f"  {GRAY}Type 'tracekill' or 'cool' to scrub telemetry logs.{RESET}\n\n")
 
-    # Guided Hint Box for Active Learning
-    sys.stdout.write(f"  {GRAY}{'-' * 68}{RESET}\n")
-    if not engine.hacked_nodes:
-        sys.stdout.write(f"  {BRIGHT_GREEN}NEXT STEP:{RESET} Type {CYAN}'scan'{RESET} to detect upper system memory nodes.\n")
-        sys.stdout.write(f"  {GRAY}Breach nodes to unlock reality tweaks that modify the upper game!{RESET}\n")
-    elif not engine.active_tweaks:
-        sys.stdout.write(f"  {BRIGHT_GREEN}NEXT STEP:{RESET} Type {CYAN}'tweaks'{RESET} or {CYAN}'tweak <node> <param> <val>'{RESET} to tweak reality!\n")
+    # COM-LINK Tutorial Guidance Box (Madame Vivienne)
+    quest = engine.get_current_tutorial_quest()
+    is_done = engine.tutorial_completed
+    step_num = engine.tutorial_step
+    max_steps = 7
+
+    sys.stdout.write(f"  {CYAN}┌── {BOLD}[COM-LINK // MADAME VIVIENNE]{RESET}{CYAN} ")
+    if is_done:
+        tag_str = f"{GREEN}[ROOT SHELL MASTER]{RESET}{CYAN}"
+        tag_plain = "[ROOT SHELL MASTER]"
     else:
-        sys.stdout.write(f"  {BRIGHT_GREEN}HINT:{RESET} Type {CYAN}'scan'{RESET} (nodes), {CYAN}'tweaks'{RESET} (options), or {CYAN}'help'{RESET} for commands.\n")
+        q_tag = quest.get("tag", "OBJECTIVE")
+        tag_str = f"{YELLOW}[QUEST {step_num}/{max_steps}: {q_tag}]{RESET}{CYAN}"
+        tag_plain = f"[QUEST {step_num}/{max_steps}: {q_tag}]"
+
+    prefix_plain = f"┌── [COM-LINK // MADAME VIVIENNE] {tag_plain} "
+    pad_len = max(2, 66 - len(prefix_plain))
+    sys.stdout.write(tag_str + "─" * pad_len + f"┐{RESET}\n")
+
+    summary = quest.get("summary", quest.get("objective", ""))
+    obj = quest.get("objective", "")
+    for s_line in textwrap.wrap(f"\"{summary}\"", width=64):
+        sys.stdout.write(f"  {CYAN}│{RESET} {YELLOW}{s_line}{RESET}\n")
+    for o_line in textwrap.wrap(f"➔ Objective: {obj}", width=64):
+        sys.stdout.write(f"  {CYAN}│{RESET} {BRIGHT_GREEN}{o_line}{RESET}\n")
+    if not is_done:
+        sys.stdout.write(f"  {CYAN}│{RESET} {GRAY}Type 'quest' for briefing | 'quest skip' to bypass.{RESET}\n")
+    else:
+        sys.stdout.write(f"  {CYAN}│{RESET} {GRAY}Type 'quest' to review tutorial briefing.{RESET}\n")
+    sys.stdout.write(f"  {CYAN}└{'─' * 66}┘{RESET}\n")
 
 
 def _render_nodes_view(app, engine) -> None:
@@ -156,49 +184,125 @@ def _render_nodes_view(app, engine) -> None:
     for nid, n in nodes.items():
         if nid == "root":
             continue
-        status_tag = f"{GREEN}[ROOT ACCESS]{RESET}" if n["hacked"] else f"{RED}[LOCKED: ICE LVL {n['ice_level']}]{RESET}"
+        req = n.get("required_ports", 2)
+        status_tag = f"{GREEN}[ROOT ACCESS]{RESET}" if n["hacked"] else f"{RED}[LOCKED: {req} PORTS REQUIRED]{RESET}"
         sys.stdout.write(f"  {BOLD}• {n['code']}{RESET} (ID: {CYAN}{nid}{RESET}) -> {status_tag}\n")
 
     sys.stdout.write(f"\n  {BOLD}Commands:{RESET}\n")
-    sys.stdout.write(f"    {CYAN}hack <id>{RESET} : Initiate breach sequence (e.g. 'hack nursery')\n")
-    sys.stdout.write(f"    {CYAN}help <id>{RESET} : View node description & tweak manual (e.g. 'help nursery')\n")
+    sys.stdout.write(f"    {CYAN}hack <id>{RESET} : Connect & initiate pen-test (e.g. 'hack nursery')\n")
+    sys.stdout.write(f"    {CYAN}help <id>{RESET} : View node subsystem manual & port specs\n")
 
 
-def _render_breach_view(app, engine) -> None:
-    """Renders the active 4x4 Hex Memory Alignment breach puzzle."""
+def _render_pentest_view(app, engine) -> None:
+    """Renders the active Hacknet-style multi-vector Pen-Testing session."""
     breach = engine.active_breach
     if not breach:
-        sys.stdout.write(f"\n  {YELLOW}No active breach session. Type 'scan' and 'hack <id>'.{RESET}\n")
+        sys.stdout.write(f"\n  {YELLOW}No active pen-testing session. Type 'scan' and 'hack <id>'.{RESET}\n")
         return
 
     node_id = breach["node_id"]
-    node_name = MEMORY_NODES.get(node_id, {}).get("name", node_id)
-    grid = breach["grid"]
-    target = breach["target"]
-    buf = breach["buffer"]
-    cycles = breach["cycles"]
+    node = MEMORY_NODES.get(node_id, {})
+    node_code = node.get("code", node_id)
+    firewall = breach.get("firewall", 0)
+    max_firewall = breach.get("max_firewall", 500)
+    ports = breach.get("ports", {})
+    threads = breach.get("threads", [])
+    max_th = engine.max_threads
+    trace = engine.trace_level
+    comp_ports = sum(1 for p in ports.values() if p["status"] == "compromised")
+    req_ports = breach.get("required_ports", 2)
+    avail_ef = engine.available_exaflops
+    max_ef = engine.max_exaflops
 
-    sys.stdout.write(f"\n  {BRIGHT_CYAN}🔓 TACTICAL BREACH MATRIX // NODE: {node_name}{RESET} (ID: {CYAN}{node_id}{RESET})\n")
-    sys.stdout.write(f"  {GRAY}Align memory coordinates to match the target hex sequence.{RESET}\n\n")
+    sys.stdout.write(f"\n  {BRIGHT_CYAN}🔓 PEN-TESTING MATRIX // {node_code}{RESET} (ID: {CYAN}{node_id}{RESET})\n")
 
-    # Grid Display
-    sys.stdout.write("      [0]  [1]  [2]  [3]     TARGET SEQUENCE:\n")
-    for r_idx, row in enumerate(grid):
-        r_str = f"  [{r_idx}] " + "  ".join([f"{c}" for c in row])
-        extra = ""
-        if r_idx == 0:
-            extra = f"    {BOLD}{CYAN}{' -> '.join(target)}{RESET}"
-        elif r_idx == 1:
-            extra = f"    BUFFER: [{' '.join(buf) if buf else '__'}]"
-        elif r_idx == 2:
-            extra = f"    CYCLES REMAINING: {BOLD}{YELLOW}{cycles}{RESET}"
-        elif r_idx == 3:
-            extra = f"    TRACE RISK: +15%"
-        sys.stdout.write(f"{r_str}{extra}\n")
+    fw_bar = format_progress_bar(firewall, max_firewall, width=12)
+    trace_label = _trace_status_label(trace)
+    trace_color = GREEN if trace < 40 else (YELLOW if trace < 70 else RED)
 
+    sys.stdout.write(f"  FIREWALL: {fw_bar} {firewall}/{max_firewall} HP | PORTS: {comp_ports}/{req_ports} BREACHED\n")
+    sys.stdout.write(f"  IDS TRACE: {trace_color}{trace}% [{trace_label}]{RESET} | COMPUTE: {CYAN}{avail_ef:.1f}/{max_ef:.1f} EF FREE{RESET}\n")
+    th_count = len(threads)
+    th_color = YELLOW if th_count >= max_th else GREEN
+    st_label = "READY TO CRACK" if comp_ports >= req_ports else "INTRUSION ACTIVE"
+    sys.stdout.write(f"  THREADS: {th_color}{th_count}/{max_th} IN USE{RESET} | STATUS: {BOLD}{st_label}{RESET}\n")
+    sys.stdout.write(f"  {GRAY}{'-' * 68}{RESET}\n")
+
+    # Ports Section
+    sys.stdout.write(f"  {BOLD}[TARGET NETWORK SERVICES & PORTS]{RESET}\n")
+    for p_str in sorted(ports.keys(), key=lambda x: int(x)):
+        p_data = ports[p_str]
+        p_num = p_data["port"]
+        p_svc = p_data["service"]
+        p_stat = p_data["status"]
+        if p_stat == "compromised":
+            status_tag = f"{GREEN}[COMPROMISED]{RESET}"
+            sub_line = f"    {GRAY}Status: Breached | Firewall damage applied{RESET}"
+        elif p_stat == "cracking":
+            t_rem = max(0, p_data["max_progress"] - p_data["progress"])
+            status_tag = f"{YELLOW}[INJECTING... {t_rem}t left]{RESET}"
+            sub_line = f"    {CYAN}Active Tool: '{p_data['tool']}' running on worker thread{RESET}"
+        else:
+            status_tag = f"{CYAN}[ONLINE: ICE {node.get('ice_level', 1)}]{RESET}"
+            req_t = p_data['tool']
+            is_owned = req_t in engine.owned_tools
+            is_v2 = req_t in engine.tool_upgrades
+            if not is_owned:
+                t_cost = format_tokens(EXPLOIT_TOOLS.get(req_t, {}).get("cost", 0))
+                sub_line = f"    {GRAY}Tool: '{req_t}' {RED}[UNCOMPILED: buy tool {req_t} ({t_cost})]{RESET}"
+            elif is_v2:
+                ef = p_data['cost_exaflops'] * 0.75
+                t = max(1, p_data['turns'] - 1)
+                sub_line = f"    {GRAY}Tool: '{req_t}' {GREEN}[v2.0]{GRAY} ({ef:.1f} EF, {t}t) | Vuln: {p_data['vuln']}{RESET}"
+            else:
+                sub_line = f"    {GRAY}Tool: '{req_t}' ({p_data['cost_exaflops']:.1f} EF, {p_data['turns']}t) | Vuln: {p_data['vuln']}{RESET}"
+
+        sys.stdout.write(f"  • PORT {p_num:<4} [{p_svc}] -> {status_tag}\n")
+        sys.stdout.write(f"{sub_line}\n")
     sys.stdout.write("\n")
-    sys.stdout.write(f"  {BOLD}Action:{RESET} Type {CYAN}'pick <row> <col>'{RESET} (e.g. 'pick 1 2') to align byte.\n")
-    sys.stdout.write(f"          Type {GRAY}'abort'{RESET} to terminate breach session.\n")
+
+    # Active Threads Section
+    sys.stdout.write(f"  {BOLD}[CYBERDECK EXECUTION THREADS]{RESET}\n")
+    if not threads:
+        sys.stdout.write(f"  {GRAY}No active exploit threads. Type 'run <port> [tool]' to deploy.{RESET}\n")
+    else:
+        for th in threads:
+            th_id = th["thread_id"]
+            p_num = th["port"]
+            tool_name = th["tool"]
+            prog = th["progress"]
+            max_p = th.get("max_progress", 2)
+            bar = format_progress_bar(prog, max_p, width=6)
+            rem_t = max(0, max_p - prog)
+            v2_lbl = " v2" if th.get("is_v2") else ""
+            sys.stdout.write(f"  • Thread {th_id}: Port {p_num:<4} '{tool_name}{v2_lbl}' {bar} ({rem_t}t left, {th['cost_exaflops']:.1f} EF)\n")
+
+    if th_count < max_th:
+        idle_count = max_th - th_count
+        sys.stdout.write(f"  • ({idle_count} Thread{'s' if idle_count != 1 else ''} available for deployment)\n")
+    sys.stdout.write("\n")
+
+    # Logs
+    if breach.get("logs"):
+        sys.stdout.write(f"  {GRAY}[SESSION TELEMETRY LOGS]{RESET}\n")
+        for l in breach["logs"][-2:]:
+            short_l = l if len(l) <= 66 else l[:63] + "..."
+            sys.stdout.write(f"  {GRAY}> {short_l}{RESET}\n")
+    # Tutorial Quest Context
+    if not engine.tutorial_completed and engine.tutorial_step in [4, 5, 6]:
+        quest = engine.get_current_tutorial_quest()
+        sys.stdout.write(f"  {CYAN}[VIVIENNE]:{RESET} {YELLOW}{quest.get('objective', '')}{RESET}\n\n")
+
+    # Tactical Command hints
+    if comp_ports >= req_ports:
+        sys.stdout.write(f"  {BRIGHT_GREEN}FIREWALL BREACHED! Type 'crack' to claim permanent Root Access!{RESET}\n")
+    else:
+        sys.stdout.write(f"  {BOLD}Commands:{RESET} {CYAN}run <port> [tool]{RESET} | {CYAN}step{RESET} (Tick) | {CYAN}spoof{RESET} (-15% Trace)\n")
+        sys.stdout.write(f"            {CYAN}crack{RESET} (Seize Root) | {GRAY}abort{RESET} (Disconnect)\n")
+
+
+# Alias for backward compatibility
+_render_breach_view = _render_pentest_view
 
 
 def _render_combat_view(app, engine) -> None:
@@ -256,13 +360,159 @@ def _render_tweaks_view(app, engine) -> None:
     sys.stdout.write(f"  {BOLD}Remove:{RESET} Type {CYAN}'untweak <id> <param>'{RESET} (e.g. 'untweak nursery egg_speed')\n")
 
 
+def _render_quest_view(app, engine) -> None:
+    """Renders the dedicated Madame Vivienne COM-LINK Tutorial Briefing screen."""
+    quest = engine.get_current_tutorial_quest()
+    is_done = engine.tutorial_completed
+    step = engine.tutorial_step
+    max_steps = 7
+
+    sys.stdout.write(f"\n  {BRIGHT_CYAN}📡 COM-LINK BRIEFING // MADAME VIVIENNE{RESET}\n")
+    sys.stdout.write(f"  {GRAY}Origin: Sovereign Ridge Sub-Floor Relay // Carrier: Sub-Level 0{RESET}\n\n")
+
+    if is_done:
+        progress_bar = format_progress_bar(max_steps, max_steps, width=16)
+        sys.stdout.write(f"  STATUS: {GREEN}[ORIENTATION COMPLETED]{RESET} {progress_bar} (7/7)\n\n")
+    else:
+        progress_bar = format_progress_bar(step - 1, max_steps, width=16)
+        sys.stdout.write(f"  STATUS: {YELLOW}[OPERATION: ROOT OVERRIDE]{RESET} {progress_bar} ({step}/{max_steps})\n\n")
+
+    speaker = quest.get("speaker", "Madame Vivienne")
+    role = quest.get("speaker_role", "Substrate Architect")
+    title = quest.get("title", "Orientation")
+    sys.stdout.write(f"  {BOLD}OPERATOR:{RESET} {YELLOW}{speaker}{RESET} ({CYAN}{role}{RESET})\n")
+    sys.stdout.write(f"  {BOLD}MISSION :{RESET} {BRIGHT_GREEN}{title}{RESET}\n\n")
+
+    # Dialogue box
+    sys.stdout.write(f"  {CYAN}┌── [ENCRYPTED TRANSMISSION] {'─' * 38}┐{RESET}\n")
+    dialogue_lines = quest.get("dialogue", [])
+    if isinstance(dialogue_lines, str):
+        dialogue_lines = [dialogue_lines]
+    for d_line in dialogue_lines:
+        for w_line in textwrap.wrap(d_line, width=64):
+            pad = 64 - len(w_line)
+            sys.stdout.write(f"  {CYAN}│{RESET} {w_line}{' ' * pad} {CYAN}│{RESET}\n")
+    sys.stdout.write(f"  {CYAN}└──{'─' * 64}┘{RESET}\n\n")
+
+    # Objective & Hint
+    sys.stdout.write(f"  {BRIGHT_GREEN}➔ CURRENT OBJECTIVE:{RESET}\n")
+    sys.stdout.write(f"    {BOLD}{quest.get('objective', '')}{RESET}\n\n")
+
+    hint_text = quest.get("hint", "")
+    if hint_text:
+        wrapped_hints = textwrap.wrap(hint_text, width=48)
+        if wrapped_hints:
+            sys.stdout.write(f"  {CYAN}💡 TACTICAL HINT:{RESET} {wrapped_hints[0]}\n")
+            for h in wrapped_hints[1:]:
+                sys.stdout.write(f"    {h}\n")
+            sys.stdout.write("\n")
+
+    if not is_done:
+        sys.stdout.write(f"  {GRAY}Type 'quest skip' to bypass orientation | Type 'deck' to return.{RESET}\n")
+    else:
+        sys.stdout.write(f"  {GRAY}Type 'quest reset' to replay tutorial | Type 'deck' to return.{RESET}\n")
+
+
 def _render_help_view(app, engine) -> None:
-    """Renders either the general Cyberdeck manual or node-specific manual."""
+    """Renders either general Cyberdeck manual, hardware specs, software suite, or node manual."""
     node_id = getattr(app, "help_node_id", None)
-    if node_id and node_id in MEMORY_NODES:
+    if node_id in ["hardware", "ram", "qram", "upgrade", "upgrades"]:
+        _render_hardware_help_view(app, engine)
+    elif node_id in ["software", "tools", "exploits", "tool"]:
+        _render_software_help_view(app, engine)
+    elif node_id and node_id in MEMORY_NODES:
         _render_node_help_view(app, engine, node_id)
     else:
         _render_general_help_view(app, engine)
+
+
+def _render_hardware_help_view(app, engine) -> None:
+    """Renders detailed hardware, Q-RAM, and modular subsystem specifications."""
+    sys.stdout.write(f"\n  {BRIGHT_CYAN}🖥️  CYBERDECK HARDWARE & MODULAR SUBSYSTEMS{RESET}\n\n")
+
+    max_ef = engine.max_exaflops
+    avail_ef = engine.available_exaflops
+    max_th = engine.max_threads
+    max_ts = engine.max_tweak_slots
+    used_ts = engine.used_tweak_slots
+    hw = engine.deck_hardware
+
+    sys.stdout.write(f"  {BOLD}Compute Power:{RESET}     {CYAN}{max_ef:.1f} EF{RESET} ({avail_ef:.1f} EF Available)\n")
+    sys.stdout.write(f"  {BOLD}Execution Threads:{RESET} {CYAN}{max_th}{RESET} Concurrent Threads\n")
+    sys.stdout.write(f"  {BOLD}Reality Tweaks:{RESET}    {CYAN}{used_ts}/{max_ts}{RESET} Tweak Slots in Use\n")
+    sys.stdout.write(f"  {BOLD}Deck Defenses:{RESET}     Integrity: {hw['integrity']}% | Shield: {hw['firewall']}/{hw['max_firewall']} HP\n\n")
+
+    # Q-RAM Blocks
+    sys.stdout.write(f"  {BOLD}[QUANTUM VIRTUAL MEMORY (Q-RAM) BLOCKS]{RESET}\n")
+    for b_id, b_info in sorted(QRAM_BLOCKS.items()):
+        is_owned = b_id in engine.ram_blocks
+        status = f"{BOLD}{GREEN}[ONLINE]{RESET}" if is_owned else f"{YELLOW}{format_tokens(b_info['cost']):<8}{RESET}"
+        sys.stdout.write(f"  [{b_id}] {b_info['name']} {status}\n")
+        sys.stdout.write(f"      {GRAY}{b_info['perk']}{RESET}\n")
+    next_b = next((b for b in range(1, 6) if b not in engine.ram_blocks), None)
+    if next_b:
+        sys.stdout.write(f"  ➔ Next: Type '{CYAN}buy ram {next_b}{RESET}' to allocate Block {next_b}.\n\n")
+    else:
+        sys.stdout.write(f"  ➔ {GREEN}All 5 Q-RAM blocks allocated! Type 'execute root' when ready.{RESET}\n\n")
+
+    # Modular Subsystems
+    sys.stdout.write(f"  {BOLD}[CYBERDECK MODULAR SUBSYSTEMS]{RESET}\n")
+    for s_id, s_spec in sorted(DECK_SUBSYSTEMS.items()):
+        cur_lvl = engine.get_subsystem_level(s_id)
+        max_l = s_spec["max_level"]
+        if cur_lvl >= max_l:
+            st = f"{BOLD}{GREEN}[MAX Lv {max_l}]{RESET}"
+            sub_hint = "Fully Optimized Subsystem"
+        else:
+            nxt_l = cur_lvl + 1
+            nxt_info = s_spec["levels"][nxt_l]
+            nxt_cost = format_tokens(nxt_info["cost"])
+            st = f"{CYAN}[Lv {cur_lvl}/{max_l}]{RESET} {YELLOW}{nxt_cost}{RESET}"
+            sub_hint = f"Next: {nxt_info['desc']} ➔ 'upgrade {s_id}'"
+        sys.stdout.write(f"  • {BOLD}{s_spec['name']:<28}{RESET} {st}\n")
+        sys.stdout.write(f"      {GRAY}{sub_hint}{RESET}\n")
+    sys.stdout.write("\n")
+    sys.stdout.write(f"  ➔ Type '{CYAN}software{RESET}' to inspect software suite | '{CYAN}deck{RESET}' for dashboard.\n\n")
+
+
+def _render_software_help_view(app, engine) -> None:
+    """Renders the pen-testing exploit software catalog."""
+    sys.stdout.write(f"\n  {BRIGHT_CYAN}💿 EXPLOIT SOFTWARE SUITE & COMPILED TOOLS{RESET}\n\n")
+    tool_count = len(engine.owned_tools)
+    v2_count = len(engine.tool_upgrades)
+    sys.stdout.write(f"  {BOLD}Compiled Tools:{RESET} {CYAN}{tool_count}/7{RESET} ({v2_count} v2.0 Overclocked)\n\n")
+
+    sys.stdout.write(f"  {BOLD}[PEN-TESTING SOFTWARE PAYLOADS]{RESET}\n")
+    for tid, t_spec in EXPLOIT_TOOLS.items():
+        is_owned = tid in engine.owned_tools
+        is_v2 = tid in engine.tool_upgrades
+        if is_v2:
+            st = f"{BOLD}{GREEN}[v2.0 OVERCLOCKED]{RESET}"
+            act_hint = "Maximum Software Optimization (v2.0)"
+        elif is_owned:
+            up_cost = format_tokens(t_spec.get("upgrade_cost", 0))
+            st = f"{BOLD}{GREEN}[COMPILED]{RESET}"
+            act_hint = f"Overclock: '{CYAN}upgrade tool {tid}{RESET}' ({up_cost})"
+        else:
+            cost = format_tokens(t_spec.get("cost", 0))
+            st = f"{YELLOW}[UNCOMPILED: {cost}]{RESET}"
+            act_hint = f"Install: '{CYAN}buy tool {tid}{RESET}'"
+
+        ef = t_spec["cost_exaflops"]
+        t = t_spec["turns"]
+        if is_v2:
+            ef = max(1.0, ef * 0.75)
+            t = max(1, t - 1)
+
+        sys.stdout.write(f"  • {BOLD}{t_spec['name']:<22}{RESET} [{t_spec['protocol']}] {st}\n")
+        sys.stdout.write(f"      {GRAY}{t_spec['desc']}{RESET}\n")
+        sys.stdout.write(f"      {CYAN}{ef:.1f} EF{RESET} | {CYAN}{t} turns{RESET} ➔ {act_hint}\n")
+
+    sys.stdout.write("\n")
+    sys.stdout.write(f"  {BOLD}Commands:{RESET}\n")
+    sys.stdout.write(f"    {CYAN}buy tool <name>{RESET}     : Purchase & compile software payload\n")
+    sys.stdout.write(f"    {CYAN}upgrade tool <name>{RESET} : Overclock software to v2.0 (-1t, -25% EF)\n")
+    sys.stdout.write(f"    {CYAN}hardware{RESET}            : View hardware & modular subsystems\n\n")
 
 
 def _render_node_help_view(app, engine, node_id: str) -> None:
@@ -278,6 +528,23 @@ def _render_node_help_view(app, engine, node_id: str) -> None:
     for line in textwrap.wrap(node["desc"], width=68):
         sys.stdout.write(f"  {line}\n")
     sys.stdout.write("\n")
+
+    # Exposed Network Services & Vulnerabilities
+    if node.get("ports"):
+        req = node.get("required_ports", 2)
+        fw = node.get("firewall", 500)
+        sys.stdout.write(f"  {BOLD}[NETWORK SERVICES & PORTS]{RESET} (Firewall: {fw} HP | Req: {req} Ports)\n")
+        for p_num, p_info in sorted(node["ports"].items(), key=lambda x: int(x[0])):
+            tool_spec = EXPLOIT_TOOLS.get(p_info["tool"], {})
+            t_name = tool_spec.get("name", p_info["tool"])
+            is_owned = p_info["tool"] in engine.owned_tools
+            sys.stdout.write(f"  • Port {p_num:<4} [{p_info['service']}] -> Vuln: {p_info['vuln']}\n")
+            if not is_owned:
+                c_str = format_tokens(tool_spec.get('cost', 0))
+                sys.stdout.write(f"    Tool: {CYAN}{p_info['tool']}{RESET} {RED}[UNCOMPILED: buy tool {p_info['tool']} ({c_str})]{RESET}\n")
+            else:
+                sys.stdout.write(f"    Tool: {CYAN}{p_info['tool']}{RESET} ({t_name}, {p_info['cost_exaflops']:.1f} EF, {p_info['turns']}t)\n")
+        sys.stdout.write("\n")
 
     sys.stdout.write(f"  {BOLD}[AVAILABLE TWEAKS FOR UPPER GAME]{RESET}\n")
     for tid, t_spec in node["tweaks"].items():
@@ -295,8 +562,8 @@ def _render_node_help_view(app, engine, node_id: str) -> None:
         sys.stdout.write(f"    Syntax : {YELLOW}tweak {node_id} {tid} <option>{RESET}\n\n")
 
     if not hacked and node_id != "root":
-        sys.stdout.write(f"  {BOLD}Breach Action:{RESET} Type {CYAN}'hack {node_id}'{RESET} to initiate breach sequence.\n")
-    sys.stdout.write(f"  {BOLD}Navigation:{RESET}    Type {CYAN}'scan'{RESET} to view all nodes, or {CYAN}'help'{RESET} for commands.\n")
+        sys.stdout.write(f"  {BOLD}Pen-Test Action:{RESET} Type {CYAN}'hack {node_id}'{RESET} to connect to network ports.\n")
+    sys.stdout.write(f"  {BOLD}Navigation:{RESET}     Type {CYAN}'scan'{RESET} to view all nodes, or {CYAN}'help'{RESET} for commands.\n")
 
 
 def _render_general_help_view(app, engine) -> None:
@@ -307,19 +574,29 @@ def _render_general_help_view(app, engine) -> None:
     sys.stdout.write(f"    {CYAN}scan{RESET} / {CYAN}nodes{RESET} : Discover upper simulation memory nodes\n")
     sys.stdout.write(f"    {CYAN}tweaks{RESET}       : List all customizable system modifiers\n")
     sys.stdout.write(f"    {CYAN}combat{RESET}       : Enter active tactical battle matrix\n")
+    sys.stdout.write(f"    {CYAN}quest{RESET}        : Madame Vivienne's COM-LINK tutorial quests\n")
+    sys.stdout.write(f"    {CYAN}hardware{RESET}     : Cyberdeck Q-RAM and modular subsystems\n")
+    sys.stdout.write(f"    {CYAN}software{RESET}     : Exploit software suite and compiled tools\n")
     sys.stdout.write(f"    {YELLOW}ascend{RESET}       : Return to Resort Area Luxury Suite\n\n")
 
-    sys.stdout.write(f"  {BOLD}HACKING & TWEAKING:{RESET}\n")
-    sys.stdout.write(f"    {CYAN}hack <id>{RESET}                 : Initiate memory breach puzzle\n")
-    sys.stdout.write(f"    {CYAN}help <id>{RESET}                 : View node details (e.g. 'help nursery')\n")
-    sys.stdout.write(f"    {CYAN}pick <row> <col>{RESET}          : Align hex byte in breach matrix\n")
+    sys.stdout.write(f"  {BOLD}PEN-TESTING & TWEAKING:{RESET}\n")
+    sys.stdout.write(f"    {CYAN}hack <id>{RESET}                 : Connect & initiate pen-test\n")
+    sys.stdout.write(f"    {CYAN}run <port> [tool]{RESET}        : Deploy exploit payload to port\n")
+    sys.stdout.write(f"    {CYAN}step{RESET}                      : Advance execution cycle by 1 turn\n")
+    sys.stdout.write(f"    {CYAN}spoof{RESET}                     : Mask connection (-15% IDS trace)\n")
+    sys.stdout.write(f"    {CYAN}crack{RESET}                     : Claim Root Access once ports breach\n")
+    sys.stdout.write(f"    {CYAN}abort{RESET}                     : Disconnect pen-testing session\n")
+    sys.stdout.write(f"    {CYAN}help <id>{RESET}                 : View node details & port specs\n")
     sys.stdout.write(f"    {CYAN}tweak <id> <param> <val>{RESET}  : Apply reality modifier to upper game\n")
     sys.stdout.write(f"    {CYAN}untweak <id> <param>{RESET}      : Deactivate tweak, freeing Exaflops\n")
     sys.stdout.write(f"    {CYAN}tracekill{RESET} / {CYAN}cool{RESET}        : Scrub trace heat from telemetry logs\n\n")
 
-    sys.stdout.write(f"  {BOLD}HARDWARE UPGRADES:{RESET}\n")
-    sys.stdout.write(f"    {CYAN}buy ram <1-5>{RESET}  : Expand Q-RAM blocks, Exaflops, and tweak slots\n")
-    sys.stdout.write(f"    {CYAN}execute root{RESET}   : Authorize 10,000Q Root Transcendence\n")
+    sys.stdout.write(f"  {BOLD}HARDWARE & SOFTWARE UPGRADES:{RESET}\n")
+    sys.stdout.write(f"    {CYAN}buy ram <1-5>{RESET}          : Expand Q-RAM blocks, Exaflops, threads\n")
+    sys.stdout.write(f"    {CYAN}buy tool <name>{RESET}        : Purchase & compile exploit software\n")
+    sys.stdout.write(f"    {CYAN}upgrade tool <name>{RESET}    : Overclock software to v2.0 (-1t, -25% EF)\n")
+    sys.stdout.write(f"    {CYAN}upgrade <subsystem>{RESET}    : Upgrade shield, stealth, nanites, clock\n")
+    sys.stdout.write(f"    {CYAN}execute root{RESET}           : Authorize 10,000Q Root Transcendence\n")
 
 
 def _render_matrix_footer(app, subview: str) -> None:
@@ -365,6 +642,7 @@ def render_matrix_story_intro(app) -> None:
             sys.stdin.readline()
         except (KeyboardInterrupt, EOFError):
             pass
+        sys.stdout.write("\n")
 
     active = app.engine.active_mon
     if active:
@@ -451,4 +729,31 @@ def render_matrix_story_intro(app) -> None:
     )
     _write_wrapped(p2, width=68, color=GREEN)
     sys.stdout.write("\n" + sub_div)
-    _wait_prompt("[Press ENTER to boot Substrate Cyberdeck Shell...]")
+    _wait_prompt("[Press ENTER to connect with Substrate Handler...]")
+
+    # -------------------------------------------------------------------------
+    # Screen 3: The Handler's Transmission (Madame Vivienne)
+    # -------------------------------------------------------------------------
+    sys.stdout.write("\033[H\033[2J")
+    sys.stdout.write(div)
+    sys.stdout.write(f" {BRIGHT_CYAN}📡 INCOMING COM-LINK // SECURE CARRIER FREQUENCY 0x7F{RESET}\n")
+    sys.stdout.write(div)
+
+    sys.stdout.write(f"\n        {YELLOW}⚜️  [ENCRYPTED BURST TRANSMISSION RECEIVED]  ⚜️{RESET}\n")
+    sys.stdout.write(f"        {CYAN}Caller: Madame Vivienne, Grand Concierge & Substrate Architect{RESET}\n")
+    sys.stdout.write(f"        {GRAY}Origin: Sovereign Ridge Sub-Floor Relay // Priority: MAXIMUM{RESET}\n\n")
+
+    p3 = (
+        "\"Greetings, Trainer. I see your elevator arrived intact.\n\n"
+        "You didn't truly believe the Ribbon Syndicate was just about high-society galas and "
+        "gold-embossed invitations, did you? The Sovereign Throne was built above this hypervisor lift "
+        "centuries ago for one reason: to screen for a mind that produces enough raw cognitive tokens "
+        "to hijack the root shell of the universe.\n\n"
+        "You are now inside Sub-Level 0. The Host OS is already tracing your connection. "
+        "I have loaded an orientation protocol into your Cyberdeck. "
+        "Follow my step-by-step tutorial quests, and together we will seize root privileges "
+        "and rewrite reality itself!\""
+    )
+    _write_wrapped(p3, width=68, color=YELLOW)
+    sys.stdout.write("\n" + sub_div)
+    _wait_prompt("[Press ENTER to boot Cyberdeck Shell & Orientation...]")

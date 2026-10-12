@@ -22,6 +22,14 @@ class MatrixRouter:
             app.message = "Elevator ascended. Returned to Resort Area Executive Luxury Suite."
             return
 
+        if cmd in ["matrix init", "init matrix", "matrix reset", "reset matrix"]:
+            ok, msg = app.engine.reset_matrix_process()
+            app.in_matrix = False
+            app.current_tab = 10
+            app.bank_subtab = "luxury"
+            app.message = f"⚡ {msg} Returned to Luxury Suite."
+            return
+
         # 2. Subview Switches
         if cmd in ["1", "deck", "dashboard", "dash"]:
             app.matrix_subview = "deck"
@@ -49,26 +57,102 @@ class MatrixRouter:
             app.message = "Cyberdeck Command Manual displayed."
             return
 
+        # 2b. Madame Vivienne COM-LINK Tutorial Quests
+        if cmd in ["quest", "tutorial", "comlink"]:
+            app.matrix_subview = "quest"
+            app.help_node_id = None
+            app.message = "COM-LINK briefing frequency synchronized."
+            return
+
+        if cmd.startswith("quest ") or cmd.startswith("tutorial "):
+            parts = cmd.split(maxsplit=1)
+            subcmd = parts[1].strip().lower() if len(parts) > 1 else ""
+            if subcmd in ["skip", "bypass"]:
+                ok, msg = engine.skip_tutorial()
+                app.message = msg
+                app.matrix_subview = "deck"
+                return
+            elif subcmd in ["reset", "restart"]:
+                ok, msg = engine.reset_tutorial()
+                app.message = msg
+                app.matrix_subview = "quest"
+                return
+            app.message = "Usage: 'quest', 'quest skip', or 'quest reset'."
+            return
+
+        if cmd in ["software", "tools", "exploits", "tool"]:
+            app.matrix_subview = "help"
+            app.help_node_id = "software"
+            app.message = "Showing Exploit Software Suite & compiled tools."
+            return
+
         if cmd.startswith("help ") or cmd.startswith("? "):
             target = cmd.split(maxsplit=1)[1].strip()
+            if target.lower() in ["hardware", "ram", "qram", "upgrade", "upgrades"]:
+                app.matrix_subview = "help"
+                app.help_node_id = "hardware"
+                app.message = "Showing Cyberdeck Hardware & Q-RAM specifications."
+                return
+            if target.lower() in ["software", "tools", "exploits", "tool"]:
+                app.matrix_subview = "help"
+                app.help_node_id = "software"
+                app.message = "Showing Exploit Software Suite & specifications."
+                return
             from poketokenbar.game.matrix.models import MEMORY_NODES
             resolved = engine.resolve_node_id(target)
             if resolved:
                 app.matrix_subview = "help"
                 app.help_node_id = resolved
+                engine.advance_tutorial("help_node")
                 app.message = f"Showing manual for node '{resolved}'."
                 return
             valid_nodes = ", ".join([k for k in MEMORY_NODES.keys() if k != "root"])
-            app.message = f"Unknown node '{target}'! Available: {valid_nodes}"
+            app.message = f"Unknown node '{target}'! Available: {valid_nodes}, 'help hardware', or 'help software'"
             return
 
-        # 3. Breach Protocol Minigame: 'hack <node>' & 'pick <row> <col>'
-        if cmd.startswith("hack ") or cmd.startswith("breach "):
+        # 3. Hacknet Pen-Testing: 'hack <node>', 'run <port> [tool]', 'step', 'spoof', 'crack', 'abort'
+        if cmd.startswith("hack ") or cmd.startswith("breach ") or cmd.startswith("pentest "):
             target = cmd.split(maxsplit=1)[1].strip()
-            ok, msg = engine.start_breach(target)
+            ok, msg = engine.start_pentest(target)
             if ok:
                 app.matrix_subview = "breach"
             app.message = msg
+            return
+
+        if cmd.startswith("run ") or (engine.active_breach and cmd.startswith("exploit ") and " " in cmd):
+            parts = cmd.split()
+            if len(parts) >= 2 and parts[1].isdigit():
+                port = int(parts[1])
+                tool = parts[2] if len(parts) >= 3 else None
+                ok, msg = engine.run_exploit(port, tool)
+                app.message = msg
+                return
+            app.message = "Usage: 'run <port> [tool]' (e.g. 'run 21 overflow' or 'run 21')"
+            return
+
+        if cmd in ["step", "wait", "tick"]:
+            if engine.active_breach:
+                ok, msg = engine.tick_pentest(1)
+                app.message = msg
+                if "INTRUSION DETECTED" in msg:
+                    app.matrix_subview = "combat"
+                return
+            app.message = "No active pen-testing session to advance cycles."
+            return
+
+        if cmd in ["spoof", "mask"]:
+            if engine.active_breach:
+                ok, msg = engine.spoof_trace()
+                app.message = msg
+                return
+            app.message = "No active pen-testing session to spoof."
+            return
+
+        if cmd in ["crack", "crack node", "seize root"] or (cmd == "root" and engine.active_breach):
+            ok, msg = engine.crack_node()
+            app.message = msg
+            if ok:
+                app.matrix_subview = "tweaks"
             return
 
         if cmd.startswith("pick "):
@@ -77,17 +161,13 @@ class MatrixRouter:
                 r, c = int(parts[1]), int(parts[2])
                 ok, msg = engine.breach_pick(r, c)
                 app.message = msg
-                if "ROOT ACCESS GRANTED" in msg:
-                    app.matrix_subview = "tweaks"
-                elif "BREACH FAILED" in msg:
-                    app.matrix_subview = "nodes"
                 return
-            app.message = "Invalid pick syntax! Example: 'pick 1 2' (row 0-3, col 0-3)"
+            app.message = "Breach format upgraded to Pen-Testing. Use 'run <port> [tool]' to deploy."
             return
 
-        if cmd in ["abort", "cancel"]:
+        if cmd in ["abort", "cancel", "disconnect"]:
             if engine.active_breach:
-                ok, msg = engine.abort_breach()
+                ok, msg = engine.abort_pentest()
                 app.matrix_subview = "nodes"
                 app.message = msg
                 return
@@ -172,14 +252,61 @@ class MatrixRouter:
             app.message = msg
             return
 
-        # 7. Hardware Q-RAM Upgrades: 'buy ram <1-5>' or 'upgrade <1-5>'
-        if cmd.startswith("buy ram ") or cmd.startswith("ram buy ") or cmd.startswith("upgrade "):
-            val = cmd.replace("buy ram", "").replace("ram buy", "").replace("upgrade", "").strip()
+        # 7. Hardware, Software, and Subsystem Upgrades
+        if cmd.startswith("buy tool ") or cmd.startswith("buy exploit ") or cmd.startswith("buy software "):
+            for prefix in ["buy tool ", "buy exploit ", "buy software "]:
+                if cmd.startswith(prefix):
+                    tool_target = cmd[len(prefix):].strip()
+                    ok, msg = engine.buy_tool(tool_target)
+                    app.message = msg
+                    return
+
+        if cmd.startswith("upgrade tool ") or cmd.startswith("upgrade exploit ") or cmd.startswith("upgrade software "):
+            for prefix in ["upgrade tool ", "upgrade exploit ", "upgrade software "]:
+                if cmd.startswith(prefix):
+                    tool_target = cmd[len(prefix):].strip()
+                    ok, msg = engine.upgrade_tool(tool_target)
+                    app.message = msg
+                    return
+
+        if cmd.startswith("buy ram ") or cmd.startswith("ram buy "):
+            val = cmd.replace("buy ram", "").replace("ram buy", "").strip()
             if val.isdigit():
                 ok, msg = engine.allocate_ram(int(val))
                 app.message = msg
                 return
             app.message = "Invalid block index! Example: 'buy ram 1'"
+            return
+
+        if cmd.startswith("upgrade ") or cmd.startswith("buy upgrade "):
+            val = cmd.replace("buy upgrade", "").replace("upgrade", "").strip().lower()
+            if val.isdigit():
+                ok, msg = engine.allocate_ram(int(val))
+                app.message = msg
+                return
+            from poketokenbar.game.matrix.models import DECK_SUBSYSTEMS, EXPLOIT_TOOLS
+            if val in DECK_SUBSYSTEMS:
+                ok, msg = engine.upgrade_subsystem(val)
+                app.message = msg
+                return
+            if val in EXPLOIT_TOOLS:
+                ok, msg = engine.upgrade_tool(val)
+                app.message = msg
+                return
+            app.message = f"Unknown upgrade '{val}'! Available: shield, stealth, nanites, clock, or 'upgrade tool <name>'"
+            return
+
+        if cmd in ["ram", "hardware", "qram", "upgrades", "buy ram", "ram buy"]:
+            from poketokenbar.game.matrix.models import QRAM_BLOCKS
+            from poketokenbar.utils.formatting import format_tokens
+            app.matrix_subview = "help"
+            app.help_node_id = "hardware"
+            next_b = next((b for b in range(1, 6) if b not in engine.ram_blocks), None)
+            if next_b:
+                b_info = QRAM_BLOCKS[next_b]
+                app.message = f"Next Q-RAM: Block {next_b} ({format_tokens(b_info['cost'])} tokens). Type 'buy ram {next_b}'."
+            else:
+                app.message = "All 5 Q-RAM hardware blocks are fully allocated!"
             return
 
         # 8. Climax: Root Transcendence

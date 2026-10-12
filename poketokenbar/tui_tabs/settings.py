@@ -175,10 +175,24 @@ def get_settings_items(app):
         ]
     ))
 
+    matrix_unlocked = app.engine.state.get("matrix", {}).get("unlocked", False)
+    if matrix_unlocked:
+        matrix_tag = f"{BOLD}{RED}ACTIVE{RESET}"
+    else:
+        matrix_tag = f"{BOLD}{YELLOW}UNINITIALIZED{RESET}"
+
     items.append((
         15,
         [
-            f"  [15] Reset Game Progress:      {BOLD}{RED}[DANGER]{RESET}",
+            f"  [15] Singularity Matrix Sub-0: {matrix_tag}",
+            f"      ➔ Type '{BOLD}matrix init{RESET}' to re-initialize Cyberdeck & Matrix"
+        ]
+    ))
+
+    items.append((
+        16,
+        [
+            f"  [16] Reset Game Progress:      {BOLD}{RED}[DANGER]{RESET}",
             f"      ➔ Type '{BOLD}reset{RESET}' to clear all progress & restart"
         ]
     ))
