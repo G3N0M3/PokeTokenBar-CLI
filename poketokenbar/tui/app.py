@@ -36,6 +36,7 @@ class PokeTokenBarTUI:
         self.pending_reset = False
         self.pending_rocket_init = False
         self.pending_descend = False
+        self.pending_matrix_init = False
         self.pokedex_page = 1
         self.roster_page = 1
         self.nursery_page = 1
@@ -402,6 +403,8 @@ class PokeTokenBarTUI:
         p_type = plan.get("type")
         if p_type == "shop_item":
             return self.engine.buy_item(plan["item_kind"], plan["qty"])
+        elif p_type == "shop_egg":
+            return self.engine.buy_egg(plan.get("tier"), plan.get("qty", 1))
         elif p_type == "black_market":
             return self.engine.buy_black_market_deal(plan["deal_id"], plan["qty"])
         elif p_type == "stock":

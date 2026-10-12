@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
-from poketokenbar.game.models import MonState, DexEntry, Rarity
+from poketokenbar.game.models import MonState, DexEntry, Rarity, VIP_PATRON_DAILY_BANKROLLS
 
 def get_state_file() -> Path:
     override = os.environ.get("PTB_STATE_FILE")
@@ -41,6 +41,20 @@ class StorageManager:
                     state.update(saved)
             except Exception:
                 pass
+
+        # Migration: ensure VIP bankrolls are present
+        vb = state.setdefault("vip_bankrolls", {})
+        for name, max_val in VIP_PATRON_DAILY_BANKROLLS.items():
+            if name not in vb:
+                vb[name] = {"current": max_val, "max": max_val}
+            else:
+                vb[name].setdefault("max", max_val)
+                vb[name].setdefault("current", max_val)
+        if "vip_bankrolls_date" not in state:
+            state["vip_bankrolls_date"] = datetime.datetime.now().strftime("%Y-%m-%d")
+        state.setdefault("vip_clean_sweep_claimed", False)
+        state.setdefault("vip_clean_sweeps_count", 0)
+
         return state
 
     @staticmethod
@@ -208,6 +222,13 @@ class StorageManager:
                 "last_shiny_transmute": None
             },
             "poker_vip_unlocked": False,
+            "vip_bankrolls_date": datetime.datetime.now().strftime("%Y-%m-%d"),
+            "vip_clean_sweep_claimed": False,
+            "vip_clean_sweeps_count": 0,
+            "vip_bankrolls": {
+                name: {"current": max_val, "max": max_val}
+                for name, max_val in VIP_PATRON_DAILY_BANKROLLS.items()
+            },
             "velvet_sting": {
                 "chapter": "1",
                 "recruited": False,
@@ -229,6 +250,14 @@ class StorageManager:
                 "active_tweaks": {},
                 "trace_level": 0,
                 "deck_hardware": {"integrity": 100, "firewall": 500, "max_firewall": 500, "threads": 1},
+                "tools": ["overflow"],
+                "tool_upgrades": [],
+                "deck_upgrades": {
+                    "shield": 0,
+                    "stealth": 0,
+                    "nanites": 0,
+                    "clock": 0,
+                },
                 "active_breach": None,
                 "active_threat": None,
                 "patches": [],
@@ -238,6 +267,9 @@ class StorageManager:
                 "total_tokens_consumed": 0,
                 "collider_state": None,
                 "combat_state": None,
+                "tutorial_step": 1,
+                "tutorial_completed": False,
+                "tutorial_active": True,
             }
         }
 
@@ -268,12 +300,12 @@ class StorageManager:
         try:
             return MonState(
                 base_id=data["base_id"],
-                path_ids=data["path_ids"],
-                planned_path_ids=data.get("planned_path_ids", data["path_ids"]),
-                stage_index=data["stage_index"],
-                used_at_stage=data["used_at_stage"],
-                rarity=Rarity(data["rarity"]),
-                total_forms=data["total_forms"],
+                path_ids=data.get("path_ids", [data["base_id"]]),
+                planned_path_ids=data.get("planned_path_ids", data.get("path_ids", [data["base_id"]])),
+                stage_index=data.get("stage_index", 0),
+                used_at_stage=data.get("used_at_stage", 0),
+                rarity=Rarity(data["rarity"]) if isinstance(data.get("rarity"), str) else data.get("rarity", Rarity.COMMON),
+                total_forms=data.get("total_forms", len(data.get("path_ids", [1]))),
                 is_shiny=data.get("is_shiny", False),
                 ditto_disguise=data.get("ditto_disguise"),
                 ditto_revealed=data.get("ditto_revealed", False),

@@ -1,6 +1,7 @@
+import datetime
 import random
 import textwrap
-from typing import Tuple, Optional, Dict, Any
+from typing import Tuple, Optional, Dict, Any, List
 
 from poketokenbar.utils.formatting import format_tokens, parse_tokens
 from poketokenbar.game.minigames.gacha import GachaEngine, GACHA_COST_SINGLE, GACHA_COST_MULTI
@@ -10,6 +11,8 @@ from poketokenbar.game.models import (
     VELVET_STING_CHAPTERS,
     VELVET_PATRONS,
     VELVET_MARKS,
+    VIP_PATRON_DAILY_BANKROLLS,
+    VIP_CLEAN_SWEEP_BOUNTY,
 )
 
 
@@ -27,6 +30,99 @@ def _format_poker_quote_block(opp_name: str, quote: str) -> str:
 
 class CasinoMixin:
     """Manages Game Corner casino games: Texas Hold'em Poker, Slots, Blackjack, and Capsule Gacha."""
+
+    def check_and_reset_vip_bankrolls(self, today_str: Optional[str] = None) -> bool:
+        if not today_str:
+            today_str = datetime.date.today().isoformat()
+        last_date = self.state.get("vip_bankrolls_date", "")
+        if last_date != today_str:
+            bankrolls = self.state.setdefault("vip_bankrolls", {})
+            for name, max_val in VIP_PATRON_DAILY_BANKROLLS.items():
+                bankrolls[name] = {"current": max_val, "max": max_val}
+            self.state["vip_bankrolls_date"] = today_str
+            self.state["vip_clean_sweep_claimed"] = False
+            self.save()
+            return True
+        return False
+
+    check_and_refill_vip_bankrolls = check_and_reset_vip_bankrolls
+
+    def get_vip_bankroll(self, name: str) -> Tuple[int, int]:
+        clean_name = name.split("[")[0].strip()
+        vb = self.state.setdefault("vip_bankrolls", {})
+        if clean_name not in vb:
+            max_val = VIP_PATRON_DAILY_BANKROLLS.get(clean_name, 2_500_000_000_000_000_000)
+            vb[clean_name] = {"current": max_val, "max": max_val}
+        entry = vb[clean_name]
+        return entry.get("current", 0), entry.get("max", 0)
+
+    def update_vip_bankroll(self, name: str, delta: int) -> int:
+        clean_name = name.split("[")[0].strip()
+        vb = self.state.setdefault("vip_bankrolls", {})
+        if clean_name not in vb:
+            max_val = VIP_PATRON_DAILY_BANKROLLS.get(clean_name, 2_500_000_000_000_000_000)
+            vb[clean_name] = {"current": max_val, "max": max_val}
+        curr = vb[clean_name].get("current", 0)
+        new_val = max(0, curr + delta)
+        vb[clean_name]["current"] = new_val
+        self.save()
+        return new_val
+
+    def get_available_vip_opponents(self) -> List[str]:
+        self.check_and_reset_vip_bankrolls()
+        sting = self.state.get("velvet_sting", {})
+        ch = sting.get("chapter", "1")
+        is_cleared = sting.get("cleared", False) or ch == "epilogue"
+        if is_cleared:
+            pool = list(VIP_PATRON_DAILY_BANKROLLS.keys())
+        elif sting.get("recruited", False):
+            ch_info = VELVET_STING_CHAPTERS.get(ch, {})
+            ch_opp = ch_info.get("opponent", "").split("[")[0].strip()
+            pool = [p for p in VELVET_PATRONS]
+            if ch_opp and not ch_info.get("is_boss", False) and ch_opp not in pool:
+                pool.append(ch_opp)
+        else:
+            pool = [p for p in VELVET_PATRONS]
+
+        available = []
+        for p in pool:
+            cur, _ = self.get_vip_bankroll(p)
+            if cur >= POKER_VIP_MIN_BET:
+                available.append(p)
+        return available
+
+    def cycle_vip_opponent(self) -> Tuple[bool, str]:
+        if self.poker.game_state != "idle":
+            return False, "Finish your active hand before changing opponents!"
+        if self.poker.table_mode != "vip":
+            return False, "Patron selection is only available at The Velvet Salon ('table vip')!"
+        if getattr(self.poker, "boss_name", ""):
+            return False, f"You are currently facing {self.poker.boss_name} in a syndicate boss duel!"
+
+        avail = self.get_available_vip_opponents()
+        if not avail:
+            return False, "All VIP patrons are busted for today! The tables will reset tomorrow at midnight (00:00)."
+
+        curr = self.poker.active_opponent.split("[")[0].strip()
+        if curr in avail:
+            idx = avail.index(curr)
+            next_opp = avail[(idx + 1) % len(avail)]
+        else:
+            next_opp = avail[0]
+
+        self.poker.active_opponent = next_opp
+        c_stack, _ = self.get_vip_bankroll(next_opp)
+        return True, f"Seated across from {next_opp}! (Chips: {format_tokens(c_stack)} tokens)."
+
+    def check_vip_clean_sweep(self) -> Tuple[bool, str]:
+        avail = self.get_available_vip_opponents()
+        if not avail and not self.state.get("vip_clean_sweep_claimed", False):
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - VIP_CLEAN_SWEEP_BOUNTY
+            self.state["vip_clean_sweep_claimed"] = True
+            self.state["vip_clean_sweeps_count"] = self.state.get("vip_clean_sweeps_count", 0) + 1
+            self.save()
+            return True, f"\n   🏆 \033[1m\033[93m[SALON CLEAN SWEEP] You stripped all VIP patrons of their tokens! Claimed +{format_tokens(VIP_CLEAN_SWEEP_BOUNTY)} Clean Sweep Bounty!\033[0m"
+        return False, ""
 
     def play_poker_bet(self, amount_str: str) -> Tuple[bool, str]:
         if self.poker.game_state != "idle":
@@ -46,6 +142,7 @@ class CasinoMixin:
             return False, f"Minimum bet at The Velvet Salon is {format_tokens(POKER_VIP_MIN_BET)} tokens!"
 
         if self.poker.table_mode == "vip":
+            self.check_and_reset_vip_bankrolls()
             sting = self.state.setdefault("velvet_sting", {
                 "chapter": "1",
                 "recruited": False,
@@ -61,14 +158,7 @@ class CasinoMixin:
             is_cleared = sting.get("cleared", False) or ch == "epilogue"
             ch_info = VELVET_STING_CHAPTERS.get(ch, {}) if (sting.get("recruited", False) and not is_cleared) else {}
 
-            if is_cleared:
-                self.poker.boss_name = ""
-                self.poker.boss_stack = 0
-                self.poker.boss_max_stack = 0
-                pool = [p for p in (VELVET_PATRONS + VELVET_MARKS) if "Croix" not in p]
-                choices = [p for p in pool if p != self.poker.active_opponent] or pool
-                self.poker.active_opponent = random.choice(choices)
-            elif ch_info.get("is_boss", False):
+            if ch_info.get("is_boss", False) and not is_cleared:
                 boss_name = ch_info.get("opponent", "The Boss")
                 b_stack = sting.get("boss_stack", 0)
                 if b_stack <= 0:
@@ -81,12 +171,21 @@ class CasinoMixin:
                 self.poker.boss_name = ""
                 self.poker.boss_stack = 0
                 self.poker.boss_max_stack = 0
-                if sting.get("recruited", False):
-                    if not self.poker.active_opponent or self.poker.active_opponent in ["The House"] + VELVET_PATRONS:
-                        self.poker.active_opponent = ch_info.get("opponent", random.choice(VELVET_MARKS))
-                else:
-                    if not self.poker.active_opponent or self.poker.active_opponent in ["The House"] + VELVET_MARKS:
-                        self.poker.active_opponent = random.choice(VELVET_PATRONS)
+                avail_opps = self.get_available_vip_opponents()
+                if not avail_opps:
+                    clean_msg = "All VIP patrons are busted for today! The Velvet Salon tables will reset tomorrow at midnight (00:00)."
+                    if self.state.get("vip_clean_sweep_claimed", False):
+                        clean_msg = f"All VIP patrons have been wiped out today! (Clean Sweep Bonus claimed: +{format_tokens(VIP_CLEAN_SWEEP_BOUNTY)} tokens). Tables reset at 00:00."
+                    return False, clean_msg
+
+                curr_opp = self.poker.active_opponent.split("[")[0].strip() if self.poker.active_opponent else ""
+                if curr_opp not in avail_opps:
+                    self.poker.active_opponent = random.choice(avail_opps)
+
+                # Table stakes: cap bet to active opponent's remaining chips
+                opp_cur, _ = self.get_vip_bankroll(self.poker.active_opponent)
+                if bet > opp_cur:
+                    bet = opp_cur
 
         avail = self.available_tokens
         if bet > avail:
@@ -137,15 +236,18 @@ class CasinoMixin:
                 self.poker.boss_name = ""
                 self.poker.boss_stack = 0
                 self.poker.boss_max_stack = 0
+                self.check_and_reset_vip_bankrolls()
+                avail_opps = self.get_available_vip_opponents()
+                if not avail_opps:
+                    self.poker.active_opponent = "None"
+                    return True, "Dealer: 'Welcome to The Velvet Salon. All VIP patrons have tapped out for today! The tables will reset tomorrow at midnight (00:00).'"
+                curr = self.poker.active_opponent.split("[")[0].strip() if self.poker.active_opponent else ""
+                if curr not in avail_opps:
+                    self.poker.active_opponent = random.choice(avail_opps)
+                c_stack, _ = self.get_vip_bankroll(self.poker.active_opponent)
                 if is_cleared:
-                    pool = [p for p in (VELVET_PATRONS + VELVET_MARKS) if "Croix" not in p]
-                    self.poker.active_opponent = random.choice(pool)
-                    return True, f"Dealer: 'Welcome back, Master of the Velvet Sting!' Across from {self.poker.active_opponent} (Min bet: 10.0T tokens)."
-                elif sting.get("recruited", False):
-                    self.poker.active_opponent = ch_info.get("opponent", random.choice(VELVET_MARKS))
-                else:
-                    self.poker.active_opponent = random.choice(VELVET_PATRONS)
-                return True, f"Dealer: 'Right this way! Welcome to The Velvet Salon.' Across from {self.poker.active_opponent} (Min bet: 10.0T tokens)."
+                    return True, f"Dealer: 'Welcome back, Master of the Velvet Sting!' Across from {self.poker.active_opponent} (Chips: {format_tokens(c_stack)} tokens)."
+                return True, f"Dealer: 'Right this way! Welcome to The Velvet Salon.' Across from {self.poker.active_opponent} (Chips: {format_tokens(c_stack)} tokens)."
 
         elif clean_mode in ["boss", "croix", "heist"]:
             return False, "The 'table boss' command has been removed. Boss encounters take place directly at The Velvet Salon ('table vip')!"
@@ -197,6 +299,23 @@ class CasinoMixin:
                 sting["chapter_winnings"] = sting.get("chapter_winnings", 0) + winnings
                 self.save()
 
+                opp_clean = self.poker.active_opponent.split("[")[0].strip()
+                rem = self.update_vip_bankroll(opp_clean, -winnings)
+                if rem < POKER_VIP_MIN_BET:
+                    swept, sweep_msg = self.check_vip_clean_sweep()
+                    if swept:
+                        boss_msg = f"\n   💥 {opp_clean.upper()} HAS BUSTED FOR TODAY! (0 chips remaining){sweep_msg}"
+                    else:
+                        avail = self.get_available_vip_opponents()
+                        if avail:
+                            next_patron = random.choice(avail)
+                            self.poker.active_opponent = next_patron
+                            boss_msg = f"\n   💥 {opp_clean.upper()} HAS BUSTED FOR TODAY! Dealer: 'Seating {next_patron} at the felt!'"
+                        else:
+                            boss_msg = f"\n   💥 {opp_clean.upper()} HAS BUSTED FOR TODAY! All VIP patrons are tapped out until midnight!"
+                else:
+                    boss_msg = f"\n   📉 {opp_clean} Chips: -{format_tokens(winnings)} (Remaining: {format_tokens(rem)})"
+
                 if not sting.get("recruited", False):
                     if sting["syndicate_wins"] >= 10 and sting["vip_winnings"] >= 500_000_000_000_000:
                         sting["recruited"] = True
@@ -226,6 +345,10 @@ class CasinoMixin:
             self.poker.opponent_pending_call = 0
             end_quote = self.poker.process_opponent_end_quote("player_fold", chapter=curr_ch)
             self._record_catalyst("casino_net_pnl", -lost)
+            opp_gain_msg = ""
+            if self.poker.table_mode in ["vip", "boss"] and not getattr(self.poker, "boss_name", ""):
+                rem = self.update_vip_bankroll(opp_name, lost)
+                opp_gain_msg = f" ({opp_name} Chips: {format_tokens(rem)})"
             rebate_msg = ""
             if self.poker.table_mode in ["vip", "boss"] and self.state.get("luxury", {}).get("unlocked"):
                 rebate = int(lost * 0.10)
@@ -233,7 +356,7 @@ class CasinoMixin:
                     self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - rebate
                     self.save()
                     rebate_msg = f" (🛡️ Sovereign Rebate: +{format_tokens(rebate)} tokens refunded!)"
-            return True, f"🏳️ YOU FOLDED! Surrendered {format_tokens(lost)} tokens to {opp_name}.{rebate_msg}"
+            return True, f"🏳️ YOU FOLDED! Surrendered {format_tokens(lost)} tokens to {opp_name}.{rebate_msg}{opp_gain_msg}"
 
         elif cmd == "call":
             if self.poker.opponent_pending_call <= 0:
@@ -391,6 +514,23 @@ class CasinoMixin:
                         sting["ranked_wins"] = sting.get("ranked_wins", 0) + 1
                     self.save()
 
+                    opp_clean = self.poker.active_opponent.split("[")[0].strip()
+                    rem = self.update_vip_bankroll(opp_clean, -winnings)
+                    if rem < POKER_VIP_MIN_BET:
+                        swept, sweep_msg = self.check_vip_clean_sweep()
+                        if swept:
+                            boss_msg = f"\n   💥 {opp_clean.upper()} HAS BUSTED FOR TODAY! (0 chips remaining){sweep_msg}"
+                        else:
+                            avail = self.get_available_vip_opponents()
+                            if avail:
+                                next_patron = random.choice(avail)
+                                self.poker.active_opponent = next_patron
+                                boss_msg = f"\n   💥 {opp_clean.upper()} HAS BUSTED FOR TODAY! Dealer: 'Seating {next_patron} at the felt!'"
+                            else:
+                                boss_msg = f"\n   💥 {opp_clean.upper()} HAS BUSTED FOR TODAY! All VIP patrons are tapped out until midnight!"
+                    else:
+                        boss_msg = f"\n   📉 {opp_clean} Chips: -{format_tokens(winnings)} (Remaining: {format_tokens(rem)})"
+
                     if not sting.get("recruited", False):
                         if sting["syndicate_wins"] >= 10 and sting["vip_winnings"] >= 500_000_000_000_000:
                             sting["recruited"] = True
@@ -403,6 +543,11 @@ class CasinoMixin:
                     sting_msg = f"\n   🚨 \033[1m\033[93m[THE VELVET STING] Tactical objective achieved! Type 'sting' to advance!\033[0m"
 
         elif outcome == "LOSS":
+            if self.poker.table_mode in ["vip", "boss"]:
+                if not getattr(self.poker, "boss_name", ""):
+                    opp_clean = self.poker.active_opponent.split("[")[0].strip()
+                    rem = self.update_vip_bankroll(opp_clean, bet)
+                    boss_msg = f"\n   📈 {opp_clean} collected your wager! (Stack: {format_tokens(rem)})"
             if self.poker.table_mode in ["vip", "boss"] and self.state.get("luxury", {}).get("unlocked"):
                 rebate = int(bet * 0.10)
                 if rebate > 0:
@@ -411,9 +556,11 @@ class CasinoMixin:
                     rebate_msg = f"\n   🛡️ Sovereign Rebate: +{format_tokens(rebate)} tokens refunded to your account!"
 
         # Determine opponent end quote situation
+        opp_clean = self.poker.active_opponent.split("[")[0].strip()
+        opp_cur, _ = self.get_vip_bankroll(opp_clean) if self.poker.table_mode == "vip" else (1, 1)
         is_bankrupt = (
-            (bool(getattr(self.poker, "boss_name", "")) or self.poker.table_mode == "boss")
-            and self.poker.boss_stack <= 0
+            ((bool(getattr(self.poker, "boss_name", "")) or self.poker.table_mode == "boss") and self.poker.boss_stack <= 0)
+            or (self.poker.table_mode == "vip" and not getattr(self.poker, "boss_name", "") and opp_cur < POKER_VIP_MIN_BET)
         )
         if is_bankrupt:
             situation = "bankrupt"

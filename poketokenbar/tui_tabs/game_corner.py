@@ -2,7 +2,7 @@ import random
 import sys
 import textwrap
 from poketokenbar.utils.formatting import format_tokens
-from poketokenbar.game.models import VELVET_PATRONS, VELVET_MARKS
+from poketokenbar.game.models import VELVET_PATRONS, VELVET_MARKS, POKER_VIP_MIN_BET
 
 HEADER = "\033[95m\033[1m"
 BLUE = "\033[94m"
@@ -323,12 +323,26 @@ def render_poker_tab(app):
             b_stack = getattr(app.engine.poker, "boss_stack", 0)
             b_max = getattr(app.engine.poker, "boss_max_stack", 1) or 1
             pct = max(0.0, min(1.0, b_stack / b_max))
-            filled = int(pct * 20)
-            bar = "█" * filled + "░" * (20 - filled)
-            sys.stdout.write(f"  🏦 Target Treasury: [{bar}] {format_tokens(b_stack)} / {format_tokens(b_max)}\n")
+            filled = int(pct * 16)
+            bar = "█" * filled + "░" * (16 - filled)
+            sys.stdout.write(f"  🏦 Treasury: [{bar}] {format_tokens(b_stack)} / {format_tokens(b_max)}\n")
         else:
-            sys.stdout.write(f"\n  {BOLD}{YELLOW}👑 THE VELVET SALON — HIGH-ROLLER SUITE 👑{RESET}\n")
-            sys.stdout.write(f"  Active Patron: {BOLD}{CYAN}{opp}{RESET}\n")
+            app.engine.check_and_reset_vip_bankrolls()
+            avail_opps = app.engine.get_available_vip_opponents()
+            clean_opp = opp.split("[")[0].strip() if opp else ""
+            c_stack, _ = app.engine.get_vip_bankroll(clean_opp)
+
+            if not avail_opps:
+                sys.stdout.write(f"\n  {BOLD}{YELLOW}👑 THE VELVET SALON — HIGH-ROLLER SUITE 👑{RESET}\n")
+                sys.stdout.write(f"  Active Patron: {BOLD}{RED}[TABLE CLOSED — SALON CLEAN SWEEP]{RESET}\n")
+                sys.stdout.write(f"  {YELLOW}🏆 All VIP patrons busted! Bonus claimed (+10,000.0Q). Resets at 00:00.{RESET}\n")
+            else:
+                sys.stdout.write(f"\n  {BOLD}{YELLOW}👑 THE VELVET SALON — HIGH-ROLLER SUITE 👑{RESET}\n")
+                sys.stdout.write(f"  Active Patron: {BOLD}{CYAN}{opp}{RESET}\n")
+                if c_stack < POKER_VIP_MIN_BET:
+                    sys.stdout.write(f"  Chips: {BOLD}{RED}0 tokens [BUSTED] (Resets at 00:00){RESET}\n")
+                else:
+                    sys.stdout.write(f"  Chips: {BOLD}{YELLOW}{format_tokens(c_stack)}{RESET} tokens\n")
         sys.stdout.write(f"  Available Tokens to Bet: {BOLD}{CYAN}{format_tokens(avail)}{RESET} (Min: 10.0T)\n\n")
         sys.stdout.write(f"  {BOLD}🃏 Rules & Multipliers (VIP Payouts):{RESET}\n")
         sys.stdout.write(f"   • Royal Flush [100x] | Str. Flush [25x] | 4-of-a-Kind [12x]\n")
@@ -351,9 +365,9 @@ def render_poker_tab(app):
     if mode in ["vip", "boss"]:
         sting = app.engine.state.get("velvet_sting", {})
         if sting.get("recruited", False):
-            sys.stdout.write(f"  ➔ Tables: '{BOLD}table std{RESET}' (floor) | '{BOLD}sting{RESET}' (heist dossier).\n")
+            sys.stdout.write(f"  ➔ Tables: '{BOLD}table std{RESET}' (floor) | '{BOLD}next{RESET}' (seat) | '{BOLD}sting{RESET}' (dossier).\n")
         else:
-            sys.stdout.write(f"  ➔ Tables: '{BOLD}table std{RESET}' (floor).\n")
+            sys.stdout.write(f"  ➔ Tables: '{BOLD}table std{RESET}' (floor) | '{BOLD}next{RESET}' (seat).\n")
     elif vip_unlocked:
         sys.stdout.write(f"  ➔ Navigation: Type '{BOLD}table vip{RESET}' to visit The Velvet Salon.\n")
     sys.stdout.write(f"  ➔ Type '{BOLD}back{RESET}' to return to the Game Corner Menu.\n\n")

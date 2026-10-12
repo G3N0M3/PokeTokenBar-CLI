@@ -589,12 +589,12 @@ class CommandRouter:
                 app.tracker.get_summary(force=True)
             return True
 
-        if cmd == "reset" and app.current_tab == 11:
+        if (cmd == "reset" and app.current_tab == 11) or (app.current_tab == 11 and cmd == "16"):
             app.pending_reset = True
             app.message = "⚠️ CONFIRMATION REQUIRED: Type 'RESET ALL' to wipe progress & restart fresh, or anything else to cancel!"
             return True
 
-        if cmd.startswith("rocket init") or cmd.startswith("init rocket") or (app.current_tab == 11 and cmd in ["rocket reset", "reset rocket", "rocket"]):
+        if cmd.startswith("rocket init") or cmd.startswith("init rocket") or (app.current_tab == 11 and cmd in ["rocket reset", "reset rocket", "rocket", "13"]):
             if "--force" in cmd or not app.engine.state.get("rocket_story_unlocked", False):
                 ok, msg = app.engine.initialize_rocket_process()
                 app.message = f"🚀 {msg}"
@@ -603,13 +603,24 @@ class CommandRouter:
                 app.message = "⚠️ CONFIRM: Type 'CONFIRM' to reset Team Rocket back to Op 1, or anything else to cancel!"
             return True
 
-        if cmd.startswith("sting init") or cmd.startswith("init sting") or (app.current_tab == 11 and cmd in ["sting reset", "reset sting"]):
+        if cmd.startswith("sting init") or cmd.startswith("init sting") or (app.current_tab == 11 and cmd in ["sting reset", "reset sting", "14"]):
             if "--force" in cmd or not app.engine.state.get("poker_vip_unlocked", False):
                 ok, msg = app.engine.reset_velvet_sting()
                 app.message = f"♠️ {msg}"
             else:
                 app.pending_sting_init = True
                 app.message = "⚠️ CONFIRM: Type 'CONFIRM' to reset High-Roller Salon & Storyline back to Chapter 1, or anything else to cancel!"
+            return True
+
+        if cmd.startswith("matrix init") or cmd.startswith("init matrix") or (app.current_tab == 11 and cmd in ["matrix reset", "reset matrix", "matrix", "15"]):
+            if "--force" in cmd or not app.engine.state.get("matrix", {}).get("unlocked", False):
+                ok, msg = app.engine.reset_matrix_process()
+                app.in_matrix = False
+                app.matrix_subview = "dashboard"
+                app.message = f"⚡ {msg}"
+            else:
+                app.pending_matrix_init = True
+                app.message = "⚠️ CONFIRM: Type 'CONFIRM' to re-initialize Sub-Level 0 Singularity Matrix, or anything else to cancel!"
             return True
 
         if cmd.startswith("size") and app.current_tab == 11:
@@ -767,6 +778,11 @@ class CommandRouter:
                 app.message = msg
             else:
                 app.message = "Usage: table <std|vip>"
+            return True
+
+        if cmd in ["next", "seat", "seat next"] and getattr(app, "minigame_state", "menu") == "poker":
+            ok, msg = app.engine.cycle_vip_opponent()
+            app.message = msg
             return True
 
         if (cmd in ["sting", "briefing"] or cmd.startswith("sting ")) and getattr(app, "minigame_state", "menu") == "poker":
@@ -1138,11 +1154,9 @@ class CommandRouter:
                 return True
 
         if cmd == "transmute" or cmd.startswith("transmute "):
-            parts = cmd.split()
-            if len(parts) >= 2 and parts[1].isdigit():
-                ok, msg = app.engine.transmute_luxury_shiny(int(parts[1]))
-            else:
-                ok, msg = False, "Usage: transmute <roster_idx> (Target companion index from Tab 3 Roster)"
+            parts = cmd.split(maxsplit=1)
+            target = parts[1].strip() if len(parts) > 1 else None
+            ok, msg = app.engine.transmute_luxury_shiny(target)
             app.message = msg
             return True
 

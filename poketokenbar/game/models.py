@@ -874,6 +874,21 @@ VELVET_MARKS: List[str] = [
     "Corinne Vane",
 ]
 
+VIP_CLEAN_SWEEP_BOUNTY: int = 10_000_000_000_000_000_000  # 10,000.0Q tokens
+
+VIP_PATRON_DAILY_BANKROLLS: Dict[str, int] = {
+    "Duchess Eleanor": 2_500_000_000_000_000_000,
+    "Gentleman Walter": 2_500_000_000_000_000_000,
+    "Financier Vance": 3_750_000_000_000_000_000,
+    "Madame Vivienne": 5_000_000_000_000_000_000,
+    "Countess Beverly": 6_000_000_000_000_000_000,
+    "Lord Sterling": 7_500_000_000_000_000_000,
+    "Viktor Rostov": 5_000_000_000_000_000_000,
+    "Corinne Vane": 10_000_000_000_000_000_000,
+    "Oligarch Thorne": 12_500_000_000_000_000_000,
+    "Baron Salvatore Croix": 25_000_000_000_000_000_000,
+}
+
 VELVET_STING_CHAPTERS: Dict[str, Dict[str, Any]] = {
     "1": {
         "title": "Operation Clean Slate: The Syndicate Recruitment",

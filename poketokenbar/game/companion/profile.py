@@ -104,6 +104,14 @@ class ProfileMixin:
                         # Reroll daily grunt bribe on day advance
                         self.state["daily_grunt_bribe"] = random.choice([1_000_000, 2_000_000, 3_000_000, 4_000_000, 5_000_000])
 
+                        # Reset Velvet Salon VIP Bankrolls
+                        if hasattr(self, "check_and_reset_vip_bankrolls"):
+                            if self.check_and_reset_vip_bankrolls(today_str):
+                                events.append("👑 The Velvet Salon: VIP patron token stacks have reset for the day!")
+                        elif hasattr(self, "check_and_refill_vip_bankrolls"):
+                            if self.check_and_refill_vip_bankrolls(today_str):
+                                events.append("👑 The Velvet Salon: VIP patron token stacks have reset for the day!")
+
                     if diff == 1:
                         if active:
                             bonus = 15 if active.held_item == "leftovers" else 10
