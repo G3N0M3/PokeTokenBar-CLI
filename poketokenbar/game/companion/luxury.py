@@ -351,7 +351,8 @@ class LuxuryMixin:
         owned_decor.append(d_key)
 
         title_msg = ""
-        if len(owned_decor) == len(LUXURY_DECOR):
+        purchasable_decor = {k for k, v in LUXURY_DECOR.items() if v.get("cost", 0) > 0}
+        if purchasable_decor.issubset(set(owned_decor)):
             badges = self.state.setdefault("gym_badges", [])
             title = "👑 Sovereign Tycoon"
             if title not in badges:
@@ -444,39 +445,127 @@ class LuxuryMixin:
         """Backward-compatible alias for interact_luxury_decor."""
         return self.interact_luxury_decor(decor_key_or_idx)
 
-    def transmute_luxury_shiny(self, target_idx: int) -> Tuple[bool, str]:
+    def transmute_luxury_shiny(self, target: Any = None) -> Tuple[bool, str]:
         if self.get_luxury_facility_level("chromatic_lab") < 1:
             return False, "Chromatic Resonator is not built! Construct it in the Executive Luxury Suite."
 
         dex = self.state.get("dex", [])
         roster = [d for d in dex if d.get("status") != "evolved"]
-        if not roster:
+        active = self.active_mon
+        if not roster and not active:
             return False, "Your Roster is currently empty!"
-        if target_idx < 1 or target_idx > len(roster):
-            return False, f"Invalid index #{target_idx}! Must be between 1 and {len(roster)}."
 
-        entry = roster[target_idx - 1]
-        sp_id = entry.get("species_id", entry.get("base_id"))
+        def _find_entry_for_active(mon: MonState) -> Optional[Dict[str, Any]]:
+            for d in roster:
+                d_sp = d.get("species_id", d.get("final_id", d.get("base_id")))
+                if d_sp == mon.current_id or d.get("base_id") == mon.base_id:
+                    return d
+            for d in dex:
+                d_sp = d.get("species_id", d.get("final_id", d.get("base_id")))
+                if d_sp == mon.current_id or d.get("base_id") == mon.base_id:
+                    return d
+            return None
+
+        target_entry = None
+        target_str = str(target).strip() if target is not None else ""
+
+        # Case 1: No argument or 'active' keyword -> Target active traveling companion
+        if not target_str or target_str.lower() in ["active", "mon", "current", "self", "me"]:
+            if not active:
+                return False, "No active companion is currently selected! Specify a roster index or companion name."
+            target_entry = _find_entry_for_active(active)
+            if not target_entry:
+                target_entry = {
+                    "species_id": active.current_id,
+                    "base_id": active.base_id,
+                    "status": "active",
+                    "is_shiny": active.is_shiny,
+                }
+                dex.append(target_entry)
+
+        # Case 2: Integer or numeric string (Roster index or Pokédex number)
+        elif target_str.isdigit() or (isinstance(target, int) and not isinstance(target, bool)):
+            num = int(target)
+            if active and (active.current_id == num or active.base_id == num):
+                target_entry = _find_entry_for_active(active)
+            else:
+                pokedex_matches = [
+                    d for d in roster
+                    if d.get("species_id") == num or d.get("final_id") == num or d.get("base_id") == num
+                ]
+                if 1 <= num <= len(roster):
+                    cand = roster[num - 1]
+                    cand_id = cand.get("species_id", cand.get("final_id", cand.get("base_id")))
+                    if pokedex_matches and cand_id != num:
+                        target_entry = pokedex_matches[0]
+                    else:
+                        target_entry = cand
+                elif pokedex_matches:
+                    target_entry = pokedex_matches[0]
+                else:
+                    return False, f"Invalid target #{num}! Must be a valid Roster index (1 to {len(roster)}) or Pokédex #."
+
+        # Case 3: Name query (e.g., 'gengar', 'mega gengar', 'pikachu')
+        else:
+            query = target_str.lower().replace("mega", "").strip()
+            if active:
+                act_name = self.api.get_species_name(active.current_id).lower()
+                if query in act_name or act_name in query:
+                    target_entry = _find_entry_for_active(active)
+
+            if not target_entry:
+                for d in roster:
+                    d_sp = d.get("species_id", d.get("final_id", d.get("base_id")))
+                    name = self.api.get_species_name(d_sp).lower()
+                    if query in name or name in query:
+                        target_entry = d
+                        break
+
+            if not target_entry:
+                return False, f"Could not find companion '{target_str}' in your Roster!"
+
+        sp_id = target_entry.get("species_id", target_entry.get("final_id", target_entry.get("base_id")))
+        base_id = target_entry.get("base_id", sp_id)
         species_name = self.api.get_species_name(sp_id)
-        if entry.get("is_shiny", False):
+
+        is_targeting_active = False
+        if active and (active.current_id == sp_id or active.base_id == base_id or target_entry.get("status") == "active"):
+            is_targeting_active = True
+
+        already_shiny = target_entry.get("is_shiny", False)
+        if is_targeting_active and not active.is_shiny:
+            already_shiny = False
+
+        if already_shiny:
             return False, f"{species_name} (#{sp_id}) is already Shiny!"
 
-        entry["is_shiny"] = True
-        if isinstance(entry.get("mon_state"), dict):
-            entry["mon_state"]["is_shiny"] = True
-        if self.active_mon and self.active_mon.current_id == sp_id:
-            self.active_mon.is_shiny = True
-            self.set_active_mon(self.active_mon)
+        target_entry["is_shiny"] = True
+        if isinstance(target_entry.get("mon_state"), dict):
+            target_entry["mon_state"]["is_shiny"] = True
+
+        if is_targeting_active and active:
+            active.is_shiny = True
+            if isinstance(self.state.get("active_mon"), dict):
+                self.state["active_mon"]["is_shiny"] = True
+            self.set_active_mon(active)
+
+        for d in dex:
+            if d.get("base_id") == base_id or d.get("species_id") == sp_id:
+                if d.get("status") != "evolved" or d.get("species_id") == sp_id:
+                    d["is_shiny"] = True
+                    if isinstance(d.get("mon_state"), dict):
+                        d["mon_state"]["is_shiny"] = True
+
         self.save()
         return True, f"✨ CHROMATIC TRANSMUTATION! {species_name} (#{sp_id}) is now a brilliant SHINY Pokémon!"
 
-    def transmute_penthouse_shiny(self, target_idx: int) -> Tuple[bool, str]:
+    def transmute_penthouse_shiny(self, target: Any = None) -> Tuple[bool, str]:
         """Backward-compatible alias for transmute_luxury_shiny."""
-        return self.transmute_luxury_shiny(target_idx)
+        return self.transmute_luxury_shiny(target)
 
-    def transmute_villa_shiny(self, target_idx: int) -> Tuple[bool, str]:
+    def transmute_villa_shiny(self, target: Any = None) -> Tuple[bool, str]:
         """Backward-compatible alias for transmute_luxury_shiny."""
-        return self.transmute_luxury_shiny(target_idx)
+        return self.transmute_luxury_shiny(target)
 
     def trigger_luxury_catalyst(self, corp_key: str) -> Tuple[bool, str]:
         key = self._resolve_corp_key(corp_key)
@@ -526,7 +615,7 @@ class LuxuryMixin:
             tier = egg.get("tier", "common")
             prog = egg.get("progress", 0) + eff_delta
             egg["progress"] = prog
-            threshold = self.get_egg_hatch_threshold(tier)
+            threshold = egg.get("threshold") or self.get_egg_hatch_threshold(tier)
             if prog >= threshold:
                 hatched_indices.append((i, tier, prog - threshold))
 
@@ -620,6 +709,49 @@ class LuxuryMixin:
         matrix_st["total_tokens_consumed"] = matrix_st.get("total_tokens_consumed", 0) + MATRIX_ENTRY_COST
         self.save()
         return True, f"⚡ SUB-LEVEL BULKHEAD UNLOCKED! Paid {format_tokens(MATRIX_ENTRY_COST)} tokens to initialize the quantum singularity reactor! Descending to Sub-Level 0..."
+
+    def reset_matrix_process(self) -> Tuple[bool, str]:
+        """Resets the Sub-Level 0 Singularity Matrix progress and seals the entrance back to fresh state."""
+        self.state["matrix"] = {
+            "unlocked": False,
+            "story_viewed": False,
+            "ram_blocks": [],
+            "hacked_nodes": [],
+            "active_tweaks": {},
+            "trace_level": 0,
+            "deck_hardware": {
+                "integrity": 100,
+                "firewall": 500,
+                "max_firewall": 500,
+                "threads": 1,
+            },
+            "tools": ["overflow"],
+            "tool_upgrades": [],
+            "deck_upgrades": {
+                "shield": 0,
+                "stealth": 0,
+                "nanites": 0,
+                "clock": 0,
+            },
+            "active_breach": None,
+            "active_threat": None,
+            "patches": [],
+            "sectors": [],
+            "defeated_daemons": [],
+            "root_transcended": False,
+            "total_tokens_consumed": 0,
+            "collider_state": None,
+            "combat_state": None,
+            "tutorial_step": 1,
+            "tutorial_completed": False,
+            "tutorial_active": True,
+        }
+        self.save()
+        return True, "Sub-Level 0 Singularity Matrix has been fully re-initialized! Entrance sealed."
+
+    def initialize_matrix_process(self) -> Tuple[bool, str]:
+        """Alias for reset_matrix_process."""
+        return self.reset_matrix_process()
 
 
 # Backward-compatible aliases

@@ -103,7 +103,7 @@ class TestResortVilla(unittest.TestCase):
         # Queue 2 eggs in pending_eggs
         self.engine.state["pending_eggs"] = [
             {"tier": "common", "progress": 0},
-            {"tier": "uncommon", "progress": 0},
+            {"tier": "uncommon", "progress": 0, "threshold": 3_000_000},
         ]
         self.engine.save()
 
@@ -244,6 +244,77 @@ class TestResortVilla(unittest.TestCase):
         clean_lines3 = [ansi_regex.sub("", l) for l in trap3.getvalue().split("\n")]
         for line in clean_lines3:
             self.assertLessEqual(len(line), 72, f"Stock Terminal line exceeds 72 cols ({len(line)}): '{line}'")
+
+    def test_transmute_flexible_targeting_and_active_mon_sync(self):
+        self.engine.purchase_villa_deed()
+        self.engine.upgrade_villa_facility("chromatic_lab")
+
+        # Set up a companion in dex/roster (Gengar #94)
+        self.engine.state["dex"] = [{
+            "species_id": 94,
+            "base_id": 92,
+            "status": "active",
+            "is_shiny": False,
+            "mon_state": {"species_id": 94, "base_id": 92, "is_shiny": False, "happiness": 100, "is_mega": True}
+        }]
+        self.engine.state["active_mon"] = {
+            "base_id": 92, "current_id": 94, "stage_index": 2, "path_ids": [92, 93, 94],
+            "rarity": "common", "happiness": 100, "used_at_stage": 0, "is_mega": True,
+            "held_item": None, "is_shiny": False, "is_graduated": False
+        }
+        self.engine.save()
+
+        # 1. Test transmute with no arguments (targets active companion)
+        ok, msg = self.engine.transmute_luxury_shiny()
+        self.assertTrue(ok)
+        self.assertIn("CHROMATIC TRANSMUTATION", msg)
+        self.assertTrue(self.engine.active_mon.is_shiny)
+        self.assertTrue(self.engine.state["active_mon"]["is_shiny"])
+        self.assertTrue(self.engine.state["dex"][0]["is_shiny"])
+
+        # Reset shiny status
+        self.engine.state["active_mon"]["is_shiny"] = False
+        self.engine.state["dex"][0]["is_shiny"] = False
+        self.engine.save()
+
+        # 2. Test transmute with 'active' keyword
+        ok, msg = self.engine.transmute_luxury_shiny("active")
+        self.assertTrue(ok)
+        self.assertTrue(self.engine.active_mon.is_shiny)
+
+        # Reset shiny status
+        self.engine.state["active_mon"]["is_shiny"] = False
+        self.engine.state["dex"][0]["is_shiny"] = False
+        self.engine.save()
+
+        # 3. Test transmute with species name 'gengar'
+        ok, msg = self.engine.transmute_luxury_shiny("gengar")
+        self.assertTrue(ok)
+        self.assertTrue(self.engine.active_mon.is_shiny)
+
+        # Reset shiny status
+        self.engine.state["active_mon"]["is_shiny"] = False
+        self.engine.state["dex"][0]["is_shiny"] = False
+        self.engine.save()
+
+        # 4. Test transmute with Pokédex ID '94'
+        ok, msg = self.engine.transmute_luxury_shiny("94")
+        self.assertTrue(ok)
+        self.assertTrue(self.engine.active_mon.is_shiny)
+
+        # 5. Test Router dispatch for transmute
+        from poketokenbar.tui.router import CommandRouter
+        app = MagicMock()
+        app.engine = self.engine
+        app.current_tab = 11
+
+        self.engine.state["active_mon"]["is_shiny"] = False
+        self.engine.state["dex"][0]["is_shiny"] = False
+        self.engine.save()
+
+        CommandRouter.dispatch(app, "transmute")
+        self.assertTrue(self.engine.active_mon.is_shiny)
+        self.assertIn("CHROMATIC TRANSMUTATION", app.message)
 
 
 if __name__ == "__main__":

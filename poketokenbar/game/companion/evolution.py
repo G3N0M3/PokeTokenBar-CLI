@@ -578,7 +578,8 @@ class EvolutionMixin:
             next_name = self.api.get_species_name(target_evo_id)
             return False, f"Cannot evolve into {next_name}! {next_name} (#{target_evo_id}) already exists in your Pokédex (active Roster)."
 
-        prev_name = self.api.get_species_name(active.current_id)
+        prev_id = active.current_id
+        prev_name = self.api.get_species_name(prev_id)
         active.stage_index += 1
 
         if active.stage_index >= len(active.path_ids):

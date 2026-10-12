@@ -323,7 +323,7 @@ def _render_unlocked_luxury_view(app: Any, avail: int):
     print_bounded(f"  ➔ '{BOLD}help wing <1-4>{RESET}' guide | '{BOLD}upgrade <1-4>{RESET}' | '{BOLD}furnish <1-6>{RESET}'")
     print_bounded(f"  ➔ '{BOLD}interact <1-6>{RESET}' use decor | '{BOLD}back{RESET}' to Checking")
     if app.engine.get_luxury_facility_level("chromatic_lab") >= 1:
-        print_bounded(f"  ➔ '{BOLD}transmute <roster_idx>{RESET}' (Convert companion to Shiny)")
+        print_bounded(f"  ➔ '{BOLD}transmute [active|name|#]{RESET}' (Convert companion to Shiny)")
     if app.engine.get_luxury_facility_level("trading_desk") >= 3:
         print_bounded(f"  ➔ '{BOLD}catalyst <corp_ticker>{RESET}' (Deploy 1.0T tokens for Bull Rally)")
     if app.engine.is_luxury_fully_completed():
