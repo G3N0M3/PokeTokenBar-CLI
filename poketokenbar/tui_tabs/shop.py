@@ -257,18 +257,48 @@ def handle_shop_buy(app, cmd: str):
     item_kind = None
     if choice == "1":
         item_kind = ItemKind.RARE_CANDY
-    elif choice == "2":
-        if qty > 1:
-            app.message = "You can only hold one egg!"
+    elif choice.lower() in ["2", "egg", "pokemon_egg", "normal_egg"]:
+        tier = None
+        diff = app.engine.current_difficulty
+        unit_cost = diff.shop_prices.get("egg_normal", 30_000_000)
+        unit_cost = int(unit_cost * app.engine.get_devon_multiplier())
+        total_cost = unit_cost * qty
+        if app.engine.available_tokens < total_cost:
+            app.message = f"Not enough tokens! Required: {format_tokens(total_cost)}, Available: {format_tokens(app.engine.available_tokens)}"
             return
-        ok, msg = app.engine.buy_egg(None)
+        if qty > 5 and not bypass_confirm:
+            prompt = f"🛒 Buy {qty}x Pokémon Egg 🥚 for {format_tokens(total_cost)} tokens? Type 'y'"
+            app.pending_buy = {
+                "type": "shop_egg",
+                "tier": tier,
+                "qty": qty,
+                "cost": total_cost,
+            }
+            app.message = prompt
+            return
+        ok, msg = app.engine.buy_egg(tier, qty=qty)
         app.message = msg
         return
-    elif choice == "3":
-        if qty > 1:
-            app.message = "You can only hold one egg!"
+    elif choice.lower() in ["3", "uncommon_egg", "uncommon"]:
+        tier = Rarity.UNCOMMON
+        diff = app.engine.current_difficulty
+        unit_cost = diff.shop_prices.get("egg_uncommon", 45_000_000)
+        unit_cost = int(unit_cost * app.engine.get_devon_multiplier())
+        total_cost = unit_cost * qty
+        if app.engine.available_tokens < total_cost:
+            app.message = f"Not enough tokens! Required: {format_tokens(total_cost)}, Available: {format_tokens(app.engine.available_tokens)}"
             return
-        ok, msg = app.engine.buy_egg(Rarity.UNCOMMON)
+        if qty > 5 and not bypass_confirm:
+            prompt = f"🛒 Buy {qty}x Uncommon Egg 🥚 for {format_tokens(total_cost)} tokens? Type 'y'"
+            app.pending_buy = {
+                "type": "shop_egg",
+                "tier": tier,
+                "qty": qty,
+                "cost": total_cost,
+            }
+            app.message = prompt
+            return
+        ok, msg = app.engine.buy_egg(tier, qty=qty)
         app.message = msg
         return
     elif choice == "4":

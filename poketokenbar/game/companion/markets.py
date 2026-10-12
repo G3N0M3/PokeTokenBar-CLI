@@ -562,8 +562,12 @@ class MarketsMixin:
             msg = f"Purchased {qty}x {deal['name']} for {format_tokens(total_cost)} tokens! Added to your Bag."
         elif deal_type == "egg":
             tier = deal["egg_tier"]
-            ok_egg, egg_msg, cash = self.obtain_egg(tier)
-            msg = f"Purchased {deal['name']} for {format_tokens(total_cost)} tokens! {egg_msg}"
+            last_msg = ""
+            for _ in range(qty):
+                ok_egg, egg_msg, cash = self.obtain_egg(tier)
+                last_msg = egg_msg
+            qty_str = f"{qty}x " if qty > 1 else ""
+            msg = f"Purchased {qty_str}{deal['name']} for {format_tokens(total_cost)} tokens! {last_msg}"
         elif deal_type == "mega_stone":
             s_id = deal["stone_id"]
             k = f"mega_stone_{s_id}"

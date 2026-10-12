@@ -52,13 +52,14 @@ class TestCompanionEngine(unittest.TestCase):
         self.engine.state["used_since_install"] = 500_000_000
         ok1, msg1 = self.engine.buy_egg(None)
         self.assertTrue(ok1)
-        # Second buy while holding egg should fail
+        # Second buy while holding active mon/egg adds to nursery
         ok2, msg2 = self.engine.buy_egg(None)
-        self.assertFalse(ok2)
-        # After clearing egg (e.g. hatching), buying should succeed
-        self.engine.state["egg_tier"] = None
-        ok3, msg3 = self.engine.buy_egg(Rarity.UNCOMMON)
+        self.assertTrue(ok2)
+        self.assertEqual(len(self.engine.state["pending_eggs"]), 1)
+        # Buying with quantity adds multiple eggs to nursery
+        ok3, msg3 = self.engine.buy_egg(Rarity.UNCOMMON, qty=3)
         self.assertTrue(ok3)
+        self.assertEqual(len(self.engine.state["pending_eggs"]), 4)
 
     def test_strict_no_duplicate_pokemon_hatching(self):
         # Register the 8 original legendaries in the dex (including Ho-Oh #250)

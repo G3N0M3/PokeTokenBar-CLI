@@ -644,34 +644,51 @@ class HatchingMixin:
 
         return sp_id, rarity, chain_ids, is_leg
 
-    def buy_egg(self, tier: Optional[Rarity] = None) -> Tuple[bool, str]:
+    def buy_egg(self, tier: Optional[Rarity] = None, qty: int = 1) -> Tuple[bool, str]:
+        if qty <= 0:
+            return False, "Quantity must be greater than 0."
+
         if self.is_roster_full():
             return False, "Your Roster is completely full! You already own every Pokémon across all evolutionary stages."
 
         diff = self.current_difficulty
         costs = diff.shop_prices
         tier_key = tier.value if tier else "normal"
-        cost = costs.get("egg_rare" if tier == Rarity.RARE else ("egg_uncommon" if tier == Rarity.UNCOMMON else "egg_normal"), 30_000_000)
-        cost = int(cost * self.get_devon_multiplier())
+        unit_cost = costs.get("egg_rare" if tier == Rarity.RARE else ("egg_uncommon" if tier == Rarity.UNCOMMON else "egg_normal"), 30_000_000)
+        unit_cost = int(unit_cost * self.get_devon_multiplier())
+        total_cost = unit_cost * qty
 
-        if self.available_tokens < cost:
-            return False, f"Not enough tokens! Required: {format_tokens(cost)}, Available: {format_tokens(self.available_tokens)}"
+        if self.available_tokens < total_cost:
+            return False, f"Not enough tokens! Required: {format_tokens(total_cost)}, Available: {format_tokens(self.available_tokens)}"
 
-        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + cost
-        self._record_catalyst("shop_tokens_spent", cost)
+        self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + total_cost
+        self._record_catalyst("shop_tokens_spent", total_cost)
 
         # Clean up legacy keys
         self.state.pop("incubating_eggs", None)
         self.state.pop("current_egg_tier", None)
 
         tier_str = f"{tier.value.upper()}+" if tier else "Standard"
+        added_to_active = False
+        remaining_qty = qty
+
         if self.active_mon is None and not self.state.get("egg_tier"):
             self.state["egg_usage"] = 0
             self.state["egg_tier"] = tier_key
-            self.save()
-            return True, f"Obtained a fresh {tier_str} Pokémon Egg! Now loaded as your active companion."
-        else:
+            added_to_active = True
+            remaining_qty -= 1
+
+        if remaining_qty > 0:
             pending = self.state.setdefault("pending_eggs", [])
-            pending.append({"tier": tier_key, "progress": 0})
-            self.save()
+            for _ in range(remaining_qty):
+                pending.append({"tier": tier_key, "progress": 0})
+
+        self.save()
+
+        if qty == 1:
+            if added_to_active:
+                return True, f"Obtained a fresh {tier_str} Pokémon Egg! Now loaded as your active companion."
             return True, f"Obtained a fresh {tier_str} Pokémon Egg! Added to your Egg Nursery."
+        else:
+            active_note = " (1 loaded as active companion, rest to Nursery)" if added_to_active else " (Added to Egg Nursery)"
+            return True, f"Obtained {qty}x fresh {tier_str} Pokémon Eggs!{active_note}"
