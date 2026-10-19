@@ -1,6 +1,6 @@
 # PokeTokenBar: Technical Architecture Guide
 
-This document is intended for developers maintaining or extending the PokeTokenBar application. It outlines the core architecture, module responsibilities, state management, safety guarantees, and the TUI rendering pipeline as of **v2.4.0**.
+This document is intended for developers maintaining or extending the PokeTokenBar application. It outlines the core architecture, module responsibilities, state management, safety guarantees, and the TUI rendering pipeline as of **v2.5.0**.
 
 ---
 
@@ -46,7 +46,7 @@ PokeTokenBar follows a clean separation of concerns between the **View/Controlle
 
 ```text
 poketokenbar/
-├── __init__.py           # Package version definition (v2.4.0)
+├── __init__.py           # Package version definition (v2.5.0)
 ├── cli.py                # CLI entry point (ptb launches interactive TUI)
 ├── sprite_renderer.py    # SpriteRenderer: 24-bit TrueColor ANSI half-block renderer (with flip_h support)
 ├── tui/                  # TUI framework: app lifecycle, input router, modals
@@ -59,7 +59,11 @@ poketokenbar/
 │   ├── matrix/           # Quantum Singularity Matrix (QSM) multi-quintillion endgame sink
 │   │   ├── __init__.py   # Matrix package exports
 │   │   ├── models.py     # Costs (500Q-10,000Q), Q-RAM blocks, Reality Patches, Daemons, Sectors
-│   │   └── engine.py     # MatrixEngine: Q-RAM allocation, Particle Collider, Kernel Combat, Probing
+│   │   ├── combat.py     # Kernel combat encounters, boss retaliation, victory rewards
+│   │   ├── overclock.py  # Software overclock algorithms, cycle drain, stability management
+│   │   ├── pentest.py    # Daemon penetration testing, exploitation routines, sector access
+│   │   ├── tweaks.py     # Runtime system tweaks, performance overrides, reality patch logic
+│   │   └── engine.py     # MatrixEngine: central coordinator delegating to domain submodules
 │   ├── companion/        # CompanionEngine modular mixins
 │   │   ├── luxury.py     # LuxuryMixin: 100B qualification, wings, decor perks, transmutation
 │   │   ├── penthouse.py  # Backward-compatible proxy for luxury.py
