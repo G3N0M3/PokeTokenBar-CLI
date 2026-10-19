@@ -391,6 +391,8 @@ class RocketBattleHandler:
 
         move = moves[move_index]
         cost = move["cost"]
+        if hasattr(self.engine, "matrix") and self.engine.matrix and self.engine.matrix.is_instant_squad_active():
+            cost = max(1, cost // 2)
         spendable = self.get_rocket_tokens()
         if spendable < cost:
             return False, f"Insufficient tactical tokens! Need {cost:,} (Available: {spendable:,})."
@@ -402,6 +404,21 @@ class RocketBattleHandler:
         r_mon = st["boss_team"][r_idx]
         logs = []
 
+        held_item = None
+        is_mega = False
+        active = self.engine.active_mon
+        if active and active.current_id == p_id:
+            held_item = active.held_item
+            is_mega = getattr(active, "is_mega", False)
+        else:
+            for d in self.engine.state.get("dex", []):
+                if d.get("status") != "evolved" and d.get("species_id", d.get("final_id", d.get("base_id"))) == p_id:
+                    m_st = d.get("mon_state")
+                    if isinstance(m_st, dict):
+                        held_item = m_st.get("held_item")
+                        is_mega = bool(m_st.get("is_mega", False))
+                        break
+
         # --- 1. PLAYER TURN ---
         if move["name"] == "Nanite Recover":
             heal = int(st["player_max_hps"][p_idx] * 0.30)
@@ -410,14 +427,12 @@ class RocketBattleHandler:
         else:
             eff = get_effectiveness(move["type"], r_mon["type"])
             dmg = int(move["power"] * 480 * eff)
-            active = self.engine.active_mon
-            if active and active.current_id == p_id:
-                if getattr(active, "is_mega", False):
-                    dmg = int(dmg * 1.5)
-                if active.held_item in ["choice_band", "choice_specs"]:
-                    dmg = int(dmg * 1.5)
-                elif active.held_item == "life_orb":
-                    dmg = int(dmg * 1.2)
+            if is_mega:
+                dmg = int(dmg * 1.5)
+            if held_item in ["choice_band", "choice_specs"]:
+                dmg = int(dmg * 1.5)
+            elif held_item == "life_orb":
+                dmg = int(dmg * 1.2)
 
             if hasattr(self.engine, "matrix") and self.engine.matrix:
                 od = self.engine.matrix.get_tweak_val("combat", "overdrive")
@@ -488,8 +503,7 @@ class RocketBattleHandler:
         base_boss_dmg = random.randint(18_000, 26_000)
         boss_dmg = int(base_boss_dmg * b_eff)
 
-        active = self.engine.active_mon
-        if active and active.current_id == p_id and active.held_item == "assault_vest":
+        if held_item == "assault_vest":
             boss_dmg = int(boss_dmg * 0.8)
 
         st["player_hps"][p_idx] = max(0, st["player_hps"][p_idx] - boss_dmg)
@@ -532,24 +546,30 @@ class RocketBattleHandler:
         p_name = self.engine.api.get_species_name(p_id)
         logs = [f"🔄 Sent out {p_name}!"]
 
-        # Boss Retaliates against incoming swap
-        r_idx = st["boss_active_index"]
-        r_mon = st["boss_team"][r_idx]
-        sp = self.engine.api.get_pokemon_info(p_id)
-        p_type = sp["types"][0]["type"]["name"] if sp and "types" in sp else "normal"
+        instant_squad = bool(
+            hasattr(self.engine, "matrix") and self.engine.matrix and self.engine.matrix.is_instant_squad_active()
+        )
+        if not instant_squad:
+            # Boss Retaliates against incoming swap
+            r_idx = st["boss_active_index"]
+            r_mon = st["boss_team"][r_idx]
+            sp = self.engine.api.get_pokemon_info(p_id)
+            p_type = sp["types"][0]["type"]["name"] if sp and "types" in sp else "normal"
 
-        r_move = random.choice(r_mon["moves"])
-        eff = get_effectiveness(r_mon["type"], p_type)
-        dmg = int(random.randint(15_000, 24_000) * eff)
-        st["player_hps"][slot_index] = max(0, st["player_hps"][slot_index] - dmg)
-        eff_str = " (Super Effective!)" if eff > 1.5 else ""
-        logs.append(f"⚡ {r_mon['name']} caught the incoming swap with {r_move}!{eff_str} (-{dmg:,} HP)")
+            r_move = random.choice(r_mon["moves"])
+            eff = get_effectiveness(r_mon["type"], p_type)
+            dmg = int(random.randint(15_000, 24_000) * eff)
+            st["player_hps"][slot_index] = max(0, st["player_hps"][slot_index] - dmg)
+            eff_str = " (Super Effective!)" if eff > 1.5 else ""
+            logs.append(f"⚡ {r_mon['name']} caught the incoming swap with {r_move}!{eff_str} (-{dmg:,} HP)")
 
-        if st["player_hps"][slot_index] <= 0:
-            logs.append(f"💀 {p_name} fainted!")
-            if all(hp <= 0 for hp in st["player_hps"]):
-                st["status"] = "loss"
-                logs.append("🚨 Strike Squad blacked out! Type 'fight' to try again.")
+            if st["player_hps"][slot_index] <= 0:
+                logs.append(f"💀 {p_name} fainted!")
+                if all(hp <= 0 for hp in st["player_hps"]):
+                    st["status"] = "loss"
+                    logs.append("🚨 Strike Squad blacked out! Type 'fight' to try again.")
+        else:
+            logs.append("⚡ [INSTANT SQUAD] Zero-latency tactical swap! Boss could not react.")
 
         existing_logs = st.get("turn_log", [])
         existing_logs.extend(logs)

@@ -49,11 +49,12 @@ def render_red_tab(app):
             last_team = hof[-1]
             names = [app.engine.api.get_species_name(pid) for pid in last_team]
             team_str = ", ".join(names)
-            if len(team_str) > 48:
-                half = len(names) // 2
-                sys.stdout.write(f"  {CYAN}Champion Team:{RESET} {', '.join(names[:half])},\n                 {', '.join(names[half:])}\n\n")
-            else:
-                sys.stdout.write(f"  {CYAN}Champion Team:{RESET} {team_str}\n\n")
+            import textwrap
+            wrapped_team = textwrap.wrap(team_str, width=52) or [team_str]
+            sys.stdout.write(f"  {CYAN}Champion Team:{RESET} {wrapped_team[0]}\n")
+            for wt_line in wrapped_team[1:]:
+                sys.stdout.write(f"                 {wt_line}\n")
+            sys.stdout.write("\n")
 
         sys.stdout.write(f"  {BOLD}Red silently stares at you from the snowy peak...{RESET}\n")
         sys.stdout.write(f"  {YELLOW}You must assemble a party of 6 Pokémon to challenge him!{RESET}\n\n")

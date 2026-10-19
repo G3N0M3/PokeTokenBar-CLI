@@ -168,34 +168,40 @@ class RedBattleHandler:
         
         logs = [f"You sent out {name}!"]
         
-        # Red Retaliates
-        p_idx = index
-        p_id = st["player_team"][p_idx]
-        sp = self.engine.api.get_pokemon_info(p_id)
-        p_type = sp["types"][0]["type"]["name"] if sp and "types" in sp else "normal"
-        
-        r_idx = st["red_active_index"]
-        r_mon = st["red_team"][r_idx]
-        
-        r_move = random.choice(r_mon["moves"])
-        eff = get_effectiveness(r_mon["type"], p_type)
-        dmg = int(30_000 * eff)
-        st["player_hps"][p_idx] = max(0, st["player_hps"][p_idx] - dmg)
-        
-        enemy_prefix = "Red's" if not st.get("arceus_phase") else "Godly"
-        eff_str = " It's super effective!" if eff > 1.5 else (" It's not very effective..." if eff < 0.9 else "")
-        logs.append(f"{enemy_prefix} {r_mon['name']} used {r_move}!{eff_str} (-{dmg} HP)")
-        
-        if st["player_hps"][p_idx] <= 0:
-            logs.append(f"{name} fainted!")
-            if all(hp <= 0 for hp in st["player_hps"]):
-                logs.append("You blacked out! Red's team has healed. Try again...")
-                st["status"] = "loss"
-                existing_logs = st.get("turn_log", [])
-                existing_logs.extend(logs)
-                st["turn_log"] = existing_logs[-5:]
-                self._save_state(st)
-                return True, "\n".join(logs)
+        instant_squad = bool(
+            hasattr(self.engine, "matrix") and self.engine.matrix and self.engine.matrix.is_instant_squad_active()
+        )
+        if not instant_squad:
+            # Red Retaliates
+            p_idx = index
+            p_id = st["player_team"][p_idx]
+            sp = self.engine.api.get_pokemon_info(p_id)
+            p_type = sp["types"][0]["type"]["name"] if sp and "types" in sp else "normal"
+            
+            r_idx = st["red_active_index"]
+            r_mon = st["red_team"][r_idx]
+            
+            r_move = random.choice(r_mon["moves"])
+            eff = get_effectiveness(r_mon["type"], p_type)
+            dmg = int(30_000 * eff)
+            st["player_hps"][p_idx] = max(0, st["player_hps"][p_idx] - dmg)
+            
+            enemy_prefix = "Red's" if not st.get("arceus_phase") else "Godly"
+            eff_str = " It's super effective!" if eff > 1.5 else (" It's not very effective..." if eff < 0.9 else "")
+            logs.append(f"{enemy_prefix} {r_mon['name']} used {r_move}!{eff_str} (-{dmg} HP)")
+            
+            if st["player_hps"][p_idx] <= 0:
+                logs.append(f"{name} fainted!")
+                if all(hp <= 0 for hp in st["player_hps"]):
+                    logs.append("You blacked out! Red's team has healed. Try again...")
+                    st["status"] = "loss"
+                    existing_logs = st.get("turn_log", [])
+                    existing_logs.extend(logs)
+                    st["turn_log"] = existing_logs[-5:]
+                    self._save_state(st)
+                    return True, "\n".join(logs)
+        else:
+            logs.append("⚡ [INSTANT SQUAD] Zero-latency tactical swap! Red could not react.")
                 
         existing_logs = st.get("turn_log", [])
         existing_logs.extend(logs)
@@ -231,6 +237,8 @@ class RedBattleHandler:
             
         move = moves[move_index]
         cost = move["cost"]
+        if hasattr(self.engine, "matrix") and self.engine.matrix and self.engine.matrix.is_instant_squad_active():
+            cost = max(1, cost // 2)
         
         spendable = self.get_red_tokens()
         
@@ -244,6 +252,17 @@ class RedBattleHandler:
         r_mon = st["red_team"][r_idx]
         
         logs = []
+        held_item = None
+        active = self.engine.active_mon
+        if active and active.current_id == p_id:
+            held_item = active.held_item
+        else:
+            for d in self.engine.state.get("dex", []):
+                if d.get("status") != "evolved" and d.get("species_id", d.get("final_id", d.get("base_id"))) == p_id:
+                    m_st = d.get("mon_state")
+                    if isinstance(m_st, dict) and m_st.get("held_item"):
+                        held_item = m_st.get("held_item")
+                        break
         
         # Player Turn
         if move["name"] == "Recover":
@@ -253,10 +272,11 @@ class RedBattleHandler:
         else:
             eff = get_effectiveness(move["type"], r_mon["type"])
             dmg = int(move["power"] * 1500 * eff)
-            active = self.engine.active_mon
-            if active and active.held_item in ["choice_band", "choice_specs"]:
+            if held_item in ["choice_band", "choice_specs"]:
                 dmg = int(dmg * 1.5)
-            elif active and active.held_item == "metal_coat":
+            elif held_item == "life_orb":
+                dmg = int(dmg * 1.2)
+            elif held_item == "metal_coat":
                 dmg = int(dmg * 1.15)
             if hasattr(self.engine, "matrix") and self.engine.matrix:
                 od = self.engine.matrix.get_tweak_val("combat", "overdrive")
@@ -307,16 +327,17 @@ class RedBattleHandler:
                         # Grant Arceus if not in active roster
                         owns_arceus = 493 in self.engine.get_roster_species_ids()
                         if not owns_arceus:
-                            from poketokenbar.game.models import MonState
+                            from poketokenbar.game.models import MonState, Rarity
                             arceus_mon = MonState(
                                 base_id=493,
-                                current_id=493,
-                                rarity="legendary",
                                 path_ids=[493],
+                                planned_path_ids=[493],
                                 stage_index=0,
+                                used_at_stage=0,
+                                rarity=Rarity.LEGENDARY,
+                                total_forms=1,
                                 is_shiny=False,
-                                nickname="Arceus",
-                                generation=1
+                                is_graduated=True,
                             )
                             self.engine._register_to_dex(arceus_mon, status="graduated")
                             logs.append("Arceus has acknowledged your strength and joined your roster!")
@@ -366,6 +387,8 @@ class RedBattleHandler:
             eff = get_effectiveness(r_mon["type"], p_type)
             # Red deals heavy damage
             dmg = int(30_000 * eff)
+            if held_item == "assault_vest":
+                dmg = int(dmg * 0.8)
             st["player_hps"][p_idx] = max(0, st["player_hps"][p_idx] - dmg)
             
             enemy_prefix = "Red's" if not st.get("arceus_phase") else "Godly"
