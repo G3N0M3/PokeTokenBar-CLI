@@ -50,9 +50,9 @@ PokeTokenBar is built with Python 3.8+ using pure standard libraries and zero he
    - `models.py`: Immutable enums, balance formulas, and data classes.
    - `storage.py`: Atomic read/write of game state with schema fallback.
    - `pokeapi.py`: Lazy HTTP client with local filesystem caching.
-3. **Presentation Layer (`tui.py`, `tui_tabs/`, `cli.py`)**:
-   - `tui.py`: Central event loop handling keyboard inputs and frame dispatching.
-   - `tui_tabs/`: Isolated renderers for each of the 11 tabs, ensuring strict separation of rendering from business logic.
+3. **Presentation Layer (`tui/app.py`, `tui/router.py`, `tui/matrix_tui.py`, `tui/matrix_router.py`, `tui_tabs/`, `cli.py`)**:
+   - `tui/app.py` & `tui/router.py`: Central event loop and command router handling keyboard inputs and frame dispatching.
+   - `tui_tabs/`: Isolated renderers for each of the 12 tabs (plus `tui/matrix_tui.py` for Sub-Level 0), ensuring strict separation of rendering from business logic.
    - `sprite_renderer.py`: Converts PNGs to ANSI TrueColor half-blocks (`▀` / `▄`).
 
 ---
@@ -73,7 +73,7 @@ PokeTokenBar is built with Python 3.8+ using pure standard libraries and zero he
 
 When adding or extending features:
 1. **Model**: Define new items, enums, or balance curves in `models.py`.
-2. **Logic**: Add state mutation methods in `companion.py` or a dedicated game sub-engine.
+2. **Logic**: Add state mutation methods in `game/companion/` mixins or a dedicated game sub-engine (`game/economy/`, `game/combat/`, `game/minigames/`, `game/matrix/`).
 3. **Persistence**: Ensure state changes are recorded and saved through `self.save()`.
 4. **UI**: Render new interface elements in the appropriate `tui_tabs/<tab>.py` module.
 5. **Input**: Wire command parsing in `router.py` strictly enforcing the **Single Canonical Command Policy**: map each function or subview action to **EXACTLY ONE** command keyword; never add aliases, synonyms, or duplicate shortcuts (e.g., `sell <#>` only, never `sell egg <#>`; `sel <#>` only, never `incubate` or `load`; `back` only, never `roster`).

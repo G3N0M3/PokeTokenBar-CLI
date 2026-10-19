@@ -1,6 +1,6 @@
 # PokeTokenBar: Technical Architecture Guide
 
-This document is intended for developers maintaining or extending the PokeTokenBar application. It outlines the core architecture, module responsibilities, state management, safety guarantees, and the TUI rendering pipeline as of **v2.3.0**.
+This document is intended for developers maintaining or extending the PokeTokenBar application. It outlines the core architecture, module responsibilities, state management, safety guarantees, and the TUI rendering pipeline as of **v2.4.0**.
 
 ---
 
@@ -46,7 +46,7 @@ PokeTokenBar follows a clean separation of concerns between the **View/Controlle
 
 ```text
 poketokenbar/
-├── __init__.py           # Package version definition (v2.3.0)
+├── __init__.py           # Package version definition (v2.4.0)
 ├── cli.py                # CLI entry point (ptb launches interactive TUI)
 ├── sprite_renderer.py    # SpriteRenderer: 24-bit TrueColor ANSI half-block renderer (with flip_h support)
 ├── tui/                  # TUI framework: app lifecycle, input router, modals
@@ -83,6 +83,7 @@ poketokenbar/
 │   ├── antigravity.py    # AntigravityUsageReader: Protobuf reader for Antigravity SQLite DBs
 │   ├── gemini.py         # GeminiUsageReader: Session JSON log reader
 │   ├── claude.py         # ClaudeUsageReader: JSONL session log reader
+│   ├── custom.py         # CustomUsageReader: External JSON/JSONL token usage log reader & writer
 │   └── base.py           # Usage dataclasses (UsageEntry, DailyUsage)
 ├── tui_tabs/             # Dedicated renderer modules for each TUI tab (72-col layout)
 │   ├── companion.py      # Tab [1] Active companion HUD, stats & milestone celebrations
@@ -136,17 +137,17 @@ Key                          | Type            | Description
 `gym_badges`                 | `List[str]`     | Badges earned from Gym Bosses and Trainer Red.
 `trainer_battles`            | `Dict`          | Auto-battle record `{"wins": int, "losses": int}`.
 `battle_logs`                | `List[str]`     | Recent battle event strings (last 5 fights).
-`red_battle_state`           | `Dict / None`   | Active Mt. Silver RPG battle state against PKMN Trainer Red.
-`red_locked_team`            | `List[Dict] / None` | Locked 6-Pokémon team for active Mt. Silver summit attempt.
-`hall_of_fame`               | `List[Dict]`    | Dual-record Hall of Fame entries (Trainer Red defeats & Arceus triumphs).
-`last_milestone`             | `int / None`    | Highest lifetime token milestone reached & celebrated (e.g. 1M, 5M, 10M, 25M, 50M, 100M).
-`last_evolution`             | `Dict / None`   | Transient banner metadata for evolution celebration screen.
+`red_battle_state`           | `Dict`          | Active Mt. Silver RPG battle state against PKMN Trainer Red.
+`red_wins`                   | `int`           | Total Mt. Silver Summit victories over PKMN Trainer Red.
+`red_hof`                    | `List[List[int]]`| Hall of Fame winning party species ID records.
+`last_milestone`             | `str / None`    | Latest milestone or evolution banner text displayed on Tab 1.
+`last_evolution`             | `str / None`    | Transient banner text for recent evolution events.
 `rocket_story_unlocked`      | `bool`          | Flag indicating whether Team Rocket Covert HQ (Tab 12) frequency is unlocked.
 `rocket_alliance_accepted`   | `bool`          | Flag indicating whether the trainer accepted the Syndicate alliance (`accept`).
 `rocket_rank`                | `str`           | Operative clearance rank (`Informant`, `Operative`, `Special Agent`, `Executive`, `Commander`).
 `rocket_reputation`          | `int`           | Completed mission reputation progress toward rank promotions (0–10).
 `rocket_ops`                 | `Dict[str,Dict]`| 10 Covert Operations status, multi-objective progress, boss HP remaining, and claim state.
-`rocket_battle_state`        | `Dict / None`   | Active tactical combat arena state against Syndicate prototype bosses.
+`rocket_battle_state`        | `Dict`          | Active tactical combat arena state against Syndicate prototype bosses.
 `rocket_intel_unlocked`      | `List[str]`     | Decrypted Syndicate Intel Dossier IDs (`"intel_001"` through `"intel_010"`).
 `luxury`                     | `Dict`          | Executive Luxury Suite state (`invitation_sent`, `invitation_pending`, `vip_fee_paid`, `unlocked`, `facilities`, `decor`). (Legacy `penthouse`/`villa` auto-migrated).
 `page_size_*`                | `int`           | Configurable table page sizes (`page_size_roster`, `page_size_expedition`, `page_size_cd`, etc.).
@@ -156,8 +157,8 @@ To prevent accidental save corruption or loss during unexpected process terminat
 
 ### Strict Test Runner Sandboxing
 To protect the player's live save data during automated testing and CI runs:
-- `StorageManager.get_state_path()` checks the `PTB_STATE_FILE` environment variable.
-- If unset, it inspects `sys.modules` and `sys.argv` for active test runners (`pytest`, `unittest`). If detected, it automatically redirects the save path to `/tmp/ptb_test_sandbox.json`.
+- `get_state_file()` checks the `PTB_STATE_FILE` environment variable.
+- If unset, it inspects `sys.modules`, `os.environ`, and `sys.argv` for active test runners (`pytest`, `unittest`). If detected, it automatically redirects the save path to `<tempdir>/ptb_test_auto_state.json`.
 - Unit tests run completely isolated from the user's live progress.
 
 ---
@@ -169,12 +170,12 @@ Expeditions allow players to send inactive roster Pokémon on background token m
 
 The system supports **three dispatch mechanisms**:
 1. **Interactive Multi-Select Dispatcher (`render_expedition_picker`)**:
-   - Activated via `dispatch`, `send`, or `select` on Tab [5] or Tab [3].
+   - Activated via `pick` on Tab [5] or Tab [3].
    - Displays a 72-column table with `[ ]` (available), `[✓]` (selected), `[-]` (deployed), and `[x]` (exhausted) checkboxes.
    - Users toggle companions by entering row numbers or ranges (e.g. `1 2 3`, `1-5`, `all`, `clear`).
    - Entering a destination (`viridian`, `mine`, `cerulean`, `silver`, `spear`, or `to 1`..`to 5`) dispatches the entire batch simultaneously.
 2. **Staged Roster Selection**:
-   - In Tab [3] Roster, typing `select 1 2 3` or `pick 1-4` stages companions with green `[✓]` badges.
+   - In Tab [3] Roster, typing `pick` opens the interactive multi-select dispatcher to stage companions with green `[✓]` badges.
    - Typing `send <area>` (e.g. `send mine`) dispatches the staged companions and clears the stage.
 3. **Batch CLI Command**:
    - Single-line syntax: `send 1,2,3 viridian`, `send 1-5 mine`, `send all silver`.

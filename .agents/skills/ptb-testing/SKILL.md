@@ -37,8 +37,8 @@ PTB_STATE_FILE=/tmp/ptb_test.json /home/ejchoi/.conda/envs/PTB/bin/python -m uni
 PokeTokenBar enforces a strict **72-column terminal width** limit across all rendered output to avoid line-wrapping on standard terminal configurations.
 
 ### Verification Runbook:
-- Automated regression test: `test_72_column_layout_compliance` in `tests/test_companion.py`.
-- Strips ANSI escape sequences (`re.compile(r'\x1b\[[0-9;]*[mK]')`) and verifies `len(clean_line) <= 72` on every single line rendered across all 11 tabs and sub-views.
+- Automated regression test: `test_72_column_layout_compliance` in `tests/tui/test_layout.py` (re-exported in `tests/test_companion.py`).
+- Strips ANSI escape sequences (`re.compile(r'\x1b\[[0-9;]*[mK]')`) and verifies `len(clean_line) <= 72` on every single line rendered across all 12 tabs, sub-views, and Matrix Cyberdeck views.
 - When creating or modifying tab renderers, always verify that dynamic values (tokens, long species names, formatted badges) fit within 72 columns even at maximum width values.
 
 ---
@@ -47,5 +47,5 @@ PokeTokenBar enforces a strict **72-column terminal width** limit across all ren
 
 Before committing a release or tagging a new version:
 1. **Run Full Test Suite**: Verify zero failures or regressions (`pytest tests/`).
-2. **Interactive TUI Smoke Test**: Launch `ptb`, cycle through tabs (1-11), test navigation (`n`/`p`), check settings (Tab 11), and exit cleanly (`q`).
+2. **Interactive TUI Smoke Test**: Launch `ptb`, cycle through tabs (1-12), test navigation (`n`/`p`), check settings (Tab 11), and exit cleanly (`q`).
 3. **Git Tagging**: Follow the `ptb-git-workflow` skill for semantic version bumping and release tagging.

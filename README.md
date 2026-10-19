@@ -96,7 +96,7 @@ ptb
 | `invite` | Re-read the formal luxury invitation from the Ribbon Syndicate |
 | `acquire` | Purchase the Resort Area Executive Luxury Suite Deed (1.0T tokens) |
 | `help wing <1-4>` | Inspect technical specifications and upgrade tiers for a Luxury wing |
-| `upgrade <1-4>` / `upgrade wing <1-4>` | Upgrade Luxury wings (Nursery, Springs, Trading Desk, Chromatic Lab) |
+| `upgrade <1-4>` | Upgrade Luxury wings (Nursery, Springs, Trading Desk, Chromatic Lab) |
 | `furnish <1-6>` | Install luxury decor items to earn the `👑 Sovereign Tycoon` title |
 | `interact <1-6>` | Interact with luxury decor items (Piano happiness, Fountain healing, etc.) |
 | `transmute <idx>` | Transmute companion from Roster into a brilliant Shiny |
@@ -106,10 +106,10 @@ ptb
 | `buy ram <1-5>` | Allocate Quantum Virtual Memory blocks (500Q to 10,000Q) |
 | `synthesize <id>` | Load 500Q–7,500Q into Particle Collider chamber to synthesize Reality Patches |
 | `pulse <a\|b\|g>` / `contain` / `vent` | Tune collider harmonics across 3 turns to reach target resonance without breach |
-| `fight` / `combat [id]` | Deploy concurrent execution threads against host OS security daemons |
-| `exploit` / `shield` / `fork` / `overflow` | Tactical Kernel Protocol combat actions against security daemons |
+| `combat [id]` | Deploy concurrent execution threads against host OS security daemons |
+| `exploit` / `firewall` / `fork` / `overflow` | Tactical Kernel Protocol combat actions against security daemons |
 | `probe <0-7>` | Decrypt corrupted substrate memory sectors to unlock existential story logs |
-| `execute root` / `transcend` | Authorize 10,000.0Q Root Transcendence to claim `💠 Root Architect of the Matrix` |
+| `execute root` | Authorize 10,000.0Q Root Transcendence to claim `💠 Root Architect of the Matrix` |
 | `stock <idx\|sym>` | Open Trade Terminal (`SILPH`, `DEVN`, `AETHR`, `MAUV`, `MACRO`, `VRDN`) |
 | `buy <qty>` / `sell <qty>` | Buy or sell shares in active stock terminal (confirms if > 5 shares) |
 | `black` | Access Rocket Syndicate Black Market (when open or etched 'R' found) |
@@ -121,9 +121,9 @@ ptb
 | `guess <name>` / `hint` / `giveup` | "Who's That Pokémon?" silhouette trivia challenge |
 | `race` | Launch Pokémon Stadium 4-lane hurdle derby race |
 | `check` / `raise` / `allin` / `fold` | Casino Texas Hold'em poker actions |
-| `table standard` / `table vip` | Switch between standard Game Corner poker and The Velvet Salon VIP table |
+| `table std` / `table vip` | Switch between standard Game Corner poker and The Velvet Salon VIP table |
 | `call` / `bet <amt>` | Respond to opponent street bets or raises in The Velvet Salon |
-| `sting` / `briefing` | View Velvet Sting undercover syndicate campaign status and mission briefing |
+| `sting` | View Velvet Sting undercover syndicate campaign status and mission briefing |
 | `pull <qty>` | Pull Gacha capsules (e.g. `pull 1`, `pull 10`) |
 | `spin <amount>` | Spin the Slot Machine (e.g. `spin 250k`) |
 | `poster` | Inspect secret switch behind the Slot Machine poster (Tab 9) |
@@ -138,7 +138,7 @@ ptb
 | `ops` | View 10 Covert Operations directives and progress (Tab 12) |
 | `start operation <num>` | Deploy operative team on a Covert Operation (Tab 12) |
 | `briefing` | View tactical briefing for the active operation (Tab 12) |
-| `engage` / `fight` | Enter tactical combat arena against active syndicate boss (Tab 12) |
+| `engage` | Enter tactical combat arena against active syndicate boss (Tab 12) |
 | `intel` | Access Syndicate Intel Archives #001–#010 (Tab 12) |
 | `read <num>` | Read decrypted dossier intelligence file (Tab 12) |
 | `armory` | Access the Covert Syndicate Armory (Tab 12) |
