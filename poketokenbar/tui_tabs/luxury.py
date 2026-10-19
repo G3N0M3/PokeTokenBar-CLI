@@ -340,7 +340,7 @@ def _render_wing_help_view(app: Any, avail: int):
     target_wing = getattr(app, "luxury_help_wing", getattr(app, "penthouse_help_wing", None))
     all_fac_keys = ["nursery", "springs", "trading_desk", "chromatic_lab"]
 
-    if target_wing and 1 <= target_wing <= len(all_fac_keys):
+    if isinstance(target_wing, int) and 1 <= target_wing <= len(all_fac_keys):
         active_indices = [target_wing]
         header_title = f"Wing [{target_wing}] Guide"
     else:
@@ -378,7 +378,7 @@ def _render_wing_help_view(app: Any, avail: int):
             sys.stdout.write("\n")
 
     print_bounded("  " + "-" * 68)
-    if target_wing and 1 <= target_wing <= len(all_fac_keys):
+    if isinstance(target_wing, int) and 1 <= target_wing <= len(all_fac_keys):
         print_bounded(f"  ➔ '{BOLD}upgrade {target_wing}{RESET}' upgrade this wing | '{BOLD}help wing <1-4>{RESET}' other wings")
         print_bounded(f"  ➔ '{BOLD}back{RESET}' return to Luxury Suite overview")
     else:

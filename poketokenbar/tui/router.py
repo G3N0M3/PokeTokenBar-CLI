@@ -381,7 +381,7 @@ class CommandRouter:
         is_paginated = (
             app.current_tab in paginated_tabs
             or (app.current_tab == 10 and getattr(app, "bank_subtab", "") in ["stocks", "cd"])
-            or (app.current_tab == 12 and getattr(app, "rocket_subview", "ops") == "intel")
+            or (app.current_tab == 12 and getattr(app, "rocket_subview", "ops") in ["intel", "armory"])
         )
         if not is_paginated:
             return False
@@ -408,8 +408,12 @@ class CommandRouter:
                 if not hasattr(app, "settings_page"): app.settings_page = 1
                 app.settings_page += 1
             elif app.current_tab == 12:
-                if not hasattr(app, "intel_page"): app.intel_page = 1
-                app.intel_page += 1
+                if getattr(app, "rocket_subview", "ops") == "armory":
+                    if not hasattr(app, "armory_page"): app.armory_page = 1
+                    app.armory_page += 1
+                else:
+                    if not hasattr(app, "intel_page"): app.intel_page = 1
+                    app.intel_page += 1
             elif app.current_tab == 3 and getattr(app, "roster_subview", "roster") == "eggs":
                 if not hasattr(app, "nursery_page"): app.nursery_page = 1
                 app.nursery_page += 1
@@ -440,8 +444,12 @@ class CommandRouter:
                 if not hasattr(app, "settings_page"): app.settings_page = 1
                 app.settings_page = max(1, app.settings_page - 1)
             elif app.current_tab == 12:
-                if not hasattr(app, "intel_page"): app.intel_page = 1
-                app.intel_page = max(1, app.intel_page - 1)
+                if getattr(app, "rocket_subview", "ops") == "armory":
+                    if not hasattr(app, "armory_page"): app.armory_page = 1
+                    app.armory_page = max(1, app.armory_page - 1)
+                else:
+                    if not hasattr(app, "intel_page"): app.intel_page = 1
+                    app.intel_page = max(1, app.intel_page - 1)
             elif app.current_tab == 3 and getattr(app, "roster_subview", "roster") == "eggs":
                 if not hasattr(app, "nursery_page"): app.nursery_page = 1
                 app.nursery_page = max(1, app.nursery_page - 1)
@@ -465,7 +473,10 @@ class CommandRouter:
                 elif app.current_tab == 11:
                     app.settings_page = page
                 elif app.current_tab == 12:
-                    app.intel_page = page
+                    if getattr(app, "rocket_subview", "ops") == "armory":
+                        app.armory_page = page
+                    else:
+                        app.intel_page = page
                 elif app.current_tab == 3 and getattr(app, "roster_subview", "roster") == "eggs":
                     app.nursery_page = page
                 else:
@@ -986,6 +997,8 @@ class CommandRouter:
                 ok, msg = app.engine.break_cd(parts[2])
             elif action == "sort" and len(parts) >= 3:
                 ok, msg = app.engine.set_cd_sort_criteria(parts[2])
+                if ok:
+                    app.cd_page = 1
             else:
                 ok, msg = False, "CD Usage: 'open <amt> <3|7|14>', 'claim <id|all>', 'break <id>', or 'sort <days|amount|term>'"
             app.message = msg
@@ -1012,16 +1025,12 @@ class CommandRouter:
                     ok, msg = False, "Usage: break <id>"
                 app.message = msg
                 return True
-            if cmd == "claim" or cmd.startswith("claim "):
-                parts = cmd.split()
-                target = parts[1] if len(parts) >= 2 else "all"
-                ok, msg = app.engine.claim_cd(target)
-                app.message = msg
-                return True
             if cmd.startswith("sort ") or cmd == "sort":
                 parts = cmd.split()
                 if len(parts) >= 2:
                     ok, msg = app.engine.set_cd_sort_criteria(parts[1])
+                    if ok:
+                        app.cd_page = 1
                 else:
                     ok, msg = False, "Usage: sort <days|amount|term>"
                 app.message = msg
@@ -1133,7 +1142,7 @@ class CommandRouter:
                     target = parts[2] if len(parts) >= 3 and parts[1].lower() in ["wing", "wings", "room", "rooms", "facility", "facilities"] else parts[1]
                     ok, msg = app.engine.upgrade_luxury_facility(target)
                 else:
-                    ok, msg = False, "Usage: upgrade <1-4> or upgrade wing <1-4> (1: Nursery, 2: Springs, 3: Trading, 4: Chromatic)"
+                    ok, msg = False, "Usage: upgrade <1-4> (1: Nursery, 2: Springs, 3: Trading, 4: Chromatic)"
                 app.message = msg
                 return True
             if cmd == "furnish" or cmd.startswith("furnish "):

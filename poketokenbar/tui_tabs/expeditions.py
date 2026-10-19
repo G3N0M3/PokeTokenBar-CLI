@@ -35,7 +35,7 @@ def render_expeditions_tab(app):
     sys.stdout.write(f"  • [1] Viridian(5M): Candy+XP+🪙   • [4] Mt.Silver(30M): Razz+Map\n")
     sys.stdout.write(f"  • [2] Evo Mine(10M): Evo Stone    • [5] Spear(100M): Leg Egg (3 Maps)\n")
     sys.stdout.write(f"  • [3] Cerulean(15M): Berry+Map    (Cerulean 10% Map, Silver 15% Map)\n")
-    sys.stdout.write(f"  ➔ '{BOLD}dispatch{RESET}' opens picker | '{BOLD}send <rows|all> <area>{RESET}' | '{BOLD}pass <#>{RESET}'\n\n")
+    sys.stdout.write(f"  ➔ '{BOLD}pick{RESET}' opens picker | '{BOLD}send <rows|all> <area>{RESET}' | '{BOLD}pass <#>{RESET}'\n\n")
 
     sys.stdout.write(f"  {BOLD}🗺️ Active Expeditions Status:{RESET}\n")
     if not expeditions:

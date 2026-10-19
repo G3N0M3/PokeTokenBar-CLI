@@ -35,6 +35,7 @@ class PokeTokenBarTUI:
         self.message = ""
         self.pending_reset = False
         self.pending_rocket_init = False
+        self.pending_sting_init = False
         self.pending_descend = False
         self.pending_matrix_init = False
         self.pokedex_page = 1
@@ -639,13 +640,24 @@ class PokeTokenBarTUI:
 
         sys.stdout.write("-" * 72 + "\n")
         if self.message and not getattr(self, 'slot_animating', False):
-            for line in self.message.split("\n"):
-                if line.lstrip().startswith("➔"):
-                    sys.stdout.write(f"  {GREEN}  {line.lstrip()}{RESET}\n")
-                elif line.startswith("  "):
-                    sys.stdout.write(f"  {GREEN}{line}{RESET}\n")
+            import textwrap
+            ansi_re = re.compile(r"\033\[[0-9;]*m")
+            for raw_line in self.message.split("\n"):
+                stripped_lead = raw_line.lstrip()
+                if stripped_lead.startswith("➔"):
+                    body = stripped_lead[1:].lstrip()
                 else:
-                    sys.stdout.write(f"  {GREEN}➔ {line}{RESET}\n")
+                    body = raw_line.strip()
+                vis_len = len(ansi_re.sub("", body))
+                if vis_len > 66 and "\033[" not in body:
+                    wrapped = textwrap.wrap(body, width=66) or [body]
+                else:
+                    wrapped = [body]
+                for idx, w_line in enumerate(wrapped):
+                    if idx == 0 and not raw_line.startswith("    "):
+                        sys.stdout.write(f"  {GREEN}➔ {w_line}{RESET}\n")
+                    else:
+                        sys.stdout.write(f"  {GREEN}  {w_line}{RESET}\n")
             self.message = ""
 
     def animate_slot_spin(self, final_reels):

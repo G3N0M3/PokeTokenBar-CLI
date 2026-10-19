@@ -146,8 +146,12 @@ def render(app):
                 prog = exp_info.get("progress", 0)
                 target = exp_info.get("target", 1)
                 pct = min(100.0, (prog / target) * 100 if target > 0 else 100.0)
-                area_str = str(exp_info.get("area", "Unknown")).capitalize()
-                status_badge = f"{BOLD}{CYAN}[EXP: {area_str} {pct:.0f}%]{RESET}"
+                raw_area = str(exp_info.get("area", "Unknown")).split()[0].capitalize()
+                if raw_area == "Mt.":
+                    raw_area = "Silver"
+                elif raw_area == "Evolution":
+                    raw_area = "Mine"
+                status_badge = f"{BOLD}{CYAN}[EXP: {raw_area} {pct:.0f}%]{RESET}"
             elif sp_id in red_team_ids:
                 status_badge = f"{BOLD}{RED}[BATTLE w/RED]{RESET}"
             elif sp_id in rocket_team_ids:
@@ -165,7 +169,12 @@ def render(app):
             is_staged = idx in selected_targets
             staged_badge = f"{BOLD}{GREEN}[✓]{RESET} " if is_staged else ""
 
-            sys.stdout.write(f"  {idx:2d}. {staged_badge}{shiny_str}{BOLD}{name}{RESET} (#{sp_id}) [{rarity}] 💖{hap_val}% {status_badge}\n")
+            row_line = f"  {idx:2d}. {staged_badge}{shiny_str}{BOLD}{name}{RESET} (#{sp_id}) [{rarity}] 💖{hap_val}% {status_badge}"
+            vis_excess = len(strip_ansi(row_line)) - 71
+            if vis_excess > 0 and len(name) > vis_excess + 3:
+                short_name = name[:len(name) - vis_excess - 1] + "…"
+                row_line = f"  {idx:2d}. {staged_badge}{shiny_str}{BOLD}{short_name}{RESET} (#{sp_id}) [{rarity}] 💖{hap_val}% {status_badge}"
+            sys.stdout.write(f"{row_line}\n")
 
         if total_pages > 1:
             sys.stdout.write(f"\n  ➔ Page {app.roster_page}/{total_pages} - Type '{BOLD}n{RESET}', '{BOLD}p{RESET}', or '{BOLD}page <N>{RESET}' to navigate!\n")

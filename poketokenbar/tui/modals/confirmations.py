@@ -70,6 +70,15 @@ def handle_pending_confirmation(app, cmd: str) -> bool:
             app.message = "❌ Feeding cancelled."
             tab_max = 12 if app.engine.state.get("rocket_story_unlocked") else 11
             if cmd in [str(i) for i in range(1, tab_max + 1)]:
+                app.expedition_picker_mode = False
+                app.stock_terminal = None
+                app.black_market_session = False
+                if getattr(app, "shop_view", "normal") == "black_market":
+                    app.shop_view = "normal"
+                if getattr(app, "roster_subview", "roster") == "eggs":
+                    app.roster_subview = "roster"
+                app.luxury_subview = "main"
+                app.penthouse_subview = "main"
                 app.current_tab = int(cmd)
                 app.message = ""
         return True
@@ -91,6 +100,15 @@ def handle_pending_confirmation(app, cmd: str) -> bool:
             app.message = "❌ Purchase cancelled."
             tab_max = 12 if app.engine.state.get("rocket_story_unlocked") else 11
             if cmd in [str(i) for i in range(1, tab_max + 1)]:
+                app.expedition_picker_mode = False
+                app.stock_terminal = None
+                app.black_market_session = False
+                if getattr(app, "shop_view", "normal") == "black_market":
+                    app.shop_view = "normal"
+                if getattr(app, "roster_subview", "roster") == "eggs":
+                    app.roster_subview = "roster"
+                app.luxury_subview = "main"
+                app.penthouse_subview = "main"
                 app.current_tab = int(cmd)
                 app.message = ""
         return True

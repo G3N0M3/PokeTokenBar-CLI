@@ -355,6 +355,14 @@ class CompanionEngine(
     def reset_game_state(self) -> Tuple[bool, str]:
         """Resets all game progress, inventory, companions, and Pokédex entries."""
         self.state = StorageManager.default_state()
+        self.poker = TexasHoldemEngine()
+        self.blackjack = BlackjackEngine()
+        self.slots = SlotMachineEngine()
+        self.voltorb = VoltorbFlipEngine()
+        self.excavator = ExcavatorEngine()
+        self.trivia = TriviaEngine()
+        self.derby = DerbyEngine()
+        self.matrix = MatrixEngine(self)
         self.save()
         return True, "✨ Game progress has been completely reset! Started fresh."
 
@@ -399,6 +407,31 @@ class CompanionEngine(
                 Rarity.MEGA: 1_000_000_000,
             }
         return DefaultBalanceConfig()
+
+    def get_xp_multiplier(self) -> float:
+        """Returns the current effective coding XP multiplier for the active companion/egg."""
+        active = self.active_mon
+        happiness = active.happiness if active else 100
+        if happiness == 0:
+            return 0.0
+        xp_multiplier = 1.20 if happiness >= 100 else 1.0
+        if active and active.is_mega:
+            xp_multiplier += 0.50  # Mega Evolution grants +50% XP boost!
+        if active and active.held_item == "lucky_egg":
+            xp_multiplier += 0.20  # Lucky Egg grants +20% XP boost!
+        if active and active.held_item == "life_orb":
+            xp_multiplier += 0.10  # Life Orb grants +10% XP boost!
+        if self.get_luxury_facility_level("springs") >= 3:
+            xp_multiplier += 0.50  # Luxury Hot Springs & Berry Grove Lv 3 grants +50% coding EXP!
+        if hasattr(self, "matrix") and self.matrix:
+            exp_val = self.matrix.get_tweak_val("roster", "exp_mult")
+            if exp_val is not None:
+                xp_multiplier += max(0.0, float(exp_val) - 1.0)
+            elif self.matrix.is_omni_telemetry_active():
+                xp_multiplier += 3.00  # Legacy Reality Patch 0x05_OMNI_TELEMETRY
+            if self.matrix.is_root_transcendence_tweak_active():
+                xp_multiplier += 1.00  # Root Transcendence grants +100% Global XP!
+        return round(xp_multiplier, 4)
 
     def process_usage(self, new_total_tokens: int, active_days: Optional[List[str]] = None) -> List[str]:
         """Call this with cumulative tokens used since install."""
@@ -481,23 +514,8 @@ class CompanionEngine(
         else:
             happiness = 100
 
-        if happiness == 0:
-            effective_xp = 0
-            xp_multiplier = 0.0
-        else:
-            # Happiness XP multiplier (+20% bonus if 100% happy)
-            xp_multiplier = 1.20 if happiness >= 100 else 1.0
-            if active and active.is_mega:
-                xp_multiplier += 0.50  # Mega Evolution grants +50% XP boost!
-            if active and active.held_item == "lucky_egg":
-                xp_multiplier += 0.20  # Lucky Egg grants +20% XP boost!
-            if active and active.held_item == "life_orb":
-                xp_multiplier += 0.10  # Life Orb grants +10% XP boost!
-            if self.get_luxury_facility_level("springs") >= 3:
-                xp_multiplier += 0.50  # Luxury Hot Springs & Berry Grove Lv 3 grants +50% coding EXP!
-            if hasattr(self, "matrix") and self.matrix.is_omni_telemetry_active():
-                xp_multiplier += 3.00  # Reality Patch 0x05_OMNI_TELEMETRY grants +300% coding EXP!
-            effective_xp = int(delta * xp_multiplier)
+        xp_multiplier = self.get_xp_multiplier()
+        effective_xp = int(delta * xp_multiplier)
 
         if happiness > 0:
             # Update boss battle damage if active
@@ -524,16 +542,17 @@ class CompanionEngine(
             if active.held_item == "exp_share" and effective_xp > 0:
                 shared_xp = int(effective_xp * 0.25)
                 dex = self.state.get("dex", [])
-                for d in dex:
+                for d in list(dex):
                     if d.get("status") not in ["graduated", "evolved"]:
                         m_data = d.get("mon_state")
                         if m_data:
                             sub_mon = StorageManager.dict_to_mon(m_data)
-                            if sub_mon and sub_mon.base_id != active.base_id and sub_mon.stage_index < len(sub_mon.path_ids) - 1:
+                            if sub_mon and sub_mon.base_id != active.base_id and sub_mon.stage_index < len(sub_mon.path_ids) - 1 and not sub_mon.is_graduated:
                                 sub_mon.used_at_stage += shared_xp
                                 sub_evos = self._check_growth(sub_mon, is_active=False)
                                 events.extend(sub_evos)
-                                d["mon_state"] = StorageManager.mon_to_dict(sub_mon)
+                                if d.get("status") != "evolved":
+                                    d["mon_state"] = StorageManager.mon_to_dict(sub_mon)
         elif self.state.get("egg_tier") is not None and effective_xp > 0:
             # 2. Incubating Egg Progress (Active companion is an Egg)
             egg_tier = self.state["egg_tier"]
@@ -567,16 +586,18 @@ class CompanionEngine(
             splitter_xp = int(effective_xp * 0.25)
             active_base = active.base_id if active else None
             dex = self.state.get("dex", [])
-            for d in dex:
+            for d in list(dex):
                 if d.get("status") not in ["graduated", "evolved"]:
                     m_data = d.get("mon_state")
                     if m_data:
                         sub_mon = StorageManager.dict_to_mon(m_data)
-                        if sub_mon and (active_base is None or sub_mon.base_id != active_base):
+                        if sub_mon and (active_base is None or sub_mon.base_id != active_base) and sub_mon.stage_index < len(sub_mon.path_ids) - 1 and not sub_mon.is_graduated:
                             sub_mon.used_at_stage += splitter_xp
                             sub_evos = self._check_growth(sub_mon, is_active=False)
                             events.extend(sub_evos)
-                            d["mon_state"] = StorageManager.mon_to_dict(sub_mon)
+                            if d.get("status") != "evolved":
+                                d["mon_state"] = StorageManager.mon_to_dict(sub_mon)
+            self.save()
 
         # Update active Rocket Operation progress (tracks raw coding tokens delta)
         if delta > 0 and self.state.get("rocket_story_unlocked", False):

@@ -252,7 +252,8 @@ def _render_stocks_view(app, avail: int):
             unreal_pnl = details["unrealized_pnl"]
             u_sign = "+" if unreal_pnl >= 0 else ""
             pnl_col = GREEN if unreal_pnl >= 0 else RED
-            sys.stdout.write(f"      Own: {BOLD}{CYAN}{owned} sh{RESET} ({format_tokens(details['market_val'])}) | Cost: {format_tokens(avg_cost)} | P&L: {pnl_col}{u_sign}{format_tokens(unreal_pnl)}{RESET}\n")
+            own_str = format_tokens(owned) if owned >= 10_000 else str(owned)
+            sys.stdout.write(f"      Own: {BOLD}{CYAN}{own_str} sh{RESET} ({format_tokens(details['market_val'])}) | Cost: {format_tokens(avg_cost)} | P&L: {pnl_col}{u_sign}{format_tokens(unreal_pnl)}{RESET}\n")
         else:
             sys.stdout.write(f"      Perk: {BOLD}{corp.perk_name}{RESET} — {corp.perk_desc}\n")
 
@@ -264,7 +265,11 @@ def _render_stocks_view(app, avail: int):
     sys.stdout.write("  " + "-" * 68 + "\n")
     pnl_col = GREEN if portfolio_pnl >= 0 else RED
     pnl_display = f"{pnl_col}{pnl_sign}{format_tokens(portfolio_pnl)}{RESET}"
-    sys.stdout.write(f"  {BOLD}Portfolio:{RESET} Cost: {BOLD}{CYAN}{format_tokens(total_invested)}{RESET} | Val: {BOLD}{GREEN}{format_tokens(total_market_val)}{RESET} | P&L: {pnl_display} | Div: +{format_tokens(total_daily_div)}/d\n")
+    port_plain = f"  Portfolio: Cost: {format_tokens(total_invested)} | Val: {format_tokens(total_market_val)} | P&L: {pnl_sign}{format_tokens(portfolio_pnl)} | Div: +{format_tokens(total_daily_div)}/d"
+    if len(port_plain) > 72:
+        sys.stdout.write(f"  {BOLD}Portfolio:{RESET} Val: {BOLD}{GREEN}{format_tokens(total_market_val)}{RESET} | P&L: {pnl_display} | Div: +{format_tokens(total_daily_div)}/d\n")
+    else:
+        sys.stdout.write(f"  {BOLD}Portfolio:{RESET} Cost: {BOLD}{CYAN}{format_tokens(total_invested)}{RESET} | Val: {BOLD}{GREEN}{format_tokens(total_market_val)}{RESET} | P&L: {pnl_display} | Div: +{format_tokens(total_daily_div)}/d\n")
     sys.stdout.write(f"  Page {app.stock_page}/{total_pages} ('n'/'p') | Type '{BOLD}stock <idx|code>{RESET}' for Terminal\n")
     sys.stdout.write(f"  ➔ Commands: '{BOLD}invest <code> <qty>{RESET}', '{BOLD}divest <code> <qty>{RESET}'\n\n")
 
@@ -326,7 +331,8 @@ def _render_stock_terminal(app, avail: int, corp_key: str):
     sys.stdout.write(f"  {BOLD}{CYAN}🏢 [{corp.ticker}] {c_name}{RESET} — {BOLD}{GREEN}{format_tokens(c_price)}{RESET}/sh ({chg_str}) | 7d: {spark}\n")
     sys.stdout.write("  " + "-" * 68 + "\n")
 
-    sys.stdout.write(f"  • Position:  {BOLD}{CYAN}{owned} sh{RESET} {rank_badge} | Cost: {format_tokens(avg_cost)}/sh (Tot: {format_tokens(cost_basis)})\n")
+    own_str = format_tokens(owned) if owned >= 10_000 else str(owned)
+    sys.stdout.write(f"  • Position:  {BOLD}{CYAN}{own_str} sh{RESET} {rank_badge} | Cost: {format_tokens(avg_cost)}/sh (Tot: {format_tokens(cost_basis)})\n")
     sys.stdout.write(f"  • Valuation: {format_tokens(market_val)} (Liq: {format_tokens(liq_val)}) | P&L: {pnl_str}\n")
     sys.stdout.write(f"  • Dividend:  {BOLD}{GREEN}+{format_tokens(daily_div)}{RESET}/day ({eff_rate*100:.1f}% yield)\n")
 
@@ -350,7 +356,9 @@ def _render_stock_terminal(app, avail: int, corp_key: str):
 
     sys.stdout.write(f"  {BOLD}Shareholder Rank & Perk Progression:{RESET}\n")
     if rank > 0:
-        status_line = f"  • Status: {rank_badge} ({owned} sh) | {BOLD}{CYAN}{active_perk_desc}{RESET}\n"
+        max_perk = max(12, 70 - len(f"  • Status: [{rank_name.upper()}] ({own_str} sh) | "))
+        short_perk = active_perk_desc if len(active_perk_desc) <= max_perk else active_perk_desc[:max_perk - 2] + ".."
+        status_line = f"  • Status: {rank_badge} ({own_str} sh) | {BOLD}{CYAN}{short_perk}{RESET}\n"
     else:
         status_line = f"  • Current Status: {RED}None{RESET} (0 shares)\n"
     sys.stdout.write(status_line)
@@ -360,6 +368,9 @@ def _render_stock_terminal(app, avail: int, corp_key: str):
             continue
         p_desc = tier_perks.get(t.rank, "")
         is_active = (t.rank == rank)
+        max_p = 32 if is_active else 41
+        if len(p_desc) > max_p:
+            p_desc = p_desc[:max_p].rstrip(".")
         active_tag = f" {BOLD}{GREEN}◄ ACTIVE{RESET}" if is_active else ""
         tier_col = BOLD if is_active else ""
         sys.stdout.write(f"    - {tier_col}{t.name:<10} ({t.range_label:<10}): {p_desc}{active_tag}{RESET}\n")
