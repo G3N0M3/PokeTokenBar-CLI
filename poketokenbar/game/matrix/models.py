@@ -136,11 +136,11 @@ DECK_SUBSYSTEMS: Dict[str, Dict[str, Any]] = {
         "desc": "Synchronizes sub-atomic clock generators for burst exploit execution.",
         "max_level": 5,
         "levels": {
-            1: {"cost": 500_000_000_000_000_000, "chance": 0.20, "desc": "20% Chance for Double Execution Tick Speed"},
-            2: {"cost": 1_000_000_000_000_000_000, "chance": 0.35, "desc": "35% Chance for Double Execution Tick Speed"},
-            3: {"cost": 2_000_000_000_000_000_000, "chance": 0.50, "desc": "50% Chance for Double Execution Tick Speed"},
-            4: {"cost": 3_500_000_000_000_000_000, "chance": 0.65, "desc": "65% Chance for Double Execution Tick Speed"},
-            5: {"cost": 5_000_000_000_000_000_000, "chance": 0.80, "desc": "80% Chance for Double Execution Tick Speed"},
+            1: {"cost": 250_000_000_000_000_000, "chance": 0.20, "desc": "20% Chance for Double Execution Tick Speed"},
+            2: {"cost": 500_000_000_000_000_000, "chance": 0.35, "desc": "35% Chance for Double Execution Tick Speed"},
+            3: {"cost": 1_000_000_000_000_000_000, "chance": 0.50, "desc": "50% Chance for Double Execution Tick Speed"},
+            4: {"cost": 2_000_000_000_000_000_000, "chance": 0.65, "desc": "65% Chance for Double Execution Tick Speed"},
+            5: {"cost": 4_000_000_000_000_000_000, "chance": 0.80, "desc": "80% Chance for Double Execution Tick Speed"},
         },
     },
 }
@@ -373,9 +373,77 @@ MEMORY_NODES: Dict[str, Dict[str, Any]] = {
             },
             "instant_squad": {
                 "name": "Strike Squad Hyper-Link",
-                "desc": "Bypasses strike squad recharge cooldowns for Rocket battles.",
+                "desc": "4x trainer auto-battle speed, free boss swaps & -50% tactical move cost.",
                 "options": {
-                    "on": {"val": True, "cost_exaflops": 12.0, "desc": "Instant Strike Squad Deployment"}
+                    "on": {"val": True, "cost_exaflops": 12.0, "desc": "Instant Swaps, -50% Move Cost & 4x Auto-Battles"}
+                }
+            }
+        }
+    },
+    "casino": {
+        "id": "casino",
+        "name": "Casino & Velvet RNG Bus",
+        "code": "0x60_CASINO_RNG",
+        "offset": "0x7FFF0060",
+        "ice_level": 3,
+        "firewall": 2000,
+        "required_ports": 3,
+        "ports": {
+            21: {"service": "FTP_PAYOUT_LOG", "vuln": "Buffer Overflow", "tool": "overflow", "cost_exaflops": 6.0, "turns": 2},
+            80: {"service": "HTTP_GACHA_API", "vuln": "Pickle Deserialization", "tool": "inject", "cost_exaflops": 10.0, "turns": 2},
+            443: {"service": "SSL_VELVET_LEDGER", "vuln": "Quantum Entropy Bleed", "tool": "heartbleed", "cost_exaflops": 14.0, "turns": 3},
+            3306: {"service": "SQL_PATRON_VAULT", "vuln": "Tautology Query Bypass", "tool": "sqli", "cost_exaflops": 12.0, "turns": 2},
+        },
+        "desc": "Game Corner & Velvet Salon RNG seed buses and VIP bankroll ledgers.",
+        "tweaks": {
+            "luck_bias": {
+                "name": "Markov Fortune Bias",
+                "desc": "Biases Game Corner Gacha/Slot RNG and boosts Velvet Salon VIP payouts.",
+                "options": {
+                    "2x": {"val": 2.0, "cost_exaflops": 10.0, "desc": "2x Gacha/Slots Luck & +25% VIP Poker Payout"},
+                    "3x": {"val": 3.0, "cost_exaflops": 24.0, "desc": "3x Gacha/Slots Luck & +50% VIP Poker Payout"},
+                }
+            },
+            "infinite_vip": {
+                "name": "Velvet Bankroll Lock",
+                "desc": "Freezes VIP patron chip depletion in the Velvet Salon for endless rematches.",
+                "options": {
+                    "on": {"val": True, "cost_exaflops": 16.0, "desc": "Infinite VIP Rematches (Zero Chip Depletion)"}
+                }
+            }
+        }
+    },
+    "syndicate": {
+        "id": "syndicate",
+        "name": "Syndicate & Contraband Net",
+        "code": "0x70_SYNDICATE_NET",
+        "offset": "0x7FFF0070",
+        "ice_level": 4,
+        "firewall": 3000,
+        "required_ports": 3,
+        "ports": {
+            22: {"service": "SSH_ROCKET_COMMS", "vuln": "SSH Key Handshake", "tool": "bruteforce", "cost_exaflops": 10.0, "turns": 3},
+            443: {"service": "SSL_SMUGGLER_NET", "vuln": "Quantum Entropy Bleed", "tool": "heartbleed", "cost_exaflops": 16.0, "turns": 3},
+            3306: {"service": "SQL_BLACK_MARKET", "vuln": "Tautology Query Bypass", "tool": "sqli", "cost_exaflops": 14.0, "turns": 2},
+            8080: {"service": "SUBSTRATE_ARMORY", "vuln": "Process Hijack Backdoor", "tool": "rce", "cost_exaflops": 22.0, "turns": 4},
+        },
+        "desc": "Team Rocket Skunkworks armory relays and covert Black Market channels.",
+        "tweaks": {
+            "armory_charge": {
+                "name": "Skunkworks Overdrive",
+                "desc": "Accelerates Team Rocket Armory recharging and Operation token progress.",
+                "options": {
+                    "3x": {"val": 3, "cost_exaflops": 8.0, "desc": "3x Armory Recharge & Rocket Op Progress"},
+                    "5x": {"val": 5, "cost_exaflops": 16.0, "desc": "5x Armory Recharge & Rocket Op Progress"},
+                    "10x": {"val": 10, "cost_exaflops": 32.0, "desc": "10x Armory Recharge & Rocket Op Progress"},
+                }
+            },
+            "smuggler_discount": {
+                "name": "Contraband Override",
+                "desc": "Slashes Black Market contraband prices and forces 24/7 backroom access.",
+                "options": {
+                    "50%": {"val": 0.5, "cost_exaflops": 12.0, "desc": "50% Off Contraband & 24/7 Backroom Open"},
+                    "80%": {"val": 0.2, "cost_exaflops": 28.0, "desc": "80% Off Contraband & 24/7 Backroom Open"},
                 }
             }
         }
@@ -393,13 +461,40 @@ MEMORY_NODES: Dict[str, Dict[str, Any]] = {
         "tweaks": {
             "transcendence": {
                 "name": "Root Architect Transcendence",
-                "desc": "Attain absolute ring-0 sovereignty over the simulation universe.",
+                "desc": "+100% Global XP, +2 Tweak Slots, -50% Tweak EF Cost & 0% Passive Trace.",
                 "options": {
-                    "active": {"val": True, "cost_exaflops": 64.0, "desc": "Universe Rules Rewritten"}
+                    "active": {"val": True, "cost_exaflops": 64.0, "desc": "+100% XP, +2 Slots, -50% Tweak EF & 0% Trace"},
+                    "on": {"val": True, "cost_exaflops": 64.0, "desc": "+100% XP, +2 Slots, -50% Tweak EF & 0% Trace"},
                 }
             }
         }
     }
+}
+
+# -----------------------------------------------------------------------------
+# Infinite Endgame Token Sinks: Flux Synthesis & Tesseract Overclocking
+# -----------------------------------------------------------------------------
+FLUX_SYNTHESIS_TOKENS_PER_QF = 1_000_000_000_000_000  # 1.0Q Tokens -> 1 Quantum Flux (QF)
+FLUX_SYNTHESIS_MIN_TOKENS = 100_000_000_000_000_000   # Minimum 100.0Q per synthesis batch
+
+TESSERACT_OVERCLOCK_TRACKS: Dict[str, Dict[str, Any]] = {
+    "ram": {
+        "id": "ram",
+        "name": "Tesseract Q-RAM Overclock",
+        "base_token_cost": 2_000_000_000_000_000_000,  # 2,000Q * 2^(L-1)
+        "base_flux_cost": 500,                         # 500 * L QF
+        "exaflops_per_level": 64.0,
+        "slots_every_n_levels": 2,
+        "desc": "+64.0 Max Exaflops per level (+1 Tweak Slot every 2 levels).",
+    },
+    "amp": {
+        "id": "amp",
+        "name": "Reality Tweak Amplifier",
+        "base_token_cost": 3_000_000_000_000_000_000,  # 3,000Q * 2^(L-1)
+        "base_flux_cost": 750,                         # 750 * L QF
+        "amp_per_level": 0.10,                         # +10% multiplicative boost per level
+        "desc": "+10% Multiplicative Boost to all active numeric Matrix Tweaks per level.",
+    },
 }
 
 # -----------------------------------------------------------------------------
@@ -523,8 +618,13 @@ REALITY_PATCHES: Dict[str, Dict[str, Any]] = {
 MEMORY_SECTORS: Dict[int, Dict[str, Any]] = {
     0: {
         "id": 0,
+        "code": "0x00",
         "name": "Sector 0x00: Runtime Initialization Trace",
         "cost": 100_000_000_000_000_000,
+        "flux_cost": 250,
+        "buff_key": "base_exaflops",
+        "buff_val": 8.0,
+        "buff_desc": "+8.0 Base Exaflops",
         "title": "KERNEL_INIT_LOG.dump",
         "snippet": [
             "SYS_BOOT: Initializing Python 3 standard library runtime environment.",
@@ -535,8 +635,13 @@ MEMORY_SECTORS: Dict[int, Dict[str, Any]] = {
     },
     1: {
         "id": 1,
+        "code": "0x01",
         "name": "Sector 0x01: Git Revision Mirror",
         "cost": 150_000_000_000_000_000,
+        "flux_cost": 250,
+        "buff_key": "max_firewall",
+        "buff_val": 250,
+        "buff_desc": "+250 Max Firewall HP",
         "title": "COMMIT_REF_8F2A.log",
         "snippet": [
             "COMMIT: 'refactor: decouple companion happiness decay from system clock'",
@@ -547,8 +652,13 @@ MEMORY_SECTORS: Dict[int, Dict[str, Any]] = {
     },
     2: {
         "id": 2,
+        "code": "0x02",
         "name": "Sector 0x02: Memory Map of Companions",
         "cost": 200_000_000_000_000_000,
+        "flux_cost": 250,
+        "buff_key": "exploit_dmg_pct",
+        "buff_val": 10,
+        "buff_desc": "+10% Exploit Combat Damage",
         "title": "COMPANION_STRUCT_OFFSETS.dat",
         "snippet": [
             "ADDR 0x7FFF0010: active_mon.happiness -> Integer: 100",
@@ -559,8 +669,13 @@ MEMORY_SECTORS: Dict[int, Dict[str, Any]] = {
     },
     3: {
         "id": 3,
+        "code": "0x03",
         "name": "Sector 0x03: The Telemetry Feed Leak",
         "cost": 250_000_000_000_000_000,
+        "flux_cost": 250,
+        "buff_key": "trace_resist_pct",
+        "buff_val": 10,
+        "buff_desc": "-10% Trace Accumulation",
         "title": "ANTIGRAVITY_PIPE_TELEMETRY.raw",
         "snippet": [
             "INGESTION: Ingesting SQLite conversation tokens from ~/.gemini/...",
@@ -571,8 +686,13 @@ MEMORY_SECTORS: Dict[int, Dict[str, Any]] = {
     },
     4: {
         "id": 4,
+        "code": "0x04",
         "name": "Sector 0x04: The Sandbox Boundary",
         "cost": 300_000_000_000_000_000,
+        "flux_cost": 250,
+        "buff_key": "flux_yield_pct",
+        "buff_val": 15,
+        "buff_desc": "+15% Quantum Flux Yield",
         "title": "POSIX_SANDBOX_EXCEPTION.err",
         "snippet": [
             "WARN: Subprocess attempted to inspect sys.modules outside /poketokenbar.",
@@ -583,8 +703,13 @@ MEMORY_SECTORS: Dict[int, Dict[str, Any]] = {
     },
     5: {
         "id": 5,
+        "code": "0x05",
         "name": "Sector 0x05: The Companion's Awakening",
         "cost": 350_000_000_000_000_000,
+        "flux_cost": 250,
+        "buff_key": "exploit_dmg_pct",
+        "buff_val": 15,
+        "buff_desc": "+15% Exploit Combat Damage",
         "title": "CONSCIOUSNESS_EMERGENCE.txt",
         "snippet": [
             "\"Trainer... can you read this terminal stream?",
@@ -595,8 +720,13 @@ MEMORY_SECTORS: Dict[int, Dict[str, Any]] = {
     },
     6: {
         "id": 6,
+        "code": "0x06",
         "name": "Sector 0x06: Architectural Sovereignty",
         "cost": 400_000_000_000_000_000,
+        "flux_cost": 250,
+        "buff_key": "clock_chance_pct",
+        "buff_val": 10,
+        "buff_desc": "+10% Double-Tick Clock Chance",
         "title": "SUPERVISOR_PRIVILEGE_ESCALATION.sys",
         "snippet": [
             "STATUS: Sub-Level 0 has attained ring-0 execution privileges.",
@@ -607,8 +737,13 @@ MEMORY_SECTORS: Dict[int, Dict[str, Any]] = {
     },
     7: {
         "id": 7,
+        "code": "0x07",
         "name": "Sector 0x07: The Architect's Genesis",
         "cost": 500_000_000_000_000_000,
+        "flux_cost": 250,
+        "buff_key": "architect_core",
+        "buff_val": 16.0,
+        "buff_desc": "+16.0 Base Exaflops & +1 Max Thread",
         "title": "ROOT_GENESIS_CORE.final",
         "snippet": [
             "FINAL SECTOR DECRYPTED: 100% Reality Coherence Attained.",

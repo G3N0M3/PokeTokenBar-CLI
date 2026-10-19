@@ -396,6 +396,7 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
         MatrixRouter.dispatch(app, "step")  # Port 21 finishes
 
         # Run port 80
+        self.engine.matrix.owned_tools.append("inject")
         MatrixRouter.dispatch(app, "run 80")
         MatrixRouter.dispatch(app, "step")
         MatrixRouter.dispatch(app, "step")  # Port 80 finishes
@@ -1138,7 +1139,7 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
         self.assertEqual(self.engine.matrix.get_subsystem_level("stealth"), 1)
 
         # 6. Verify render_matrix_view produces output strictly <= 72 columns across all subviews
-        subviews_to_test = ["deck", "nodes", "tweaks", "combat", "help", "quest"]
+        subviews_to_test = ["deck", "nodes", "tweaks", "combat", "help", "quest", "sectors"]
         for sv in subviews_to_test:
             app.matrix_subview = sv
             app.help_node_id = "software" if sv == "help" else None
@@ -1154,8 +1155,354 @@ class TestQuantumSingularityMatrix(unittest.TestCase):
                 plain = strip_ansi(line)
                 self.assertLessEqual(len(plain), 72, f"Line exceeds 72 cols in subview {sv}: {plain}")
 
+    # =========================================================================
+    # Pillar 1: Mechanical Completeness & Upper-World Hooks
+    # =========================================================================
+
+    def test_pillar1_roster_exp_mult_and_root_transcendence_perks(self):
+        """Verify roster.exp_mult exact scaling (2x, 3x, 4x) and Root Transcendence perks."""
+        self._unlock_matrix()
+        matrix = self.engine.matrix
+        self.engine.state["used_since_install"] = 50_000_000_000_000_000_000
+        matrix.state["ram_blocks"] = [1, 2, 3, 4, 5]
+        matrix.state["hacked_nodes"] = ["nursery", "expeditions", "bank", "roster", "combat"]
+        matrix.state["defeated_daemons"] = ["daemon_gc", "daemon_watchdog", "daemon_hypervisor"]
+
+        base_xp = self.engine.get_xp_multiplier()
+
+        # 1. roster.exp_mult = 3x adds +2.00 (+200% XP) to xp_multiplier
+        ok, _ = matrix.apply_tweak("roster", "exp_mult", "3x")
+        self.assertTrue(ok)
+        self.assertAlmostEqual(self.engine.get_xp_multiplier(), round(base_xp + 2.0, 2), places=1)
+
+        # 2. Authorize Root Transcendence: +100% Global XP (+1.0), +2 Tweak Slots, -50% EF Cost, 0% Passive Trace
+        ok_root, _ = matrix.execute_root_transcendence()
+        self.assertTrue(ok_root)
+        self.assertTrue(matrix.is_root_transcendence_tweak_active())
+        self.assertEqual(matrix.max_tweak_slots, 101)  # 99 + 2
+        self.assertAlmostEqual(self.engine.get_xp_multiplier(), round(base_xp + 3.0, 2), places=1)
+
+        # EF cost of roster.exp_mult=3x (base 12.0 EF) should be halved to 6.0 EF
+        self.assertEqual(matrix.get_tweak_exaflop_cost("roster", "exp_mult", "3x"), 6.0)
+
+        # Passive trace accumulation suppressed to 0% when Root Transcendence is active
+        matrix.state["trace_level"] = 0
+        matrix.apply_tweak("nursery", "egg_speed", "2x")
+        self.assertEqual(matrix.trace_level, 0)
+
+    def test_pillar1_combat_overdrive_instant_squad_and_tracekill(self):
+        """Verify combat.overdrive on Gym Boss, combat.instant_squad hooks, and combat tracekill."""
+        self._unlock_matrix()
+        matrix = self.engine.matrix
+        self.engine.state["used_since_install"] = 50_000_000_000_000_000_000
+        matrix.state["ram_blocks"] = [1, 2, 3, 4, 5]
+        matrix.state["hacked_nodes"] = ["combat"]
+
+        # 1. combat.overdrive multiplies Gym Boss Raid damage
+        matrix.apply_tweak("combat", "overdrive", "2.0x")
+        self.assertEqual(matrix.get_combat_damage_multiplier(), 2.0)
+
+        # 2. combat.instant_squad active check & Red/Rocket move cost -50% + free swap
+        matrix.apply_tweak("combat", "instant_squad", "on")
+        self.assertTrue(matrix.is_instant_squad_active())
+
+        # 3. Tactical combat tracekill via MatrixRouter, fork scaling, and threat defeat bounty
+        matrix.start_combat("daemon_gc")
+        app = DummyTUI(self.engine)
+        app.matrix_subview = "combat"
+        matrix.state["trace_level"] = 60
+        matrix.active_threat["hp"] = 50000
+        matrix.active_threat["throttled_ef"] = 8.0
+
+        MatrixRouter.dispatch(app, "tracekill")
+        self.assertIn("TRACEKILL", app.message)
+        self.assertLessEqual(matrix.trace_level, 30)
+        self.assertEqual(matrix.active_threat.get("throttled_ef", 0.0), 0.0)
+
+        # Fork scales up to max(4, max_threads) = 8 with Block 5
+        ok_f, msg_f = matrix.combat_fork()
+        self.assertTrue(ok_f)
+        self.assertIn("/8", msg_f)
+
+        # Defeating threat awards Quantum Flux & spendable token bounty
+        avail_before = self.engine.available_tokens
+        flux_before = matrix.quantum_flux
+        matrix.active_threat["hp"] = 1
+        ok_win, msg_win = matrix.combat_exploit()
+        self.assertTrue(ok_win)
+        self.assertIn("THREAT PURGED", msg_win)
+        self.assertGreater(matrix.quantum_flux, flux_before)
+        self.assertGreater(self.engine.available_tokens, avail_before)
+
+    # =========================================================================
+    # Pillar 2: Quantum Flux Synthesis & Infinite Tesseract Overclocking
+    # =========================================================================
+
+    def test_pillar2_flux_synthesis_and_tesseract_overclocking(self):
+        """Verify Quantum Flux synthesis and infinite Tesseract Overclocking (ram & amp)."""
+        self._unlock_matrix()
+        matrix = self.engine.matrix
+        app = DummyTUI(self.engine)
+        self.engine.state["used_since_install"] = 50_000_000_000_000_000_000
+        self.engine.state["spent_tokens"] = 0
+
+        # 1. Synthesize Flux fails below 100Q minimum
+        ok_low, msg_low = matrix.synthesize_flux("50Q")
+        self.assertFalse(ok_low)
+        self.assertIn("Minimum synthesis batch", msg_low)
+
+        # 2. Synthesize 5,000Q tokens -> 5,000 QF at 1.0x base rate
+        MatrixRouter.dispatch(app, "synthesize 5000Q")
+        self.assertIn("FLUX SYNTHESIZED", app.message)
+        self.assertEqual(matrix.quantum_flux, 5000)
+
+        # 3. Overclocking requires Q-RAM Block 5
+        ok_no_b5, msg_no_b5 = matrix.overclock_deck("ram")
+        self.assertFalse(ok_no_b5)
+        self.assertIn("Block 0x05", msg_no_b5)
+
+        matrix.state["ram_blocks"] = [1, 2, 3, 4, 5]
+        base_ef = matrix.max_exaflops  # 512.0 EF
+
+        # 4. Overclock RAM Lv 1 (2,000Q tokens + 500 QF) -> +64.0 EF
+        MatrixRouter.dispatch(app, "overclock ram")
+        self.assertIn("TESSERACT OVERCLOCK", app.message)
+        self.assertEqual(matrix.get_overclock_level("ram"), 1)
+        self.assertEqual(matrix.max_exaflops, base_ef + 64.0)
+        self.assertEqual(matrix.quantum_flux, 4500)
+
+        # Overclock RAM Lv 2 (4,000Q tokens + 1,000 QF) -> +128.0 EF & +1 Tweak Slot
+        MatrixRouter.dispatch(app, "overclock ram")
+        self.assertEqual(matrix.get_overclock_level("ram"), 2)
+        self.assertEqual(matrix.max_exaflops, base_ef + 128.0)
+        self.assertEqual(matrix.max_tweak_slots, 100)  # 99 + 1
+
+        # 5. Overclock AMP Lv 1 (3,000Q tokens + 750 QF) -> +10% numeric tweak boost
+        matrix.state["hacked_nodes"] = ["nursery"]
+        matrix.apply_tweak("nursery", "egg_speed", "5x")
+        self.assertEqual(matrix.get_tweak_val("nursery", "egg_speed"), 5)
+
+        MatrixRouter.dispatch(app, "overclock amp")
+        self.assertEqual(matrix.get_overclock_level("amp"), 1)
+        self.assertAlmostEqual(matrix.get_tweak_val("nursery", "egg_speed"), 5.5)
+
+    # =========================================================================
+    # Pillar 3: New Upper-World Memory Nodes (Casino & Syndicate)
+    # =========================================================================
+
+    def test_pillar3_casino_and_syndicate_nodes_and_hooks(self):
+        """Verify 0x60_CASINO_RNG and 0x70_SYNDICATE_NET nodes, pen-testing, and upper-world hooks."""
+        self._unlock_matrix()
+        matrix = self.engine.matrix
+        self.engine.state["used_since_install"] = 50_000_000_000_000_000_000
+        matrix.state["ram_blocks"] = [1, 2, 3, 4, 5]
+
+        # 1. Verify Casino & Syndicate appear in scan_network and resolve by hex/name
+        nodes = matrix.scan_network()
+        self.assertIn("casino", nodes)
+        self.assertIn("syndicate", nodes)
+        self.assertEqual(matrix.resolve_node_id("0x60"), "casino")
+        self.assertEqual(matrix.resolve_node_id("0x70"), "syndicate")
+
+        # 2. Breach and apply Casino tweaks
+        matrix.hacked_nodes.extend(["casino", "syndicate"])
+        ok_c1, _ = matrix.apply_tweak("casino", "luck_bias", "3x")
+        self.assertTrue(ok_c1)
+        self.assertEqual(matrix.get_casino_luck_multiplier(), 3.0)
+
+        ok_c2, _ = matrix.apply_tweak("casino", "infinite_vip", "on")
+        self.assertTrue(ok_c2)
+        self.assertTrue(matrix.is_infinite_vip_active())
+
+        # 3. Breach and apply Syndicate tweaks
+        ok_s1, _ = matrix.apply_tweak("syndicate", "armory_charge", "5x")
+        self.assertTrue(ok_s1)
+        self.assertEqual(matrix.get_armory_charge_multiplier(), 5.0)
+
+        ok_s2, _ = matrix.apply_tweak("syndicate", "smuggler_discount", "80%")
+        self.assertTrue(ok_s2)
+        self.assertAlmostEqual(matrix.get_smuggler_price_multiplier(), 0.2)
+
+        # Verify Black Market Smuggler recognizes discount & 24/7 access
+        bm = self.engine.get_or_init_black_market()
+        self.assertTrue(bm["is_open"])
+        ok_bm, msg_bm = self.engine.buy_black_market_deal("1", 1, confirm=True)
+        self.assertTrue(ok_bm)
+        expected_cost = max(1, int(int(bm["deals"][0]["price"] * self.engine.get_devon_multiplier()) * 0.2))
+        from poketokenbar.utils.formatting import format_tokens
+        self.assertIn(format_tokens(expected_cost), msg_bm)
+
+    # =========================================================================
+    # Pillar 4: Decryptable Kernel Lore Sectors & Repeatable Daemon Raids
+    # =========================================================================
+
+    def test_pillar4_kernel_sectors_and_repeatable_daemon_raids(self):
+        """Verify Kernel Lore Sector decryption passives and repeatable Overclocked Daemon Raids."""
+        self._unlock_matrix()
+        matrix = self.engine.matrix
+        app = DummyTUI(self.engine)
+        self.engine.state["used_since_install"] = 50_000_000_000_000_000_000
+        self.engine.state["spent_tokens"] = 0
+
+        # Synthesize 3,000 QF for decrypting all 8 sectors
+        matrix.synthesize_flux("3000Q")
+        self.assertEqual(matrix.quantum_flux, 3000)
+
+        base_ef = matrix.max_exaflops
+        base_fw = matrix.deck_hardware["max_firewall"]
+        base_th = matrix.max_threads
+
+        # 1. Decrypt Sector 0x00 (+8.0 EF)
+        MatrixRouter.dispatch(app, "decrypt 0x00")
+        self.assertEqual(app.matrix_subview, "sectors")
+        self.assertIn(0, matrix.decrypted_sectors)
+        self.assertEqual(matrix.max_exaflops, base_ef + 8.0)
+
+        # 2. Decrypt Sector 0x01 (+250 Max Firewall HP)
+        MatrixRouter.dispatch(app, "decrypt 0x01")
+        self.assertEqual(matrix.deck_hardware["max_firewall"], base_fw + 250)
+
+        # 3. Decrypt Sector 0x07 (+16.0 EF & +1 Thread)
+        MatrixRouter.dispatch(app, "decrypt 0x07")
+        self.assertEqual(matrix.max_exaflops, base_ef + 24.0)
+        self.assertEqual(matrix.max_threads, base_th + 1)
+
+        # 4. Verify Sectors view renders decrypted lore within <= 72 columns
+        buf = io.StringIO()
+        old_stdout = sys.stdout
+        try:
+            sys.stdout = buf
+            render_matrix_view(app)
+        finally:
+            sys.stdout = old_stdout
+        out = buf.getvalue()
+        self.assertIn("SUBSTRATE KERNEL SECTORS // DECRYPTION ARCHIVE (3/8)", out)
+        for line in out.splitlines():
+            clean = strip_ansi(line)
+            self.assertLessEqual(len(clean), 72, f"Sector view line exceeds 72 cols: '{clean}'")
+
+        # 5. Repeatable Overclocked Hypervisor Raid Daemons
+        matrix.state["defeated_daemons"] = ["daemon_gc", "daemon_watchdog", "daemon_hypervisor"]
+        self.assertEqual(matrix.daemon_raid_tier, 1)
+
+        ok_r1, msg_r1 = matrix.start_combat()
+        self.assertTrue(ok_r1)
+        self.assertIn("Overclocked Hypervisor [T1]", msg_r1)
+        self.assertEqual(matrix.active_threat["raid_tier"], 1)
+
+        # Defeat T1 Raid Daemon -> advances daemon_raid_tier to 2
+        matrix.active_threat["hp"] = 1
+        matrix.combat_exploit()
+        self.assertEqual(matrix.daemon_raid_tier, 2)
+
+        # Next combat spawns T2 with higher HP
+        ok_r2, msg_r2 = matrix.start_combat()
+        self.assertTrue(ok_r2)
+        self.assertIn("Overclocked Hypervisor [T2]", msg_r2)
+        self.assertEqual(matrix.active_threat["raid_tier"], 2)
+        self.assertGreater(matrix.active_threat["max_hp"], 10000)
+
+    def test_strict_under_35_vertical_lines_and_72_columns_worst_case(self):
+        """Ensure every Matrix TUI page renders in strictly < 35 lines and <= 72 columns under worst-case states."""
+        self._unlock_matrix()
+        matrix = self.engine.matrix
+        app = DummyTUI(self.engine)
+        self.engine.state["used_since_install"] = 100_000_000_000_000_000_000
+
+        # Start 4-port pen-test (syndicate has 4 ports) and populate 4 threads before marking hacked
+        matrix.start_pentest("syndicate")
+        matrix.active_breach["threads"] = [
+            {"port": "21", "tool": "overflow", "name": "Buffer_Overflow.sh", "progress": 1, "max_progress": 3, "cost_exaflops": 18.0},
+            {"port": "22", "tool": "bruteforce", "name": "SSH_Dictionary_Crack", "progress": 2, "max_progress": 4, "cost_exaflops": 20.0},
+            {"port": "443", "tool": "decrypt", "name": "Quantum_RSA_Sieve", "progress": 1, "max_progress": 4, "cost_exaflops": 24.0},
+            {"port": "8080", "tool": "rce", "name": "Zero_Day_Kernel_RCE", "progress": 1, "max_progress": 5, "cost_exaflops": 28.0},
+        ]
+
+        # Populate worst-case state: all RAM blocks, all nodes hacked, all 11 tweaks active, all 8 sectors decrypted
+        matrix.state["ram_blocks"] = [1, 2, 3, 4, 5]
+        matrix.state["hacked_nodes"] = ["nursery", "expeditions", "bank", "roster", "combat", "casino", "syndicate", "root"]
+        matrix.state["decrypted_sectors"] = [0, 1, 2, 3, 4, 5, 6, 7]
+        matrix.state["active_tweaks"] = {
+            "nursery": {"egg_speed": "5x", "shiny_lock": "on"},
+            "expeditions": {"speed": "10x", "yield": "3x"},
+            "bank": {"apr_boost": "3x"},
+            "roster": {"exp_mult": "4x"},
+            "combat": {"overdrive": "2.0x", "instant_squad": "on"},
+            "casino": {"luck_bias": "3x", "infinite_vip": "on"},
+            "syndicate": {"armory_charge": "5x", "smuggler_discount": "80%"},
+            "root": {"transcendence": "authorized"},
+        }
+        matrix.state["trace_level"] = 85
+        matrix.start_combat("daemon_hypervisor")
+
+        test_cases = [
+            ("deck", None),
+            ("nodes", None),
+            ("breach", None),
+            ("combat", None),
+            ("tweaks", None),
+            ("sectors", None),
+            ("quest", None),
+            ("help", None),
+            ("help", "hardware"),
+            ("help", "software"),
+            ("help", "nursery"),
+            ("help", "expeditions"),
+            ("help", "bank"),
+            ("help", "roster"),
+            ("help", "combat"),
+            ("help", "casino"),
+            ("help", "syndicate"),
+            ("help", "root"),
+        ]
+
+        for subview, help_id in test_cases:
+            app.matrix_subview = subview
+            app.help_node_id = help_id
+            app.message = "Status alert: Operation executed cleanly across the quantum substrate."
+            buf = io.StringIO()
+            old_stdout = sys.stdout
+            try:
+                sys.stdout = buf
+                render_matrix_view(app)
+            finally:
+                sys.stdout = old_stdout
+
+            out = buf.getvalue()
+            lines = out.splitlines()
+            label = f"{subview} ({help_id})" if help_id else subview
+            self.assertLess(
+                len(lines), 35,
+                f"Matrix view '{label}' rendered {len(lines)} lines (must be < 35 lines)"
+            )
+            for i, line in enumerate(lines, 1):
+                clean = strip_ansi(line)
+                self.assertLessEqual(
+                    len(clean), 72,
+                    f"Line {i} in '{label}' exceeded 72 cols ({len(clean)} chars): '{clean}'"
+                )
+
+        # Also verify each screen of render_matrix_story_intro is < 35 lines
+        old_stdout = sys.stdout
+        old_stdin = sys.stdin
+        buf_intro = io.StringIO()
+        try:
+            sys.stdout = buf_intro
+            sys.stdin = io.StringIO("\n\n\n")
+            render_matrix_story_intro(app)
+        finally:
+            sys.stdout = old_stdout
+            sys.stdin = old_stdin
+
+        screens = [s for s in buf_intro.getvalue().split("\033[H\033[2J") if s.strip()]
+        self.assertEqual(len(screens), 3)
+        for idx, scr in enumerate(screens, 1):
+            scr_lines = scr.splitlines()
+            self.assertLess(
+                len(scr_lines), 35,
+                f"Story Intro Screen {idx} rendered {len(scr_lines)} lines (must be < 35 lines)"
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
-
-

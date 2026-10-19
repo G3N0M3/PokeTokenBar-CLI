@@ -56,6 +56,11 @@ class MatrixRouter:
             app.help_node_id = None
             app.message = "Cyberdeck Command Manual displayed."
             return
+        if cmd == "sectors":
+            app.matrix_subview = "sectors"
+            app.help_node_id = None
+            app.message = "Substrate Kernel Sectors archive displayed."
+            return
 
         # 2b. Madame Vivienne COM-LINK Tutorial Quests
         if cmd in ["quest", "tutorial", "comlink"]:
@@ -202,9 +207,12 @@ class MatrixRouter:
             app.message = "Usage: 'untweak <node> <param>' (e.g. 'untweak nursery egg_speed')"
             return
 
-        # 5. Trace Cooling & Telemetry Scrubbing
+        # 5. Trace Cooling & Tactical Combat Tracekill
         if cmd in ["tracekill", "cool", "scrub", "trace cool"]:
-            ok, msg = engine.cool_trace()
+            if engine.active_threat and cmd == "tracekill":
+                ok, msg = engine.combat_tracekill()
+            else:
+                ok, msg = engine.cool_trace()
             app.message = msg
             return
 
@@ -252,7 +260,37 @@ class MatrixRouter:
             app.message = msg
             return
 
-        # 7. Hardware, Software, and Subsystem Upgrades
+        # 7. Quantum Flux Synthesis, Kernel Sector Decryption, & Tesseract Overclocking
+        if cmd == "synthesize" or cmd.startswith("synthesize "):
+            parts = cmd.split(maxsplit=1)
+            if len(parts) < 2 or not parts[1].strip():
+                app.message = "Usage: 'synthesize <amount>' (e.g. 'synthesize 500Q')"
+                return
+            ok, msg = engine.synthesize_flux(parts[1].strip())
+            app.message = msg
+            return
+
+        if cmd == "decrypt" or cmd.startswith("decrypt "):
+            parts = cmd.split(maxsplit=1)
+            if len(parts) < 2 or not parts[1].strip():
+                app.message = "Usage: 'decrypt <0x00-0x07>' (e.g. 'decrypt 0x00')"
+                return
+            ok, msg = engine.decrypt_sector(parts[1].strip())
+            if ok:
+                app.matrix_subview = "sectors"
+            app.message = msg
+            return
+
+        if cmd == "overclock" or cmd.startswith("overclock "):
+            parts = cmd.split(maxsplit=1)
+            if len(parts) < 2 or not parts[1].strip():
+                app.message = "Usage: 'overclock <ram|amp>' (e.g. 'overclock ram')"
+                return
+            ok, msg = engine.overclock_deck(parts[1].strip())
+            app.message = msg
+            return
+
+        # 8. Hardware, Software, and Subsystem Upgrades
         if cmd.startswith("buy tool ") or cmd.startswith("buy exploit ") or cmd.startswith("buy software "):
             for prefix in ["buy tool ", "buy exploit ", "buy software "]:
                 if cmd.startswith(prefix):
@@ -309,17 +347,17 @@ class MatrixRouter:
                 app.message = "All 5 Q-RAM hardware blocks are fully allocated!"
             return
 
-        # 8. Climax: Root Transcendence
+        # 9. Climax: Root Transcendence
         if cmd in ["execute root", "transcend", "root"]:
             ok, msg = engine.execute_root_transcendence()
             app.message = msg
             return
 
-        # 9. Story Narration Replay
+        # 10. Story Narration Replay
         if cmd in ["story", "lore", "intro", "prologue"]:
             from poketokenbar.tui.matrix_tui import render_matrix_story_intro
             render_matrix_story_intro(app)
             app.message = "Substrate initialization prologue replayed."
             return
 
-        app.message = f"Unknown command '{cmd}'. Available: scan, hack, tweak, combat, tracekill, help, ascend"
+        app.message = f"Unknown command '{cmd}'. Available: scan, sectors, hack, tweak, combat, tracekill, help, ascend"
