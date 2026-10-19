@@ -63,6 +63,7 @@ class UsageManager:
         self.custom_reader = CustomUsageReader()
         
         self._lock = threading.Lock()
+        self._fetch_lock = threading.Lock()
         # Initial synchronous fetch so TUI has data immediately
         self._cached_summary = self._compute_summary(self._fetch_all_entries_sync())
         
@@ -85,11 +86,12 @@ class UsageManager:
                 pass
 
     def _fetch_all_entries_sync(self) -> List[UsageEntry]:
-        all_entries: List[UsageEntry] = []
-        all_entries.extend(self.antigravity_reader.get_entries())
-        all_entries.extend(self.gemini_reader.get_entries())
-        all_entries.extend(self.claude_reader.get_entries())
-        all_entries.extend(self.custom_reader.get_entries())
+        with self._fetch_lock:
+            all_entries: List[UsageEntry] = []
+            all_entries.extend(self.antigravity_reader.get_entries())
+            all_entries.extend(self.gemini_reader.get_entries())
+            all_entries.extend(self.claude_reader.get_entries())
+            all_entries.extend(self.custom_reader.get_entries())
 
         # Deduplicate across all readers by ID
         seen = {}

@@ -177,14 +177,11 @@ def parse_pb_file(pb_path: Path, mtime: float) -> List[UsageEntry]:
             return []
 
         conv_id = pb_path.stem
-        entries = []
-
         # 1. Try parsing whole content as single generation metadata blob
         entry = parse_generation_metadata(content, conv_id, 0, mtime)
-        if entry:
-            entries.append(entry)
 
         # 2. Walk length-delimited sub-messages within .pb file
+        sub_entries = []
         idx = 0
         row_idx = 1
         length = len(content)
@@ -208,7 +205,7 @@ def parse_pb_file(pb_path: Path, mtime: float) -> List[UsageEntry]:
 
                 sub_entry = parse_generation_metadata(sub_bytes, conv_id, row_idx, mtime)
                 if sub_entry:
-                    entries.append(sub_entry)
+                    sub_entries.append(sub_entry)
                     row_idx += 1
             elif wire_type == 0:  # Varint
                 v_res = AntigravityProtoDecoder.decode_varint(content, idx)
@@ -222,7 +219,11 @@ def parse_pb_file(pb_path: Path, mtime: float) -> List[UsageEntry]:
             else:
                 idx += 1
 
-        return entries
+        if len(sub_entries) > 1:
+            return sub_entries
+        if entry is not None:
+            return [entry]
+        return sub_entries
     except Exception:
         return []
 
@@ -366,33 +367,35 @@ class AntigravityUsageReader:
                 except sqlite3.OperationalError:
                     conn = sqlite3.connect(f"file:{db_path.resolve()}?immutable=1", uri=True, timeout=10.0)
 
-                try:
-                    conn.execute("PRAGMA busy_timeout = 5000")
-                except Exception:
-                    pass
-
-                # Pre-fetch per-step timestamps from steps table if available
                 step_timestamps = {}
                 try:
-                    s_cursor = conn.cursor()
-                    s_cursor.execute("SELECT idx, metadata FROM steps WHERE metadata IS NOT NULL")
-                    for s_idx, s_meta in s_cursor.fetchall():
-                        if s_meta:
-                            f1 = AntigravityProtoDecoder.get_message(s_meta, 1)
-                            if f1:
-                                sec = AntigravityProtoDecoder.get_varint(f1, 1)
-                                nanos = AntigravityProtoDecoder.get_varint(f1, 2) or 0
-                                if sec and 1_000_000_000 <= sec <= 4_102_444_800:
-                                    step_timestamps[s_idx] = datetime.datetime.fromtimestamp(
-                                        sec + nanos / 1e9, tz=datetime.timezone.utc
-                                    ).astimezone()
-                except Exception:
-                    pass
+                    try:
+                        conn.execute("PRAGMA busy_timeout = 5000")
+                    except Exception:
+                        pass
 
-                cursor = conn.cursor()
-                cursor.execute("SELECT idx, data FROM gen_metadata WHERE data IS NOT NULL")
-                rows = cursor.fetchall()
-                conn.close()
+                    # Pre-fetch per-step timestamps from steps table if available
+                    try:
+                        s_cursor = conn.cursor()
+                        s_cursor.execute("SELECT idx, metadata FROM steps WHERE metadata IS NOT NULL")
+                        for s_idx, s_meta in s_cursor.fetchall():
+                            if s_meta:
+                                f1 = AntigravityProtoDecoder.get_message(s_meta, 1)
+                                if f1:
+                                    sec = AntigravityProtoDecoder.get_varint(f1, 1)
+                                    nanos = AntigravityProtoDecoder.get_varint(f1, 2) or 0
+                                    if sec and 1_000_000_000 <= sec <= 4_102_444_800:
+                                        step_timestamps[s_idx] = datetime.datetime.fromtimestamp(
+                                            sec + nanos / 1e9, tz=datetime.timezone.utc
+                                        ).astimezone()
+                    except Exception:
+                        pass
+
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT idx, data FROM gen_metadata WHERE data IS NOT NULL")
+                    rows = cursor.fetchall()
+                finally:
+                    conn.close()
 
                 db_entries = []
                 for row_idx, blob in rows:

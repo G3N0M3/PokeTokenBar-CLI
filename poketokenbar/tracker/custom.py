@@ -44,18 +44,18 @@ def parse_date_value(date_val: Any, default_dt: datetime.datetime) -> datetime.d
         clean_str = date_val.strip()
         try:
             dt = datetime.datetime.fromisoformat(clean_str.replace("Z", "+00:00"))
-            return dt.astimezone() if dt.tzinfo else dt
+            return dt.astimezone()
         except Exception:
             pass
 
         for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
             try:
                 dt = datetime.datetime.strptime(clean_str[:len(fmt)], fmt)
-                return dt
+                return dt.astimezone()
             except Exception:
                 continue
 
-    return default_dt
+    return default_dt.astimezone() if default_dt.tzinfo is None else default_dt
 
 
 def extract_token_counts(item: Any) -> Tuple[int, int, int, int, int]:
@@ -251,11 +251,38 @@ class CustomUsageReader:
             try:
                 content = target.read_text(encoding="utf-8").strip()
                 if content:
-                    existing = json.loads(content)
-                    if isinstance(existing, list):
-                        records = existing
-                    elif isinstance(existing, dict) and isinstance(existing.get("entries"), list):
-                        records = existing["entries"]
+                    try:
+                        existing = json.loads(content)
+                        if isinstance(existing, list):
+                            records = existing
+                        elif isinstance(existing, dict):
+                            list_key = next(
+                                (k for k in ["entries", "usage", "tokens", "data"] if isinstance(existing.get(k), list)),
+                                None
+                            )
+                            if list_key:
+                                records = existing[list_key]
+                            else:
+                                for date_str, val in existing.items():
+                                    if isinstance(val, dict):
+                                        rec = dict(val)
+                                        rec.setdefault("date", date_str)
+                                        records.append(rec)
+                                    else:
+                                        records.append({"date": date_str, "tokens": val})
+                    except Exception:
+                        for line in content.splitlines():
+                            clean_line = line.strip()
+                            if not clean_line:
+                                continue
+                            try:
+                                line_obj = json.loads(clean_line)
+                                if isinstance(line_obj, dict):
+                                    records.append(line_obj)
+                                else:
+                                    records.append({"tokens": line_obj})
+                            except Exception:
+                                continue
             except Exception:
                 records = []
 
