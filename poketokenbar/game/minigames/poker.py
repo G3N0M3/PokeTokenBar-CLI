@@ -41,7 +41,9 @@ class TexasHoldemEngine:
         self.community_cards: List[Card] = []
         self.community_revealed: int = 0
         self.current_bet = 0
-        self.game_state = "idle"  # "idle", "preflop", "flop", "turn"
+        self.opponent_bet = 0
+        self.opponent_escrowed = 0
+        self.game_state = "idle"  # "idle", "preflop", "flop", "turn", "river"
         self.table_mode = "standard"  # "standard", "vip"
         self.active_opponent = "The House"
         self.boss_stack = 0
@@ -56,6 +58,11 @@ class TexasHoldemEngine:
         self.last_d_rank: str = ""
         self.last_winnings: int = 0
         self.last_net: str = ""
+
+    @property
+    def total_pot(self) -> int:
+        opp_b = self.opponent_bet if self.opponent_bet > 0 else (self.current_bet + self.opponent_pending_call)
+        return self.current_bet + opp_b
 
     @property
     def player_hand(self) -> List[Card]:
@@ -78,7 +85,7 @@ class TexasHoldemEngine:
             return False, "A hand is already in progress! Type 'check', 'raise', 'allin', or 'fold'."
         if bet_amount <= 0:
             return False, "Bet amount must be greater than 0!"
-        if self.table_mode in ["vip", "boss"] and bet_amount < 10_000_000_000_000:
+        if self.table_mode in ["vip", "boss"] and bet_amount < 10_000_000_000_000 and (not self.boss_name or self.boss_stack >= 10_000_000_000_000):
             return False, "Minimum bet at The Velvet Salon is 10.0T tokens!"
         if self.boss_name and self.boss_stack <= 0:
             return False, f"{self.boss_name or 'The Boss'} has already been bankrupted! Type 'sting' to advance."
@@ -89,6 +96,8 @@ class TexasHoldemEngine:
         self.community_cards = self.deck.draw(5)
         self.community_revealed = 0
         self.current_bet = bet_amount
+        self.opponent_bet = bet_amount
+        self.opponent_escrowed = 0
         self.game_state = "preflop"
         self.last_outcome = ""
         self.opponent_pending_call = 0
@@ -122,6 +131,14 @@ class TexasHoldemEngine:
         self.game_state = "turn"
         return True, "♦️ Turn revealed!"
 
+    def play_river(self) -> Tuple[bool, str]:
+        if self.game_state != "turn":
+            return False, "Not in Turn phase! Type 'check' first."
+
+        self.community_revealed = 5
+        self.game_state = "river"
+        return True, "♦️ River revealed!"
+
     def play_fold(self) -> Tuple[str, int]:
         """Player surrenders current hand."""
         self.game_state = "idle"
@@ -130,21 +147,26 @@ class TexasHoldemEngine:
         return "FOLD", lost_amount
 
     def opponent_fold(self) -> Tuple[str, int]:
-        """Opponent folds to player bet/raise. Player wins current pot immediately."""
+        """Opponent folds to player bet/raise. Player wins current matched pot immediately."""
         self.game_state = "idle"
         self.last_outcome = "WIN"
         self.opponent_folded = True
         self.opponent_last_action = "fold"
-        # Player wins current pot (2x current bet)
+        self.opponent_pending_call = 0
+        self.opponent_bet = self.current_bet
+        # Player wins current matched pot (player's bet + opponent's matched bet)
         winnings = self.current_bet * 2
         if self.boss_name or self.table_mode == "boss":
-            self.boss_stack = max(0, self.boss_stack - winnings)
+            net_loss = max(0, winnings - self.current_bet)
+            rem_drain = max(0, net_loss - self.opponent_escrowed)
+            self.boss_stack = max(0, self.boss_stack - rem_drain)
+            self.opponent_escrowed = net_loss
         self.last_winnings = winnings
         return "WIN", winnings
 
     def process_opponent_action(self, chapter: str = "1", available_tokens: int = 0) -> Tuple[str, int, str]:
         """
-        Runs opponent street AI on Flop/Turn.
+        Runs opponent street AI on Flop/Turn/River.
         Only runs in VIP / Boss table mode against named opponents.
         """
         if self.table_mode not in ["vip", "boss"] or self.active_opponent == "The House":
@@ -246,6 +268,8 @@ class TexasHoldemEngine:
         """
         self.community_revealed = 5
         self.game_state = "idle"
+        self.opponent_pending_call = 0
+        self.opponent_bet = self.current_bet
 
         player_all = self.player_hole + self.community_cards
         dealer_all = self.dealer_hole + self.community_cards
@@ -258,15 +282,24 @@ class TexasHoldemEngine:
             outcome = "WIN"
             winnings = self.current_bet * mult
             if self.boss_name or self.table_mode == "boss":
-                self.boss_stack = max(0, self.boss_stack - winnings)
+                net_loss = max(0, winnings - self.current_bet)
+                rem_drain = max(0, net_loss - self.opponent_escrowed)
+                self.boss_stack = max(0, self.boss_stack - rem_drain)
+                self.opponent_escrowed = net_loss
         elif p_score == d_score:
             mult = 1
             outcome = "PUSH"
             winnings = self.current_bet
+            if self.boss_name or self.table_mode == "boss":
+                self.boss_stack += self.opponent_escrowed
+                self.opponent_escrowed = 0
         else:
             mult = 0
             outcome = "LOSS"
             winnings = 0
+            if self.boss_name or self.table_mode == "boss":
+                self.boss_stack += self.opponent_escrowed
+                self.opponent_escrowed = 0
 
         self.last_outcome = outcome
         self.last_p_rank = p_rank_name
@@ -306,6 +339,27 @@ class TexasHoldemEngine:
 
     @classmethod
     def best_5_card_hand(cls, cards7: List[Card]) -> Tuple[str, int, List[Card]]:
+        if len(cards7) < 5:
+            ranks = sorted([c.value for c in cards7], reverse=True)
+            rank_counts = {r: ranks.count(r) for r in set(ranks)}
+            sorted_rc = sorted(rank_counts.items(), key=lambda x: (x[1], x[0]), reverse=True)
+            counts = [x[1] for x in sorted_rc]
+            ordered_ranks = []
+            for r, c in sorted_rc:
+                ordered_ranks.extend([r] * c)
+            res = 0
+            for i, val in enumerate(ordered_ranks[:5]):
+                res |= (val << (16 - i * 4))
+            if counts and counts[0] >= 4:
+                return "Four of a Kind", (7 << 20) | res, list(cards7)
+            if counts and counts[0] == 3:
+                return "Three of a Kind", (3 << 20) | res, list(cards7)
+            if counts[:2] == [2, 2]:
+                return "Two Pair", (2 << 20) | res, list(cards7)
+            if counts and counts[0] == 2:
+                return "One Pair", (1 << 20) | res, list(cards7)
+            return "High Card", res, list(cards7)
+
         best_score = -1
         best_rank_name = "High Card"
         best_combo = cards7[:5]

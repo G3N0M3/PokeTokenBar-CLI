@@ -398,6 +398,12 @@ def render_poker_tab(app):
             d_hand_str = "[?] [?]"
             d_badge = ""
             state_str = f"The Turn{action_suffix}"
+        elif app.engine.poker.game_state == "river":
+            rev = [str(c) for c in app.engine.poker.community_cards[:5]]
+            board = " ".join(rev)
+            d_hand_str = "[?] [?]"
+            d_badge = ""
+            state_str = f"The River{action_suffix}"
         else:
             board = " ".join([str(c) for c in app.engine.poker.community_cards])
             d_hand_str = " ".join([str(c) for c in app.engine.poker.dealer_hole])
@@ -419,20 +425,31 @@ def render_poker_tab(app):
         sys.stdout.write(f"   🎴 Your Hand:  {p_hand_str}{p_badge}\n")
         sys.stdout.write(f"   ♦️ Board:      {board}\n")
         sys.stdout.write(f"   🏠 {opp_label} Hand: {d_hand_str}{d_badge}\n")
-        sys.stdout.write(f"   Current Bet: {BOLD}{YELLOW}{format_tokens(app.engine.poker.current_bet)}{RESET} tokens\n")
+        p_bet = app.engine.poker.current_bet
+        o_bet = getattr(app.engine.poker, "opponent_bet", 0) or (p_bet + pending)
+        pot_val = getattr(app.engine.poker, "total_pot", p_bet + o_bet)
+        sys.stdout.write(f"   Current Bet: {BOLD}{YELLOW}{format_tokens(p_bet)}{RESET} | Opp Bet: {BOLD}{YELLOW}{format_tokens(o_bet)}{RESET} | Pot: {BOLD}{GREEN}{format_tokens(pot_val)}{RESET}\n")
 
         if app.engine.poker.game_state == "idle" and getattr(app.engine.poker, "last_outcome", ""):
             outcome = app.engine.poker.last_outcome
             if getattr(app.engine.poker, "opponent_folded", False):
                 sys.stdout.write(f"   {BOLD}{GREEN}🏆 Result: {opp_label.upper()} FOLDED! You win the pot!{RESET}\n")
             elif outcome == "WIN":
-                sys.stdout.write(f"   {BOLD}{GREEN}🏆 Result: YOU BEAT {opp_label.upper()}! ({app.engine.poker.last_p_rank} vs {app.engine.poker.last_d_rank}){RESET}\n")
+                win_plain = f"   🏆 Result: YOU BEAT {opp_label.upper()}! ({app.engine.poker.last_p_rank} vs {app.engine.poker.last_d_rank})"
+                if len(win_plain) > 71:
+                    sys.stdout.write(f"   {BOLD}{GREEN}🏆 Result: YOU WIN! ({app.engine.poker.last_p_rank} vs {app.engine.poker.last_d_rank}){RESET}\n")
+                else:
+                    sys.stdout.write(f"   {BOLD}{GREEN}🏆 Result: YOU BEAT {opp_label.upper()}! ({app.engine.poker.last_p_rank} vs {app.engine.poker.last_d_rank}){RESET}\n")
             elif outcome == "PUSH":
                 sys.stdout.write(f"   {BOLD}{YELLOW}🤝 Result: TIE / PUSH! ({app.engine.poker.last_p_rank}){RESET}\n")
             elif outcome == "FOLD":
                 sys.stdout.write(f"   {BOLD}{RED}🏳️ Result: FOLDED! Surrendered bet.{RESET}\n")
             else:
-                sys.stdout.write(f"   {BOLD}{RED}💀 Result: {opp_label.upper()} WINS! ({app.engine.poker.last_d_rank} beats {app.engine.poker.last_p_rank}){RESET}\n")
+                loss_plain = f"   💀 Result: {opp_label.upper()} WINS! ({app.engine.poker.last_d_rank} beats {app.engine.poker.last_p_rank})"
+                if len(loss_plain) > 71:
+                    sys.stdout.write(f"   {BOLD}{RED}💀 Result: {opp_label.upper()} WINS! ({app.engine.poker.last_d_rank} > {app.engine.poker.last_p_rank}){RESET}\n")
+                else:
+                    sys.stdout.write(f"   {BOLD}{RED}💀 Result: {opp_label.upper()} WINS! ({app.engine.poker.last_d_rank} beats {app.engine.poker.last_p_rank}){RESET}\n")
         sys.stdout.write("\n")
 
 def render_gacha_tab(app):
@@ -543,7 +560,11 @@ def render_excavator_tab(app):
         uncovered = [t for t in ex.treasures if t.uncovered and t.kind != "barrier"]
         if uncovered:
             items_str = ", ".join(f"{t.symbol} {t.name}" for t in uncovered)
-            sys.stdout.write(f"  {BOLD}{GREEN}Uncovered Relics:{RESET} {items_str}\n\n")
+            wrapped_items = textwrap.wrap(items_str, width=50) or [items_str]
+            sys.stdout.write(f"  {BOLD}{GREEN}Uncovered Relics:{RESET} {wrapped_items[0]}\n")
+            for wi in wrapped_items[1:]:
+                sys.stdout.write(f"                    {wi}\n")
+            sys.stdout.write("\n")
 
     if ex.last_action_msg:
         sys.stdout.write(f"  {BOLD}Last Action:{RESET} {ex.last_action_msg}\n\n")
@@ -596,7 +617,10 @@ def render_trivia_tab(app):
         if tr.hints_used >= 3:
             import re
             dex_redacted = re.sub(re.escape(target["name"]), "______", target["dex"], flags=re.IGNORECASE)
-            sys.stdout.write(f"   3. Pokédex: \"{YELLOW}{dex_redacted}{RESET}\"\n")
+            wrapped_dex = textwrap.wrap(f'"{dex_redacted}"', width=54) or [f'"{dex_redacted}"']
+            sys.stdout.write(f"   3. Pokédex: {YELLOW}{wrapped_dex[0]}{RESET}\n")
+            for wd in wrapped_dex[1:]:
+                sys.stdout.write(f"               {YELLOW}{wd}{RESET}\n")
         sys.stdout.write("\n")
 
     if tr.last_result:

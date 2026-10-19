@@ -175,6 +175,8 @@ class TestPokerGame(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(self.engine.poker.game_state, "preflop")
         self.assertEqual(self.engine.poker.current_bet, 1_000_000)
+        self.assertEqual(self.engine.poker.opponent_bet, 1_000_000)
+        self.assertEqual(self.engine.poker.total_pot, 2_000_000)
 
         # Check -> Flop
         ok_f, msg_f = self.engine.play_poker_action("check")
@@ -186,12 +188,34 @@ class TestPokerGame(unittest.TestCase):
         self.assertTrue(ok_r)
         self.assertEqual(self.engine.poker.game_state, "turn")
         self.assertEqual(self.engine.poker.current_bet, 2_000_000)
+        self.assertEqual(self.engine.poker.opponent_bet, 2_000_000)
+
+        # Check -> River (reveals 5th community card)
+        ok_rv, msg_rv = self.engine.play_poker_action("check")
+        self.assertTrue(ok_rv)
+        self.assertEqual(self.engine.poker.game_state, "river")
+        self.assertEqual(self.engine.poker.community_revealed, 5)
 
         # Check -> Showdown
         ok_s, msg_s = self.engine.play_poker_action("check")
         self.assertTrue(ok_s)
         self.assertEqual(self.engine.poker.game_state, "idle")
         self.assertTrue(hasattr(self.engine.poker, "last_outcome"))
+
+    def test_preflop_2_card_hand_evaluation(self):
+        # Pocket Aces should evaluate as One Pair (category 1) rather than High Card / -1
+        aa = [Card("A", "♠"), Card("A", "♥")]
+        name, score, combo = TexasHoldemEngine.best_5_card_hand(aa)
+        self.assertEqual(name, "One Pair")
+        self.assertEqual(score >> 20, 1)
+        self.assertEqual(len(combo), 2)
+
+        # Ace-King offsuit should evaluate as High Card (category 0)
+        ak = [Card("A", "♠"), Card("K", "♦")]
+        name_ak, score_ak, combo_ak = TexasHoldemEngine.best_5_card_hand(ak)
+        self.assertEqual(name_ak, "High Card")
+        self.assertEqual(score_ak >> 20, 0)
+        self.assertEqual(len(combo_ak), 2)
 
     def test_poker_layout_72_column_compliance(self):
         app = PokeTokenBarTUI()
@@ -250,7 +274,18 @@ class TestPokerGame(unittest.TestCase):
             clean = ANSI_REGEX.sub("", line)
             self.assertLessEqual(len(clean), 72, f"Line exceeds 72 cols: {clean}")
 
-        # 5. Showdown completed state
+        # 5. River state
+        self.engine.play_poker_action("check")
+        trap_rv = io.StringIO()
+        with patch("sys.stdout", trap_rv):
+            render_poker_tab(app)
+        river_out = trap_rv.getvalue()
+        self.assertIn("The River", river_out)
+        for line in river_out.splitlines():
+            clean = ANSI_REGEX.sub("", line)
+            self.assertLessEqual(len(clean), 72, f"Line exceeds 72 cols: {clean}")
+
+        # 6. Showdown completed state
         self.engine.play_poker_action("check")
         trap5 = io.StringIO()
         with patch("sys.stdout", trap5):
@@ -264,7 +299,7 @@ class TestPokerGame(unittest.TestCase):
             clean = ANSI_REGEX.sub("", line)
             self.assertLessEqual(len(clean), 72, f"Line exceeds 72 cols: {clean}")
 
-        # 6. Fold state
+        # 7. Fold state
         self.engine.play_poker_bet("100k")
         self.engine.play_poker_action("fold")
         trap6 = io.StringIO()

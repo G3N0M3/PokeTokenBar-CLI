@@ -338,7 +338,7 @@ class TestPokerSting(unittest.TestCase):
         self.engine.state["velvet_sting"]["syndicate_wins"] = 9
         self.engine.state["velvet_sting"]["vip_winnings"] = 490_000_000_000_000
         self.engine.poker.table_mode = "vip"
-        self.engine.poker.game_state = "turn"
+        self.engine.poker.game_state = "river"
         self.engine.poker.current_bet = 10_000_000_000_000
         # Mock a winning showdown
         with patch.object(self.engine.poker, "play_showdown", return_value=("WIN", "Two Pair", "One Pair", 2, 20_000_000_000_000)), \
@@ -471,7 +471,7 @@ class TestPokerSting(unittest.TestCase):
 
         # 3. Winning showdown post-campaign does not display tactical objective message
         self.engine.play_poker_bet("10t")
-        self.engine.poker.game_state = "turn"
+        self.engine.poker.game_state = "river"
         # Mock showdown as WIN
         with unittest.mock.patch.object(self.engine.poker, "play_showdown", return_value=("WIN", "Flush", "High Card", 5, 50_000_000_000_000)):
             ok_sd, sd_msg = self.engine.play_poker_action("check")

@@ -197,11 +197,17 @@ class TestCompanionCasinoPokerActions(unittest.TestCase):
         self.engine.state["velvet_sting"]["chapter"] = "2"
         self.engine.state["velvet_sting"]["recruited"] = True
         self.engine.switch_poker_table("vip")
-        self.engine.play_poker_bet("20t")
+        ok_b, msg_b = self.engine.play_poker_bet("20t")
+        self.assertTrue(ok_b)
+        self.assertIn("matched 20.0T (Pot: 40.0T)", msg_b)
+        self.assertEqual(self.engine.poker.current_bet, 20_000_000_000_000)
+        self.assertEqual(self.engine.poker.opponent_bet, 20_000_000_000_000)
+        self.assertEqual(self.engine.poker.total_pot, 40_000_000_000_000)
         # Player is on flop
         self.engine.poker.game_state = "flop"
 
-        # Force opponent to fold on player's raise
+        # Force opponent to fold on player's raise: uncalled 20T raise is returned to player,
+        # so matched pot won is 20T (player) + 20T (opponent) = 40T.
         with patch.object(self.engine.poker, "process_opponent_reaction", return_value=("fold", 0, "No way! I fold!")):
             ok, msg = self.engine.play_poker_action("raise")
             self.assertTrue(ok)
@@ -209,8 +215,7 @@ class TestCompanionCasinoPokerActions(unittest.TestCase):
             self.assertIn("YOU WIN THE POT", msg)
             self.assertEqual(self.engine.poker.game_state, "idle")
             self.assertTrue(self.engine.poker.opponent_folded)
-            # Pot was 20T base + 20T raise = 40T total bet, pot won = 80T
-            self.assertGreaterEqual(self.engine.state["velvet_sting"]["chapter_pot"], 80_000_000_000_000)
+            self.assertEqual(self.engine.state["velvet_sting"]["chapter_pot"], 40_000_000_000_000)
 
     def test_player_fold_generates_opponent_end_quote(self):
         self.engine.switch_poker_table("vip")
@@ -226,7 +231,7 @@ class TestCompanionCasinoPokerActions(unittest.TestCase):
         self.engine.switch_poker_table("vip")
         self.engine.play_poker_bet("10t")
         self.engine.poker.active_opponent = "Duchess Eleanor"
-        self.engine.poker.game_state = "turn"
+        self.engine.poker.game_state = "river"
         ok, msg = self.engine.play_poker_action("check")
         self.assertTrue(ok)
         self.assertNotIn("⚔️ Duchess Eleanor:", msg)

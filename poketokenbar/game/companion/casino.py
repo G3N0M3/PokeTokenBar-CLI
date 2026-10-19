@@ -63,6 +63,8 @@ class CasinoMixin:
             max_val = VIP_PATRON_DAILY_BANKROLLS.get(clean_name, 2_500_000_000_000_000_000)
             vb[clean_name] = {"current": max_val, "max": max_val}
         curr = vb[clean_name].get("current", 0)
+        if delta < 0 and hasattr(self, "matrix") and self.matrix and self.matrix.is_infinite_vip_active():
+            return curr
         new_val = max(0, curr + delta)
         vb[clean_name]["current"] = new_val
         self.save()
@@ -124,6 +126,51 @@ class CasinoMixin:
             return True, f"\n   🏆 \033[1m\033[93m[SALON CLEAN SWEEP] You stripped all VIP patrons of their tokens! Claimed +{format_tokens(VIP_CLEAN_SWEEP_BOUNTY)} Clean Sweep Bounty!\033[0m"
         return False, ""
 
+    def _get_opponent_available_chips(self) -> Optional[int]:
+        if self.poker.table_mode not in ["vip", "boss"] or self.poker.active_opponent in ["The House", "None", ""]:
+            return None
+        if getattr(self.poker, "boss_name", ""):
+            return max(0, self.poker.boss_stack)
+        cur, _ = self.get_vip_bankroll(self.poker.active_opponent)
+        return max(0, cur)
+
+    def _escrow_opponent_chips(self, amount: int) -> int:
+        if amount <= 0:
+            return 0
+        if self.poker.table_mode not in ["vip", "boss"] or self.poker.active_opponent in ["The House", "None", ""]:
+            return amount
+        if getattr(self.poker, "boss_name", ""):
+            actual = min(amount, max(0, self.poker.boss_stack))
+            self.poker.boss_stack = max(0, self.poker.boss_stack - actual)
+            sting = self.state.setdefault("velvet_sting", {})
+            sting["boss_stack"] = self.poker.boss_stack
+            self.poker.opponent_escrowed += actual
+            self.save()
+            return actual
+        opp_clean = self.poker.active_opponent.split("[")[0].strip()
+        cur, _ = self.get_vip_bankroll(opp_clean)
+        actual = min(amount, max(0, cur))
+        self.update_vip_bankroll(opp_clean, -actual)
+        self.poker.opponent_escrowed += actual
+        return actual
+
+    def _advance_street_with_opponent_ai(self, street_method, street_label: str, next_prompt_label: str, prefix_note: str, curr_ch: str, opp_name: str) -> Tuple[bool, str]:
+        street_method()
+        opp_avail = self._get_opponent_available_chips()
+        max_bettable = self.available_tokens if opp_avail is None else min(self.available_tokens, opp_avail)
+        if max_bettable <= 0:
+            self.poker.opponent_pending_call = 0
+            self.poker.opponent_last_action = "check"
+            return True, f"{prefix_note}♦️ {street_label} revealed! ({opp_name} checks). Type 'check' for {next_prompt_label}, 'raise', 'allin', or 'fold'."
+
+        action, bet_amt, quote = self.poker.process_opponent_action(chapter=curr_ch, available_tokens=max_bettable)
+        if action == "bet" and bet_amt > 0:
+            self._escrow_opponent_chips(bet_amt)
+            self.poker.opponent_bet = self.poker.current_bet + bet_amt
+            return True, f"{prefix_note}♦️ {street_label} revealed! ({opp_name} bets {format_tokens(bet_amt)}).\n   ➔ Actions: 'call' ({format_tokens(bet_amt)}) | 'raise' | 'allin' | 'fold'"
+        self.poker.opponent_bet = self.poker.current_bet
+        return True, f"{prefix_note}♦️ {street_label} revealed! ({opp_name} checks). Type 'check' for {next_prompt_label}, 'raise', 'allin', or 'fold'."
+
     def play_poker_bet(self, amount_str: str) -> Tuple[bool, str]:
         if self.poker.game_state != "idle":
             return False, "A hand is already in progress! Type 'check', 'raise', 'allin', or 'fold'."
@@ -167,6 +214,8 @@ class CasinoMixin:
                 self.poker.boss_stack = b_stack
                 self.poker.boss_max_stack = sting.get("boss_max_stack", ch_info.get("boss_max_stack", 50_000_000_000_000))
                 self.poker.active_opponent = boss_name
+                if bet > b_stack:
+                    bet = b_stack
             else:
                 self.poker.boss_name = ""
                 self.poker.boss_stack = 0
@@ -175,11 +224,16 @@ class CasinoMixin:
                 if not avail_opps:
                     clean_msg = "All VIP patrons are busted for today! The Velvet Salon tables will reset tomorrow at midnight (00:00)."
                     if self.state.get("vip_clean_sweep_claimed", False):
-                        clean_msg = f"All VIP patrons have been wiped out today! (Clean Sweep Bonus claimed: +{format_tokens(VIP_CLEAN_SWEEP_BOUNTY)} tokens). Tables reset at 00:00."
+                        clean_msg = f"All VIP patrons are busted for today! (Clean Sweep Bonus claimed: +{format_tokens(VIP_CLEAN_SWEEP_BOUNTY)} tokens). Tables reset at 00:00."
                     return False, clean_msg
 
                 curr_opp = self.poker.active_opponent.split("[")[0].strip() if self.poker.active_opponent else ""
-                if curr_opp not in avail_opps:
+                if is_cleared:
+                    valid_cleared = [p for p in (VELVET_PATRONS + VELVET_MARKS) if "Croix" not in p and p.split("[")[0].strip() in avail_opps]
+                    self.poker.active_opponent = random.choice(valid_cleared if valid_cleared else avail_opps)
+                elif ch_info.get("opponent") and ch_info["opponent"].split("[")[0].strip() in avail_opps:
+                    self.poker.active_opponent = ch_info["opponent"]
+                elif curr_opp not in avail_opps:
                     self.poker.active_opponent = random.choice(avail_opps)
 
                 # Table stakes: cap bet to active opponent's remaining chips
@@ -202,9 +256,18 @@ class CasinoMixin:
             self.save()
             return False, msg
 
+        # Opponent bets together with player at the start of the hand
+        self._escrow_opponent_chips(bet)
+        self.poker.opponent_bet = bet
+
+        if self.poker.table_mode == "standard" and bet >= POKER_VIP_TRIGGER_BET:
+            self.state["poker_vip_unlocked"] = True
+            self.save()
+
         opp = self.poker.active_opponent
+        opp_short = opp.split("[")[0].strip()
         table_label = f" [{opp}]" if opp != "The House" else ""
-        return True, f"♠️ Dealt {format_tokens(bet)} tokens{table_label}! Type 'check' to reveal Flop, 'raise', 'allin', or 'fold'."
+        return True, f"♠️ Dealt {format_tokens(bet)} tokens{table_label}! {opp_short} matched {format_tokens(bet)} (Pot: {format_tokens(self.poker.total_pot)}). Type 'check' to reveal Flop, 'raise', 'allin', or 'fold'."
 
     def switch_poker_table(self, mode: str) -> Tuple[bool, str]:
         clean_mode = mode.lower().strip()
@@ -242,7 +305,12 @@ class CasinoMixin:
                     self.poker.active_opponent = "None"
                     return True, "Dealer: 'Welcome to The Velvet Salon. All VIP patrons have tapped out for today! The tables will reset tomorrow at midnight (00:00).'"
                 curr = self.poker.active_opponent.split("[")[0].strip() if self.poker.active_opponent else ""
-                if curr not in avail_opps:
+                if is_cleared:
+                    valid_cleared = [p for p in (VELVET_PATRONS + VELVET_MARKS) if "Croix" not in p and p.split("[")[0].strip() in avail_opps]
+                    self.poker.active_opponent = random.choice(valid_cleared if valid_cleared else avail_opps)
+                elif ch_info.get("opponent") and ch_info["opponent"].split("[")[0].strip() in avail_opps:
+                    self.poker.active_opponent = ch_info["opponent"]
+                elif curr not in avail_opps:
                     self.poker.active_opponent = random.choice(avail_opps)
                 c_stack, _ = self.get_vip_bankroll(self.poker.active_opponent)
                 if is_cleared:
@@ -255,20 +323,30 @@ class CasinoMixin:
         return False, "Usage: table <std|vip>"
 
     def _format_opponent_fold(self, quote: str) -> Tuple[bool, str]:
+        escrowed_before = self.poker.opponent_escrowed
+        boss_stack_before = self.poker.boss_stack
         outcome, winnings = self.poker.opponent_fold()
         mauv_mult = self.get_mauville_multiplier()
         if winnings > 0 and mauv_mult > 1.0:
             winnings = int(winnings * mauv_mult)
+        if winnings > 0 and self.poker.table_mode in ["vip", "boss"] and self.has_luxury_decor("watch"):
+            winnings = int(winnings * 1.15)
+        if winnings > 0 and self.poker.table_mode in ["vip", "boss"] and hasattr(self, "matrix") and self.matrix:
+            luck_mult = self.matrix.get_casino_luck_multiplier()
+            if luck_mult > 1.0:
+                vip_bonus = 1.25 if luck_mult <= 2.0 else 1.50
+                winnings = int(winnings * vip_bonus)
 
         # Grant winnings
         self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - winnings
         self.save()
 
         bet = self.poker.current_bet
-        net_change = winnings - bet
+        net_change = max(0, winnings - bet)
         self._record_catalyst("casino_net_pnl", net_change)
-        profit_str = f"+{format_tokens(net_change)}" if net_change >= 0 else f"-{format_tokens(abs(net_change))}"
+        profit_str = f"+{format_tokens(net_change)}"
         self.poker.last_net = profit_str
+        self.poker.opponent_escrowed = 0
 
         boss_msg = ""
         sting_msg = ""
@@ -287,10 +365,12 @@ class CasinoMixin:
                 "max_pot_won": 0,
                 "ranked_wins": 0,
             })
+            rem_drain = max(0, net_change - escrowed_before)
             if getattr(self.poker, "boss_name", ""):
+                self.poker.boss_stack = max(0, boss_stack_before - rem_drain)
                 sting["boss_stack"] = self.poker.boss_stack
                 self.save()
-                boss_msg = f"\n   💥 {self.poker.boss_name} Treasury Drained: -{format_tokens(winnings)}! (Remaining: {format_tokens(self.poker.boss_stack)})"
+                boss_msg = f"\n   💥 {self.poker.boss_name} Treasury Drained: -{format_tokens(net_change)}! (Remaining: {format_tokens(self.poker.boss_stack)})"
             else:
                 sting["syndicate_wins"] = sting.get("syndicate_wins", 0) + 1
                 sting["vip_winnings"] = sting.get("vip_winnings", 0) + winnings
@@ -300,7 +380,7 @@ class CasinoMixin:
                 self.save()
 
                 opp_clean = self.poker.active_opponent.split("[")[0].strip()
-                rem = self.update_vip_bankroll(opp_clean, -winnings)
+                rem = self.update_vip_bankroll(opp_clean, -rem_drain)
                 if rem < POKER_VIP_MIN_BET:
                     swept, sweep_msg = self.check_vip_clean_sweep()
                     if swept:
@@ -314,7 +394,7 @@ class CasinoMixin:
                         else:
                             boss_msg = f"\n   💥 {opp_clean.upper()} HAS BUSTED FOR TODAY! All VIP patrons are tapped out until midnight!"
                 else:
-                    boss_msg = f"\n   📉 {opp_clean} Chips: -{format_tokens(winnings)} (Remaining: {format_tokens(rem)})"
+                    boss_msg = f"\n   📉 {opp_clean} Chips: -{format_tokens(net_change)} (Remaining: {format_tokens(rem)})"
 
                 if not sting.get("recruited", False):
                     if sting["syndicate_wins"] >= 10 and sting["vip_winnings"] >= 500_000_000_000_000:
@@ -341,14 +421,21 @@ class CasinoMixin:
         opp_name = opp.split("[")[0].strip()
 
         if cmd == "fold":
+            escrowed = self.poker.opponent_escrowed
             outcome, lost = self.poker.play_fold()
             self.poker.opponent_pending_call = 0
+            self.poker.opponent_escrowed = 0
             end_quote = self.poker.process_opponent_end_quote("player_fold", chapter=curr_ch)
             self._record_catalyst("casino_net_pnl", -lost)
             opp_gain_msg = ""
-            if self.poker.table_mode in ["vip", "boss"] and not getattr(self.poker, "boss_name", ""):
-                rem = self.update_vip_bankroll(opp_name, lost)
-                opp_gain_msg = f" ({opp_name} Chips: {format_tokens(rem)})"
+            if self.poker.table_mode in ["vip", "boss"]:
+                if getattr(self.poker, "boss_name", ""):
+                    self.poker.boss_stack += escrowed
+                    sting["boss_stack"] = self.poker.boss_stack
+                    self.save()
+                else:
+                    rem = self.update_vip_bankroll(opp_name, escrowed + lost)
+                    opp_gain_msg = f" ({opp_name} Chips: {format_tokens(rem)})"
             rebate_msg = ""
             if self.poker.table_mode in ["vip", "boss"] and self.state.get("luxury", {}).get("unlocked"):
                 rebate = int(lost * 0.10)
@@ -367,23 +454,18 @@ class CasinoMixin:
             call_cost = min(avail, pending)
             self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + call_cost
             self.poker.current_bet += call_cost
+            self.poker.opponent_bet = self.poker.current_bet
             self.poker.opponent_pending_call = 0
             self.save()
 
             call_note = f"💰 Called {format_tokens(call_cost)} tokens! "
             if self.poker.game_state == "preflop":
-                self.poker.play_flop()
-                action, bet_amt, quote = self.poker.process_opponent_action(chapter=curr_ch, available_tokens=self.available_tokens)
-                if action == "bet":
-                    return True, f"{call_note}♦️ Flop revealed! ({opp_name} bets {format_tokens(bet_amt)}).\n   ➔ Actions: 'call' ({format_tokens(bet_amt)}) | 'raise' | 'allin' | 'fold'"
-                return True, f"{call_note}♦️ Flop revealed! ({opp_name} checks). Type 'check' for Turn, 'raise', 'allin', or 'fold'."
+                return self._advance_street_with_opponent_ai(self.poker.play_flop, "Flop", "Turn", call_note, curr_ch, opp_name)
             elif self.poker.game_state == "flop":
-                self.poker.play_turn()
-                action, bet_amt, quote = self.poker.process_opponent_action(chapter=curr_ch, available_tokens=self.available_tokens)
-                if action == "bet":
-                    return True, f"{call_note}♦️ Turn revealed! ({opp_name} bets {format_tokens(bet_amt)}).\n   ➔ Actions: 'call' ({format_tokens(bet_amt)}) | 'raise' | 'allin' | 'fold'"
-                return True, f"{call_note}♦️ Turn revealed! ({opp_name} checks). Type 'check' for Showdown, 'raise', 'allin', or 'fold'."
+                return self._advance_street_with_opponent_ai(self.poker.play_turn, "Turn", "River", call_note, curr_ch, opp_name)
             elif self.poker.game_state == "turn":
+                return self._advance_street_with_opponent_ai(self.poker.play_river, "River", "Showdown", call_note, curr_ch, opp_name)
+            elif self.poker.game_state == "river":
                 ok, showdown_msg = self._format_poker_showdown()
                 return True, f"{call_note}{showdown_msg}"
             else:
@@ -394,18 +476,12 @@ class CasinoMixin:
                 return False, f"Opponent has placed a bet of {format_tokens(self.poker.opponent_pending_call)}! Type 'call' to match, 'raise', 'allin', or 'fold'."
 
             if self.poker.game_state == "preflop":
-                self.poker.play_flop()
-                action, bet_amt, quote = self.poker.process_opponent_action(chapter=curr_ch, available_tokens=self.available_tokens)
-                if action == "bet":
-                    return True, f"♦️ Flop revealed! ({opp_name} bets {format_tokens(bet_amt)}).\n   ➔ Actions: 'call' ({format_tokens(bet_amt)}) | 'raise' | 'allin' | 'fold'"
-                return True, f"♦️ Flop revealed! ({opp_name} checks). Type 'check' for Turn, 'raise', 'allin', or 'fold'."
+                return self._advance_street_with_opponent_ai(self.poker.play_flop, "Flop", "Turn", "", curr_ch, opp_name)
             elif self.poker.game_state == "flop":
-                self.poker.play_turn()
-                action, bet_amt, quote = self.poker.process_opponent_action(chapter=curr_ch, available_tokens=self.available_tokens)
-                if action == "bet":
-                    return True, f"♦️ Turn revealed! ({opp_name} bets {format_tokens(bet_amt)}).\n   ➔ Actions: 'call' ({format_tokens(bet_amt)}) | 'raise' | 'allin' | 'fold'"
-                return True, f"♦️ Turn revealed! ({opp_name} checks). Type 'check' for Showdown, 'raise', 'allin', or 'fold'."
+                return self._advance_street_with_opponent_ai(self.poker.play_turn, "Turn", "River", "", curr_ch, opp_name)
             elif self.poker.game_state == "turn":
+                return self._advance_street_with_opponent_ai(self.poker.play_river, "River", "Showdown", "", curr_ch, opp_name)
+            elif self.poker.game_state == "river":
                 return self._format_poker_showdown()
             else:
                 return False, "Hand already completed."
@@ -413,13 +489,22 @@ class CasinoMixin:
         elif cmd in ["raise", "allin"]:
             avail = self.available_tokens
             pending = self.poker.opponent_pending_call
+            opp_avail = self._get_opponent_available_chips()
+
             if cmd == "allin":
                 bet_amount = avail
             else:
                 raise_increment = max(self.poker.current_bet, 10_000_000_000_000 if self.poker.table_mode in ["vip", "boss"] else 1)
                 bet_amount = pending + raise_increment
 
+            if opp_avail is not None:
+                max_coverable = pending + opp_avail
+                if bet_amount > max_coverable:
+                    bet_amount = max_coverable
+
             if bet_amount <= 0:
+                if opp_avail == 0 and pending == 0:
+                    return False, f"{opp_name} is already all-in! Type 'check' to advance street."
                 return False, "You don't have any more tokens to bet!"
             if avail < bet_amount:
                 if avail > pending and pending > 0:
@@ -427,33 +512,64 @@ class CasinoMixin:
                 else:
                     return False, f"Not enough tokens to raise! Needed: {format_tokens(bet_amount)}, Available: {format_tokens(avail)}"
 
-            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + bet_amount
-            self.poker.current_bet += bet_amount
-            self.poker.opponent_pending_call = 0
-            self.save()
+            uncalled_raise = max(0, bet_amount - pending)
 
             # Opponent reaction to player's raise
             action, re_raise_amt, quote = self.poker.process_opponent_reaction(
-                raise_amount=bet_amount,
+                raise_amount=uncalled_raise if uncalled_raise > 0 else bet_amount,
                 is_allin=(cmd == "allin"),
                 chapter=curr_ch
             )
 
             if action == "fold":
+                # Opponent folds to the raise! Only any prior pending bet was matched; uncalled_raise is returned to player.
+                if pending > 0:
+                    self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + pending
+                    self.poker.current_bet += pending
+                self.poker.opponent_pending_call = 0
+                self.poker.opponent_bet = self.poker.current_bet
+                self.save()
                 return self._format_opponent_fold(quote)
 
-            if action == "raise":
-                return True, f"💥 {opp_name.upper()} RE-RAISED! (+{format_tokens(re_raise_amt)})\n   ➔ Actions: 'call' ({format_tokens(re_raise_amt)}) | 'raise' | 'allin' | 'fold'"
+            # Commit player's full bet_amount (matching pending + uncalled_raise)
+            self.state["spent_tokens"] = self.state.get("spent_tokens", 0) + bet_amount
+            self.poker.current_bet += bet_amount
+            self.poker.opponent_pending_call = 0
 
-            # Opponent called player's raise!
+            if action == "raise":
+                player_rem = self.available_tokens
+                opp_rem = (opp_avail - uncalled_raise) if opp_avail is not None else None
+                if opp_rem is not None:
+                    re_raise_amt = min(re_raise_amt, max(0, opp_rem))
+                re_raise_amt = min(re_raise_amt, max(0, player_rem))
+
+                if re_raise_amt > 0:
+                    self._escrow_opponent_chips(uncalled_raise + re_raise_amt)
+                    self.poker.opponent_bet = self.poker.current_bet + re_raise_amt
+                    self.poker.opponent_pending_call = re_raise_amt
+                    self.save()
+                    return True, f"💥 {opp_name.upper()} RE-RAISED! (+{format_tokens(re_raise_amt)})\n   ➔ Actions: 'call' ({format_tokens(re_raise_amt)}) | 'raise' | 'allin' | 'fold'"
+                else:
+                    self.poker.opponent_last_action = "call"
+                    self.poker.opponent_pending_call = 0
+
+            # Opponent called player's raise! Match uncalled_raise from opponent's stack
+            if uncalled_raise > 0:
+                self._escrow_opponent_chips(uncalled_raise)
+            self.poker.opponent_bet = self.poker.current_bet
+            self.save()
+
             opp_call_note = f"💰 {opp_name} CALLED your raise!\n"
             if self.poker.game_state == "preflop":
                 self.poker.play_flop()
                 return True, f"{opp_call_note}♦️ Flop revealed! Type 'check' for Turn, 'raise', 'allin', or 'fold'."
             elif self.poker.game_state == "flop":
                 self.poker.play_turn()
-                return True, f"{opp_call_note}♦️ Turn revealed! Type 'check' for Showdown, 'raise', 'allin', or 'fold'."
+                return True, f"{opp_call_note}♦️ Turn revealed! Type 'check' for River, 'raise', 'allin', or 'fold'."
             elif self.poker.game_state == "turn":
+                self.poker.play_river()
+                return True, f"{opp_call_note}♦️ River revealed! Type 'check' for Showdown, 'raise', 'allin', or 'fold'."
+            elif self.poker.game_state == "river":
                 ok, showdown_msg = self._format_poker_showdown()
                 return True, f"{opp_call_note}{showdown_msg}"
             else:
@@ -465,11 +581,20 @@ class CasinoMixin:
     play_poker_hold = play_poker_action
 
     def _format_poker_showdown(self) -> Tuple[bool, str]:
+        escrowed_before = self.poker.opponent_escrowed
+        boss_stack_before = self.poker.boss_stack
         outcome, p_rank, d_rank, mult, winnings = self.poker.play_showdown()
 
         mauv_mult = self.get_mauville_multiplier()
         if winnings > 0 and outcome == "WIN" and mauv_mult > 1.0:
             winnings = int(winnings * mauv_mult)
+        if winnings > 0 and outcome == "WIN" and self.poker.table_mode in ["vip", "boss"] and self.has_luxury_decor("watch"):
+            winnings = int(winnings * 1.15)
+        if winnings > 0 and outcome == "WIN" and self.poker.table_mode in ["vip", "boss"] and hasattr(self, "matrix") and self.matrix:
+            luck_mult = self.matrix.get_casino_luck_multiplier()
+            if luck_mult > 1.0:
+                vip_bonus = 1.25 if luck_mult <= 2.0 else 1.50
+                winnings = int(winnings * vip_bonus)
 
         # Grant winnings by decreasing spent_tokens
         if winnings > 0:
@@ -482,6 +607,7 @@ class CasinoMixin:
         profit_str = f"+{format_tokens(net_change)}" if net_change >= 0 else f"-{format_tokens(abs(net_change))}"
 
         self.poker.last_net = profit_str
+        self.poker.opponent_escrowed = 0
 
         rebate_msg = ""
         boss_msg = ""
@@ -500,10 +626,12 @@ class CasinoMixin:
                     "max_pot_won": 0,
                     "ranked_wins": 0,
                 })
+                rem_drain = max(0, net_change - escrowed_before)
                 if getattr(self.poker, "boss_name", ""):
+                    self.poker.boss_stack = max(0, boss_stack_before - rem_drain)
                     sting["boss_stack"] = self.poker.boss_stack
                     self.save()
-                    boss_msg = f"\n   💥 {self.poker.boss_name} Treasury Drained: -{format_tokens(winnings)}! (Remaining: {format_tokens(self.poker.boss_stack)})"
+                    boss_msg = f"\n   💥 {self.poker.boss_name} Treasury Drained: -{format_tokens(net_change)}! (Remaining: {format_tokens(self.poker.boss_stack)})"
                 else:
                     sting["syndicate_wins"] = sting.get("syndicate_wins", 0) + 1
                     sting["vip_winnings"] = sting.get("vip_winnings", 0) + winnings
@@ -515,7 +643,7 @@ class CasinoMixin:
                     self.save()
 
                     opp_clean = self.poker.active_opponent.split("[")[0].strip()
-                    rem = self.update_vip_bankroll(opp_clean, -winnings)
+                    rem = self.update_vip_bankroll(opp_clean, -rem_drain)
                     if rem < POKER_VIP_MIN_BET:
                         swept, sweep_msg = self.check_vip_clean_sweep()
                         if swept:
@@ -529,7 +657,7 @@ class CasinoMixin:
                             else:
                                 boss_msg = f"\n   💥 {opp_clean.upper()} HAS BUSTED FOR TODAY! All VIP patrons are tapped out until midnight!"
                     else:
-                        boss_msg = f"\n   📉 {opp_clean} Chips: -{format_tokens(winnings)} (Remaining: {format_tokens(rem)})"
+                        boss_msg = f"\n   📉 {opp_clean} Chips: -{format_tokens(net_change)} (Remaining: {format_tokens(rem)})"
 
                     if not sting.get("recruited", False):
                         if sting["syndicate_wins"] >= 10 and sting["vip_winnings"] >= 500_000_000_000_000:
@@ -542,11 +670,25 @@ class CasinoMixin:
                 if ready and sting.get("recruited", False) and not is_cleared:
                     sting_msg = f"\n   🚨 \033[1m\033[93m[THE VELVET STING] Tactical objective achieved! Type 'sting' to advance!\033[0m"
 
+        elif outcome == "PUSH":
+            if self.poker.table_mode in ["vip", "boss"]:
+                if getattr(self.poker, "boss_name", ""):
+                    sting = self.state.setdefault("velvet_sting", {})
+                    sting["boss_stack"] = self.poker.boss_stack
+                    self.save()
+                elif escrowed_before > 0:
+                    opp_clean = self.poker.active_opponent.split("[")[0].strip()
+                    self.update_vip_bankroll(opp_clean, escrowed_before)
+
         elif outcome == "LOSS":
             if self.poker.table_mode in ["vip", "boss"]:
-                if not getattr(self.poker, "boss_name", ""):
+                if getattr(self.poker, "boss_name", ""):
+                    sting = self.state.setdefault("velvet_sting", {})
+                    sting["boss_stack"] = self.poker.boss_stack
+                    self.save()
+                else:
                     opp_clean = self.poker.active_opponent.split("[")[0].strip()
-                    rem = self.update_vip_bankroll(opp_clean, bet)
+                    rem = self.update_vip_bankroll(opp_clean, escrowed_before + bet)
                     boss_msg = f"\n   📈 {opp_clean} collected your wager! (Stack: {format_tokens(rem)})"
             if self.poker.table_mode in ["vip", "boss"] and self.state.get("luxury", {}).get("unlocked"):
                 rebate = int(bet * 0.10)
@@ -775,8 +917,9 @@ class CasinoMixin:
         
         # Do all pulls one by one and update a local inv tracker for mega stones
         local_inv = dict(inv)
+        luck_mult = self.matrix.get_casino_luck_multiplier() if hasattr(self, "matrix") and self.matrix else 1.0
         for _ in range(qty):
-            res = GachaEngine.pull_one(local_inv)
+            res = GachaEngine.pull_one(local_inv, luck_mult=luck_mult)
             if res[2] == "item":
                 local_inv[res[3]] = local_inv.get(res[3], 0) + 1
             pulls.append(res)
@@ -858,6 +1001,11 @@ class CasinoMixin:
             mauv_mult = self.get_mauville_multiplier()
             if mauv_mult > 1.0:
                 win_amount = int(win_amount * mauv_mult)
+            if hasattr(self, "matrix") and self.matrix:
+                luck_mult = self.matrix.get_casino_luck_multiplier()
+                if luck_mult > 1.0:
+                    win_amount = int(win_amount * luck_mult)
+                    mult = round(mult * luck_mult, 1)
             self.state["spent_tokens"] = self.state["spent_tokens"] - win_amount
             msg = f"{grid_str}\n\nWINNER! ({mult:.1f}x Total Multiplier)\nYou won {format_tokens(win_amount)} tokens!"
         else:

@@ -643,10 +643,15 @@ def evaluate_opponent_reaction_to_raise(
     Returns: (action, bet_amount, quote_line)
     action can be: 'call', 'raise' (3-bet), or 'fold'.
     """
+    top_rank = (dealer_score >> 16) & 0xF
+    second_rank = (dealer_score >> 12) & 0xF
+    is_high_pair = (dealer_rank_name == "One Pair" and top_rank >= 12)
+    is_broadway_ace = (dealer_rank_name == "High Card" and top_rank == 14 and second_rank >= 12)
+
     is_monster = dealer_rank_name in ["Royal Flush", "Straight Flush", "Four of a Kind", "Full House", "Flush", "Straight"]
-    is_strong = dealer_rank_name in ["Three of a Kind", "Two Pair"]
-    is_marginal = dealer_rank_name in ["One Pair"]
-    is_air = dealer_rank_name in ["High Card"]
+    is_strong = dealer_rank_name in ["Three of a Kind", "Two Pair"] or is_high_pair
+    is_marginal = (dealer_rank_name in ["One Pair"] and not is_high_pair) or is_broadway_ace
+    is_air = (dealer_rank_name in ["High Card"] and not is_broadway_ace)
 
     roll = random.random()
 
