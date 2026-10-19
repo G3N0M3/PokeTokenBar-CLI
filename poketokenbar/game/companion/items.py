@@ -282,7 +282,11 @@ class ItemsMixin:
             for d in dex:
                 mon_st = d.get("mon_state")
                 if isinstance(mon_st, dict) and "happiness" in mon_st:
-                    mon_st["happiness"] = min(100, mon_st.get("happiness", 100) + 50)
+                    new_hap = min(100, mon_st.get("happiness", 100) + 50)
+                    mon_st["happiness"] = new_hap
+                    d["happiness"] = new_hap
+                elif "happiness" in d:
+                    d["happiness"] = min(100, d.get("happiness", 100) + 50)
             self.state["inventory"] = inv
             self.save()
             return True, "⚡ Expedition Energy Tonic invigorated all Pokémon in your party and roster (+50% Happiness)!"
@@ -383,6 +387,8 @@ class ItemsMixin:
             if qty > 1:
                 return False, "You can only use one Golden Razz Berry at a time!"
             inv[item_val] -= 1
+            if inv[item_val] <= 0:
+                del inv[item_val]
             self.state["golden_razz_active"] = True
             self.state["inventory"] = inv
             self.save()
@@ -511,6 +517,8 @@ class ItemsMixin:
             if not expeditions:
                 return False, "You have no active expeditions to complete!"
             inv[item_val] -= 1
+            if inv[item_val] <= 0:
+                del inv[item_val]
             # Complete the first expedition instantly
             exp = expeditions[0]
             remaining_xp = max(0, exp.get("target", 0) - exp.get("progress", 0))
@@ -557,40 +565,51 @@ class ItemsMixin:
             }
             self.state["active_boss"] = active_boss
             inv[item_val] -= 1
+            if inv[item_val] <= 0:
+                del inv[item_val]
             self.state["inventory"] = inv
             self.save()
             return True, f"🪈 You played the Poké Flute! A wild Gym Boss {b['name']} (#{b['sp_id']}) was summoned! (HP: {format_tokens(b['hp'])})"
 
         elif item_kind == ItemKind.MASTER_BALL or item_val == "master_ball":
+            best_tier = None
             eggs = self.state.get("incubating_eggs", {})
-            if not eggs:
-                # If they have an active legacy egg
-                if self.active_mon is None:
-                    curr_tier = self.state.get("current_egg_tier") or self.state.get("egg_tier") or "normal"
-                    eggs[curr_tier] = self.state.get("egg_usage", 0)
-                else:
-                    return False, "You need an incubating egg to use the Master Ball!"
-            
+            pending = self.state.get("pending_eggs", [])
+            if self.state.get("egg_tier"):
+                best_tier = self.state.get("egg_tier")
+                self.state["egg_tier"] = None
+                self.state["egg_usage"] = 0
+            elif pending:
+                best_idx = max(range(len(pending)), key=lambda idx: self.parse_egg_entry(pending[idx])[1])
+                best_tier, _ = self.parse_egg_entry(pending.pop(best_idx))
+                self.state["pending_eggs"] = pending
+            elif eggs:
+                best_tier = max(eggs.keys(), key=lambda t: eggs[t])
+                eggs.pop(best_tier, None)
+                self.state["incubating_eggs"] = eggs
+            elif self.active_mon is None and self.state.get("current_egg_tier"):
+                best_tier = self.state.get("current_egg_tier")
+            else:
+                return False, "You need an incubating egg to use the Master Ball!"
+
             inv[item_val] -= 1
-            
-            # Find the egg with the most progress to hatch
-            best_tier = max(eggs.keys(), key=lambda t: eggs[t])
+            if inv[item_val] <= 0:
+                del inv[item_val]
+
             events = []
-            
-            # Ensure the current active mon (if any) is archived first just in case
             if self.active_mon:
                 self._register_to_dex(self.active_mon, status="inactive")
-                
+
             mon, hatch_events = self.hatch_egg(initial_xp=0, force_tier=best_tier, force_shiny=True)
             events.extend(hatch_events)
-            eggs.pop(best_tier, None)
-            self.state["incubating_eggs"] = eggs
             self.state["inventory"] = inv
             self.save()
             return True, f"Threw a Master Ball 🌟! Guaranteed Shiny hatch!\n" + "\n".join(events)
 
         elif item_kind == ItemKind.EXPEDITION_LICENSE or item_val == "expedition_license":
             inv[item_val] -= 1
+            if inv[item_val] <= 0:
+                del inv[item_val]
             self.state["expedition_slots"] = self.state.get("expedition_slots", 10) + 10
             self.state["inventory"] = inv
             self.save()

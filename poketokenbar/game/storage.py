@@ -31,16 +31,41 @@ class StorageManager:
     """Handles saving and loading of the PokeTokenBar game state."""
 
     @staticmethod
+    def _deep_merge_defaults(target: Dict[str, Any], defaults: Dict[str, Any]) -> None:
+        for k, v in defaults.items():
+            if k not in target or target[k] is None:
+                target[k] = v
+            elif isinstance(v, dict) and isinstance(target.get(k), dict):
+                StorageManager._deep_merge_defaults(target[k], v)
+
+    @staticmethod
     def load_state() -> Dict[str, Any]:
+        defaults = StorageManager.default_state()
         state = StorageManager.default_state()
         state_file = get_state_file()
         if state_file.exists():
             try:
                 with open(state_file, "r", encoding="utf-8") as f:
                     saved = json.load(f)
-                    state.update(saved)
+                    if isinstance(saved, dict):
+                        state.update(saved)
             except Exception:
                 pass
+
+        for nested_key in (
+            "stock_market",
+            "luxury",
+            "velvet_sting",
+            "matrix",
+            "rocket_ops",
+            "rocket_armory_charges",
+            "settings",
+            "trainer_battles",
+        ):
+            if isinstance(state.get(nested_key), dict) and isinstance(defaults.get(nested_key), dict):
+                StorageManager._deep_merge_defaults(state[nested_key], defaults[nested_key])
+            elif nested_key not in state or not isinstance(state.get(nested_key), dict):
+                state[nested_key] = defaults[nested_key]
 
         # Migration: ensure VIP bankrolls are present
         vb = state.setdefault("vip_bankrolls", {})
@@ -262,6 +287,9 @@ class StorageManager:
                 "active_threat": None,
                 "patches": [],
                 "sectors": [],
+                "quantum_flux": 0,
+                "overclock_levels": {"ram": 0, "amp": 0},
+                "daemon_raid_tier": 1,
                 "defeated_daemons": [],
                 "root_transcended": False,
                 "total_tokens_consumed": 0,
@@ -270,6 +298,24 @@ class StorageManager:
                 "tutorial_step": 1,
                 "tutorial_completed": False,
                 "tutorial_active": True,
+            },
+            "bank_balance": 0,
+            "bank_loan": 0,
+            "loan_days_active": 0,
+            "tokens_init_ts": None,
+            "expedition_slots": 10,
+            "expedition_insurance": False,
+            "rocket_radar_charges": 0,
+            "daily_grunt_bribe": None,
+            "gacha_pity": 0,
+            "red_battle_state": {},
+            "red_wins": 0,
+            "red_hof": [],
+            "unread_alerts": [],
+            "settings": {
+                "auto_hatch": False,
+                "auto_feed": False,
+                "notifications": True
             }
         }
 

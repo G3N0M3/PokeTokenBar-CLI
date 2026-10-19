@@ -286,6 +286,8 @@ class RocketMixin:
     def _update_rocket_operations(self, delta_tokens: int, events: List[str]):
         """Accumulates progress toward the active or available Rocket Operation."""
         self._update_armory_charges(delta_tokens, events)
+        armory_mult = self.matrix.get_armory_charge_multiplier() if hasattr(self, "matrix") and self.matrix else 1.0
+        eff_delta = int(delta_tokens * armory_mult)
         ops_state = self.state.setdefault("rocket_ops", {})
         for op_id, op_info in ops_state.items():
             if op_info.get("status") in ["active", "available"] and not op_info.get("claimed", False):
@@ -304,7 +306,7 @@ class RocketMixin:
                 for op_def in self.get_rocket_operations():
                     if op_def["id"] == op_id and op_def["target"] > 0:
                         old_prog = op_info.get("progress", 0)
-                        new_prog = old_prog + delta_tokens
+                        new_prog = old_prog + eff_delta
                         op_info["progress"] = new_prog
                         if old_prog < op_def["target"] <= new_prog:
                             events.append(f"🚀 Rocket Operation Ready! Coding target reached for {op_id.upper()}. Type '12' to inspect!")
@@ -1229,6 +1231,9 @@ class RocketMixin:
         if user_lvl < 2:
             return
 
+        armory_mult = self.matrix.get_armory_charge_multiplier() if hasattr(self, "matrix") and self.matrix else 1.0
+        eff_delta = int(delta_tokens * armory_mult)
+
         charges_st = self.state.setdefault("rocket_armory_charges", {})
         tech_list = ["spray", "chrono"]
         if user_lvl >= 4:
@@ -1242,7 +1247,7 @@ class RocketMixin:
                 continue
 
             target = info["target"]
-            p = info["progress"] + delta_tokens
+            p = info["progress"] + eff_delta
             recharged = 0
             while p >= target and c < 3:
                 c += 1

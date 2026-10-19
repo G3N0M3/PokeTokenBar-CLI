@@ -24,9 +24,12 @@ GACHA_LOOT_TABLE = [
 
 class GachaEngine:
     @staticmethod
-    def pull_one(inv: Dict[str, Any] = None) -> Tuple[str, str, str, Any]:
+    def pull_one(inv: Dict[str, Any] = None, luck_mult: float = 1.0) -> Tuple[str, str, str, Any]:
         """Returns (Rarity, DisplayName, Type, Value)"""
-        weights = [item[2] for item in GACHA_LOOT_TABLE]
+        weights = [
+            item[2] * (luck_mult if item[0] in ("RARE", "EPIC", "LEGENDARY") else 1.0)
+            for item in GACHA_LOOT_TABLE
+        ]
         choice = list(random.choices(GACHA_LOOT_TABLE, weights=weights, k=1)[0])
         
         if choice[3] == "evo_stone":
@@ -58,11 +61,11 @@ class GachaEngine:
         return choice[0], choice[1], choice[3], choice[4]
 
     @staticmethod
-    def pull_ten(inv: Dict[str, Any] = None) -> List[Tuple[str, str, str, Any]]:
+    def pull_ten(inv: Dict[str, Any] = None, luck_mult: float = 1.0) -> List[Tuple[str, str, str, Any]]:
         local_inv = dict(inv) if inv else {}
         results = []
         for _ in range(10):
-            res = GachaEngine.pull_one(local_inv)
+            res = GachaEngine.pull_one(local_inv, luck_mult=luck_mult)
             if res[2] == "item":
                 local_inv[res[3]] = local_inv.get(res[3], 0) + 1
             results.append(res)

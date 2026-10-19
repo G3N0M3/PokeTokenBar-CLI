@@ -347,6 +347,8 @@ class ProfileMixin:
                 damage = int(damage * 1.5)
             elif active and active.held_item == "metal_coat":
                 damage = int(damage * 1.15)
+            if hasattr(self, "matrix") and self.matrix:
+                damage = int(damage * self.matrix.get_combat_damage_multiplier())
             active_boss["current_hp"] -= damage
             if active_boss["current_hp"] <= 0:
                 active_boss["current_hp"] = 0
@@ -573,11 +575,13 @@ class ProfileMixin:
         return True, f"Switched active companion to {shiny_str}{sp_name} (#{sp_id})!"
 
     def _check_trainer_battle(self, delta: int, events: List[str]):
-        # Trigger mini trainer encounter every 2.0M tokens
+        # Trigger mini trainer encounter every 2.0M tokens (or 500K with combat.instant_squad)
         used_total = self.state.get("used_since_install", 0)
         last_battle_token = self.state.get("last_battle_token", 0)
+        instant_squad = bool(hasattr(self, "matrix") and self.matrix and self.matrix.is_instant_squad_active())
+        battle_interval = 500_000 if instant_squad else 2_000_000
 
-        if used_total - last_battle_token >= 2_000_000:
+        if used_total - last_battle_token >= battle_interval:
             self.state["last_battle_token"] = used_total
             battles = self.state.get("trainer_battles", {"wins": 0, "losses": 0})
 
@@ -597,7 +601,7 @@ class ProfileMixin:
             now_str = datetime.datetime.now().strftime("%H:%M:%S")
             logs = self.state.get("battle_logs", [])
 
-            if player_stage >= req_stage or random.randint(1, 3) != 1:
+            if instant_squad or player_stage >= req_stage or random.randint(1, 3) != 1:
                 battles["wins"] += 1
                 
                 # Progress active Rocket Operation #2 ONLY if status is active
@@ -677,15 +681,20 @@ class ProfileMixin:
         elif used_total >= 10_000_000:
             rank = "Staff Coder"
 
+        short_badges = [b.replace(" Badge", "") for b in badges[:4]]
+        badge_summary = ", ".join(short_badges) + ("..." if len(badges) > 4 else "")
+        if len(mon_str) > 44:
+            mon_str = mon_str[:41] + "..."
+        div = "=" * 64
         lines = [
-            "========================================================================",
+            div,
             " 📇 POKETOKENBAR — TRAINER PROFILE CARD",
-            "========================================================================",
+            div,
             f" Trainer Rank:     {rank}",
             f" Active Companion: {mon_str}",
             f" Coding Streak:    🔥 {streak} Days",
             f" Tokens Burned:    {format_tokens(used_total)} tokens",
-            f" Gym Badges:       {len(badges)}/10 (" + ", ".join(badges[:4]) + ("..." if len(badges) > 4 else "") + ")",
-            "========================================================================"
+            f" Gym Badges:       {len(badges)}/10 ({badge_summary})",
+            div
         ]
         return "\n".join(lines)

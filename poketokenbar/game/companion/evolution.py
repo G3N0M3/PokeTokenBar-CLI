@@ -293,22 +293,26 @@ class EvolutionMixin:
                     curr_egg = self.state.get("egg_tier")
                     if curr_egg:
                         events.append(f"🥚 Roster Egg: Now incubating your held {curr_egg.replace('_', ' ').title()} Egg!")
+                        self.state["egg_usage"] = 0
                     else:
                         pending = self.state.get("pending_eggs", [])
                         if pending:
                             next_egg = pending.pop(0)
+                            clean_t, clean_p = self.parse_egg_entry(next_egg)
                             if self.is_roster_full():
-                                cash = self.get_egg_token_value(next_egg)
+                                cash = self.get_egg_token_value(clean_t)
                                 self.state["spent_tokens"] = self.state.get("spent_tokens", 0) - cash
-                                events.append(f"🌟 Living Roster Full! Your queued {next_egg.replace('_', ' ').title()} Egg was converted into {format_tokens(cash)} tokens!")
+                                events.append(f"🌟 Living Roster Full! Your queued {clean_t.replace('_', ' ').title()} Egg was converted into {format_tokens(cash)} tokens!")
                                 self.state["egg_tier"] = None
+                                self.state["egg_usage"] = 0
                             else:
-                                self.state["egg_tier"] = next_egg
-                                events.append(f"🥚 Next in queue: Now incubating your {next_egg.replace('_', ' ').title()} Egg!")
+                                self.state["egg_tier"] = clean_t
+                                self.state["egg_usage"] = clean_p
+                                events.append(f"🥚 Next in queue: Now incubating your {clean_t.replace('_', ' ').title()} Egg!")
                             self.state["pending_eggs"] = pending
                         else:
                             self.state["egg_tier"] = None
-                    self.state["egg_usage"] = 0
+                            self.state["egg_usage"] = 0
                     self.save()
                 return events
 

@@ -94,10 +94,12 @@ class ExpeditionsMixin:
                 # Grant reward
                 inv = self.state.get("inventory", {})
                 yield_mult = 1
+                yield_float = 1.0
                 if hasattr(self, "matrix") and self.matrix:
                     ym = self.matrix.get_tweak_val("expeditions", "yield")
                     if ym:
-                        yield_mult = int(ym)
+                        yield_float = float(ym)
+                        yield_mult = max(1, int(round(yield_float)))
 
                 if reward == "rare_candy":
                     inv["rare_candy"] = inv.get("rare_candy", 0) + yield_mult
@@ -124,12 +126,12 @@ class ExpeditionsMixin:
                         "ice_stone", "shiny_stone", "dusk_stone", "dawn_stone"
                     ]
                     st_key = random.choice(stone_types)
-                    inv[st_key] = inv.get(st_key, 0) + 1
+                    inv[st_key] = inv.get(st_key, 0) + yield_mult
                     st_name = st_key.replace("_", " ").title()
-                    reward_str = f"+1 {st_name} 💎"
+                    reward_str = f"+{yield_mult} {st_name} 💎"
                 else:
-                    inv["berry_golden"] = inv.get("berry_golden", 0) + 1
-                    reward_str = "+1 Golden Razz Berry 🍇"
+                    inv["berry_golden"] = inv.get("berry_golden", 0) + yield_mult
+                    reward_str = f"+{yield_mult} Golden Razz Berry 🍇"
                     if random.random() < 0.15:
                         inv["map_fragment"] = inv.get("map_fragment", 0) + 1
                         reward_str += " & +1 Map 📜!"
@@ -138,7 +140,7 @@ class ExpeditionsMixin:
 
                 dex = self.state.get("dex", [])
                 xp_gain = int(exp["target"] * 0.5)
-                tokens_gain = int(exp["target"] * 0.2)
+                tokens_gain = int(exp["target"] * 0.2 * yield_float)
                 
                 # Check for held item Amulet Coin
                 if active and active.held_item == "amulet_coin":

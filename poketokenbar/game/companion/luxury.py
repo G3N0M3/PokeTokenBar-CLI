@@ -87,13 +87,24 @@ class LuxuryMixin:
         """Backward-compatible alias for get_luxury_state."""
         return self.get_luxury_state()
 
+    def _calculate_total_wealth(self) -> int:
+        """Computes total financial net worth (available + bank + stocks + CDs)."""
+        total_wealth = self.available_tokens + self.state.get("bank_balance", 0)
+        investments = self.state.get("investments", {})
+        prices = self.state.get("stock_market", {}).get("prices", {})
+        for sym, sh in investments.items():
+            if sh > 0:
+                total_wealth += int(sh * prices.get(sym, 0))
+        for cd in self.state.get("term_deposits", []):
+            total_wealth += int(cd.get("current_value", cd.get("principal", 0)))
+        return total_wealth
+
     def is_luxury_available(self) -> bool:
         """Checks if player meets the 100B wealth requirement or has received the invitation."""
         st = self.get_luxury_state()
         if st.get("invitation_sent", False) or st.get("vip_fee_paid", False) or st.get("unlocked", False):
             return True
-        total_wealth = self.available_tokens + self.state.get("bank_balance", 0)
-        return total_wealth >= LUXURY_WEALTH_THRESHOLD
+        return self._calculate_total_wealth() >= LUXURY_WEALTH_THRESHOLD
 
     def is_penthouse_available(self) -> bool:
         """Backward-compatible alias for is_luxury_available."""
@@ -192,12 +203,12 @@ class LuxuryMixin:
         return self.get_luxury_total_value()
 
     def check_luxury_invitation(self) -> Tuple[bool, Optional[str]]:
-        """Checks if total wealth (bank + holding tokens) exceeds 100B to dispatch the invitation."""
+        """Checks if total wealth (bank + holding tokens + stocks + CDs) exceeds 100B to dispatch the invitation."""
         st = self.get_luxury_state()
         if st.get("invitation_sent"):
             return False, None
 
-        total_wealth = self.available_tokens + self.state.get("bank_balance", 0)
+        total_wealth = self._calculate_total_wealth()
         if total_wealth >= LUXURY_WEALTH_THRESHOLD:
             st["invitation_sent"] = True
             st["invitation_pending"] = True
@@ -434,6 +445,9 @@ class LuxuryMixin:
             if self.is_luxury_fully_completed() and not self.state.get("matrix", {}).get("unlocked", False):
                 return True, "👑 You recline on the Sovereign Throne (+10% dividends).\n  ⚡ A strange subterranean vibration hums from beneath the dais..."
             return True, "👑 You recline on the Sovereign Tycoon Throne (+10% stock dividends)!"
+
+        elif d_key == "watch":
+            return True, "⌚ Baron's 24K Sovereign Watch ticks with syndicate precision (+15% VIP poker payouts)!"
 
         return False, "Nothing happened."
 
@@ -737,6 +751,9 @@ class LuxuryMixin:
             "active_threat": None,
             "patches": [],
             "sectors": [],
+            "quantum_flux": 0,
+            "overclock_levels": {"ram": 0, "amp": 0},
+            "daemon_raid_tier": 1,
             "defeated_daemons": [],
             "root_transcended": False,
             "total_tokens_consumed": 0,

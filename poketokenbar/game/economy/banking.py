@@ -476,8 +476,12 @@ class BankingMixin:
         for d in dex:
             if d.get("status") != "evolved":
                 m_state = d.get("mon_state", {})
-                if "happiness" in m_state:
-                    m_state["happiness"] = max(0, m_state["happiness"] - 50)
+                if isinstance(m_state, dict) and "happiness" in m_state:
+                    new_hap = max(0, m_state["happiness"] - 50)
+                    m_state["happiness"] = new_hap
+                    d["happiness"] = new_hap
+                elif "happiness" in d:
+                    d["happiness"] = max(0, d.get("happiness", 100) - 50)
                     
         active = self.active_mon
         if active:

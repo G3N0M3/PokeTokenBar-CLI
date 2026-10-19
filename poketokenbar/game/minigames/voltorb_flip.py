@@ -135,6 +135,8 @@ class VoltorbFlipEngine:
         return True, f"Flipped card [{row}, {col}]: Value {card.value}! Multiplier: {self.current_multiplier}x (Potential: {format_tokens(self.current_bet * self.current_multiplier)})"
 
     def memo(self, row: int, col: int, note: str) -> Tuple[bool, str]:
+        if self.game_state != "playing" or not self.board:
+            return False, "No active Voltorb Flip game! Place a bet first."
         if not (1 <= row <= 5 and 1 <= col <= 5):
             return False, "Coordinates must be 1 to 5."
         card = self.board[row - 1][col - 1]

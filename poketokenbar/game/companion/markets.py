@@ -439,7 +439,10 @@ class MarketsMixin:
         return True, f"📉 Sold {shares} share(s) of {corp.ticker} ({corp.name}) for {format_tokens(payout)} tokens (10% spread applied{pnl_str})."
 
     def get_or_init_black_market(self, force_open: bool = False) -> dict:
-        if self.state.get("permanent_black_market", False):
+        smuggler_active = bool(
+            hasattr(self, "matrix") and self.matrix and self.matrix.get_smuggler_price_multiplier() is not None
+        )
+        if self.state.get("permanent_black_market", False) or smuggler_active:
             force_open = True
         bm = self.state.get("black_market")
         today_str = datetime.date.today().isoformat()
@@ -484,7 +487,7 @@ class MarketsMixin:
 
             self.state["black_market"] = bm
             self.save()
-        if self.state.get("permanent_black_market", False):
+        if self.state.get("permanent_black_market", False) or smuggler_active:
             bm["is_open"] = True
             bm["natural_open"] = True
 
@@ -532,6 +535,10 @@ class MarketsMixin:
 
         price = deal["price"]
         price = int(price * self.get_devon_multiplier())
+        if hasattr(self, "matrix") and self.matrix:
+            smuggler_mult = self.matrix.get_smuggler_price_multiplier()
+            if smuggler_mult is not None:
+                price = max(1, int(price * smuggler_mult))
 
         total_cost = price * qty
         if total_cost > self.available_tokens:
